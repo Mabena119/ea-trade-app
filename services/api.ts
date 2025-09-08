@@ -90,10 +90,12 @@ class ApiService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: authBody.email.trim().toLowerCase() }),
     });
-    if (!res.ok) {
+    let data: { used?: number; paid?: number } = {};
+    try {
+      data = (await res.json()) as { used?: number; paid?: number };
+    } catch (e) {
       throw new Error('Authentication failed');
     }
-    const data = (await res.json()) as { used?: number; paid?: number };
     const used = Number(data?.used ?? 0) === 1;
     const paid = Number(data?.paid ?? 0) === 1;
 

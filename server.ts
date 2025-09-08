@@ -13,6 +13,7 @@ const DB_USER = process.env.DB_USER ?? "eauser";
 const DB_PASSWORD = process.env.DB_PASSWORD ?? "snVO2i%fZSG%";
 const DB_NAME = process.env.DB_NAME ?? "eaconverter";
 const DB_PORT = Number(process.env.DB_PORT ?? 3306);
+const DB_SSL = (process.env.DB_SSL ?? 'false').toLowerCase() === 'true';
 
 let dbPool: mysql.Pool | null = null;
 
@@ -26,6 +27,7 @@ function getDbPool(): mysql.Pool {
             port: DB_PORT,
             connectionLimit: 10,
             waitForConnections: true,
+            ssl: DB_SSL ? { rejectUnauthorized: false } : undefined,
         });
     }
     return dbPool;
