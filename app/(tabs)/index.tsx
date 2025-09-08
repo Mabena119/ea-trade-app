@@ -19,10 +19,19 @@ export default function HomeScreen() {
 
   const [logoError, setLogoError] = useState<boolean>(false);
 
-  // Networking disabled: avoid remote images, use local placeholder
+  // Try to use EA owner logo from license data; fall back to local icon
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
-    void ea;
-    return null;
+    try {
+      const logoRaw = ea?.userData?.owner?.logo ?? '';
+      const logo = typeof logoRaw === 'string' ? logoRaw.trim() : '';
+      if (!logo) return null;
+      if (logo.startsWith('http://') || logo.startsWith('https://') || logo.startsWith('data:')) {
+        return logo;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }, []);
 
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
