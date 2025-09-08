@@ -82,7 +82,7 @@ const serverOptions: {
                 const conn = await pool.getConnection();
                 try {
                     const [rows] = await conn.execute(
-                        "SELECT id, email, paid, sub_token, mentor, used FROM members WHERE email = ? LIMIT 1",
+                        "SELECT id, email, paid, used FROM members WHERE email = ? LIMIT 1",
                         [email]
                     );
 
