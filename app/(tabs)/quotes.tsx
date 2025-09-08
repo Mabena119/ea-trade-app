@@ -171,7 +171,7 @@ export default function QuotesScreen() {
         Animated.timing(rotateAnim, {
           toValue: 1,
           duration: 800,
-          useNativeDriver: true,
+          useNativeDriver: false,
         })
       );
       rotateAnimation.start();
@@ -181,7 +181,7 @@ export default function QuotesScreen() {
         Animated.timing(rotateAnim, {
           toValue: 0,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }).start();
       };
     }
