@@ -507,6 +507,8 @@ export default function MetaTraderScreen() {
   const fallbackSuccessRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brokerFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authFinalizedRef = useRef<boolean>(false);
+  const reinjectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reinjectAttemptsRef = useRef<number>(0);
   const { mtAccount, setMTAccount, mt4Account, setMT4Account, mt5Account, setMT5Account } = useApp();
 
   // Load existing account data when tab changes
@@ -866,6 +868,10 @@ export default function MetaTraderScreen() {
     if (webViewRef.current) {
       webViewRef.current = null;
     }
+    if (reinjectTimerRef.current) {
+      clearTimeout(reinjectTimerRef.current);
+      reinjectTimerRef.current = null;
+    }
     setAuthState({ loading: false, showAllSymbols: false, chooseSymbol: false, logged: false, attempt: 0 });
     setAuthenticationStep('Initializing...');
     console.log('Authentication WebView destroyed and cleaned up');
@@ -875,6 +881,37 @@ export default function MetaTraderScreen() {
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(script);
     }
+  };
+
+  const injectAuthScriptOnce = () => {
+    try {
+      const script = getAuthenticationScript({ login, password, server });
+      if (webViewRef.current?.injectJavaScript) {
+        webViewRef.current.injectJavaScript(script);
+      }
+    } catch (e) {
+      console.error('Error injecting auth script:', e);
+    }
+  };
+
+  const scheduleReInjection = () => {
+    // Clear any existing timer
+    if (reinjectTimerRef.current) {
+      clearTimeout(reinjectTimerRef.current);
+      reinjectTimerRef.current = null;
+    }
+    reinjectAttemptsRef.current = 0;
+
+    const tick = () => {
+      if (authFinalizedRef.current || !showWebView) return;
+      if (reinjectAttemptsRef.current >= 8) return; // ~16s total
+      reinjectAttemptsRef.current += 1;
+      injectAuthScriptOnce();
+      reinjectTimerRef.current = setTimeout(tick, 2000) as unknown as ReturnType<typeof setTimeout>;
+    };
+
+    // Start after a brief delay for UI readiness
+    reinjectTimerRef.current = setTimeout(tick, 1500) as unknown as ReturnType<typeof setTimeout>;
   };
 
   const onWebViewMessage = (event: any) => {
@@ -1417,10 +1454,10 @@ export default function MetaTraderScreen() {
               source={{ uri: 'https://web-terminal.mql5.com' }}
               onMessage={onWebViewMessage}
               onLoad={() => {
-                const script = getAuthenticationScript({ login, password, server });
-                if (webViewRef.current?.injectJavaScript) {
-                  webViewRef.current.injectJavaScript(script);
-                }
+                injectAuthScriptOnce();
+              }}
+              onLoadEnd={() => {
+                scheduleReInjection();
               }}
               javaScriptEnabled
               domStorageEnabled
