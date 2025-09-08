@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, Linking } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, Linking, Platform } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
 // Networking disabled: avoid external browser/payment flows
 import { useApp } from '@/providers/app-provider';
@@ -14,6 +15,8 @@ export default function LoginScreen() {
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [modalTitle, setModalTitle] = useState<string>('');
   const [modalMessage, setModalMessage] = useState<string>('');
+  const [paymentVisible, setPaymentVisible] = useState<boolean>(false);
+  const [paymentUrl, setPaymentUrl] = useState<string>('');
   const { setUser } = useApp();
 
   const handleProceed = async () => {
@@ -37,16 +40,8 @@ export default function LoginScreen() {
       // If user doesn't exist: redirect to payment/shop page
       if (account.status === 'not_found') {
         const url = `https://ea-converter.com/shop/?email=${encodeURIComponent(trimmedEmail)}&mentor=${encodeURIComponent(trimmedMentor)}`;
-        try {
-          if (typeof window !== 'undefined' && window?.location) {
-            window.location.assign(url);
-          } else {
-            await Linking.openURL(url);
-          }
-        } catch {
-          // fallback
-          Alert.alert('Redirect', 'Please continue to payment in your browser.');
-        }
+        setPaymentUrl(url);
+        setPaymentVisible(true);
         return;
       }
 
@@ -139,6 +134,39 @@ export default function LoginScreen() {
             >
               <Text style={styles.modalButtonText}>OK</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      {paymentVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={styles.modalTitle}>Complete Payment</Text>
+              <TouchableOpacity onPress={() => setPaymentVisible(false)}>
+                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {Platform.OS === 'web' ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={styles.modalMessage}>We opened the payment page in a new tab. If it didn't open, tap the button below.</Text>
+                <TouchableOpacity
+                  style={[styles.modalButton, { marginTop: 12 }]}
+                  onPress={() => {
+                    try {
+                      window.open(paymentUrl, '_blank', 'noopener');
+                    } catch {
+                      Linking.openURL(paymentUrl).catch(() => { });
+                    }
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Open Payment</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
+                <WebView source={{ uri: paymentUrl }} startInLoadingState />
+              </View>
+            )}
           </View>
         </View>
       )}
