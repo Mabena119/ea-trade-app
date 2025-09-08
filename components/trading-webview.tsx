@@ -121,6 +121,20 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 
   const credentials = getAccountCredentials();
 
+  // Fallback: if no tradeConfig yet, use any linked account to at least authenticate
+  const getAnyAvailableCredentials = useCallback((): { platform: 'MT4' | 'MT5'; credentials: { login: string; password: string; server?: string } } | null => {
+    if (tradeConfig && credentials) {
+      return { platform: tradeConfig.platform, credentials };
+    }
+    if (mt5Account) {
+      return { platform: 'MT5', credentials: { login: mt5Account.login, password: mt5Account.password, server: mt5Account.server } };
+    }
+    if (mt4Account) {
+      return { platform: 'MT4', credentials: { login: mt4Account.login, password: mt4Account.password, server: mt4Account.server } };
+    }
+    return null;
+  }, [tradeConfig, credentials, mt4Account, mt5Account]);
+
   // Generate MT4 authentication and trading JavaScript - Reverted to working state
   const generateMT4JavaScript = useCallback(() => {
     if (!signal || !tradeConfig || !credentials) return '';
@@ -896,16 +910,53 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
+  // Login-only script to authenticate without executing a trade
+  const generateLoginOnlyJavaScript = useCallback((platform: 'MT4' | 'MT5', creds: { login: string; password: string; server?: string }) => {
+    if (platform === 'MT4') {
+      return `
+        (function(){
+          try {
+            var loginEl = document.getElementById('login');
+            var serverEl = document.getElementById('server');
+            var passEl = document.getElementById('password');
+            if (loginEl) { loginEl.value = '${creds.login}'; loginEl.dispatchEvent(new Event('input', { bubbles: true })); loginEl.dispatchEvent(new Event('change', { bubbles: true })); }
+            if (serverEl) { serverEl.value = '${creds.server ?? ''}'; serverEl.dispatchEvent(new Event('input', { bubbles: true })); serverEl.dispatchEvent(new Event('change', { bubbles: true })); }
+            if (passEl) { passEl.value = '${creds.password}'; passEl.dispatchEvent(new Event('input', { bubbles: true })); passEl.dispatchEvent(new Event('change', { bubbles: true })); }
+            var btns = document.querySelectorAll('button.input-button');
+            if (btns && btns[3]) { btns[3].removeAttribute('disabled'); btns[3].disabled = false; btns[3].click(); }
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'step', message: 'Login submitted (MT4)' }));
+          } catch(e) {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: 'Login injection failed (MT4): ' + String(e) }));
+          }
+        })();
+      `;
+    }
+    return `
+      (function(){
+        try {
+          var x = document.querySelector('input[name="login"]');
+          if (x) { x.value = '${creds.login}'; x.dispatchEvent(new Event('input', { bubbles: true })); }
+          var y = document.querySelector('input[name="password"]');
+          if (y) { y.value = '${creds.password}'; y.dispatchEvent(new Event('input', { bubbles: true })); }
+          var btn = document.querySelector('.button.svelte-1wrky82.active');
+          if (btn) { btn.click(); }
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'step', message: 'Login submitted (MT5)' }));
+        } catch(e) {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: 'Login injection failed (MT5): ' + String(e) }));
+        }
+      })();
+    `;
+  }, []);
+
   // Use native web terminals for MT4/MT5 execution
   const getWebViewUrl = useCallback(() => {
     try {
-      if (!tradeConfig) return '';
-      // Using MetaTrader web terminal (works on Safari via native WebView)
+      // Always load the terminal so we can log in even without an active signal/config
       return 'https://web-terminal.mql5.com';
     } catch {
       return '';
     }
-  }, [tradeConfig]);
+  }, []);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
@@ -1057,23 +1108,29 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     setCurrentStep('Terminal loaded, starting execution...');
     lastUpdateRef.current = Date.now();
 
-    // Inject trading script after page loads
-    if (webViewRef.current && tradeConfig) {
-      const script = tradeConfig.platform === 'MT4' ?
-        generateMT4JavaScript() :
-        generateMT5JavaScript();
-
-      console.log('Injecting trading script for', tradeConfig.platform);
-      webViewRef.current.injectJavaScript(script);
-
-      // Start heartbeat after script injection with delay
-      setTimeout(() => {
-        if (Date.now() - lastUpdateRef.current > 2000) {
-          startHeartbeat();
+    // Inject trading or login-only script after page loads
+    if (webViewRef.current) {
+      let script = '';
+      if (tradeConfig && credentials) {
+        script = tradeConfig.platform === 'MT4' ? generateMT4JavaScript() : generateMT5JavaScript();
+        console.log('Injecting trading script for', tradeConfig.platform);
+      } else {
+        const anyCreds = getAnyAvailableCredentials();
+        if (anyCreds) {
+          script = generateLoginOnlyJavaScript(anyCreds.platform, anyCreds.credentials);
+          console.log('Injecting login-only script for', anyCreds.platform);
         }
-      }, 2000);
+      }
+      if (script) {
+        webViewRef.current.injectJavaScript(script);
+        setTimeout(() => {
+          if (Date.now() - lastUpdateRef.current > 2000) {
+            startHeartbeat();
+          }
+        }, 2000);
+      }
     }
-  }, [tradeConfig, generateMT4JavaScript, generateMT5JavaScript, stopHeartbeat, startHeartbeat]);
+  }, [tradeConfig, credentials, generateMT4JavaScript, generateMT5JavaScript, generateLoginOnlyJavaScript, getAnyAvailableCredentials, stopHeartbeat, startHeartbeat]);
 
   const handleWebViewError = useCallback((syntheticEvent: any) => {
     const { nativeEvent } = syntheticEvent;
