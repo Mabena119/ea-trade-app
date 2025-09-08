@@ -147,20 +147,14 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
             {Platform.OS === 'web' ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={styles.modalMessage}>We opened the payment page in a new tab. If it didn't open, tap the button below.</Text>
-                <TouchableOpacity
-                  style={[styles.modalButton, { marginTop: 12 }]}
-                  onPress={() => {
-                    try {
-                      window.open(paymentUrl, '_blank', 'noopener');
-                    } catch {
-                      Linking.openURL(paymentUrl).catch(() => { });
-                    }
-                  }}
-                >
-                  <Text style={styles.modalButtonText}>Open Payment</Text>
-                </TouchableOpacity>
+              <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
+                {/* On web, render the payment page inline via iframe inside the modal */}
+                <iframe
+                  src={paymentUrl}
+                  style={{ width: '100%', height: '100%', border: '0' }}
+                  loading="eager"
+                  allow="payment *; clipboard-write;"
+                />
               </View>
             ) : (
               <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
