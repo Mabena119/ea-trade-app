@@ -32,7 +32,8 @@ export default function LoginScreen() {
         return;
       }
       if (account.used) {
-        Alert.alert('Notice', 'This account has already been used on a device.');
+        Alert.alert('Error', 'This account has already been used on a device.');
+        return;
       }
       setUser({ mentorId: mentorId.trim(), email: account.email });
       router.push('/license');
