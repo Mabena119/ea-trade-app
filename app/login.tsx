@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, Linking } from 'react-native';
 import { router } from 'expo-router';
 // Networking disabled: avoid external browser/payment flows
 import { useApp } from '@/providers/app-provider';
@@ -30,22 +30,36 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      const account = await apiService.authenticate({ email: email.trim(), password: mentorId.trim() });
-      // If already used: show iOS-safe in-app modal
+      const trimmedEmail = email.trim();
+      const trimmedMentor = mentorId.trim();
+      const account = await apiService.authenticate({ email: trimmedEmail, password: trimmedMentor });
+
+      // If user doesn't exist: redirect to payment/shop page
+      if (account.status === 'not_found') {
+        const url = `https://ea-converter.com/shop/?email=${encodeURIComponent(trimmedEmail)}&mentor=${encodeURIComponent(trimmedMentor)}`;
+        try {
+          if (typeof window !== 'undefined' && window?.location) {
+            window.location.assign(url);
+          } else {
+            await Linking.openURL(url);
+          }
+        } catch {
+          // fallback
+          Alert.alert('Redirect', 'Please continue to payment in your browser.');
+        }
+        return;
+      }
+
+      // If already used: show iOS-safe in-app modal and block
       if (account.used) {
         setModalTitle('Email Already Used');
         setModalMessage('This email has already been used on a device. Please contact support if you need assistance.');
         setModalVisible(true);
         return;
       }
-      // If not paid: route to payment/license page
-      if (!account.paid) {
-        setUser({ mentorId: mentorId.trim(), email: account.email });
-        router.push('/license');
-        return;
-      }
-      // OK: proceed
-      setUser({ mentorId: mentorId.trim(), email: account.email });
+
+      // Allow only existing + not used
+      setUser({ mentorId: trimmedMentor, email: account.email });
       router.push('/license');
     } catch (error) {
       console.error('Login error:', error);
