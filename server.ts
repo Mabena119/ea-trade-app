@@ -219,7 +219,20 @@ const serverOptions: {
                                 console.error("eas lookup error:", eaQueryError);
                             }
                         }
-                    } catch {}
+                    } catch { }
+
+                    // Ensure ownerLogo is a fully-qualified URL if it's a filename/path
+                    try {
+                        if (ownerLogo) {
+                            const trimmed = String(ownerLogo).trim();
+                            const lower = trimmed.toLowerCase();
+                            const isAbsolute = lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("data:");
+                            if (!isAbsolute) {
+                                const filePart = trimmed.replace(/^\/+/, "");
+                                ownerLogo = `https://ea-converter.com/admin/uploads/${filePart}`;
+                            }
+                        }
+                    } catch { }
 
                     const data = {
                         user: String(row.user ?? ""),
