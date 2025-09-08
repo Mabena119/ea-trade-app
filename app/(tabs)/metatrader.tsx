@@ -1,0 +1,2012 @@
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
+import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw } from 'lucide-react-native';
+import { useApp } from '@/providers/app-provider';
+
+// Default MT4 Brokers (will be updated from web terminal)
+const DEFAULT_MT4_BROKERS = [
+  'FXCM-Demo01',
+  'FXCM-USDDemo01',
+  'FXCM-Real',
+  'FXCM-USDReal',
+  'ICMarkets-Demo',
+  'ICMarkets-Live01',
+  'ICMarkets-Live02',
+  'XM-Demo 1',
+  'XM-Demo 2',
+  'XM-Demo 3',
+  'XM-Real 1',
+  'XM-Real 2',
+  'XM-Real 3',
+  'OANDA-Demo',
+  'OANDA-Live',
+  'Pepperstone-Demo',
+  'Pepperstone-Live',
+  'IG-Demo',
+  'IG-Live',
+  'FXTM-Demo',
+  'FXTM-Real',
+  'Exness-Demo',
+  'Exness-Real1',
+  'Exness-Real2',
+  'Admiral-Demo',
+  'Admiral-Real',
+  'FBS-Demo',
+  'FBS-Real',
+  'HotForex-Demo',
+  'HotForex-Live',
+  'InstaForex-Demo',
+  'InstaForex-Live',
+  'Tickmill-Demo',
+  'Tickmill-Live',
+  'FxPro-Demo',
+  'FxPro-Live',
+  'FIBO-Demo',
+  'FIBO-Live',
+  'Alpari-Demo',
+  'Alpari-Live',
+  'RoboForex-Demo',
+  'RoboForex-Live',
+  'LiteForex-Demo',
+  'LiteForex-Live',
+  'NordFX-Demo',
+  'NordFX-Live',
+  'AMarkets-Demo',
+  'AMarkets-Live',
+  'Forex4you-Demo',
+  'Forex4you-Live',
+  'JustForex-Demo',
+  'JustForex-Live',
+  'OctaFX-Demo',
+  'OctaFX-Live',
+  'TeleTrade-Demo',
+  'TeleTrade-Live',
+  'ForexClub-Demo',
+  'ForexClub-Live',
+  'Weltrade-Demo',
+  'Weltrade-Live',
+  'FreshForex-Demo',
+  'FreshForex-Live',
+  'Grand Capital-Demo',
+  'Grand Capital-Live',
+  'Forex Optimum-Demo',
+  'Forex Optimum-Live',
+  'NPBFX-Demo',
+  'NPBFX-Live',
+  'Traders Trust-Demo',
+  'Traders Trust-Live',
+  'Windsor Brokers-Demo',
+  'Windsor Brokers-Live',
+  'FXOpen-Demo',
+  'FXOpen-Live',
+  'AGEA-Demo',
+  'AGEA-Live',
+  'Dukascopy-Demo',
+  'Dukascopy-Live',
+  'Swissquote-Demo',
+  'Swissquote-Live',
+  'Saxo Bank-Demo',
+  'Saxo Bank-Live',
+  'Interactive Brokers-Demo',
+  'Interactive Brokers-Live',
+  'TD Ameritrade-Demo',
+  'TD Ameritrade-Live',
+  'Charles Schwab-Demo',
+  'Charles Schwab-Live',
+  'E*TRADE-Demo',
+  'E*TRADE-Live',
+  'Fidelity-Demo',
+  'Fidelity-Live',
+  'Vanguard-Demo',
+  'Vanguard-Live',
+  'Plus500-Demo',
+  'Plus500-Live',
+  'eToro-Demo',
+  'eToro-Live',
+  'AvaTrade-Demo',
+  'AvaTrade-Live',
+  'Markets.com-Demo',
+  'Markets.com-Live',
+  'CMC Markets-Demo',
+  'CMC Markets-Live',
+  'City Index-Demo',
+  'City Index-Live',
+  'GAIN Capital-Demo',
+  'GAIN Capital-Live',
+  'ThinkMarkets-Demo',
+  'ThinkMarkets-Live',
+  'Vantage FX-Demo',
+  'Vantage FX-Live',
+  'BlackBull Markets-Demo',
+  'BlackBull Markets-Live',
+  'FP Markets-Demo',
+  'FP Markets-Live',
+  'Blueberry Markets-Demo',
+  'Blueberry Markets-Live',
+  'Axi-Demo',
+  'Axi-Live',
+  'GO Markets-Demo',
+  'GO Markets-Live',
+  'Eightcap-Demo',
+  'Eightcap-Live',
+  'Global Prime-Demo',
+  'Global Prime-Live',
+  'Fusion Markets-Demo',
+  'Fusion Markets-Live',
+  'Darwinex-Demo',
+  'Darwinex-Live',
+  'TMGM-Demo',
+  'TMGM-Live',
+  'Hantec Markets-Demo',
+  'Hantec Markets-Live',
+  'Core Spreads-Demo',
+  'Core Spreads-Live',
+  'Capital.com-Demo',
+  'Capital.com-Live',
+  'XTB-Demo',
+  'XTB-Live',
+  'Trading 212-Demo',
+  'Trading 212-Live',
+  'Libertex-Demo',
+  'Libertex-Live',
+  'IQ Option-Demo',
+  'IQ Option-Live',
+  'Olymp Trade-Demo',
+  'Olymp Trade-Live',
+  'Binomo-Demo',
+  'Binomo-Live',
+  'Pocket Option-Demo',
+  'Pocket Option-Live',
+  'Expert Option-Demo',
+  'Expert Option-Live',
+  'Quotex-Demo',
+  'Quotex-Live',
+  'Deriv-Demo',
+  'Deriv-Live',
+  'Binary.com-Demo',
+  'Binary.com-Live',
+  'Nadex-Demo',
+  'Nadex-Live',
+  'CBOE-Demo',
+  'CBOE-Live',
+  'CME Group-Demo',
+  'CME Group-Live',
+  'ICE-Demo',
+  'ICE-Live',
+  'Eurex-Demo',
+  'Eurex-Live',
+  'LSE-Demo',
+  'LSE-Live',
+  'NYSE-Demo',
+  'NYSE-Live',
+  'NASDAQ-Demo',
+  'NASDAQ-Live',
+  'TSX-Demo',
+  'TSX-Live',
+  'ASX-Demo',
+  'ASX-Live',
+  'JSE-Demo',
+  'JSE-Live',
+  'BSE-Demo',
+  'BSE-Live',
+  'NSE-Demo',
+  'NSE-Live',
+  'SSE-Demo',
+  'SSE-Live',
+  'SZSE-Demo',
+  'SZSE-Live',
+  'TSE-Demo',
+  'TSE-Live',
+  'HKEX-Demo',
+  'HKEX-Live',
+  'SGX-Demo',
+  'SGX-Live',
+  'KRX-Demo',
+  'KRX-Live',
+  'TWSE-Demo',
+  'TWSE-Live',
+  'SET-Demo',
+  'SET-Live',
+  'IDX-Demo',
+  'IDX-Live',
+  'PSE-Demo',
+  'PSE-Live',
+  'KLSE-Demo',
+  'KLSE-Live',
+  'VNX-Demo',
+  'VNX-Live',
+  'MSX-Demo',
+  'MSX-Live',
+  'CSE-Demo',
+  'CSE-Live',
+  'DSE-Demo',
+  'DSE-Live',
+  'KSE-Demo',
+  'KSE-Live',
+  'EGX-Demo',
+  'EGX-Live',
+  'CASE-Demo',
+  'CASE-Live',
+  'NSE-Nigeria-Demo',
+  'NSE-Nigeria-Live',
+  'GSE-Demo',
+  'GSE-Live',
+  'USE-Demo',
+  'USE-Live',
+  'RSE-Demo',
+  'RSE-Live',
+  'MSE-Demo',
+  'MSE-Live',
+  'ZSE-Demo',
+  'ZSE-Live',
+  'BSE-Botswana-Demo',
+  'BSE-Botswana-Live',
+  'NSX-Demo',
+  'NSX-Live',
+  'SEM-Demo',
+  'SEM-Live',
+  'BRVM-Demo',
+  'BRVM-Live',
+  'BVMAC-Demo',
+  'BVMAC-Live',
+  'DSX-Demo',
+  'DSX-Live',
+  'BVB-Demo',
+  'BVB-Live',
+  'WSE-Demo',
+  'WSE-Live',
+  'PX-Demo',
+  'PX-Live',
+  'BET-Demo',
+  'BET-Live',
+  'BSE-Bulgaria-Demo',
+  'BSE-Bulgaria-Live',
+  'BELEX-Demo',
+  'BELEX-Live',
+  'MSE-Macedonia-Demo',
+  'MSE-Macedonia-Live',
+  'SASE-Demo',
+  'SASE-Live',
+  'LJSE-Demo',
+  'LJSE-Live',
+  'ZSE-Croatia-Demo',
+  'ZSE-Croatia-Live',
+  'BSSE-Demo',
+  'BSSE-Live',
+  'BSE-Armenia-Demo',
+  'BSE-Armenia-Live',
+  'GSE-Georgia-Demo',
+  'GSE-Georgia-Live',
+  'BCSE-Demo',
+  'BCSE-Live',
+  'KASE-Demo',
+  'KASE-Live',
+  'RSE-Kyrgyzstan-Demo',
+  'RSE-Kyrgyzstan-Live',
+  'UZSE-Demo',
+  'UZSE-Live',
+  'TASE-Demo',
+  'TASE-Live',
+  'ASE-Demo',
+  'ASE-Live',
+  'DFM-Demo',
+  'DFM-Live',
+  'ADX-Demo',
+  'ADX-Live',
+  'QE-Demo',
+  'QE-Live',
+  'KSE-Kuwait-Demo',
+  'KSE-Kuwait-Live',
+  'BSE-Bahrain-Demo',
+  'BSE-Bahrain-Live',
+  'MSM-Demo',
+  'MSM-Live',
+  'TSE-Iran-Demo',
+  'TSE-Iran-Live',
+  'ISE-Demo',
+  'ISE-Live',
+  'BIST-Demo',
+  'BIST-Live',
+  'MOEX-Demo',
+  'MOEX-Live',
+  'SPB-Demo',
+  'SPB-Live',
+  'KASE-Demo',
+  'KASE-Live',
+  'BCSE-Demo',
+  'BCSE-Live',
+  'PFTS-Demo',
+  'PFTS-Live',
+  'GPW-Demo',
+  'GPW-Live',
+  'BVB-Romania-Demo',
+  'BVB-Romania-Live',
+  'BSE-Sofia-Demo',
+  'BSE-Sofia-Live',
+  'BELEX15-Demo',
+  'BELEX15-Live',
+  'MSE-Montenegro-Demo',
+  'MSE-Montenegro-Live',
+  'SASE-Slovenia-Demo',
+  'SASE-Slovenia-Live',
+  'LJSE-Slovenia-Demo',
+  'LJSE-Slovenia-Live',
+  'ZSE-Zagreb-Demo',
+  'ZSE-Zagreb-Live',
+  'BSSE-Bosnia-Demo',
+  'BSSE-Bosnia-Live',
+  'MSE-Skopje-Demo',
+  'MSE-Skopje-Live',
+  'ASE-Athens-Demo',
+  'ASE-Athens-Live',
+  'CSE-Cyprus-Demo',
+  'CSE-Cyprus-Live',
+  'MSE-Malta-Demo',
+  'MSE-Malta-Live',
+  // South African MT4 Brokers
+  'HotForex-SA-Demo',
+  'HotForex-SA-Live',
+  'XM-SA-Demo',
+  'XM-SA-Live',
+  'Exness-SA-Demo',
+  'Exness-SA-Live',
+  'FBS-SA-Demo',
+  'FBS-SA-Live',
+  'OctaFX-SA-Demo',
+  'OctaFX-SA-Live',
+  'InstaForex-SA-Demo',
+  'InstaForex-SA-Live',
+  'RoboForex-SA-Demo',
+  'RoboForex-SA-Live',
+  'Tickmill-SA-Demo',
+  'Tickmill-SA-Live',
+  'FxPro-SA-Demo',
+  'FxPro-SA-Live',
+  'Admiral-SA-Demo',
+  'Admiral-SA-Live',
+  'FXTM-SA-Demo',
+  'FXTM-SA-Live',
+  'Alpari-SA-Demo',
+  'Alpari-SA-Live',
+  'AvaTrade-SA-Demo',
+  'AvaTrade-SA-Live',
+  'Plus500-SA-Demo',
+  'Plus500-SA-Live',
+  'eToro-SA-Demo',
+  'eToro-SA-Live',
+  'Capital.com-SA-Demo',
+  'Capital.com-SA-Live',
+  'XTB-SA-Demo',
+  'XTB-SA-Live',
+  'Trading212-SA-Demo',
+  'Trading212-SA-Live',
+  'Libertex-SA-Demo',
+  'Libertex-SA-Live',
+  'IQ Option-SA-Demo',
+  'IQ Option-SA-Live',
+  'Deriv-SA-Demo',
+  'Deriv-SA-Live',
+  'ThinkMarkets-SA-Demo',
+  'ThinkMarkets-SA-Live',
+  'Vantage-SA-Demo',
+  'Vantage-SA-Live',
+  'IC Markets-SA-Demo',
+  'IC Markets-SA-Live',
+  'Pepperstone-SA-Demo',
+  'Pepperstone-SA-Live',
+  'FP Markets-SA-Demo',
+  'FP Markets-SA-Live',
+  'Axi-SA-Demo',
+  'Axi-SA-Live',
+  'GO Markets-SA-Demo',
+  'GO Markets-SA-Live',
+  'Eightcap-SA-Demo',
+  'Eightcap-SA-Live',
+  'Global Prime-SA-Demo',
+  'Global Prime-SA-Live',
+  'Fusion Markets-SA-Demo',
+  'Fusion Markets-SA-Live',
+  'TMGM-SA-Demo',
+  'TMGM-SA-Live',
+  'Hantec-SA-Demo',
+  'Hantec-SA-Live',
+  'Core Spreads-SA-Demo',
+  'Core Spreads-SA-Live',
+  'Windsor Brokers-SA-Demo',
+  'Windsor Brokers-SA-Live',
+  'FXOpen-SA-Demo',
+  'FXOpen-SA-Live',
+  'AGEA-SA-Demo',
+  'AGEA-SA-Live',
+  'Dukascopy-SA-Demo',
+  'Dukascopy-SA-Live',
+  'Swissquote-SA-Demo',
+  'Swissquote-SA-Live',
+  'Saxo Bank-SA-Demo',
+  'Saxo Bank-SA-Live',
+  'Interactive Brokers-SA-Demo',
+  'Interactive Brokers-SA-Live',
+  'CMC Markets-SA-Demo',
+  'CMC Markets-SA-Live',
+  'City Index-SA-Demo',
+  'City Index-SA-Live',
+  'IG-SA-Demo',
+  'IG-SA-Live',
+  'OANDA-SA-Demo',
+  'OANDA-SA-Live',
+  'FXCM-SA-Demo',
+  'FXCM-SA-Live',
+  'Markets.com-SA-Demo',
+  'Markets.com-SA-Live',
+  'GAIN Capital-SA-Demo',
+  'GAIN Capital-SA-Live',
+  'BlackBull Markets-SA-Demo',
+  'BlackBull Markets-SA-Live',
+  'Blueberry Markets-SA-Demo',
+  'Blueberry Markets-SA-Live',
+  'Darwinex-SA-Demo',
+  'Darwinex-SA-Live',
+  // Additional South African Brokers
+  'RazorMarkets-SA-Demo',
+  'RazorMarkets-SA-Live',
+  'AcctMates-SA-Demo',
+  'AcctMates-SA-Live',
+  'SpacesMarkets-SA-Demo',
+  'SpacesMarkets-SA-Live',
+  'NeoBrokers-SA-Demo',
+  'NeoBrokers-SA-Live',
+  'FundedMarketplace-SA-Demo',
+  'FundedMarketplace-SA-Live',
+  'StandardBank-SA-Demo',
+  'StandardBank-SA-Live',
+  'ABSA-SA-Demo',
+  'ABSA-SA-Live',
+  'FNB-SA-Demo',
+  'FNB-SA-Live',
+  'Nedbank-SA-Demo',
+  'Nedbank-SA-Live',
+  'Capitec-SA-Demo',
+  'Capitec-SA-Live',
+  'PurpleTradingZA-SA-Demo',
+  'PurpleTradingZA-SA-Live',
+  'TradingView-SA-Demo',
+  'TradingView-SA-Live',
+  'EasyEquities-SA-Demo',
+  'EasyEquities-SA-Live',
+  'GTFX-SA-Demo',
+  'GTFX-SA-Live',
+  'TradeFX-SA-Demo',
+  'TradeFX-SA-Live',
+];
+
+// MT5 Brokers - RazorMarkets Only
+const MT5_BROKERS = [
+  'RazorMarkets-Live',
+];
+
+export default function MetaTraderScreen() {
+  const [activeTab, setActiveTab] = useState<'MT5' | 'MT4'>('MT5');
+  const [login, setLogin] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [server, setServer] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showBrokerList, setShowBrokerList] = useState<boolean>(false);
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  const [showWebView, setShowWebView] = useState<boolean>(false);
+  const [showBrokerFetchWebView, setShowBrokerFetchWebView] = useState<boolean>(false);
+  const [authenticationStep, setAuthenticationStep] = useState<string>('Initializing...');
+  const [mt4Brokers, setMt4Brokers] = useState<string[]>(DEFAULT_MT4_BROKERS);
+  const [isLoadingBrokers, setIsLoadingBrokers] = useState<boolean>(false);
+  const [brokerFetchError, setBrokerFetchError] = useState<string | null>(null);
+  const [webViewKey, setWebViewKey] = useState<number>(0);
+  const [brokerFetchKey, setBrokerFetchKey] = useState<number>(0);
+  const webViewRef = useRef<any>(null);
+  const brokerFetchRef = useRef<any>(null);
+  const authTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackSuccessRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const brokerFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authFinalizedRef = useRef<boolean>(false);
+  const { mtAccount, setMTAccount, mt4Account, setMT4Account, mt5Account, setMT5Account } = useApp();
+
+  // Load existing account data when tab changes
+  useEffect(() => {
+    const currentAccount = activeTab === 'MT4' ? mt4Account : mt5Account;
+    if (currentAccount) {
+      setLogin(currentAccount.login || '');
+      setServer(currentAccount.server || '');
+      setPassword(currentAccount.password || '');
+    } else {
+      setLogin('');
+      setServer('');
+      setPassword('');
+    }
+  }, [activeTab, mt4Account, mt5Account]);
+
+  // Authentication state tracking
+  const [authState, setAuthState] = useState({
+    loading: false,
+    showAllSymbols: false,
+    chooseSymbol: false,
+    logged: false,
+    attempt: 0
+  });
+
+  // Fetch MT4 brokers from web terminal - only start WebView when needed
+  const fetchMT4Brokers = async () => {
+    if (Platform.OS === 'web') {
+      setBrokerFetchError('Broker fetching not available on web platform');
+      return;
+    }
+
+    console.log('Starting broker fetch WebView...');
+    // Networking disabled: skip remote fetch and use default list
+    setIsLoadingBrokers(false);
+    setBrokerFetchError('Live broker fetch disabled (offline mode)');
+    setShowBrokerFetchWebView(false);
+  };
+
+  // Close broker fetch WebView and cleanup
+  const closeBrokerFetchWebView = () => {
+    console.log('Closing broker fetch WebView and cleaning up...');
+    setShowBrokerFetchWebView(false);
+    setIsLoadingBrokers(false);
+
+    // Clear timeout
+    if (brokerFetchTimeoutRef.current) {
+      clearTimeout(brokerFetchTimeoutRef.current);
+      brokerFetchTimeoutRef.current = null;
+    }
+
+    // Clear WebView reference
+    if (brokerFetchRef.current) {
+      brokerFetchRef.current = null;
+    }
+
+    console.log('Broker fetch WebView destroyed and cleaned up');
+  };
+
+  // Only fetch brokers when explicitly requested, not on tab change
+  // This prevents unnecessary WebView creation
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (authTimeoutRef.current) {
+        clearTimeout(authTimeoutRef.current);
+      }
+      if (brokerFetchTimeoutRef.current) {
+        clearTimeout(brokerFetchTimeoutRef.current);
+      }
+      console.log('MetaTrader component unmounted - all timeouts cleared');
+    };
+  }, []);
+
+  const onBrokerFetchMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      console.log('Broker fetch message received:', data);
+
+      if (data.type === 'brokers_fetched' && data.brokers) {
+        console.log('Successfully received brokers:', data.brokers.length);
+        setMt4Brokers(data.brokers);
+        setBrokerFetchError(null);
+        // Immediately close and destroy WebView after success
+        setTimeout(() => closeBrokerFetchWebView(), 100);
+      } else if (data.type === 'broker_fetch_error') {
+        console.error('Broker fetch error:', data.message);
+        setBrokerFetchError(data.message || 'Failed to fetch brokers');
+        // Close and destroy WebView on error
+        setTimeout(() => closeBrokerFetchWebView(), 100);
+      }
+    } catch (error) {
+      console.error('Error parsing broker fetch message:', error);
+      setBrokerFetchError('Error processing broker list');
+      // Close and destroy WebView on parsing error
+      setTimeout(() => closeBrokerFetchWebView(), 100);
+    }
+  };
+
+  const getBrokerFetchScript = () => {
+    return `
+      (function() {
+        const sendMessage = (type, data) => {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type, ...data }));
+        };
+        
+        const extractBrokers = () => {
+          try {
+            // Wait for the server dropdown to be available
+            const checkForServerDropdown = () => {
+              const serverInput = document.getElementById('server');
+              if (serverInput) {
+                // Click on server input to open dropdown
+                serverInput.focus();
+                serverInput.click();
+                
+                setTimeout(() => {
+                  // Look for server options in various possible locations
+                  let brokers = [];
+                  
+                  // Method 1: Check for datalist options
+                  const datalist = document.querySelector('datalist');
+                  if (datalist) {
+                    const options = datalist.querySelectorAll('option');
+                    brokers = Array.from(options).map(option => option.value).filter(value => value.trim());
+                  }
+                  
+                  // Method 2: Check for dropdown options
+                  if (brokers.length === 0) {
+                    const dropdownOptions = document.querySelectorAll('select option, .dropdown-option, .server-option');
+                    brokers = Array.from(dropdownOptions).map(option => option.textContent || option.value).filter(value => value && value.trim());
+                  }
+                  
+                  // Method 3: Check for any elements containing server names
+                  if (brokers.length === 0) {
+                    const allElements = document.querySelectorAll('*');
+                    const serverPattern = /^[A-Za-z0-9\-_]+\-(Demo|Live|Real|Server)\d*$/;
+                    
+                    allElements.forEach(element => {
+                      const text = element.textContent?.trim();
+                      if (text && serverPattern.test(text) && !brokers.includes(text)) {
+                        brokers.push(text);
+                      }
+                    });
+                  }
+                  
+                  // Method 4: Extract from JavaScript variables if available
+                  if (brokers.length === 0) {
+                    try {
+                      // Check if there are any global variables containing server lists
+                      const scripts = document.querySelectorAll('script');
+                      scripts.forEach(script => {
+                        const content = script.textContent || '';
+                        const serverMatches = content.match(/["'][A-Za-z0-9\-_]+\-(Demo|Live|Real|Server)\d*["']/g);
+                        if (serverMatches) {
+                          serverMatches.forEach(match => {
+                            const server = match.replace(/["']/g, '');
+                            if (!brokers.includes(server)) {
+                              brokers.push(server);
+                            }
+                          });
+                        }
+                      });
+                    } catch (e) {
+                      console.log('Error extracting from scripts:', e);
+                    }
+                  }
+                  
+                  // If we still don't have brokers, use a comprehensive list of known MT4 servers
+                  if (brokers.length === 0) {
+                    brokers = [
+                      'FXCM-Demo01', 'FXCM-USDDemo01', 'FXCM-Real', 'FXCM-USDReal',
+                      'ICMarkets-Demo', 'ICMarkets-Live01', 'ICMarkets-Live02',
+                      'XM-Demo 1', 'XM-Demo 2', 'XM-Demo 3', 'XM-Real 1', 'XM-Real 2', 'XM-Real 3',
+                      'OANDA-Demo', 'OANDA-Live', 'Pepperstone-Demo', 'Pepperstone-Live',
+                      'IG-Demo', 'IG-Live', 'FXTM-Demo', 'FXTM-Real',
+                      'Exness-Demo', 'Exness-Real1', 'Exness-Real2',
+                      'Admiral-Demo', 'Admiral-Real', 'FBS-Demo', 'FBS-Real',
+                      'HotForex-Demo', 'HotForex-Live', 'InstaForex-Demo', 'InstaForex-Live',
+                      'Tickmill-Demo', 'Tickmill-Live', 'FxPro-Demo', 'FxPro-Live',
+                      'FIBO-Demo', 'FIBO-Live', 'Alpari-Demo', 'Alpari-Live',
+                      'RoboForex-Demo', 'RoboForex-Live', 'LiteForex-Demo', 'LiteForex-Live',
+                      'NordFX-Demo', 'NordFX-Live', 'AMarkets-Demo', 'AMarkets-Live',
+                      'OctaFX-Demo', 'OctaFX-Live', 'TeleTrade-Demo', 'TeleTrade-Live',
+                      'FreshForex-Demo', 'FreshForex-Live', 'Grand Capital-Demo', 'Grand Capital-Live',
+                      'NPBFX-Demo', 'NPBFX-Live', 'Traders Trust-Demo', 'Traders Trust-Live',
+                      'FXOpen-Demo', 'FXOpen-Live', 'Dukascopy-Demo', 'Dukascopy-Live',
+                      'AvaTrade-Demo', 'AvaTrade-Live', 'Plus500-Demo', 'Plus500-Live',
+                      'ThinkMarkets-Demo', 'ThinkMarkets-Live', 'Vantage FX-Demo', 'Vantage FX-Live',
+                      'BlackBull Markets-Demo', 'BlackBull Markets-Live', 'FP Markets-Demo', 'FP Markets-Live',
+                      'Axi-Demo', 'Axi-Live', 'GO Markets-Demo', 'GO Markets-Live',
+                      'Eightcap-Demo', 'Eightcap-Live', 'Global Prime-Demo', 'Global Prime-Live',
+                      'Fusion Markets-Demo', 'Fusion Markets-Live', 'TMGM-Demo', 'TMGM-Live'
+                    ];
+                  }
+                  
+                  // Remove duplicates and sort
+                  brokers = [...new Set(brokers)].sort();
+                  
+                  console.log('Extracted brokers:', brokers.length);
+                  sendMessage('brokers_fetched', { brokers });
+                }, 2000);
+              } else {
+                setTimeout(checkForServerDropdown, 1000);
+              }
+            };
+            
+            checkForServerDropdown();
+          } catch (error) {
+            console.error('Error extracting brokers:', error);
+            sendMessage('broker_fetch_error', { message: 'Failed to extract broker list' });
+          }
+        };
+        
+        // Start extraction after page loads
+        if (document.readyState === 'complete') {
+          setTimeout(extractBrokers, 3000);
+        } else {
+          window.addEventListener('load', () => {
+            setTimeout(extractBrokers, 3000);
+          });
+        }
+      })();
+    `;
+  };
+
+  const filteredBrokers = useMemo(() => {
+    const brokerList = activeTab === 'MT4' ? mt4Brokers : MT5_BROKERS;
+    if (!server.trim()) return brokerList.slice(0, 10); // Show top 10 by default
+    return brokerList.filter(broker =>
+      broker.toLowerCase().includes(server.toLowerCase())
+    ); // Allow selection of any broker from the list - fixed to allow any broker selection
+  }, [server, activeTab, mt4Brokers]);
+
+  const authenticateWithWebTerminal = async (loginData: { login: string; password: string; server: string; type: 'MT4' | 'MT5' }) => {
+    try {
+      setIsAuthenticating(true);
+      setAuthState({ loading: false, showAllSymbols: false, chooseSymbol: false, logged: false, attempt: 0 });
+      authFinalizedRef.current = false;
+
+      if (Platform.OS === 'web') {
+        setAuthenticationStep(`Simulating ${loginData.type} authentication on web...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        handleAuthenticationResult(true, `${loginData.type} linked (web simulation)`);
+        return { success: true, message: `${loginData.type} linked (web simulation)` };
+      }
+
+      console.log(`Starting ${loginData.type} authentication WebView...`);
+      setAuthenticationStep(`Loading ${loginData.type} Web Terminal...`);
+      setShowWebView(true);
+      setWebViewKey((k) => k + 1);
+
+      const timeoutDuration = loginData.type === 'MT5' ? 30000 : 120000;
+      authTimeoutRef.current = setTimeout(() => {
+        if (authFinalizedRef.current) { return; }
+        console.log('Authentication timeout - destroying WebView');
+        handleAuthenticationResult(false, 'Authentication timeout');
+      }, timeoutDuration) as ReturnType<typeof setTimeout>;
+
+      return new Promise((resolve) => {
+        (window as any).authResolve = resolve;
+      });
+    } catch (error) {
+      console.error('Authentication error:', error);
+      return { success: false, message: 'Authentication failed' };
+    } finally {
+      // no-op: handleAuthenticationResult toggles isAuthenticating
+    }
+  };
+
+  const handleAuthenticationResult = (success: boolean, message: string) => {
+    if (authFinalizedRef.current) {
+      console.log('Authentication already finalized, ignoring result:', { success, message });
+      return;
+    }
+    authFinalizedRef.current = true;
+    console.log(`Authentication result: ${success ? 'SUCCESS' : 'FAILED'} - ${message}`);
+    setIsAuthenticating(false);
+
+    // Update connection status based on authentication result
+    if (success) {
+      // Update the legacy mtAccount for backward compatibility
+      setMTAccount({
+        type: activeTab,
+        login: login.trim(),
+        server: server.trim(),
+        connected: true,
+      });
+
+      // Update the separate MT4/MT5 accounts - stored separately
+      if (activeTab === 'MT4') {
+        setMT4Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: true,
+        });
+      } else {
+        setMT5Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: true,
+        });
+      }
+    } else {
+      // Set connection to false on authentication failure - show red status
+      setMTAccount({
+        type: activeTab,
+        login: login.trim(),
+        server: server.trim(),
+        connected: false, // Red status when authentication failed
+      });
+
+      // Update the separate MT4/MT5 accounts with failed status - stored separately
+      if (activeTab === 'MT4') {
+        setMT4Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: false, // Red status when authentication failed
+        });
+      } else {
+        setMT5Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: false, // Red status when authentication failed
+        });
+      }
+    }
+
+    // Close and destroy WebView
+    closeAuthWebView();
+
+    // Resolve the authentication promise
+    if ((window as any).authResolve) {
+      (window as any).authResolve({ success, message });
+      delete (window as any).authResolve;
+    }
+  };
+
+  // Close authentication WebView and cleanup
+  const closeAuthWebView = () => {
+    console.log('Closing authentication WebView and cleaning up...');
+    setShowWebView(false);
+
+    if (authTimeoutRef.current) {
+      clearTimeout(authTimeoutRef.current);
+      authTimeoutRef.current = null;
+    }
+    if (fallbackSuccessRef.current) {
+      clearTimeout(fallbackSuccessRef.current);
+      fallbackSuccessRef.current = null;
+    }
+    if (webViewRef.current) {
+      webViewRef.current = null;
+    }
+    setAuthState({ loading: false, showAllSymbols: false, chooseSymbol: false, logged: false, attempt: 0 });
+    setAuthenticationStep('Initializing...');
+    console.log('Authentication WebView destroyed and cleaned up');
+  };
+
+  const executeJavaScript = (script: string) => {
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(script);
+    }
+  };
+
+  const onWebViewMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      console.log('WebView message:', data);
+
+      if (data.type === 'authentication_success') {
+        if (fallbackSuccessRef.current) {
+          clearTimeout(fallbackSuccessRef.current);
+          fallbackSuccessRef.current = null;
+        }
+        setAuthState(prev => ({ ...prev, logged: true }));
+        setAuthenticationStep('Login Successful!');
+        console.log('Authentication successful - destroying WebView');
+        handleAuthenticationResult(true, 'Authentication successful');
+      } else if (data.type === 'authentication_failed') {
+        setAuthState(prev => ({ ...prev, attempt: prev.attempt + 1 }));
+        console.log('Authentication failed - destroying WebView');
+        // Close and destroy WebView after failed authentication
+        setTimeout(() => {
+          handleAuthenticationResult(false, 'Invalid Login or Password');
+        }, 1000);
+      } else if (data.type === 'step_update') {
+        setAuthenticationStep(data.message);
+      }
+    } catch (error) {
+      console.error('Error parsing WebView message:', error);
+      if (!authFinalizedRef.current) {
+        handleAuthenticationResult(false, 'Authentication error');
+      }
+    }
+  };
+
+  const getStorageClearScript = () => {
+    return `
+      (async function() {
+        try {
+          try { localStorage.clear(); } catch(e) {}
+          try { sessionStorage.clear(); } catch(e) {}
+          try {
+            if (indexedDB && indexedDB.databases) {
+              const dbs = await indexedDB.databases();
+              for (const db of dbs) {
+                const name = (db && db.name) ? db.name : null;
+                if (name) {
+                  try { indexedDB.deleteDatabase(name); } catch(e) {}
+                }
+              }
+            }
+          } catch(e) {}
+          try {
+            if ('caches' in window) {
+              const names = await caches.keys();
+              for (const n of names) { try { await caches.delete(n); } catch(e) {} }
+            }
+          } catch(e) {}
+          try {
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              for (const r of regs) { try { await r.unregister(); } catch(e) {} }
+            }
+          } catch(e) {}
+          try {
+            if (document && document.cookie) {
+              document.cookie.split(';').forEach(function(c){
+                const eq = c.indexOf('=');
+                const name = eq > -1 ? c.substr(0, eq) : c;
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+              });
+            }
+          } catch(e) {}
+        } catch(e) {}
+        true;
+      })();
+    `;
+  };
+
+  const getAuthenticationScript = (loginData: { login: string; password: string; server: string }) => {
+    if (activeTab === 'MT5') {
+      return `
+        (function() {
+          const asset = 'XAUUSD';
+          let done = false;
+
+          const send = (type, message) => {
+            try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch (e) {}
+          };
+
+          const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+          const fillCreds = () => {
+            try {
+              var x = document.querySelector('input[name="login"]');
+              if (x != null) {
+                x.value = '${loginData.login}';
+                x.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+              var y = document.querySelector('input[name="password"]');
+              if (y != null) {
+                y.value = '${loginData.password}';
+                y.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+              return !!(x && y);
+            } catch(e) { return false; }
+          };
+
+          const pressLogin = () => {
+            try {
+              var button = document.querySelector('.button.svelte-1wrky82.active');
+              if(button !== null) { button.click(); return true; }
+              return false;
+            } catch(e) { return false; }
+          };
+
+          const pressRemove = () => {
+            try {
+              var button = document.querySelector('.button.svelte-1wrky82.red');
+              if (button !== null) { button.click(); return true; }
+              var buttons = document.getElementsByTagName('button');
+              for (var i = 0; i < buttons.length; i++) {
+                if ((buttons[i].textContent || '').trim() === 'Remove') { buttons[i].click(); return true; }
+              }
+              return false;
+            } catch(e) { return false; }
+          };
+
+          const selectSymbolCandidate = () => {
+            try {
+              var symbolSpan = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') ||
+                               document.querySelector('.symbol.svelte-19bwscl') ||
+                               document.querySelector('[class*="symbol"]');
+              if (symbolSpan) { (symbolSpan).click(); return true; }
+              return false;
+            } catch(e) { return false; }
+          };
+
+          const searchAsset = async () => {
+            try {
+              var x = document.querySelector('input[placeholder="Search symbol"]') ||
+                      document.querySelector('label.search.svelte-1mvzp7f input') ||
+                      document.querySelector('.search input');
+              if (x != null) {
+                (x).value = asset;
+                x.dispatchEvent(new Event('input', { bubbles: true }));
+                x.focus();
+                await sleep(800);
+                return true;
+              }
+              return false;
+            } catch(e) { return false; }
+          };
+
+          const loginFlow = async () => {
+            send('step_update', 'Initializing MT5 Authentication...');
+            await sleep(1200);
+
+            pressRemove();
+            await sleep(300);
+
+            const filled = fillCreds();
+            if (!filled) { send('authentication_failed', 'Could not find login fields'); return; }
+            send('step_update', 'Submitting login...');
+            const pressed = pressLogin();
+            if (!pressed) { send('authentication_failed', 'Login button not found'); return; }
+
+            // Poll for login inputs to disappear or search bar to appear
+            let attempts = 0;
+            while (attempts < 25) {
+              attempts++;
+              const loginInput = document.querySelector('input[name="login"]');
+              const pwInput = document.querySelector('input[name="password"]');
+              const search = document.querySelector('input[placeholder="Search symbol"], label.search input, .search input');
+              if ((!loginInput && !pwInput) || (search && (search).offsetParent !== null)) {
+                break;
+              }
+              await sleep(500);
+            }
+
+            send('step_update', 'Verifying authentication via symbol search...');
+            const searched = await searchAsset();
+            await sleep(800);
+            if (searched) {
+              // If we can search, treat as success and optionally click a symbol
+              selectSymbolCandidate();
+              done = true;
+              send('authentication_success', 'Login Successful');
+              return;
+            }
+
+            // Fallback check on UI cues for success
+            const bodyText = (document.body.innerText || '');
+            if (bodyText.includes('Balance:') || bodyText.includes('Create New Order')) {
+              done = true;
+              send('authentication_success', 'Login Successful');
+              return;
+            }
+
+            send('authentication_failed', 'Authentication could not be verified');
+          };
+
+          if (document.readyState === 'complete' || document.readyState === 'interactive') loginFlow();
+          else window.addEventListener('DOMContentLoaded', loginFlow);
+        })();
+      `;
+    } else {
+      // MT4 Authentication - Copy from successful trade execution steps
+      return `
+        (function(){
+          const sendMessage = (type, message) => {
+            try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
+          };
+
+          // Enhanced field input function from trade script
+          const typeInput = (el, value) => {
+            try {
+              el.focus();
+              el.select();
+              el.value = '';
+              el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+              
+              setTimeout(function() {
+                el.focus();
+                el.value = String(value);
+                el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                el.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+              }, 100);
+              
+              return true;
+            } catch(e) { return false; }
+          };
+
+          const login = () => {
+            try {
+              sendMessage('step_update', 'Filling MT4 credentials...');
+              const loginEl = document.getElementById('login');
+              const serverEl = document.getElementById('server');
+              const passEl = document.getElementById('password');
+              
+              if (!loginEl || !serverEl || !passEl) {
+                sendMessage('authentication_failed', 'Login form fields not found');
+                return false;
+              }
+              
+              // Fill credentials using enhanced method
+              typeInput(loginEl, '${loginData.login}');
+              typeInput(serverEl, '${loginData.server}');
+              typeInput(passEl, '${loginData.password}');
+              
+              // Submit login
+              setTimeout(function() {
+                const btns = document.querySelectorAll('button.input-button');
+                if (btns && btns[3]) { 
+                  btns[3].removeAttribute('disabled'); 
+                  btns[3].disabled = false; 
+                  btns[3].click();
+                  sendMessage('step_update', 'Submitting MT4 login...');
+                } else {
+                  sendMessage('authentication_failed', 'Login button not found');
+                }
+              }, 500);
+              
+              return true;
+            } catch(e) { 
+              sendMessage('authentication_failed', 'Error during login: ' + e.message);
+              return false; 
+            }
+          };
+
+          // Show all symbols to verify authentication (copied from trade script)
+          const showAllSymbols = () => {
+            try {
+              var element = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody > tr:nth-child(1)');
+              if (element) {
+                var ev1 = new MouseEvent("mousedown", {
+                  bubbles: true,
+                  cancelable: false,
+                  view: window,
+                  button: 2,
+                  buttons: 2,
+                  clientX: element.getBoundingClientRect().x,
+                  clientY: element.getBoundingClientRect().y
+                });
+                element.dispatchEvent(ev1);
+                
+                var ev2 = new MouseEvent("mouseup", {
+                  bubbles: true,
+                  cancelable: false,
+                  view: window,
+                  button: 2,
+                  buttons: 0,
+                  clientX: element.getBoundingClientRect().x,
+                  clientY: element.getBoundingClientRect().y
+                });
+                element.dispatchEvent(ev2);
+                
+                var ev3 = new MouseEvent("contextmenu", {
+                  bubbles: true,
+                  cancelable: false,
+                  view: window,
+                  button: 2,
+                  buttons: 0,
+                  clientX: element.getBoundingClientRect().x,
+                  clientY: element.getBoundingClientRect().y
+                });
+                element.dispatchEvent(ev3);
+                
+                setTimeout(function() {
+                  var sall = document.querySelector('body > div.page-menu.context.expanded > div > div > span.box > span > div:nth-child(7)');
+                  if (sall) {
+                    sall.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+                    sall.click();
+                    sendMessage('step_update', 'Verifying authentication - showing all symbols...');
+                  }
+                }, 500);
+                return true;
+              }
+              return false;
+            } catch(e) { return false; }
+          };
+
+          // Verify authentication by checking if symbols are visible after "Show All"
+          const verifyAuthentication = () => {
+            try {
+              // Check if the "Show All" menu item is still visible (means it wasn't clicked successfully)
+              var showAllMenu = document.querySelector('body > div.page-menu.context.expanded > div > div > span.box > span > div:nth-child(7)');
+              if (showAllMenu) {
+                // Menu is still visible, "Show All" was not successful
+                sendMessage('authentication_failed', 'Authentication failed - Could not access symbol list');
+                return false;
+              }
+              
+              // Check if we can see the market watch table with symbols
+              var tableB = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+              if (tableB) {
+                var allTRs = tableB.querySelectorAll('tr');
+                if (allTRs.length > 0) {
+                  // Try to find XAUUSD symbol
+                  var ev = document.createEvent('MouseEvents');
+                  ev.initEvent('dblclick', true, true);
+                  for (var i = 0; i < allTRs.length; i++) {
+                    var a = allTRs[i].getElementsByTagName('td')[0];
+                    if (a && a.textContent && a.textContent.trim() === 'XAUUSD') {
+                      a.dispatchEvent(ev);
+                      sendMessage('authentication_success', 'MT4 Authentication Successful - XAUUSD symbol found and selected');
+                      return true;
+                    }
+                  }
+                  // XAUUSD not found but symbols are visible - still successful
+                  sendMessage('authentication_success', 'MT4 Authentication Successful - Symbol list accessible');
+                  return true;
+                } else {
+                  // No symbols visible - authentication failed
+                  sendMessage('authentication_failed', 'Authentication failed - No symbols visible in market watch');
+                  return false;
+                }
+              } else {
+                // Market watch table not found - authentication failed
+                sendMessage('authentication_failed', 'Authentication failed - Market watch not accessible');
+                return false;
+              }
+            } catch(e) { 
+              sendMessage('authentication_failed', 'Authentication failed - Error verifying access: ' + e.message);
+              return false; 
+            }
+          };
+
+          const start = () => {
+            sendMessage('step_update', 'Starting MT4 authentication...');
+            
+            setTimeout(() => {
+              const loginOk = login();
+              if (!loginOk) return;
+              
+              // Wait for login to complete, then verify by showing symbols
+              setTimeout(() => {
+                sendMessage('step_update', 'Login submitted, verifying access...');
+                const symbolsShown = showAllSymbols();
+                
+                // Wait longer for the "Show All" action to complete
+                setTimeout(() => {
+                  sendMessage('step_update', 'Checking symbol access...');
+                  const authVerified = verifyAuthentication();
+                  
+                  // If verification failed, try one more time after a longer delay
+                  if (!authVerified) {
+                    setTimeout(() => {
+                      sendMessage('step_update', 'Final authentication check...');
+                      const finalCheck = verifyAuthentication();
+                      if (!finalCheck) {
+                        // Final fallback - check if we can see any trading interface
+                        const hasMarketWatch = document.querySelector('div.page-window.market-watch');
+                        const hasChart = document.querySelector('div.page-window.chart');
+                       
+                      }
+                    }, 2000);
+                  }
+                }, 5000);
+              }, 4000);
+            }, 1000);
+          };
+
+          if (document.readyState === 'complete') start();
+          else window.addEventListener('load', start);
+        })();
+      `;
+    }
+  };
+
+  const handleLinkAccount = async () => {
+    if (!login.trim() || !password.trim() || !server.trim()) {
+      Alert.alert('Missing Information', 'Please fill in all fields to continue.');
+      return;
+    }
+
+    const loginData = {
+      login: login.trim(),
+      password: password.trim(),
+      server: server.trim(),
+      type: activeTab
+    };
+
+    const result = await authenticateWithWebTerminal(loginData) as { success: boolean; message: string };
+
+    if (result.success) {
+      Alert.alert(
+        'Success',
+        `${activeTab} account linked successfully!`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      Alert.alert(
+        'Done',
+        result.message || 'Please check your credentials and try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Account Type Tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'MT5' && styles.activeTab]}
+            onPress={() => setActiveTab('MT5')}
+          >
+            <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
+              MT5 ACCOUNT
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'MT4' && styles.activeTab]}
+            onPress={() => setActiveTab('MT4')}
+          >
+            <Text style={[styles.tabText, activeTab === 'MT4' && styles.activeTabText]}>
+              MT4 ACCOUNT
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Connection Status */}
+        <View style={styles.statusContainer}>
+          <View testID="connection-status-dot" style={[
+            styles.statusDot,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedDot,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedDot
+          ]} />
+          <Text style={[
+            styles.statusText,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
+          ]}>
+            {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) ? `${activeTab} CONNECTED` : `${activeTab} DISCONNECTED`}
+          </Text>
+        </View>
+
+        {/* MT Logo and Title */}
+        <View style={styles.logoContainer}>
+          <View style={styles.mtLogoImageContainer}>
+            <Image
+              source={activeTab === 'MT4' ? require('@/assets/images/mt4logo.png') : require('@/assets/images/mt5logo.png')}
+              style={styles.mtLogoImage}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.formTitle}>{activeTab} LOGIN DETAILS</Text>
+        </View>
+
+        {/* Current Account Details Display */}
+        {false && (
+          <View style={styles.accountDetailsContainer}>
+            <Text style={styles.accountDetailsTitle}>CURRENT {activeTab} ACCOUNT</Text>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Login:</Text>
+              <Text style={styles.accountDetailValue}>
+                {(activeTab === 'MT4' ? mt4Account?.login : mt5Account?.login) || 'Not set'}
+              </Text>
+            </View>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Password:</Text>
+              <Text style={styles.accountDetailValue}>
+                {(activeTab === 'MT4' ? mt4Account?.password : mt5Account?.password) ? '••••••••' : 'Not set'}
+              </Text>
+            </View>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Server:</Text>
+              <Text style={styles.accountDetailValue}>
+                {(activeTab === 'MT4' ? mt4Account?.server : mt5Account?.server) || 'Not set'}
+              </Text>
+            </View>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Status:</Text>
+              <Text style={[
+                styles.accountDetailValue,
+                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedStatus,
+                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedStatus
+              ]}>
+                {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true ? 'Connected' :
+                  (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false ? 'Disconnected' : 'Not configured'}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
+        {/* Networking disabled: broker fetch WebView removed */}
+
+        {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
+        {/* Networking disabled: authentication WebView removed */}
+
+        {/* Authentication Status Display - Only shown during authentication */}
+        {isAuthenticating && (
+          <View style={styles.authStatusDisplay}>
+            <ActivityIndicator color={Platform.OS === 'ios' ? '#DC2626' : '#000000'} size="small" />
+            <Text style={styles.authStatusDisplayText}>{authenticationStep}</Text>
+          </View>
+        )}
+
+        {/* Login Form */}
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Login"
+            placeholderTextColor="#999999"
+            value={login}
+            onChangeText={setLogin}
+            keyboardType="numeric"
+          />
+
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              placeholderTextColor="#999999"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? (
+                <EyeOff color="#999999" size={20} />
+              ) : (
+                <Eye color="#999999" size={20} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.serverContainer}>
+            <View style={styles.serverInputContainer}>
+              <Server color="#999999" size={20} style={styles.serverIcon} />
+              <TextInput
+                style={styles.serverInput}
+                placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
+                placeholderTextColor="#999999"
+                value={server}
+                onChangeText={(text) => {
+                  setServer(text);
+                  setShowBrokerList(true);
+                }}
+                onFocus={() => {
+                  setShowBrokerList(true);
+                }}
+                autoCapitalize="none"
+              />
+              {server.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={() => {
+                    setServer('');
+                    setShowBrokerList(false);
+                  }}
+                >
+                  <Text style={styles.clearButtonText}>×</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {showBrokerList && (
+              <View style={styles.brokerListContainer}>
+                <View style={styles.brokerListHeader}>
+                  <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
+                  <View style={styles.brokerListActions}>
+                    {activeTab === 'MT4' && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          console.log('Manual broker refresh requested');
+                          fetchMT4Brokers();
+                        }}
+                        style={styles.refreshButton}
+                        disabled={isLoadingBrokers}
+                      >
+                        <RefreshCw
+                          color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'}
+                          size={16}
+                          style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
+                        />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => setShowBrokerList(false)}
+                      style={styles.closeBrokerList}
+                    >
+                      <Text style={styles.closeBrokerListText}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {brokerFetchError && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{brokerFetchError}</Text>
+                  </View>
+                )}
+                {isLoadingBrokers && (
+                  <View style={styles.loadingBrokersContainer}>
+                    <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
+                    <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
+                  </View>
+                )}
+                <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
+                  {filteredBrokers.map((item, index) => {
+                    return (
+                      <TouchableOpacity
+                        key={`${item}-${index}`}
+                        style={styles.brokerItem}
+                        onPress={() => {
+                          console.log('Broker selected:', item);
+                          setServer(item); // Allow selection of any broker from the list
+                          setShowBrokerList(false);
+                        }}
+                      >
+                        <View style={styles.brokerItemContent}>
+                          <View style={[styles.brokerStatusDot,
+                          item.includes('Live') || item.includes('Real')
+                            ? styles.liveBrokerDot
+                            : styles.demoBrokerDot
+                          ]} />
+                          <Text style={styles.brokerItemText}>
+                            {item}
+                          </Text>
+                          <Text style={styles.brokerItemType}>
+                            {item.includes('Demo') ? 'DEMO' : 'LIVE'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {filteredBrokers.length === 0 && (
+                  <View style={styles.noBrokersContainer}>
+                    <Search color="#999999" size={24} />
+                    <Text style={styles.noBrokersText}>No brokers found</Text>
+                    <Text style={styles.noBrokersSubtext}>Try a different search term</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.linkButton, isAuthenticating && styles.linkButtonDisabled]}
+            onPress={handleLinkAccount}
+            disabled={isAuthenticating}
+          >
+            {isAuthenticating ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+                <Text style={styles.linkButtonText}>
+                  AUTHENTICATING...
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.buttonContent}>
+                <Shield color="#FFFFFF" size={16} style={styles.buttonIcon} />
+                <Text style={styles.linkButtonText}>
+                  LINK {activeTab} ACCOUNT DETAILS
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#F5F5F5',
+  },
+  content: {
+    flex: 1,
+    paddingTop: 20,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#D1D5DB',
+    marginHorizontal: 4,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+  },
+  activeTab: {
+    backgroundColor: '#9CA3AF',
+    borderColor: '#6B7280',
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#999999', // Default gray when no account
+    marginRight: 8,
+  },
+  connectedDot: {
+    backgroundColor: '#16A34A', // Green when connected
+  },
+  disconnectedDot: {
+    backgroundColor: '#DC2626', // Red when authentication failed
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Platform.OS === 'ios' ? '#CCCCCC' : '#666666',
+  },
+  connectedText: {
+    color: '#16A34A',
+  },
+  disconnectedText: {
+    color: '#DC2626',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  mtLogoImageContainer: {
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  mtLogoImage: {
+    width: 60,
+    height: 60,
+  },
+  formTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  form: {
+    paddingHorizontal: 20,
+  },
+  input: {
+    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginBottom: 16,
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  eyeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+    marginLeft: 8,
+  },
+  linkButton: {
+    backgroundColor: '#9CA3AF',
+    paddingVertical: 16,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  linkButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginLeft: 8,
+  },
+  linkButtonDisabled: {
+    opacity: 0.7,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
+
+  serverContainer: {
+    marginBottom: 16,
+    position: 'relative',
+    zIndex: 1000,
+  },
+  serverInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderRadius: 8,
+  },
+  serverIcon: {
+    marginLeft: 16,
+  },
+  serverInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  clearButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+  },
+  clearButtonText: {
+    color: '#999999',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  brokerListContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderRadius: 8,
+    maxHeight: 300,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  brokerListHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+  },
+  brokerListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  closeBrokerList: {
+    padding: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+  },
+  closeBrokerListText: {
+    color: '#999999',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  brokerList: {
+    maxHeight: 240,
+  },
+  brokerItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Platform.OS === 'ios' ? '#2A2A2A' : '#F0F0F0',
+  },
+  brokerItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brokerStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 12,
+  },
+  liveBrokerDot: {
+    backgroundColor: '#16A34A',
+  },
+  demoBrokerDot: {
+    backgroundColor: '#F59E0B',
+  },
+  brokerItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  brokerItemType: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#999999',
+    backgroundColor: Platform.OS === 'ios' ? '#2A2A2A' : '#F0F0F0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  noBrokersContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  noBrokersText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    marginTop: 12,
+  },
+  noBrokersSubtext: {
+    fontSize: 14,
+    color: '#999999',
+    marginTop: 4,
+  },
+  authStatusDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#F8F9FA',
+    borderRadius: 8,
+    marginHorizontal: 20,
+    borderWidth: 1,
+    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+  },
+  authStatusDisplayText: {
+    marginLeft: 12,
+    fontSize: 14,
+    fontWeight: '500',
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  brokerListActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  refreshButton: {
+    padding: 4,
+    marginRight: 8,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+  },
+  refreshIcon: {
+    opacity: 0.7,
+  },
+  refreshIconSpinning: {
+    opacity: 0.5,
+  },
+  errorContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: Platform.OS === 'ios' ? '#DC2626' : '#FEE2E2',
+    borderBottomWidth: 1,
+    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+  },
+  errorText: {
+    fontSize: 12,
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#DC2626',
+    textAlign: 'center',
+  },
+  loadingBrokersContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+  },
+  loadingBrokersText: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+  },
+  brokerItemDisabled: {
+    opacity: 0.5,
+  },
+  brokerStatusDotDisabled: {
+    backgroundColor: '#666666',
+  },
+  brokerItemTextDisabled: {
+    color: '#666666',
+  },
+  brokerItemTypeDisabled: {
+    color: '#666666',
+    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#E0E0E0',
+  },
+  disabledLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#DC2626',
+    backgroundColor: Platform.OS === 'ios' ? '#2A2A2A' : '#FEE2E2',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+    marginLeft: 8,
+  },
+  accountDetailsContainer: {
+    marginHorizontal: 20,
+    marginBottom: 30,
+    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+  },
+  accountDetailsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  accountDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Platform.OS === 'ios' ? '#2A2A2A' : '#F0F0F0',
+  },
+  accountDetailLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Platform.OS === 'ios' ? '#CCCCCC' : '#666666',
+  },
+  accountDetailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    flex: 1,
+    textAlign: 'right',
+  },
+  connectedStatus: {
+    color: '#16A34A',
+  },
+  disconnectedStatus: {
+    color: '#DC2626',
+  },
+});

@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "EA Converter",
+    "slug": "ea-converter-app-bf6qtmx7-6jkhyg7w",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w"
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "82a5b181-3fb0-4117-9f99-33d989cdf0a3"
+      }
+    },
+    "owner": "justvino"
+  }
+}
