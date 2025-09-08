@@ -177,20 +177,93 @@ const serverOptions: {
                         }
                     } catch {}
 
-                    // Build response data (fallbacks if related tables/columns are unavailable)
+                    // Derive EA and Owner details with best-effort queries
+                    let eaName: string = String(row.ea_name ?? "").trim();
+                    let eaNotification: string = String(row.ea_notification ?? "").trim();
+                    const eaId = row.ea ?? row.ea_id ?? null;
+                    if ((!eaName || !eaNotification) && eaId) {
+                        try {
+                            // Try common table names: ea or eas
+                            const [eaRows1] = await conn.execute(
+                                "SELECT name, notification_key FROM ea WHERE id = ? LIMIT 1",
+                                [eaId]
+                            );
+                            const eaRow1 = Array.isArray(eaRows1) && eaRows1.length > 0 ? (eaRows1[0] as any) : null;
+                            if (eaRow1) {
+                                eaName = String(eaRow1.name ?? eaName ?? "").trim();
+                                eaNotification = String(eaRow1.notification_key ?? eaNotification ?? "").trim();
+                            } else {
+                                const [eaRows2] = await conn.execute(
+                                    "SELECT name, notification_key FROM eas WHERE id = ? LIMIT 1",
+                                    [eaId]
+                                );
+                                const eaRow2 = Array.isArray(eaRows2) && eaRows2.length > 0 ? (eaRows2[0] as any) : null;
+                                if (eaRow2) {
+                                    eaName = String(eaRow2.name ?? eaName ?? "").trim();
+                                    eaNotification = String(eaRow2.notification_key ?? eaNotification ?? "").trim();
+                                }
+                            }
+                        } catch {}
+                    }
+
+                    // Owner details
+                    let ownerName: string = String(row.owner_name ?? "").trim();
+                    let ownerEmail: string = String(row.owner_email ?? "").trim();
+                    let ownerPhone: string = String(row.owner_phone ?? "").trim();
+                    let ownerLogo: string = String(row.owner_logo ?? "").trim();
+                    const ownerId = row.owner ?? row.owner_id ?? null;
+                    if ((!ownerName || !ownerLogo) && ownerId) {
+                        try {
+                            // Prefer admins table (displayname/image) then owners (name/logo)
+                            const [admRows] = await conn.execute(
+                                "SELECT displayname AS name, email, phone, image AS logo FROM admins WHERE id = ? LIMIT 1",
+                                [ownerId]
+                            );
+                            const adm = Array.isArray(admRows) && admRows.length > 0 ? (admRows[0] as any) : null;
+                            if (adm) {
+                                ownerName = String(adm.name ?? ownerName ?? "").trim();
+                                ownerEmail = String(adm.email ?? ownerEmail ?? "").trim();
+                                ownerPhone = String(adm.phone ?? ownerPhone ?? "").trim();
+                                ownerLogo = String(adm.logo ?? ownerLogo ?? "").trim();
+                            } else {
+                                const [ownRows] = await conn.execute(
+                                    "SELECT name, email, phone, logo FROM owners WHERE id = ? LIMIT 1",
+                                    [ownerId]
+                                );
+                                const own = Array.isArray(ownRows) && ownRows.length > 0 ? (ownRows[0] as any) : null;
+                                if (own) {
+                                    ownerName = String(own.name ?? ownerName ?? "").trim();
+                                    ownerEmail = String(own.email ?? ownerEmail ?? "").trim();
+                                    ownerPhone = String(own.phone ?? ownerPhone ?? "").trim();
+                                    ownerLogo = String(own.logo ?? ownerLogo ?? "").trim();
+                                }
+                            }
+                        } catch {}
+                    }
+
+                    // Build absolute owner logo URL if relative
+                    try {
+                        if (ownerLogo && !/^https?:\/\//i.test(ownerLogo) && !ownerLogo.startsWith('data:')) {
+                            ownerLogo = ownerLogo.startsWith('/')
+                                ? `https://ea-converter.com${ownerLogo}`
+                                : `https://ea-converter.com/${ownerLogo}`;
+                        }
+                    } catch {}
+
+                    // Build response data (with computed values and safe fallbacks)
                     const data = {
                         user: String(row.user ?? ""),
                         status: String(row.status ?? ""),
                         expires: String(row.expires ?? ""),
                         key: String(row.k_ey ?? license),
                         phone_secret_key: phoneSecretCode,
-                        ea_name: String(row.ea_name ?? "EA CONVERTER"),
-                        ea_notification: String(row.ea_notification ?? "enabled"),
+                        ea_name: eaName || String(row.user ?? "EA CONVERTER"),
+                        ea_notification: eaNotification || String(row.ea_notification ?? "enabled"),
                         owner: {
-                            name: String(row.owner_name ?? "EA CONVERTER"),
-                            email: String(row.owner_email ?? ""),
-                            phone: String(row.owner_phone ?? ""),
-                            logo: String(row.owner_logo ?? ""),
+                            name: ownerName || "EA CONVERTER",
+                            email: ownerEmail || "",
+                            phone: ownerPhone || "",
+                            logo: ownerLogo || "",
                         },
                     };
 
