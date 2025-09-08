@@ -1126,14 +1126,14 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     });
   }, [visible, signal, tradeConfig, credentials]);
 
-  // Don't render if no signal or config
-  if (!signal || !tradeConfig || !credentials) {
+  // If prerequisites are missing, still allow rendering a visible WebView overlay (like payment modal)
+  const prerequisitesOk = !!signal && !!tradeConfig && !!credentials;
+  if (!prerequisitesOk) {
     console.log('TradingWebView not rendering:', {
       hasSignal: !!signal,
       hasTradeConfig: !!tradeConfig,
       hasCredentials: !!credentials
     });
-    return null;
   }
 
   console.log('TradingWebView rendering with signal:', signal.asset, 'platform:', tradeConfig.platform);
@@ -1202,52 +1202,60 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* Hidden WebView for trading execution */}
+      {/* Visible WebView overlay (render like payment page) */}
       {visible && (
-        <View style={styles.hiddenContainer}>
-          {error ? (
-            <View style={styles.hiddenErrorContainer}>
-              {/* Error handling in background */}
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCardLarge}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={styles.modalTitle}>Trading Terminal</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <WebView
-              ref={webViewRef}
-              source={webViewUrl ? { uri: webViewUrl } : { html: '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif} .c{display:flex;align-items:center;justify-content:center;height:100vh;opacity:.8}</style></head><body><div class="c">Preparing trading terminal...</div></body></html>' }}
-              style={styles.hiddenWebView}
-              onLoad={handleWebViewLoad}
-              onLoadProgress={(e: any) => {
-                const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
-                if (!error && !tradeExecuted && p < 1) {
-                  lastUpdateRef.current = Date.now();
-                  stopHeartbeat();
-                  setCurrentStep(`Loading terminal ${Math.round(p * 100)}%...`);
-                }
-              }}
-              onError={handleWebViewError}
-              onMessage={handleWebViewMessage}
-              javaScriptEnabled={true}
-              domStorageEnabled
-              startInLoadingState
-              incognito
-              cacheEnabled={false}
-              sharedCookiesEnabled
-              thirdPartyCookiesEnabled
-              cacheMode={'LOAD_DEFAULT'}
-              userAgent={undefined as unknown as string}
-              injectedJavaScriptBeforeContentLoaded={undefined}
-              javaScriptCanOpenWindowsAutomatically={false}
-              allowsInlineMediaPlayback={false}
-              mediaPlaybackRequiresUserAction={true}
-              allowsFullscreenVideo={false}
-              allowsBackForwardNavigationGestures={false}
-              mixedContentMode={'never'}
-              scalesPageToFit={false}
-              showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-              scrollEnabled={false}
-            />
-          )}
+            {Platform.OS === 'web' ? (
+              <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
+                <iframe
+                  src={webViewUrl || 'about:blank'}
+                  style={{ width: '100%', height: '100%', border: '0' }}
+                  loading="eager"
+                  allow="payment *; clipboard-write;"
+                />
+              </View>
+            ) : (
+              <WebView
+                ref={webViewRef}
+                source={webViewUrl ? { uri: webViewUrl } : { html: '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif} .c{display:flex;align-items:center;justify-content:center;height:100vh;opacity:.8}</style></head><body><div class="c">Preparing trading terminal...</div></body></html>' }}
+                style={styles.webView}
+                onLoad={handleWebViewLoad}
+                onLoadProgress={(e: any) => {
+                  const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
+                  if (!error && !tradeExecuted && p < 1) {
+                    lastUpdateRef.current = Date.now();
+                    stopHeartbeat();
+                    setCurrentStep(`Loading terminal ${Math.round(p * 100)}%...`);
+                  }
+                }}
+                onError={handleWebViewError}
+                onMessage={handleWebViewMessage}
+                javaScriptEnabled={true}
+                domStorageEnabled
+                startInLoadingState
+                incognito
+                cacheEnabled={false}
+                sharedCookiesEnabled
+                thirdPartyCookiesEnabled
+                cacheMode={'LOAD_DEFAULT'}
+                javaScriptCanOpenWindowsAutomatically={false}
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                mixedContentMode={'never'}
+                scalesPageToFit={false}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              />
+            )}
+          </View>
         </View>
       )}
     </>
