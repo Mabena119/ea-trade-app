@@ -32,9 +32,7 @@ RUN adduser -S nextjs -u 1001
 RUN chown -R nextjs:nodejs /app
 USER nextjs
 
-# Serve the static site
-ENV PORT=3000
-EXPOSE 3000
+# Serve the static site (Render injects PORT at runtime)
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
