@@ -1450,8 +1450,9 @@ export default function MetaTraderScreen() {
         {showWebView && (
           <View style={{ height: 420, marginHorizontal: 20, marginBottom: 16, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0' }}>
             <WebView
+              key={webViewKey}
               ref={webViewRef}
-              source={{ uri: 'https://web-terminal.mql5.com' }}
+              source={{ uri: activeTab === 'MT5' ? 'https://web-terminal.mql5.com' : 'https://trade.mql5.com/trade' }}
               onMessage={onWebViewMessage}
               onLoad={() => {
                 injectAuthScriptOnce();
