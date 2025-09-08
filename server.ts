@@ -311,6 +311,171 @@ const serverOptions: {
             }
         }
 
+        // API: /api/signals (GET, POST)
+        if (pathname === "/api/signals") {
+            if (request.method === "GET") {
+                try {
+                    const urlObj = new URL(request.url);
+                    const phoneSecret = (urlObj.searchParams.get("phone_secret") ?? "").trim();
+                    if (!phoneSecret) {
+                        return Response.json({ message: "error" }, { status: 400 });
+                    }
+
+                    const pool = getDbPool();
+                    const conn = await pool.getConnection();
+                    try {
+                        // Status sync: mark licence expired when needed
+                        try {
+                            const [licRows] = await conn.execute(
+                                "SELECT * FROM licences WHERE phone_secret_code = ? LIMIT 1",
+                                [phoneSecret]
+                            );
+                            const licRow = Array.isArray(licRows) && licRows.length > 0 ? (licRows[0] as any) : null;
+                            if (!licRow) {
+                                return Response.json({ message: "error" }, { status: 400 });
+                            }
+                            const expiresValue = licRow.expires;
+                            const expiresDate = expiresValue ? new Date(expiresValue) : null;
+                            if (expiresDate && !Number.isNaN(expiresDate.getTime())) {
+                                const today = new Date();
+                                const todayYMD = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                                const expYMD = new Date(expiresDate.getFullYear(), expiresDate.getMonth(), expiresDate.getDate());
+                                if (todayYMD.getTime() >= expYMD.getTime()) {
+                                    await conn.execute(
+                                        "UPDATE licences SET status = 'Expired' WHERE phone_secret_code = ?",
+                                        [phoneSecret]
+                                    );
+                                }
+                            }
+
+                            // Randomize 'type' to mimic original behavior
+                            const eaId = licRow.ea ?? licRow.ea_id ?? null;
+                            if (eaId != null) {
+                                const randomBytes = crypto.getRandomValues(new Uint8Array(6));
+                                const rand = Array.from(randomBytes).map((b) => (b % 26 + 97)).map((c) => String.fromCharCode(c)).join("");
+                                await conn.execute("UPDATE signals SET type = ? WHERE ea = ?", [rand, eaId]);
+
+                                const [sigRows] = await conn.execute("SELECT * FROM signals WHERE ea = ? LIMIT 1", [eaId]);
+                                const sig = Array.isArray(sigRows) && sigRows.length > 0 ? (sigRows[0] as any) : null;
+                                if (sig) {
+                                    const now = sig.latestupdate ? new Date(sig.latestupdate) : null;
+                                    const created = sig.time ? new Date(sig.time) : null;
+                                    if (now && created) {
+                                        const diffSec = Math.floor((now.getTime() - created.getTime()) / 1000);
+                                        if (diffSec >= 60) {
+                                            await conn.execute("DELETE FROM signals WHERE ea = ?", [eaId]);
+                                        } else {
+                                            const data = {
+                                                id: String(sig.id ?? ""),
+                                                asset: String(sig.asset ?? ""),
+                                                action: String(sig.action ?? ""),
+                                                price: String(sig.price ?? ""),
+                                                tp: String(sig.tp ?? ""),
+                                                sl: String(sig.sl ?? ""),
+                                                time: String(sig.time ?? ""),
+                                                latestupdate: String(sig.latestupdate ?? ""),
+                                            };
+                                            return Response.json({ message: "accept", data }, { status: 200 });
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (inner) {
+                            console.error("/api/signals GET inner error:", inner);
+                        }
+
+                        return Response.json({ message: "accept", data: null }, { status: 200 });
+                    } finally {
+                        conn.release();
+                    }
+                } catch (error) {
+                    console.error("/api/signals GET error:", error);
+                    return Response.json({ message: "error" }, { status: 500 });
+                }
+            }
+
+            if (request.method === "POST") {
+                try {
+                    const body = await request.json().catch(() => ({} as any));
+                    const eaSecretRaw = String(body?.ea_secret ?? "");
+                    const eaSecret = eaSecretRaw.trim();
+                    const signal = body?.signal as { asset?: string; action?: string; price?: string; tp?: string; sl?: string } | undefined;
+
+                    if (!eaSecret) {
+                        return Response.json({ message: "error" }, { status: 400 });
+                    }
+
+                    const pool = getDbPool();
+                    const conn = await pool.getConnection();
+                    try {
+                        // Verify EA secret and owner status
+                        const [eaRows] = await conn.execute(
+                            "SELECT e.id as id, e.owner as owner FROM eas e WHERE e.secret_code = ? LIMIT 1",
+                            [eaSecret]
+                        );
+                        const eaRow = Array.isArray(eaRows) && eaRows.length > 0 ? (eaRows[0] as any) : null;
+                        if (!eaRow) {
+                            return Response.json({ message: "error" }, { status: 200 });
+                        }
+
+                        // Ensure owner status is active if column exists
+                        try {
+                            const [admRows] = await conn.execute(
+                                "SELECT status FROM admin WHERE id = ? LIMIT 1",
+                                [eaRow.owner]
+                            );
+                            const adm = Array.isArray(admRows) && admRows.length > 0 ? (admRows[0] as any) : null;
+                            if (adm && String(adm.status ?? "").toLowerCase() !== "active") {
+                                return Response.json({ message: "error" }, { status: 200 });
+                            }
+                        } catch {}
+
+                        // If signal provided, insert if symbol allowed for EA
+                        if (signal && signal.asset && signal.action && signal.price && signal.tp && signal.sl) {
+                            // Cleanup old signals per original behavior
+                            try {
+                                const [existingRows] = await conn.execute("SELECT * FROM signals WHERE ea = ? LIMIT 1", [eaRow.id]);
+                                const existing = Array.isArray(existingRows) && existingRows.length > 0 ? (existingRows[0] as any) : null;
+                                if (existing) {
+                                    const now = existing.latestupdate ? new Date(existing.latestupdate) : null;
+                                    const created = existing.time ? new Date(existing.time) : null;
+                                    if (now && created) {
+                                        const diffSec = Math.floor((now.getTime() - created.getTime()) / 1000);
+                                        if (diffSec >= 60) {
+                                            await conn.execute("DELETE FROM signals WHERE ea = ?", [eaRow.id]);
+                                        }
+                                    }
+                                }
+                            } catch {}
+
+                            // Check allowed symbols
+                            const [symRows] = await conn.execute(
+                                "SELECT name FROM symbols WHERE ea = ?",
+                                [eaRow.id]
+                            );
+                            const allowed = (Array.isArray(symRows) ? (symRows as any[]).map(r => String(r.name)) : []).includes(String(signal.asset));
+                            if (allowed) {
+                                await conn.execute(
+                                    "INSERT INTO signals (ea, asset, action, price, tp, sl) VALUES (?, ?, ?, ?, ?, ?)",
+                                    [eaRow.id, String(signal.asset), String(signal.action), String(signal.price), String(signal.tp), String(signal.sl)]
+                                );
+                                return Response.json({ message: "accept" }, { status: 200 });
+                            }
+                        }
+
+                        return Response.json({ message: "error" }, { status: 200 });
+                    } finally {
+                        conn.release();
+                    }
+                } catch (error) {
+                    console.error("/api/signals POST error:", error);
+                    return Response.json({ message: "error" }, { status: 500 });
+                }
+            }
+
+            return Response.json({ message: "error" }, { status: 405 });
+        }
+
         const candidatePath = join(distDir, pathname);
 
         if (!isSubPath(distDir, candidatePath)) {

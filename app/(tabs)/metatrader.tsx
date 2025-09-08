@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -1408,8 +1409,31 @@ export default function MetaTraderScreen() {
         {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
         {/* Networking disabled: broker fetch WebView removed */}
 
-        {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
-        {/* Networking disabled: authentication WebView removed */}
+        {/* Authentication WebView - loads MetaTrader web terminal natively and injects auth script */}
+        {showWebView && (
+          <View style={{ height: 420, marginHorizontal: 20, marginBottom: 16, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0' }}>
+            <WebView
+              ref={webViewRef}
+              source={{ uri: 'https://web-terminal.mql5.com' }}
+              onMessage={onWebViewMessage}
+              onLoad={() => {
+                const script = getAuthenticationScript({ login, password, server });
+                if (webViewRef.current?.injectJavaScript) {
+                  webViewRef.current.injectJavaScript(script);
+                }
+              }}
+              javaScriptEnabled
+              domStorageEnabled
+              startInLoadingState
+              allowsInlineMediaPlayback
+              mediaPlaybackRequiresUserAction={false}
+              cacheEnabled={false}
+              incognito
+              setSupportMultipleWindows={false as unknown as boolean}
+              style={{ flex: 1, backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF' }}
+            />
+          </View>
+        )}
 
         {/* Authentication Status Display - Only shown during authentication */}
         {isAuthenticating && (

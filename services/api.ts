@@ -110,9 +110,17 @@ class ApiService {
   }
 
   async getSignals(phoneSecret: string): Promise<SignalsResponse> {
-    // Mock: produce no new signals to avoid network
-    void phoneSecret;
-    return { message: 'error' };
+    if (!phoneSecret) return { message: 'error' };
+    try {
+      const res = await fetch(`${BASE_URL}/api/signals?phone_secret=${encodeURIComponent(phoneSecret)}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      const data = (await res.json()) as SignalsResponse;
+      return data;
+    } catch {
+      return { message: 'error' };
+    }
   }
 
   async getApp(email: string, use: boolean = false): Promise<App> {

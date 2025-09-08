@@ -896,10 +896,16 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
-  // Networking disabled: use inline HTML sandbox instead of remote terminal
+  // Use native web terminals for MT4/MT5 execution
   const getWebViewUrl = useCallback(() => {
-    return '';
-  }, []);
+    try {
+      if (!tradeConfig) return '';
+      // Using MetaTrader web terminal (works on Safari via native WebView)
+      return 'https://web-terminal.mql5.com';
+    } catch {
+      return '';
+    }
+  }, [tradeConfig]);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
@@ -1206,7 +1212,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           ) : (
             <WebView
               ref={webViewRef}
-              source={{ html: '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif} .c{display:flex;align-items:center;justify-content:center;height:100vh;opacity:.8}</style></head><body><div class="c">Trading terminal disabled (offline mode)</div><script>setTimeout(function(){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"error",message:"Trading disabled in offline mode"}))}catch(e){}},200)</script></body></html>' }}
+              source={webViewUrl ? { uri: webViewUrl } : { html: '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif} .c{display:flex;align-items:center;justify-content:center;height:100vh;opacity:.8}</style></head><body><div class="c">Preparing trading terminal...</div></body></html>' }}
               style={styles.hiddenWebView}
               onLoad={handleWebViewLoad}
               onLoadProgress={(e: any) => {
@@ -1220,13 +1226,13 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               onError={handleWebViewError}
               onMessage={handleWebViewMessage}
               javaScriptEnabled={true}
-              domStorageEnabled={false}
-              startInLoadingState={false}
-              incognito={false}
+              domStorageEnabled
+              startInLoadingState
+              incognito
               cacheEnabled={false}
-              sharedCookiesEnabled={false}
-              thirdPartyCookiesEnabled={false}
-              cacheMode={'LOAD_NO_CACHE'}
+              sharedCookiesEnabled
+              thirdPartyCookiesEnabled
+              cacheMode={'LOAD_DEFAULT'}
               userAgent={undefined as unknown as string}
               injectedJavaScriptBeforeContentLoaded={undefined}
               javaScriptCanOpenWindowsAutomatically={false}
