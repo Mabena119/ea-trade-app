@@ -4,7 +4,7 @@ import { ArrowLeft, Circle, RefreshCw } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
-import { Symbol as ApiSymbol } from '@/services/api';
+import { Symbol as ApiSymbol, apiService } from '@/services/api';
 
 interface Quote {
   symbol: string;
@@ -50,7 +50,7 @@ export default function QuotesScreen() {
       mt5Symbols.some(mt5Symbol => mt5Symbol.symbol === quote.symbol)
   }));
 
-  // Fetch symbols (offline: from local mock)
+  // Fetch symbols from API when connected; fallback to mock offline
   const fetchSymbols = useCallback(async (showRefreshIndicator = false) => {
     try {
       if (showRefreshIndicator) {
@@ -60,15 +60,23 @@ export default function QuotesScreen() {
       }
       setError(null);
 
-      // Offline mode: use mock symbols
-      const response = {
-        data: [
+      // If we have a connected EA with phone secret, fetch from API
+      let response: { data: ApiSymbol[] } = { data: [] };
+      if (hasConnectedEA && primaryEA?.phoneSecretKey) {
+        const apiRes = await apiService.getSymbols(primaryEA.phoneSecretKey);
+        if (apiRes.message === 'accept' && Array.isArray(apiRes.data)) {
+          response = { data: apiRes.data };
+        }
+      }
+      // Fallback mock if API not available or no connected EA
+      if (response.data.length === 0) {
+        response.data = [
           { id: '1', name: 'EURUSD' },
           { id: '2', name: 'GBPUSD' },
           { id: '3', name: 'XAUUSD' },
           { id: '4', name: 'USDJPY' },
-        ] as ApiSymbol[]
-      };
+        ];
+      }
 
       setApiSymbols(response.data);
       // Convert API symbols to quotes with actual saved data or defaults

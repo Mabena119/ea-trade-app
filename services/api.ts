@@ -125,39 +125,32 @@ class ApiService {
   }
 
   async getSymbols(phoneSecret: string): Promise<SymbolsResponse> {
-    // Mock symbols list
-    void phoneSecret;
-    const data: Symbol[] = [
-      { id: '1', name: 'EURUSD' },
-      { id: '2', name: 'GBPUSD' },
-      { id: '3', name: 'XAUUSD' },
-      { id: '4', name: 'USDJPY' },
-    ];
-    return { message: 'accept', data };
+    if (!phoneSecret) return { message: 'error' };
+    const res = await fetch(`${BASE_URL}/api/symbols?phone_secret=${encodeURIComponent(phoneSecret)}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    try {
+      const data = (await res.json()) as SymbolsResponse;
+      return data;
+    } catch {
+      return { message: 'error' };
+    }
   }
 
   async authenticateLicense(licenseBody: LicenseAuthBody): Promise<LicenseAuthResponse> {
-    // Mock: accept any non-empty license
-    if (!licenseBody?.licence) {
+    if (!licenseBody?.licence) return { message: 'error' };
+    const res = await fetch(`${BASE_URL}/api/auth-license`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(licenseBody),
+    });
+    try {
+      const data = (await res.json()) as LicenseAuthResponse;
+      return data;
+    } catch {
       return { message: 'error' };
     }
-    const owner: Owner = {
-      name: 'Local Owner',
-      email: 'owner@example.com',
-      phone: '+0000000000',
-      logo: 'local-logo',
-    };
-    const data: LicenseData = {
-      user: 'local-user',
-      status: 'active',
-      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString(),
-      key: licenseBody.licence,
-      phone_secret_key: licenseBody.phone_secret ?? 'local-secret',
-      ea_name: 'Local EA',
-      ea_notification: 'enabled',
-      owner,
-    };
-    return { message: 'accept', data };
   }
 }
 

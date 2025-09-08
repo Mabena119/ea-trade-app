@@ -110,6 +110,151 @@ const serverOptions: {
             }
         }
 
+        // API: /api/auth-license (POST)
+        if (pathname === "/api/auth-license") {
+            if (request.method !== "POST") {
+                return Response.json({ message: "error" }, { status: 405 });
+            }
+            try {
+                const body = await request.json().catch(() => ({}));
+                const licenseRaw = (body?.licence ?? "") as string;
+                const phoneSecretRaw = (body?.phone_secret ?? "") as string;
+                const license = licenseRaw.trim();
+                const phoneSecret = phoneSecretRaw.trim();
+                if (!license) {
+                    return Response.json({ message: "error" }, { status: 400 });
+                }
+
+                const pool = getDbPool();
+                const conn = await pool.getConnection();
+                try {
+                    // Load license row
+                    const [rows] = await conn.execute("SELECT * FROM licences WHERE k_ey = ? LIMIT 1", [license]);
+                    const row = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any) : null;
+                    if (!row) {
+                        return Response.json({ message: "error" }, { status: 400 });
+                    }
+
+                    let phoneSecretCode: string = String(row.phone_secret_code ?? "None");
+
+                    // If phone_secret_code is "None", generate and save a new one
+                    if (phoneSecretCode === "None") {
+                        // Generate a pseudo-random secret similar to md5(uniqid()) in spirit
+                        const randomBytes = crypto.getRandomValues(new Uint8Array(16));
+                        phoneSecretCode = Array.from(randomBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+                        await conn.execute("UPDATE licences SET phone_secret_code = ? WHERE k_ey = ?", [phoneSecretCode, license]);
+                    } else {
+                        // Already has a phone secret
+                        if (!phoneSecret) {
+                            // Client must present existing secret
+                            return Response.json({ message: "used" }, { status: 200 });
+                        }
+                        const [matchRows] = await conn.execute(
+                            "SELECT * FROM licences WHERE k_ey = ? AND phone_secret_code = ? LIMIT 1",
+                            [license, phoneSecret]
+                        );
+                        const match = Array.isArray(matchRows) && matchRows.length > 0 ? (matchRows[0] as any) : null;
+                        if (!match) {
+                            return Response.json({ message: "used" }, { status: 200 });
+                        }
+                        // Keep phoneSecretCode as saved
+                        phoneSecretCode = String(match.phone_secret_code ?? phoneSecretCode);
+                    }
+
+                    // Optional: expiry status sync (best-effort)
+                    try {
+                        const expiresValue = row.expires;
+                        const expiresDate = expiresValue ? new Date(expiresValue) : null;
+                        if (expiresDate && !Number.isNaN(expiresDate.getTime())) {
+                            const today = new Date();
+                            if (today.getTime() >= expiresDate.getTime()) {
+                                await conn.execute(
+                                    "UPDATE licences SET status = 'Expired' WHERE k_ey = ?",
+                                    [license]
+                                );
+                                row.status = 'Expired';
+                            }
+                        }
+                    } catch {}
+
+                    // Build response data (fallbacks if related tables/columns are unavailable)
+                    const data = {
+                        user: String(row.user ?? ""),
+                        status: String(row.status ?? ""),
+                        expires: String(row.expires ?? ""),
+                        key: String(row.k_ey ?? license),
+                        phone_secret_key: phoneSecretCode,
+                        ea_name: String(row.ea_name ?? "EA CONVERTER"),
+                        ea_notification: String(row.ea_notification ?? "enabled"),
+                        owner: {
+                            name: String(row.owner_name ?? "EA CONVERTER"),
+                            email: String(row.owner_email ?? ""),
+                            phone: String(row.owner_phone ?? ""),
+                            logo: String(row.owner_logo ?? ""),
+                        },
+                    };
+
+                    return Response.json({ message: "accept", data }, { status: 200 });
+                } finally {
+                    conn.release();
+                }
+            } catch (error) {
+                console.error("/api/auth-license error:", error);
+                return Response.json({ message: "error" }, { status: 500 });
+            }
+        }
+
+        // API: /api/symbols (GET)
+        if (pathname === "/api/symbols") {
+            if (request.method !== "GET") {
+                return Response.json({ message: "error" }, { status: 405 });
+            }
+            try {
+                const urlObj = new URL(request.url);
+                const phoneSecret = (urlObj.searchParams.get("phone_secret") ?? "").trim();
+                if (!phoneSecret) {
+                    return Response.json({ message: "error" }, { status: 400 });
+                }
+
+                const pool = getDbPool();
+                const conn = await pool.getConnection();
+                try {
+                    const [licRows] = await conn.execute(
+                        "SELECT * FROM licences WHERE phone_secret_code = ? LIMIT 1",
+                        [phoneSecret]
+                    );
+                    const lic = Array.isArray(licRows) && licRows.length > 0 ? (licRows[0] as any) : null;
+                    if (!lic) {
+                        return Response.json({ message: "error" }, { status: 400 });
+                    }
+
+                    const eaId = lic.ea ?? lic.ea_id ?? null;
+                    if (!eaId) {
+                        return Response.json({ message: "accept", data: [] }, { status: 200 });
+                    }
+                    try {
+                        const [symRows] = await conn.execute(
+                            "SELECT id, name FROM symbols WHERE ea = ?",
+                            [eaId]
+                        );
+                        const data = Array.isArray(symRows)
+                            ? (symRows as any[]).map((r) => ({ id: String(r.id), name: String(r.name) }))
+                            : [];
+                        return Response.json({ message: "accept", data }, { status: 200 });
+                    } catch (innerError) {
+                        console.error("symbols query error:", innerError);
+                        // Fallback to empty list if table/schema differs
+                        return Response.json({ message: "accept", data: [] }, { status: 200 });
+                    }
+                } finally {
+                    conn.release();
+                }
+            } catch (error) {
+                console.error("/api/symbols error:", error);
+                return Response.json({ message: "error" }, { status: 500 });
+            }
+        }
+
         const candidatePath = join(distDir, pathname);
 
         if (!isSubPath(distDir, candidatePath)) {
