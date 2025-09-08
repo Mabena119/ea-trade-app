@@ -1,8 +1,8 @@
 # Use Bun image to run scripts and serve static build
 FROM oven/bun:1.2.20-alpine
 
-# Install curl for health checks and build tools for native deps
-RUN apk add --no-cache curl python3 make g++
+# Install curl for health checks, Node.js for Expo CLI, and build tools for native deps
+RUN apk add --no-cache curl nodejs npm python3 make g++
 
 # Set env vars (override NODE_ENV during install below)
 ENV NODE_ENV=production
@@ -18,11 +18,11 @@ RUN NODE_ENV=development bun install --frozen-lockfile
 # Copy the rest of the source
 COPY . .
 
-# Build static web export to dist/
-RUN bun run build:web
+# Build static web export to dist/ using Node (avoids Bun sideEffects warning)
+RUN node ./node_modules/.bin/expo export --platform web
 
-# Remove build tools to slim image
-RUN apk del python3 make g++
+# Remove build tools and Node to slim image
+RUN apk del python3 make g++ nodejs npm
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
