@@ -1136,7 +1136,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     });
   }
 
-  console.log('TradingWebView rendering with signal:', signal.asset, 'platform:', tradeConfig.platform);
+  const safeAsset = signal?.asset ?? '-';
+  const safeAction = signal?.action ?? '-';
+  const safePlatform = tradeConfig?.platform ?? 'MT5';
+
+  console.log('TradingWebView rendering with signal:', safeAsset, 'platform:', safePlatform);
 
   const webViewUrl = getWebViewUrl();
 
@@ -1160,7 +1164,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               </View>
               <View style={styles.toastInfo}>
                 <Text style={styles.toastTitle}>
-                  {signal.asset} • {signal.action} • {tradeConfig.platform}
+                  {safeAsset} • {safeAction} • {safePlatform}
                 </Text>
                 <Text style={[styles.toastStatus, {
                   color: error ? '#FF4444' : tradeExecuted ? '#00FF88' : '#CCCCCC'
