@@ -44,10 +44,22 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
 
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
 
-  // Networking disabled: avoid remote images, use local placeholder
+  // Build EA image URL from license data, support relative admin upload paths
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
-    void ea;
-    return null;
+    try {
+      const logoRaw = ea?.userData?.owner?.logo ?? '';
+      const logo = typeof logoRaw === 'string' ? logoRaw.trim() : '';
+      if (!logo) return null;
+      if (logo.startsWith('http://') || logo.startsWith('https://') || logo.startsWith('data:')) {
+        return logo;
+      }
+      if (logo.startsWith('/')) {
+        return `https://ea-converter.com${logo}`;
+      }
+      return `https://ea-converter.com/${logo}`;
+    } catch {
+      return null;
+    }
   }, []);
 
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
@@ -399,7 +411,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                   {primaryEA?.name}
                 </Text>
                 <Text style={styles.expandedSubtitle}>
-                  EA CONVERTER
+                  {primaryEA?.name || 'EA'}
                 </Text>
               </View>
             </View>
