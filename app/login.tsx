@@ -10,6 +10,10 @@ export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState<boolean>(false);
+  // In-app modal (reliable on iOS Safari)
+  const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [modalTitle, setModalTitle] = useState<string>('');
+  const [modalMessage, setModalMessage] = useState<string>('');
   const { setUser } = useApp();
 
   const handleProceed = async () => {
@@ -27,14 +31,20 @@ export default function LoginScreen() {
 
     try {
       const account = await apiService.authenticate({ email: email.trim(), password: mentorId.trim() });
-      if (!account.paid) {
-        Alert.alert('Payment required', 'Your account is not paid. Please complete payment.');
-        return;
-      }
+      // If already used: show iOS-safe in-app modal
       if (account.used) {
-        Alert.alert('Error', 'This account has already been used on a device.');
+        setModalTitle('Email Already Used');
+        setModalMessage('This email has already been used on a device. Please contact support if you need assistance.');
+        setModalVisible(true);
         return;
       }
+      // If not paid: route to payment/license page
+      if (!account.paid) {
+        setUser({ mentorId: mentorId.trim(), email: account.email });
+        router.push('/license');
+        return;
+      }
+      // OK: proceed
       setUser({ mentorId: mentorId.trim(), email: account.email });
       router.push('/license');
     } catch (error) {
@@ -104,6 +114,20 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      {modalVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
+            <Text style={styles.modalMessage}>{modalMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -169,5 +193,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: '#333333',
+    marginBottom: 16,
+  },
+  modalButton: {
+    backgroundColor: '#000000',
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
