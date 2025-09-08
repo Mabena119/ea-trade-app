@@ -90,19 +90,20 @@ class ApiService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: authBody.email.trim().toLowerCase() }),
     });
-    let data: { used?: number; paid?: number } = {};
+    let data: { found?: number; used?: number; paid?: number } = {};
     try {
       data = (await res.json()) as { used?: number; paid?: number };
     } catch (e) {
       throw new Error('Authentication failed');
     }
+    const found = Number(data?.found ?? 0) === 1;
     const used = Number(data?.used ?? 0) === 1;
     const paid = Number(data?.paid ?? 0) === 1;
 
     return {
       id: authBody.email,
       email: authBody.email,
-      status: 'ok',
+      status: found ? 'ok' : 'not_found',
       paid,
       used,
     };

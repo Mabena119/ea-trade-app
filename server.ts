@@ -89,7 +89,7 @@ const serverOptions: {
                     const result = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any) : null;
 
                     if (!result) {
-                        return Response.json({ used: 0, paid: 0 });
+                        return Response.json({ found: 0, used: 0, paid: 0 });
                     }
 
                     let used: number = Number(result.used ?? 0);
@@ -100,7 +100,7 @@ const serverOptions: {
                         used = 0; // per original logic, still return 0 on first login
                     }
 
-                    return Response.json({ used, paid });
+                    return Response.json({ found: 1, used, paid });
                 } finally {
                     conn.release();
                 }

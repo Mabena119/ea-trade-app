@@ -1,10 +1,5 @@
 import mysql from 'mysql2/promise';
 
-type CheckEmailResponse = {
-    used: number;
-    paid: number;
-};
-
 const DB_HOST = process.env.DB_HOST || '172.203.148.37.host.secureserver.net';
 const DB_USER = process.env.DB_USER || 'eauser';
 const DB_PASSWORD = process.env.DB_PASSWORD || 'snVO2i%fZSG%';
@@ -48,21 +43,18 @@ export async function POST(request: Request): Promise<Response> {
             const result = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any) : null;
 
             if (!result) {
-                const payload: CheckEmailResponse = { used: 0, paid: 0 };
-                return Response.json(payload);
+                return Response.json({ found: 0, used: 0, paid: 0 });
             }
 
             let used: number = Number(result.used ?? 0);
             const paid: number = Number(result.paid ?? 0);
 
             if (used === 0) {
-                // Mark as used but report 0 per original logic
                 await conn.execute('UPDATE members SET used = 1 WHERE email = ?', [email]);
                 used = 0;
             }
 
-            const payload: CheckEmailResponse = { used, paid };
-            return Response.json(payload);
+            return Response.json({ found: 1, used, paid });
         } finally {
             conn.release();
         }
