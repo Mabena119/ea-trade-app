@@ -73,3 +73,7 @@ const serverOptions: {
 export default serverOptions;
 
 
+
+// Explicitly start the Bun server when this file is executed
+Bun.serve(serverOptions);
+
