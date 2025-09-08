@@ -1,8 +1,8 @@
 # Use Bun image to run scripts and serve static build
 FROM oven/bun:1.2.20-alpine
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install curl for health checks and build tools for native deps
+RUN apk add --no-cache curl python3 make g++
 
 # Set env vars (override NODE_ENV during install below)
 ENV NODE_ENV=production
@@ -20,6 +20,9 @@ COPY . .
 
 # Build static web export to dist/
 RUN bun run build:web
+
+# Remove build tools to slim image
+RUN apk del python3 make g++
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
