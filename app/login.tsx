@@ -26,8 +26,15 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      // Offline mode: skip server checks and continue locally
-      setUser({ mentorId: mentorId.trim(), email: email.trim() });
+      const account = await apiService.authenticate({ email: email.trim(), password: mentorId.trim() });
+      if (!account.paid) {
+        Alert.alert('Payment required', 'Your account is not paid. Please complete payment.');
+        return;
+      }
+      if (account.used) {
+        Alert.alert('Notice', 'This account has already been used on a device.');
+      }
+      setUser({ mentorId: mentorId.trim(), email: account.email });
       router.push('/license');
     } catch (error) {
       console.error('Login error:', error);

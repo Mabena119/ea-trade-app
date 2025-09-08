@@ -1,5 +1,4 @@
-// Networking disabled: using local mock API only
-const BASE_URL = "mock://local/";
+const BASE_URL = typeof window === 'undefined' ? '' : '';
 
 export interface AuthBody {
   email: string;
@@ -84,16 +83,26 @@ export interface LicenseAuthResponse {
 
 class ApiService {
   async authenticate(authBody: AuthBody): Promise<Account> {
-    // Mock local authentication: accept any non-empty email/password
-    if (!authBody?.email || !authBody?.password) {
+    if (!authBody?.email) throw new Error('Email is required');
+    // Call our API route in the same origin
+    const res = await fetch(`${BASE_URL}/api/check-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: authBody.email.trim().toLowerCase() }),
+    });
+    if (!res.ok) {
       throw new Error('Authentication failed');
     }
+    const data = (await res.json()) as { used?: number; paid?: number };
+    const used = Number(data?.used ?? 0) === 1;
+    const paid = Number(data?.paid ?? 0) === 1;
+
     return {
-      id: 'local-user',
+      id: authBody.email,
       email: authBody.email,
       status: 'ok',
-      paid: true,
-      used: false,
+      paid,
+      used,
     };
   }
 
