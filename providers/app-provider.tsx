@@ -165,8 +165,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         try {
           const parsed = JSON.parse(easData.value);
           if (Array.isArray(parsed)) {
-            setEAs(parsed);
-            console.log('EAs data loaded successfully:', parsed.length);
+            // Migration: ensure EA.name reflects userData.ea_name when available
+            const migrated = parsed.map((ea: any) => {
+              try {
+                const eaName = (ea?.userData?.ea_name ?? '').toString().trim();
+                if (eaName && eaName.length > 0 && ea?.name !== eaName) {
+                  return { ...ea, name: eaName };
+                }
+              } catch {}
+              return ea;
+            });
+            setEAs(migrated);
+            if (JSON.stringify(migrated) !== JSON.stringify(parsed)) {
+              try { await AsyncStorage.setItem('eas', JSON.stringify(migrated)); } catch {}
+            }
+            console.log('EAs data loaded successfully:', migrated.length);
           } else {
             setEAs([]);
           }

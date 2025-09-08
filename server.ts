@@ -175,7 +175,7 @@ const serverOptions: {
                                 row.status = 'Expired';
                             }
                         }
-                    } catch {}
+                    } catch { }
 
                     // Derive EA and Owner details with best-effort queries
                     let eaName: string = String(row.ea_name ?? "").trim();
@@ -203,7 +203,7 @@ const serverOptions: {
                                     eaNotification = String(eaRow2.notification_key ?? eaNotification ?? "").trim();
                                 }
                             }
-                        } catch {}
+                        } catch { }
                     }
 
                     // Owner details
@@ -238,7 +238,7 @@ const serverOptions: {
                                     ownerLogo = String(own.logo ?? ownerLogo ?? "").trim();
                                 }
                             }
-                        } catch {}
+                        } catch { }
                     }
 
                     // Build absolute owner logo URL if relative
@@ -248,7 +248,7 @@ const serverOptions: {
                                 ? `https://ea-converter.com${ownerLogo}`
                                 : `https://ea-converter.com/${ownerLogo}`;
                         }
-                    } catch {}
+                    } catch { }
 
                     // Build response data (with computed values and safe fallbacks)
                     const data = {
@@ -257,7 +257,8 @@ const serverOptions: {
                         expires: String(row.expires ?? ""),
                         key: String(row.k_ey ?? license),
                         phone_secret_key: phoneSecretCode,
-                        ea_name: eaName || String(row.user ?? "EA CONVERTER"),
+                        // Never fall back to licence "user" for EA name; prefer stored ea_name or default label
+                        ea_name: (eaName && eaName.length > 0) ? eaName : String(row.ea_name ?? "EA CONVERTER"),
                         ea_notification: eaNotification || String(row.ea_notification ?? "enabled"),
                         owner: {
                             name: ownerName || "EA CONVERTER",

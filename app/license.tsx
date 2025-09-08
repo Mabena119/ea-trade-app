@@ -62,10 +62,10 @@ export default function LicenseScreen() {
 
         const newEA = {
           id: uniqueId,
-          name: authResponse.data.ea_name || 'EA CONVERTER',
+          name: (authResponse.data.ea_name || 'EA CONVERTER').trim(),
           licenseKey: licenseKey.trim(),
           status: 'connected' as const,
-          description: authResponse.data.owner.name || 'EA CONVERTER',
+          description: (authResponse.data.owner.name || 'EA CONVERTER').trim(),
           phoneSecretKey: authResponse.data.phone_secret_key,
           userData: authResponse.data,
         };
