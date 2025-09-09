@@ -507,9 +507,17 @@ export default function MetaTraderScreen() {
   const fallbackSuccessRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brokerFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authFinalizedRef = useRef<boolean>(false);
-  const reinjectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reinjectAttemptsRef = useRef<number>(0);
   const { mtAccount, setMTAccount, mt4Account, setMT4Account, mt5Account, setMT5Account } = useApp();
+
+  // Visible terminal WebView overlay
+  const [showTerminal, setShowTerminal] = useState<boolean>(false);
+  const [terminalUrl, setTerminalUrl] = useState<string>('');
+
+  const openTerminal = useMemo(() => () => {
+    const url = 'https://trade.mql5.com/trade';
+    setTerminalUrl(url);
+    setShowTerminal(true);
+  }, []);
 
   // Load existing account data when tab changes
   useEffect(() => {
@@ -868,10 +876,6 @@ export default function MetaTraderScreen() {
     if (webViewRef.current) {
       webViewRef.current = null;
     }
-    if (reinjectTimerRef.current) {
-      clearTimeout(reinjectTimerRef.current);
-      reinjectTimerRef.current = null;
-    }
     setAuthState({ loading: false, showAllSymbols: false, chooseSymbol: false, logged: false, attempt: 0 });
     setAuthenticationStep('Initializing...');
     console.log('Authentication WebView destroyed and cleaned up');
@@ -881,37 +885,6 @@ export default function MetaTraderScreen() {
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(script);
     }
-  };
-
-  const injectAuthScriptOnce = () => {
-    try {
-      const script = getAuthenticationScript({ login, password, server });
-      if (webViewRef.current?.injectJavaScript) {
-        webViewRef.current.injectJavaScript(script);
-      }
-    } catch (e) {
-      console.error('Error injecting auth script:', e);
-    }
-  };
-
-  const scheduleReInjection = () => {
-    // Clear any existing timer
-    if (reinjectTimerRef.current) {
-      clearTimeout(reinjectTimerRef.current);
-      reinjectTimerRef.current = null;
-    }
-    reinjectAttemptsRef.current = 0;
-
-    const tick = () => {
-      if (authFinalizedRef.current || !showWebView) return;
-      if (reinjectAttemptsRef.current >= 8) return; // ~16s total
-      reinjectAttemptsRef.current += 1;
-      injectAuthScriptOnce();
-      reinjectTimerRef.current = setTimeout(tick, 2000) as unknown as ReturnType<typeof setTimeout>;
-    };
-
-    // Start after a brief delay for UI readiness
-    reinjectTimerRef.current = setTimeout(tick, 1500) as unknown as ReturnType<typeof setTimeout>;
   };
 
   const onWebViewMessage = (event: any) => {
@@ -1446,49 +1419,8 @@ export default function MetaTraderScreen() {
         {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
         {/* Networking disabled: broker fetch WebView removed */}
 
-        {/* Authentication WebView - loads MetaTrader web terminal natively and injects auth script */}
-        {showWebView && (
-          <View style={styles.modalOverlay}>
-            <View style={{ width: '100%', maxWidth: 800, height: '80%', backgroundColor: Platform.OS === 'ios' ? '#FFFFFF' : '#FFFFFF', borderRadius: 12, padding: 12 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#000000' }}>MetaTrader Login</Text>
-                <TouchableOpacity onPress={closeAuthWebView}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#000000' }}>Close</Text>
-                </TouchableOpacity>
-              </View>
-              {Platform.OS === 'web' ? (
-                <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
-                  <iframe
-                    src={activeTab === 'MT5' ? 'https://webtrader.razormarkets.co.za/terminal' : 'https://metatraderweb.app/trade?version=4'}
-                    style={{ width: '100%', height: '100%', border: '0' }}
-                    loading="eager"
-                    allow="payment *; clipboard-write;"
-                  />
-                </View>
-              ) : (
-                <WebView
-                  key={webViewKey}
-                  ref={webViewRef}
-                  source={{ uri: activeTab === 'MT5' ? 'https://webtrader.razormarkets.co.za/terminal' : 'https://metatraderweb.app/trade?version=4' }}
-                  onMessage={onWebViewMessage}
-                  onLoad={() => { injectAuthScriptOnce(); }}
-                  onLoadEnd={() => { scheduleReInjection(); }}
-                  javaScriptEnabled
-                  domStorageEnabled
-                  startInLoadingState
-                  allowsInlineMediaPlayback
-                  mediaPlaybackRequiresUserAction={false}
-                  cacheEnabled={false}
-                  incognito
-                  originWhitelist={["*"]}
-                  mixedContentMode="always"
-                  setSupportMultipleWindows={false as unknown as boolean}
-                  style={{ flex: 1, backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF', borderRadius: 8 }}
-                />
-              )}
-            </View>
-          </View>
-        )}
+        {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
+        {/* Networking disabled: authentication WebView removed */}
 
         {/* Authentication Status Display - Only shown during authentication */}
         {isAuthenticating && (
@@ -1642,8 +1574,8 @@ export default function MetaTraderScreen() {
 
           <TouchableOpacity
             style={[styles.linkButton, isAuthenticating && styles.linkButtonDisabled]}
-            onPress={handleLinkAccount}
-            disabled={isAuthenticating}
+            onPress={openTerminal}
+            disabled={false}
           >
             {isAuthenticating ? (
               <View style={styles.loadingContainer}>
@@ -1663,6 +1595,29 @@ export default function MetaTraderScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      {showTerminal && (
+        <View style={styles.terminalOverlay}>
+          <View style={styles.terminalHeader}>
+            <Text style={styles.terminalTitle}>{activeTab} WEB TERMINAL</Text>
+            <TouchableOpacity style={styles.terminalClose} onPress={() => setShowTerminal(false)}>
+              <Text style={styles.terminalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flex: 1 }}>
+            <WebView
+              source={{ uri: terminalUrl }}
+              style={styles.terminalWebView}
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.terminalLoading}>
+                  <ActivityIndicator size="large" color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} />
+                  <Text style={styles.terminalLoadingText}>Loading {activeTab} Terminal...</Text>
+                </View>
+              )}
+            />
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1809,6 +1764,57 @@ const styles = StyleSheet.create({
   },
   linkButtonDisabled: {
     opacity: 0.7,
+  },
+  terminalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF',
+    zIndex: 9999,
+  },
+  terminalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 16,
+    paddingBottom: 12,
+    backgroundColor: Platform.OS === 'ios' ? '#111111' : '#F5F5F5',
+    borderBottomWidth: 1,
+    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+  },
+  terminalTitle: {
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  terminalClose: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Platform.OS === 'ios' ? '#222222' : '#E5E7EB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Platform.OS === 'ios' ? '#333333' : '#D1D5DB',
+  },
+  terminalCloseText: {
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  terminalWebView: {
+    flex: 1,
+  },
+  terminalLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF',
+  },
+  terminalLoadingText: {
+    marginTop: 12,
+    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -2087,17 +2093,5 @@ const styles = StyleSheet.create({
   },
   disconnectedStatus: {
     color: '#DC2626',
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    zIndex: 10000,
   },
 });
