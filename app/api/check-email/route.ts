@@ -28,7 +28,6 @@ export async function POST(request: Request): Promise<Response> {
     try {
         const body = await request.json().catch(() => ({}));
         const email = (body?.email as string | undefined)?.trim().toLowerCase();
-        const mentor = (body?.mentor as string | undefined)?.trim();
         if (!email) {
             return Response.json({ error: 'Email is required' }, { status: 400 });
         }
@@ -55,16 +54,6 @@ export async function POST(request: Request): Promise<Response> {
                 await conn.execute('UPDATE members SET used = 1 WHERE email = ?', [email]);
                 used = 0;
             }
-
-            // Optionally validate mentor/pass if such column exists
-            try {
-                if (mentor && result.mentor_id != null) {
-                    const ok = String(result.mentor_id).trim().toLowerCase() === mentor.toLowerCase();
-                    if (!ok) {
-                        return Response.json({ found: 1, used, paid, invalidMentor: 1 });
-                    }
-                }
-            } catch {}
 
             return Response.json({ found: 1, used, paid });
         } finally {
