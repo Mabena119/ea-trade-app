@@ -97,11 +97,7 @@ function RootLayoutNav() {
     dismissNewSignal,
     tradingSignal,
     showTradingWebView,
-    setShowTradingWebView,
-    activeSymbols,
-    mt4Symbols,
-    mt5Symbols,
-    isSignalsMonitoring
+    setShowTradingWebView
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
 
@@ -111,13 +107,9 @@ function RootLayoutNav() {
       visible: showTradingWebView,
       hasSignal: !!tradingSignal,
       signalAsset: tradingSignal?.asset,
-      signalAction: tradingSignal?.action,
-      activeSymbols: activeSymbols?.length || 0,
-      mt4Symbols: mt4Symbols?.length || 0,
-      mt5Symbols: mt5Symbols?.length || 0,
-      isSignalsMonitoring
+      signalAction: tradingSignal?.action
     });
-  }, [showTradingWebView, tradingSignal, activeSymbols, mt4Symbols, mt5Symbols, isSignalsMonitoring]);
+  }, [showTradingWebView, tradingSignal]);
 
   // Handle app state changes for overlay persistence
   useEffect(() => {
