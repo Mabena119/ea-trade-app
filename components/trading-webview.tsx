@@ -902,14 +902,18 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   const getWebViewUrl = useCallback(() => {
     try {
       if (tradeConfig?.platform === 'MT4') {
-        return 'https://trade.mql5.com/trade';
+        return 'https://metatraderweb.app/trade?version=4';
       }
-      // Default and MT5
+      // For MT5, prefer broker-specific URLs when possible
+      const mt5Server = mt5Account?.server?.trim().toLowerCase();
+      if (mt5Server === 'razormarkets-live') {
+        return 'https://webtrader.razormarkets.co.za/terminal';
+      }
       return 'https://web-terminal.mql5.com';
     } catch {
       return '';
     }
-  }, [tradeConfig]);
+  }, [tradeConfig, mt5Account]);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
