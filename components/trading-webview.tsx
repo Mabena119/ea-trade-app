@@ -901,12 +901,15 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   // Use native web terminals for MT4/MT5 execution
   const getWebViewUrl = useCallback(() => {
     try {
-      // Always load the terminal so we can log in even without an active signal/config
+      if (tradeConfig?.platform === 'MT4') {
+        return 'https://trade.mql5.com/trade';
+      }
+      // Default and MT5
       return 'https://web-terminal.mql5.com';
     } catch {
       return '';
     }
-  }, []);
+  }, [tradeConfig]);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
