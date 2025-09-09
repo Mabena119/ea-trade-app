@@ -1459,7 +1459,7 @@ export default function MetaTraderScreen() {
               {Platform.OS === 'web' ? (
                 <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
                   <iframe
-                    src={((server || '').trim().toLowerCase() === 'razormarkets-live') ? 'https://webtrader.razormarkets.co.za/terminal' : (activeTab === 'MT5' ? 'https://web-terminal.mql5.com' : 'https://metatraderweb.app/trade?version=4')}
+                    src={activeTab === 'MT5' ? 'https://webtrader.razormarkets.co.za/terminal' : 'https://metatraderweb.app/trade?version=4'}
                     style={{ width: '100%', height: '100%', border: '0' }}
                     loading="eager"
                     allow="payment *; clipboard-write;"
@@ -1469,13 +1469,7 @@ export default function MetaTraderScreen() {
                 <WebView
                   key={webViewKey}
                   ref={webViewRef}
-                  source={{
-                    uri: activeTab === 'MT5'
-                      ? (((server || '').trim().toLowerCase() === 'razormarkets-live')
-                        ? 'https://webtrader.razormarkets.co.za/terminal'
-                        : 'https://web-terminal.mql5.com')
-                      : 'https://metatraderweb.app/trade?version=4'
-                  }}
+                  source={{ uri: activeTab === 'MT5' ? 'https://webtrader.razormarkets.co.za/terminal' : 'https://metatraderweb.app/trade?version=4' }}
                   onMessage={onWebViewMessage}
                   onLoad={() => { injectAuthScriptOnce(); }}
                   onLoadEnd={() => { scheduleReInjection(); }}
@@ -1486,6 +1480,8 @@ export default function MetaTraderScreen() {
                   mediaPlaybackRequiresUserAction={false}
                   cacheEnabled={false}
                   incognito
+                  originWhitelist={["*"]}
+                  mixedContentMode="always"
                   setSupportMultipleWindows={false as unknown as boolean}
                   style={{ flex: 1, backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF', borderRadius: 8 }}
                 />
