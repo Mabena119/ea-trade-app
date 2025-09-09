@@ -1656,10 +1656,6 @@ export default function MetaTraderScreen() {
                 const failingUrl = e?.nativeEvent?.url || '';
                 const description = e?.nativeEvent?.description || '';
                 console.log('Terminal WebView error:', description, failingUrl);
-                // MT4 fallback: if metatraderweb.app fails, switch to mql5
-                if (activeTab === 'MT4' && terminalUrl.includes('metatraderweb.app')) {
-                  setTerminalUrl('https://trade.mql5.com/trade');
-                }
               }}
             />
           </View>
