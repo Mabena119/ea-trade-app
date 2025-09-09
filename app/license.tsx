@@ -29,57 +29,53 @@ export default function LicenseScreen() {
     try {
       console.log('Starting license activation process...');
 
-      // First attempt: authenticate with just the license key
-      let authResponse = await apiService.authenticateLicense({
-        licence: licenseKey.trim()
+      // Attempt: authenticate with just the license key
+      const authResponse = await apiService.authenticateLicense({
+        licence: licenseKey.trim(),
       });
 
       if (authResponse.message === 'used') {
-        // License requires phone secret, prompt user or handle accordingly
-        Alert.alert('License Used', 'This license key has been used before. Please contact support if you need assistance.');
+        Alert.alert(
+          'License Already Used',
+          'This license key is bound to another device. Please contact support if you need assistance.'
+        );
         return;
       }
 
-      if (authResponse.message === 'accept' && authResponse.data) {
-        console.log('License authenticated successfully:', authResponse.data);
+      if (authResponse.message !== 'accept' || !authResponse.data) {
+        Alert.alert('Invalid License', 'The license key does not exist or authentication failed.');
+        return;
+      }
 
-        // Generate unique ID based on timestamp, random number, and license key hash
-        const timestamp = Date.now();
-        const randomPart = Math.random().toString(36).substr(2, 9);
-        const keyHash = licenseKey.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        const uniqueId = `ea_${timestamp}_${randomPart}_${keyHash}`;
+      // Success path
+      const data = authResponse.data;
 
-        const newEA = {
-          id: uniqueId,
-          name: authResponse.data.ea_name || 'EA CONVERTER',
-          licenseKey: licenseKey.trim(),
-          status: 'connected' as const,
-          description: authResponse.data.owner.name || 'EA CONVERTER',
-          phoneSecretKey: authResponse.data.phone_secret_key,
-          userData: authResponse.data,
-        };
+      // Generate unique ID
+      const timestamp = Date.now();
+      const randomPart = Math.random().toString(36).substr(2, 9);
+      const keyHash = licenseKey.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const uniqueId = `ea_${timestamp}_${randomPart}_${keyHash}`;
 
-        console.log('Attempting to add EA:', newEA);
-        const success = await addEA(newEA);
+      const newEA = {
+        id: uniqueId,
+        name: data.ea_name || 'EA CONVERTER',
+        licenseKey: licenseKey.trim(),
+        status: 'connected' as const,
+        description: (data.owner && data.owner.name) ? data.owner.name : 'EA CONVERTER',
+        phoneSecretKey: data.phone_secret_key,
+        userData: data,
+      };
 
-        if (success) {
-          console.log('EA added successfully, navigating to home...');
-          // Add another delay before navigation to ensure state is updated
-          await new Promise(resolve => setTimeout(resolve, 800));
-
-          // Use replace to prevent going back to license screen
-          router.replace('/(tabs)');
-        } else {
-          console.error('Failed to add EA');
-          Alert.alert('Error', 'This license key is already in use or failed to save.');
-        }
+      const success = await addEA(newEA);
+      if (success) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        router.replace('/(tabs)');
       } else {
-        console.log('License authentication failed:', authResponse.message);
-        Alert.alert('Error', 'Invalid license key or authentication failed.');
+        Alert.alert('Error', 'Failed to save this license locally.');
       }
     } catch (error) {
       console.error('Critical error during license activation:', error);
-      Alert.alert('Error', 'Failed to activate license. Please try again.');
+      Alert.alert('Network Error', 'Failed to reach the server. Please try again.');
     } finally {
       setIsActivating(false);
     }

@@ -155,11 +155,27 @@ class ApiService {
 
   async authenticateLicense(licenseBody: LicenseAuthBody): Promise<LicenseAuthResponse> {
     if (!licenseBody?.licence) return { message: 'error' };
-    const res = await fetch(`${BASE_URL}/api/auth-license`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(licenseBody),
-    });
+    const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/auth-license`;
+
+    // Add timeout to avoid hanging forever on network issues
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(licenseBody),
+        signal: controller.signal,
+      });
+    } catch (networkError) {
+      clearTimeout(timeout);
+      const hint = BASE_URL ? '' : ' Set EXPO_PUBLIC_API_BASE_URL to your API host for native builds.';
+      console.error('License auth network error:', networkError);
+      return { message: 'error' };
+    }
+    clearTimeout(timeout);
+
     try {
       const data = (await res.json()) as LicenseAuthResponse;
       return data;
