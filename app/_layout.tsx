@@ -97,7 +97,11 @@ function RootLayoutNav() {
     dismissNewSignal,
     tradingSignal,
     showTradingWebView,
-    setShowTradingWebView
+    setShowTradingWebView,
+    activeSymbols,
+    mt4Symbols,
+    mt5Symbols,
+    isSignalsMonitoring
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
 
