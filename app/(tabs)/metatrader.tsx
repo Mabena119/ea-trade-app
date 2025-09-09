@@ -1448,32 +1448,47 @@ export default function MetaTraderScreen() {
 
         {/* Authentication WebView - loads MetaTrader web terminal natively and injects auth script */}
         {showWebView && (
-          <View style={{ height: 420, marginHorizontal: 20, marginBottom: 16, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0' }}>
-            <WebView
-              key={webViewKey}
-              ref={webViewRef}
-              source={{ uri: activeTab === 'MT5'
-                ? (((server || '').trim().toLowerCase() === 'razormarkets-live')
-                    ? 'https://webtrader.razormarkets.co.za/terminal'
-                    : 'https://web-terminal.mql5.com')
-                : 'https://metatraderweb.app/trade?version=4' }}
-              onMessage={onWebViewMessage}
-              onLoad={() => {
-                injectAuthScriptOnce();
-              }}
-              onLoadEnd={() => {
-                scheduleReInjection();
-              }}
-              javaScriptEnabled
-              domStorageEnabled
-              startInLoadingState
-              allowsInlineMediaPlayback
-              mediaPlaybackRequiresUserAction={false}
-              cacheEnabled={false}
-              incognito
-              setSupportMultipleWindows={false as unknown as boolean}
-              style={{ flex: 1, backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF' }}
-            />
+          <View style={styles.modalOverlay}>
+            <View style={{ width: '100%', maxWidth: 800, height: '80%', backgroundColor: Platform.OS === 'ios' ? '#FFFFFF' : '#FFFFFF', borderRadius: 12, padding: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#000000' }}>MetaTrader Login</Text>
+                <TouchableOpacity onPress={closeAuthWebView}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#000000' }}>Close</Text>
+                </TouchableOpacity>
+              </View>
+              {Platform.OS === 'web' ? (
+                <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
+                  <iframe
+                    src={((server || '').trim().toLowerCase() === 'razormarkets-live') ? 'https://webtrader.razormarkets.co.za/terminal' : (activeTab === 'MT5' ? 'https://web-terminal.mql5.com' : 'https://metatraderweb.app/trade?version=4')}
+                    style={{ width: '100%', height: '100%', border: '0' }}
+                    loading="eager"
+                    allow="payment *; clipboard-write;"
+                  />
+                </View>
+              ) : (
+                <WebView
+                  key={webViewKey}
+                  ref={webViewRef}
+                  source={{ uri: activeTab === 'MT5'
+                    ? (((server || '').trim().toLowerCase() === 'razormarkets-live')
+                        ? 'https://webtrader.razormarkets.co.za/terminal'
+                        : 'https://web-terminal.mql5.com')
+                    : 'https://metatraderweb.app/trade?version=4' }}
+                  onMessage={onWebViewMessage}
+                  onLoad={() => { injectAuthScriptOnce(); }}
+                  onLoadEnd={() => { scheduleReInjection(); }}
+                  javaScriptEnabled
+                  domStorageEnabled
+                  startInLoadingState
+                  allowsInlineMediaPlayback
+                  mediaPlaybackRequiresUserAction={false}
+                  cacheEnabled={false}
+                  incognito
+                  setSupportMultipleWindows={false as unknown as boolean}
+                  style={{ flex: 1, backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF', borderRadius: 8 }}
+                />
+              )}
+            </View>
           </View>
         )}
 
@@ -2074,5 +2089,17 @@ const styles = StyleSheet.create({
   },
   disconnectedStatus: {
     color: '#DC2626',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    zIndex: 10000,
   },
 });
