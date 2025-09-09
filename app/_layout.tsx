@@ -154,6 +154,23 @@ export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState<boolean>(false);
 
   useEffect(() => {
+    // Set up global console warning filter for external warnings
+    if (Platform.OS === 'web') {
+      const originalWarn = console.warn;
+      console.warn = (...args) => {
+        const message = args.join(' ');
+        // Suppress warnings from external terminals and dependencies
+        if (message.includes('interactive-widget') || 
+            message.includes('viewport') ||
+            message.includes('Viewport argument key') ||
+            message.includes('AES-CBC and AES-CTR do not provide authentication') ||
+            message.includes('AES-GCM to protect against chosen-ciphertext attacks')) {
+          return;
+        }
+        originalWarn.apply(console, args);
+      };
+    }
+
     async function prepare() {
       try {
         // Keep the splash screen visible while we fetch resources
