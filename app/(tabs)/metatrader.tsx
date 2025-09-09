@@ -2023,6 +2023,8 @@ export default function MetaTraderScreen() {
                   style={{ width: '100%', height: '100%', border: '0' }}
                   loading="eager"
                   allow="payment *; clipboard-write;"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  referrerPolicy="strict-origin-when-cross-origin"
                 />
               </View>
             ) : (
@@ -2074,6 +2076,8 @@ export default function MetaTraderScreen() {
                   style={{ width: '100%', height: '100%', border: '0' }}
                   loading="eager"
                   allow="payment *; clipboard-write;"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  referrerPolicy="strict-origin-when-cross-origin"
                 />
               </View>
             ) : (

@@ -9,6 +9,11 @@ function sha256Hex(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex');
 }
 
+// Secure random string generation using crypto.randomBytes
+function generateSecureRandom(length: number = 32): string {
+  return crypto.randomBytes(length).toString('hex');
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = await request.json().catch(() => ({} as any));
@@ -63,8 +68,8 @@ export async function POST(request: Request): Promise<Response> {
       let effectiveSecret = rawStored as string | null;
 
       if (isUnset) {
-        // Generate deterministic-length secret (similar to PHP md5 uniqid)
-        const generated = crypto.randomBytes(16).toString('hex'); // 32 hex chars
+        // Generate secure random secret using crypto.randomBytes
+        const generated = generateSecureRandom(16); // 32 hex chars
         await conn.execute(
           'UPDATE licences SET phone_secret_code = ? WHERE k_ey = ?',
           [generated, canonicalKey]
