@@ -84,7 +84,7 @@ export async function POST(request: Request): Promise<Response> {
           const newHash = sha256Hex(phoneSecret);
           await conn.execute(
             'UPDATE licences SET phone_secret_code = ? WHERE k_ey = ?',
-            [newHash, licence]
+            [newHash, lic.key ?? licence]
           );
         }
       }
