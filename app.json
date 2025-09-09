@@ -15,7 +15,32 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w"
+      "bundleIdentifier": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "trade.mql5.com": {
+              "NSIncludesSubdomains": true,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": false,
+              "NSTemporaryExceptionMinimumTLSVersion": "TLSv1.2",
+              "NSExceptionRequiresForwardSecrecy": false
+            },
+            "metatraderweb.app": {
+              "NSIncludesSubdomains": true,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": false,
+              "NSTemporaryExceptionMinimumTLSVersion": "TLSv1.2",
+              "NSExceptionRequiresForwardSecrecy": false
+            },
+            "webtrader.razormarkets.co.za": {
+              "NSIncludesSubdomains": true,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": false,
+              "NSTemporaryExceptionMinimumTLSVersion": "TLSv1.2",
+              "NSExceptionRequiresForwardSecrecy": false
+            }
+          }
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {

@@ -514,10 +514,21 @@ export default function MetaTraderScreen() {
   const [terminalUrl, setTerminalUrl] = useState<string>('');
 
   const openTerminal = useMemo(() => () => {
-    const url = 'https://trade.mql5.com/trade';
+    let url = '';
+    if (activeTab === 'MT4') {
+      url = 'https://metatraderweb.app/trade?version=4';
+    } else {
+      // MT5
+      const s = (server || '').toLowerCase();
+      if (s.includes('razormarkets')) {
+        url = 'https://webtrader.razormarkets.co.za/terminal';
+      } else {
+        url = 'https://trade.mql5.com/trade';
+      }
+    }
     setTerminalUrl(url);
     setShowTerminal(true);
-  }, []);
+  }, [activeTab, server]);
 
   // Load existing account data when tab changes
   useEffect(() => {
@@ -1614,6 +1625,35 @@ export default function MetaTraderScreen() {
                   <Text style={styles.terminalLoadingText}>Loading {activeTab} Terminal...</Text>
                 </View>
               )}
+              originWhitelist={['https://*']}
+              onShouldStartLoadWithRequest={(request: any) => {
+                const url = request?.url || '';
+                if (!url) return false;
+                // Block unknown custom schemes
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                  return false;
+                }
+                try {
+                  const { host } = new URL(url);
+                  const allowedHosts = new Set([
+                    'metatraderweb.app',
+                    'trade.mql5.com',
+                    'webtrader.razormarkets.co.za',
+                  ]);
+                  // Allow sub-resources on same host
+                  if (allowedHosts.has(host)) return true;
+                  // Allow mql5 subdomains commonly used by terminal
+                  if (host.endsWith('.mql5.com')) return true;
+                  // Allow CDNs required by the terminal
+                  if (host.endsWith('.cloudfront.net')) return true;
+                  return true; // default allow; tighten if needed
+                } catch {
+                  return true;
+                }
+              }}
+              onError={(e: any) => {
+                console.log('Terminal WebView error:', e?.nativeEvent?.description || 'unknown');
+              }}
             />
           </View>
         </View>

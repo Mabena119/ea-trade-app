@@ -121,8 +121,6 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 
   const credentials = getAccountCredentials();
 
-  // Removed login-only fallback: trading webview injects only when signal, config, and credentials are present
-
   // Generate MT4 authentication and trading JavaScript - Reverted to working state
   const generateMT4JavaScript = useCallback(() => {
     if (!signal || !tradeConfig || !credentials) return '';
@@ -898,22 +896,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
-  // Use native web terminals for MT4/MT5 execution
+  // Networking disabled: use inline HTML sandbox instead of remote terminal
   const getWebViewUrl = useCallback(() => {
-    try {
-      if (tradeConfig?.platform === 'MT4') {
-        return 'https://metatraderweb.app/trade?version=4';
-      }
-      // For MT5, prefer broker-specific URLs when possible
-      const mt5Server = mt5Account?.server?.trim().toLowerCase();
-      if (mt5Server === 'razormarkets-live') {
-        return 'https://webtrader.razormarkets.co.za/terminal';
-      }
-      return 'https://web-terminal.mql5.com';
-    } catch {
-      return '';
-    }
-  }, [tradeConfig, mt5Account]);
+    return '';
+  }, []);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
@@ -1065,25 +1051,23 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     setCurrentStep('Terminal loaded, starting execution...');
     lastUpdateRef.current = Date.now();
 
-    // Inject trading or login-only script after page loads
-    if (webViewRef.current) {
-      let script = '';
-      if (tradeConfig && credentials) {
-        script = tradeConfig.platform === 'MT4' ? generateMT4JavaScript() : generateMT5JavaScript();
-        console.log('Injecting trading script for', tradeConfig.platform);
-      } else {
-        // Removed login-only injection: do nothing unless a valid signal/config/credentials exist
-      }
-      if (script) {
-        webViewRef.current.injectJavaScript(script);
-        setTimeout(() => {
-          if (Date.now() - lastUpdateRef.current > 2000) {
-            startHeartbeat();
-          }
-        }, 2000);
-      }
+    // Inject trading script after page loads
+    if (webViewRef.current && tradeConfig) {
+      const script = tradeConfig.platform === 'MT4' ?
+        generateMT4JavaScript() :
+        generateMT5JavaScript();
+
+      console.log('Injecting trading script for', tradeConfig.platform);
+      webViewRef.current.injectJavaScript(script);
+
+      // Start heartbeat after script injection with delay
+      setTimeout(() => {
+        if (Date.now() - lastUpdateRef.current > 2000) {
+          startHeartbeat();
+        }
+      }, 2000);
     }
-  }, [tradeConfig, credentials, generateMT4JavaScript, generateMT5JavaScript, stopHeartbeat, startHeartbeat]);
+  }, [tradeConfig, generateMT4JavaScript, generateMT5JavaScript, stopHeartbeat, startHeartbeat]);
 
   const handleWebViewError = useCallback((syntheticEvent: any) => {
     const { nativeEvent } = syntheticEvent;
@@ -1136,21 +1120,17 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     });
   }, [visible, signal, tradeConfig, credentials]);
 
-  // If prerequisites are missing, still allow rendering a visible WebView overlay (like payment modal)
-  const prerequisitesOk = !!signal && !!tradeConfig && !!credentials;
-  if (!prerequisitesOk) {
+  // Don't render if no signal or config
+  if (!signal || !tradeConfig || !credentials) {
     console.log('TradingWebView not rendering:', {
       hasSignal: !!signal,
       hasTradeConfig: !!tradeConfig,
       hasCredentials: !!credentials
     });
+    return null;
   }
 
-  const safeAsset = signal?.asset ?? '-';
-  const safeAction = signal?.action ?? '-';
-  const safePlatform = tradeConfig?.platform ?? 'MT5';
-
-  console.log('TradingWebView rendering with signal:', safeAsset, 'platform:', safePlatform);
+  console.log('TradingWebView rendering with signal:', signal.asset, 'platform:', tradeConfig.platform);
 
   const webViewUrl = getWebViewUrl();
 
@@ -1174,7 +1154,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               </View>
               <View style={styles.toastInfo}>
                 <Text style={styles.toastTitle}>
-                  {safeAsset} • {safeAction} • {safePlatform}
+                  {signal.asset} • {signal.action} • {tradeConfig.platform}
                 </Text>
                 <Text style={[styles.toastStatus, {
                   color: error ? '#FF4444' : tradeExecuted ? '#00FF88' : '#CCCCCC'
@@ -1216,60 +1196,52 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* Visible WebView overlay (render like payment page) */}
+      {/* Hidden WebView for trading execution */}
       {visible && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCardLarge}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={styles.modalTitle}>Trading Terminal</Text>
-              <TouchableOpacity onPress={onClose}>
-                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
-              </TouchableOpacity>
+        <View style={styles.hiddenContainer}>
+          {error ? (
+            <View style={styles.hiddenErrorContainer}>
+              {/* Error handling in background */}
             </View>
-            {Platform.OS === 'web' ? (
-              <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
-                <iframe
-                  src={webViewUrl || 'about:blank'}
-                  style={{ width: '100%', height: '100%', border: '0' }}
-                  loading="eager"
-                  allow="payment *; clipboard-write;"
-                />
-              </View>
-            ) : (
-              <WebView
-                ref={webViewRef}
-                source={webViewUrl ? { uri: webViewUrl } : { html: '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif} .c{display:flex;align-items:center;justify-content:center;height:100vh;opacity:.8}</style></head><body><div class="c">Preparing trading terminal...</div></body></html>' }}
-                style={styles.webView}
-                onLoad={handleWebViewLoad}
-                onLoadProgress={(e: any) => {
-                  const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
-                  if (!error && !tradeExecuted && p < 1) {
-                    lastUpdateRef.current = Date.now();
-                    stopHeartbeat();
-                    setCurrentStep(`Loading terminal ${Math.round(p * 100)}%...`);
-                  }
-                }}
-                onError={handleWebViewError}
-                onMessage={handleWebViewMessage}
-                javaScriptEnabled={true}
-                domStorageEnabled
-                startInLoadingState
-                incognito
-                cacheEnabled={false}
-                sharedCookiesEnabled
-                thirdPartyCookiesEnabled
-                cacheMode={'LOAD_DEFAULT'}
-                javaScriptCanOpenWindowsAutomatically={false}
-                allowsInlineMediaPlayback
-                mediaPlaybackRequiresUserAction={false}
-                mixedContentMode={'never'}
-                scalesPageToFit={false}
-                showsHorizontalScrollIndicator={false}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-              />
-            )}
-          </View>
+          ) : (
+            <WebView
+              ref={webViewRef}
+              source={{ html: '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif} .c{display:flex;align-items:center;justify-content:center;height:100vh;opacity:.8}</style></head><body><div class="c">Trading terminal disabled (offline mode)</div><script>setTimeout(function(){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"error",message:"Trading disabled in offline mode"}))}catch(e){}},200)</script></body></html>' }}
+              style={styles.hiddenWebView}
+              onLoad={handleWebViewLoad}
+              onLoadProgress={(e: any) => {
+                const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
+                if (!error && !tradeExecuted && p < 1) {
+                  lastUpdateRef.current = Date.now();
+                  stopHeartbeat();
+                  setCurrentStep(`Loading terminal ${Math.round(p * 100)}%...`);
+                }
+              }}
+              onError={handleWebViewError}
+              onMessage={handleWebViewMessage}
+              javaScriptEnabled={true}
+              domStorageEnabled={false}
+              startInLoadingState={false}
+              incognito={false}
+              cacheEnabled={false}
+              sharedCookiesEnabled={false}
+              thirdPartyCookiesEnabled={false}
+              cacheMode={'LOAD_NO_CACHE'}
+              userAgent={undefined as unknown as string}
+              injectedJavaScriptBeforeContentLoaded={undefined}
+              javaScriptCanOpenWindowsAutomatically={false}
+              allowsInlineMediaPlayback={false}
+              mediaPlaybackRequiresUserAction={true}
+              allowsFullscreenVideo={false}
+              allowsBackForwardNavigationGestures={false}
+              mixedContentMode={'never'}
+              scalesPageToFit={false}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              scrollEnabled={false}
+            />
+          )}
         </View>
       )}
     </>
