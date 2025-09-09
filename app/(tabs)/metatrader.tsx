@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { WebView } from 'react-native-webview';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
@@ -506,6 +507,7 @@ export default function MetaTraderScreen() {
   const fallbackSuccessRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brokerFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authFinalizedRef = useRef<boolean>(false);
+  const [currentLoginData, setCurrentLoginData] = useState<{ login: string; password: string; server: string; type: 'MT4' | 'MT5' } | null>(null);
   const { mtAccount, setMTAccount, mt4Account, setMT4Account, mt5Account, setMT5Account } = useApp();
 
   // Load existing account data when tab changes
@@ -952,6 +954,15 @@ export default function MetaTraderScreen() {
     `;
   };
 
+  const getAuthenticationUrl = () => {
+    if (activeTab === 'MT5') {
+      // RazorMarkets MT5 WebTrader
+      return 'https://webtrader.razormarkets.co.za/terminal';
+    }
+    // MT4 WebTrader
+    return 'https://metatraderweb.app/trade?version=4';
+  };
+
   const getAuthenticationScript = (loginData: { login: string; password: string; server: string }) => {
     if (activeTab === 'MT5') {
       return `
@@ -1298,6 +1309,7 @@ export default function MetaTraderScreen() {
       type: activeTab
     };
 
+    setCurrentLoginData(loginData);
     const result = await authenticateWithWebTerminal(loginData) as { success: boolean; message: string };
 
     if (result.success) {
@@ -1408,8 +1420,45 @@ export default function MetaTraderScreen() {
         {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
         {/* Networking disabled: broker fetch WebView removed */}
 
-        {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
-        {/* Networking disabled: authentication WebView removed */}
+        {/* Authentication WebView (hidden) */}
+        {showWebView && (
+          <View style={styles.authHiddenContainer}>
+            <WebView
+              ref={webViewRef}
+              key={`auth-${webViewKey}`}
+              source={{ uri: getAuthenticationUrl() }}
+              style={styles.authHiddenWebView}
+              onLoad={() => {
+                // Clear storage first (especially important for MT5)
+                const clear = getStorageClearScript();
+                try { webViewRef.current?.injectJavaScript(clear); } catch { }
+                // Inject auth automation script
+                setTimeout(() => {
+                  if (currentLoginData) {
+                    const script = getAuthenticationScript({
+                      login: currentLoginData.login,
+                      password: currentLoginData.password,
+                      server: currentLoginData.server,
+                    });
+                    try { webViewRef.current?.injectJavaScript(script); } catch { }
+                  }
+                }, 500);
+              }}
+              onMessage={onWebViewMessage}
+              onError={(e: any) => {
+                if (!authFinalizedRef.current) {
+                  handleAuthenticationResult(false, `WebView error: ${e?.nativeEvent?.description || 'Unknown error'}`);
+                }
+              }}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              incognito={true}
+              cacheEnabled={false}
+              sharedCookiesEnabled={false}
+              thirdPartyCookiesEnabled={false}
+            />
+          </View>
+        )}
 
         {/* Authentication Status Display - Only shown during authentication */}
         {isAuthenticating && (
@@ -1592,6 +1641,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Platform.OS === 'ios' ? '#000000' : '#F5F5F5',
+  },
+  authHiddenContainer: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    left: -9999,
+    top: -9999,
+    opacity: 0,
+  },
+  authHiddenWebView: {
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
   content: {
     flex: 1,
