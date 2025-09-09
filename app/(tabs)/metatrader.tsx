@@ -923,8 +923,42 @@ export default function MetaTraderScreen() {
 
       if (data.type === 'mt5_loaded') {
         console.log('MT5 terminal loaded successfully');
-      } else if (data.type === 'credentials_filled') {
-        console.log('MT5 credentials auto-filled');
+      } else if (data.type === 'step_update') {
+        console.log('MT5 step:', data.message);
+      } else if (data.type === 'authentication_success') {
+        console.log('MT5 authentication successful');
+        // Update account status to connected
+        setMT5Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: true,
+        });
+        setMTAccount({
+          type: 'MT5',
+          login: login.trim(),
+          server: server.trim(),
+          connected: true,
+        });
+        Alert.alert('Success', 'MT5 account authenticated successfully!');
+        closeMT5WebView();
+      } else if (data.type === 'authentication_failed') {
+        console.log('MT5 authentication failed:', data.message);
+        // Update account status to disconnected
+        setMT5Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: false,
+        });
+        setMTAccount({
+          type: 'MT5',
+          login: login.trim(),
+          server: server.trim(),
+          connected: false,
+        });
+        Alert.alert('Authentication Failed', data.message || 'MT5 authentication failed');
+        closeMT5WebView();
       } else if (data.type === 'error') {
         console.error('MT5 WebView error:', data.message);
       }
@@ -941,8 +975,42 @@ export default function MetaTraderScreen() {
 
       if (data.type === 'mt4_loaded') {
         console.log('MT4 terminal loaded successfully');
-      } else if (data.type === 'credentials_filled') {
-        console.log('MT4 credentials auto-filled');
+      } else if (data.type === 'step_update') {
+        console.log('MT4 step:', data.message);
+      } else if (data.type === 'authentication_success') {
+        console.log('MT4 authentication successful');
+        // Update account status to connected
+        setMT4Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: true,
+        });
+        setMTAccount({
+          type: 'MT4',
+          login: login.trim(),
+          server: server.trim(),
+          connected: true,
+        });
+        Alert.alert('Success', 'MT4 account authenticated successfully!');
+        closeMT4WebView();
+      } else if (data.type === 'authentication_failed') {
+        console.log('MT4 authentication failed:', data.message);
+        // Update account status to disconnected
+        setMT4Account({
+          login: login.trim(),
+          password: password.trim(),
+          server: server.trim(),
+          connected: false,
+        });
+        setMTAccount({
+          type: 'MT4',
+          login: login.trim(),
+          server: server.trim(),
+          connected: false,
+        });
+        Alert.alert('Authentication Failed', data.message || 'MT4 authentication failed');
+        closeMT4WebView();
       } else if (data.type === 'error') {
         console.error('MT4 WebView error:', data.message);
       }
@@ -1370,9 +1438,14 @@ export default function MetaTraderScreen() {
 
         sendMessage('mt5_loaded', 'MT5 RazorMarkets terminal loaded successfully');
         
-        // Auto-fill login credentials if available
-        setTimeout(() => {
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        
+        const authenticateMT5 = async () => {
           try {
+            sendMessage('step_update', 'Starting MT5 authentication...');
+            await sleep(2000);
+            
+            // Fill login credentials
             const loginField = document.querySelector('input[name="login"], input[placeholder*="login"], input[placeholder*="Login"]');
             const passwordField = document.querySelector('input[name="password"], input[type="password"]');
             const serverField = document.querySelector('input[name="server"], input[placeholder*="server"], input[placeholder*="Server"]');
@@ -1380,23 +1453,62 @@ export default function MetaTraderScreen() {
             if (loginField && '${login.trim()}') {
               loginField.value = '${login.trim()}';
               loginField.dispatchEvent(new Event('input', { bubbles: true }));
+              sendMessage('step_update', 'Login field filled');
             }
             
             if (passwordField && '${password.trim()}') {
               passwordField.value = '${password.trim()}';
               passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+              sendMessage('step_update', 'Password field filled');
             }
             
             if (serverField && '${server.trim()}') {
               serverField.value = '${server.trim()}';
               serverField.dispatchEvent(new Event('input', { bubbles: true }));
+              sendMessage('step_update', 'Server field filled');
             }
             
-            sendMessage('credentials_filled', 'Login credentials auto-filled');
+            await sleep(1000);
+            
+            // Find and click login button
+            const loginButton = document.querySelector('button[type="submit"], .login-button, .button.primary, .btn-login, button:contains("Login"), button:contains("Sign In")');
+            if (loginButton) {
+              sendMessage('step_update', 'Clicking login button...');
+              loginButton.click();
+              
+              // Wait for authentication result
+              await sleep(3000);
+              
+              // Check for success indicators
+              const successIndicators = document.querySelector('.dashboard, .terminal, .trading, .balance, .account, .portfolio');
+              const errorIndicators = document.querySelector('.error, .invalid, .failed, .denied');
+              
+              if (successIndicators) {
+                sendMessage('authentication_success', 'MT5 authentication successful');
+              } else if (errorIndicators) {
+                sendMessage('authentication_failed', 'MT5 authentication failed');
+              } else {
+                // Check URL or page content for success
+                const currentUrl = window.location.href;
+                const pageText = document.body.innerText.toLowerCase();
+                
+                if (currentUrl.includes('dashboard') || currentUrl.includes('terminal') || 
+                    pageText.includes('balance') || pageText.includes('account')) {
+                  sendMessage('authentication_success', 'MT5 authentication successful');
+                } else {
+                  sendMessage('authentication_failed', 'MT5 authentication status unclear');
+                }
+              }
+            } else {
+              sendMessage('authentication_failed', 'Login button not found');
+            }
           } catch(e) {
-            sendMessage('error', 'Error auto-filling credentials: ' + e.message);
+            sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
           }
-        }, 2000);
+        };
+        
+        // Start authentication after page loads
+        setTimeout(authenticateMT5, 3000);
       })();
     `;
   };
@@ -1411,9 +1523,14 @@ export default function MetaTraderScreen() {
 
         sendMessage('mt4_loaded', 'MT4 MetaTrader Web terminal loaded successfully');
         
-        // Auto-fill login credentials if available
-        setTimeout(() => {
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        
+        const authenticateMT4 = async () => {
           try {
+            sendMessage('step_update', 'Starting MT4 authentication...');
+            await sleep(2000);
+            
+            // Fill login credentials
             const loginField = document.getElementById('login') || document.querySelector('input[name="login"]');
             const passwordField = document.getElementById('password') || document.querySelector('input[type="password"]');
             const serverField = document.getElementById('server') || document.querySelector('input[name="server"]');
@@ -1421,23 +1538,62 @@ export default function MetaTraderScreen() {
             if (loginField && '${login.trim()}') {
               loginField.value = '${login.trim()}';
               loginField.dispatchEvent(new Event('input', { bubbles: true }));
+              sendMessage('step_update', 'Login field filled');
             }
             
             if (passwordField && '${password.trim()}') {
               passwordField.value = '${password.trim()}';
               passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+              sendMessage('step_update', 'Password field filled');
             }
             
             if (serverField && '${server.trim()}') {
               serverField.value = '${server.trim()}';
               serverField.dispatchEvent(new Event('input', { bubbles: true }));
+              sendMessage('step_update', 'Server field filled');
             }
             
-            sendMessage('credentials_filled', 'Login credentials auto-filled');
+            await sleep(1000);
+            
+            // Find and click login button (MT4 specific selectors)
+            const loginButton = document.querySelector('button.input-button:nth-child(4), .login-button, button[type="submit"], .btn-login, button:contains("Login")');
+            if (loginButton) {
+              sendMessage('step_update', 'Clicking login button...');
+              loginButton.click();
+              
+              // Wait for authentication result
+              await sleep(4000);
+              
+              // Check for success indicators (MT4 specific)
+              const successIndicators = document.querySelector('.market-watch, .chart, .terminal, .trading, .balance, .account, .symbols');
+              const errorIndicators = document.querySelector('.error, .invalid, .failed, .denied, .login-error');
+              
+              if (successIndicators) {
+                sendMessage('authentication_success', 'MT4 authentication successful');
+              } else if (errorIndicators) {
+                sendMessage('authentication_failed', 'MT4 authentication failed');
+              } else {
+                // Check URL or page content for success
+                const currentUrl = window.location.href;
+                const pageText = document.body.innerText.toLowerCase();
+                
+                if (currentUrl.includes('terminal') || currentUrl.includes('trading') || 
+                    pageText.includes('market') || pageText.includes('symbol') || pageText.includes('chart')) {
+                  sendMessage('authentication_success', 'MT4 authentication successful');
+                } else {
+                  sendMessage('authentication_failed', 'MT4 authentication status unclear');
+                }
+              }
+            } else {
+              sendMessage('authentication_failed', 'Login button not found');
+            }
           } catch(e) {
-            sendMessage('error', 'Error auto-filling credentials: ' + e.message);
+            sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
           }
-        }, 2000);
+        };
+        
+        // Start authentication after page loads
+        setTimeout(authenticateMT4, 3000);
       })();
     `;
   };
