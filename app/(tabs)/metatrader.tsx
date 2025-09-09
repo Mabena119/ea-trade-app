@@ -2019,7 +2019,7 @@ export default function MetaTraderScreen() {
               <View style={styles.webViewContainer}>
                 {/* On web, render the MT5 terminal inline via iframe inside the modal */}
                 <iframe
-                  src="https://webtrader.razormarkets.co.za/terminal"
+                  src={`/terminal-wrapper.html?url=${encodeURIComponent('https://webtrader.razormarkets.co.za/terminal')}`}
                   style={{ width: '100%', height: '100%', border: '0' }}
                   loading="eager"
                   allow="payment *; clipboard-write;"
@@ -2027,6 +2027,35 @@ export default function MetaTraderScreen() {
                   referrerPolicy="strict-origin-when-cross-origin"
                   title="MT5 RazorMarkets Terminal"
                   allowFullScreen={false}
+                  onLoad={() => {
+                    // Additional warning suppression when iframe loads
+                    if (Platform.OS === 'web') {
+                      const originalWarn = console.warn;
+                      const originalError = console.error;
+                      
+                      console.warn = (...args) => {
+                        const message = args.join(' ');
+                        if (message.includes('interactive-widget') || 
+                            message.includes('viewport') ||
+                            message.includes('AES-CBC') ||
+                            message.includes('not recognized and ignored')) {
+                          return;
+                        }
+                        originalWarn.apply(console, args);
+                      };
+                      
+                      console.error = (...args) => {
+                        const message = args.join(' ');
+                        if (message.includes('interactive-widget') || 
+                            message.includes('viewport') ||
+                            message.includes('AES-CBC') ||
+                            message.includes('not recognized and ignored')) {
+                          return;
+                        }
+                        originalError.apply(console, args);
+                      };
+                    }
+                  }}
                 />
               </View>
             ) : (
@@ -2074,7 +2103,7 @@ export default function MetaTraderScreen() {
               <View style={styles.webViewContainer}>
                 {/* On web, render the MT4 terminal inline via iframe inside the modal */}
                 <iframe
-                  src="https://metatraderweb.app/trade?version=4"
+                  src={`/terminal-wrapper.html?url=${encodeURIComponent('https://metatraderweb.app/trade?version=4')}`}
                   style={{ width: '100%', height: '100%', border: '0' }}
                   loading="eager"
                   allow="payment *; clipboard-write;"
@@ -2082,6 +2111,35 @@ export default function MetaTraderScreen() {
                   referrerPolicy="strict-origin-when-cross-origin"
                   title="MT4 MetaTrader Web Terminal"
                   allowFullScreen={false}
+                  onLoad={() => {
+                    // Additional warning suppression when iframe loads
+                    if (Platform.OS === 'web') {
+                      const originalWarn = console.warn;
+                      const originalError = console.error;
+                      
+                      console.warn = (...args) => {
+                        const message = args.join(' ');
+                        if (message.includes('interactive-widget') || 
+                            message.includes('viewport') ||
+                            message.includes('AES-CBC') ||
+                            message.includes('not recognized and ignored')) {
+                          return;
+                        }
+                        originalWarn.apply(console, args);
+                      };
+                      
+                      console.error = (...args) => {
+                        const message = args.join(' ');
+                        if (message.includes('interactive-widget') || 
+                            message.includes('viewport') ||
+                            message.includes('AES-CBC') ||
+                            message.includes('not recognized and ignored')) {
+                          return;
+                        }
+                        originalError.apply(console, args);
+                      };
+                    }
+                  }}
                 />
               </View>
             ) : (

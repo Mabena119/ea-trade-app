@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal Wrapper</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+    <script>
+        // Suppress console warnings from external terminals
+        (function() {
+            const originalWarn = console.warn;
+            const originalError = console.error;
+            
+            console.warn = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('interactive-widget') || 
+                    message.includes('viewport') ||
+                    message.includes('Viewport argument key') ||
+                    message.includes('AES-CBC and AES-CTR do not provide authentication') ||
+                    message.includes('AES-GCM to protect against chosen-ciphertext attacks') ||
+                    message.includes('not recognized and ignored')) {
+                    return;
+                }
+                originalWarn.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('interactive-widget') || 
+                    message.includes('viewport') ||
+                    message.includes('Viewport argument key') ||
+                    message.includes('AES-CBC and AES-CTR do not provide authentication') ||
+                    message.includes('AES-GCM to protect against chosen-ciphertext attacks') ||
+                    message.includes('not recognized and ignored')) {
+                    return;
+                }
+                originalError.apply(console, args);
+            };
+        })();
+    </script>
+</head>
+<body>
+    <iframe id="terminal-frame" src="" allow="payment *; clipboard-write;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+    
+    <script>
+        // Get URL parameter for terminal type
+        const urlParams = new URLSearchParams(window.location.search);
+        const terminalUrl = urlParams.get('url');
+        
+        if (terminalUrl) {
+            document.getElementById('terminal-frame').src = decodeURIComponent(terminalUrl);
+        }
+    </script>
+</body>
+</html>

@@ -154,9 +154,12 @@ export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState<boolean>(false);
 
   useEffect(() => {
-    // Set up global console warning filter for external warnings
+    // Set up comprehensive console warning filter for external warnings
     if (Platform.OS === 'web') {
       const originalWarn = console.warn;
+      const originalError = console.error;
+      
+      // Filter console.warn
       console.warn = (...args) => {
         const message = args.join(' ');
         // Suppress warnings from external terminals and dependencies
@@ -164,10 +167,26 @@ export default function RootLayout() {
             message.includes('viewport') ||
             message.includes('Viewport argument key') ||
             message.includes('AES-CBC and AES-CTR do not provide authentication') ||
-            message.includes('AES-GCM to protect against chosen-ciphertext attacks')) {
+            message.includes('AES-GCM to protect against chosen-ciphertext attacks') ||
+            message.includes('not recognized and ignored')) {
           return;
         }
         originalWarn.apply(console, args);
+      };
+      
+      // Filter console.error for the same warnings
+      console.error = (...args) => {
+        const message = args.join(' ');
+        // Suppress error messages from external terminals and dependencies
+        if (message.includes('interactive-widget') || 
+            message.includes('viewport') ||
+            message.includes('Viewport argument key') ||
+            message.includes('AES-CBC and AES-CTR do not provide authentication') ||
+            message.includes('AES-GCM to protect against chosen-ciphertext attacks') ||
+            message.includes('not recognized and ignored')) {
+          return;
+        }
+        originalError.apply(console, args);
       };
     }
 
