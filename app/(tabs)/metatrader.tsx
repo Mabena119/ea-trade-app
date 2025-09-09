@@ -515,15 +515,6 @@ export default function MetaTraderScreen() {
 
   const openTerminal = useMemo(() => () => {
     const url = 'https://trade.mql5.com/trade';
-    if (Platform.OS === 'web') {
-      try {
-        // Open MT terminal in a new tab on web
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } catch {
-        Linking.openURL(url).catch(() => {});
-      }
-      return;
-    }
     setTerminalUrl(url);
     setShowTerminal(true);
   }, []);
@@ -1627,6 +1618,24 @@ export default function MetaTraderScreen() {
           </View>
         </View>
       )}
+      {showTerminal && Platform.OS === 'web' && (
+        <View style={styles.webTerminalContainer}>
+          <View style={styles.terminalHeader}>
+            <Text style={styles.terminalTitle}>{activeTab} WEB TERMINAL</Text>
+            <TouchableOpacity style={styles.terminalClose} onPress={() => setShowTerminal(false)}>
+              <Text style={styles.terminalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.webTerminalFrameWrapper}>
+            <iframe
+              src={terminalUrl}
+              style={{ width: '100%', height: '100%', border: 0 }}
+              loading="eager"
+              allow="clipboard-write; fullscreen"
+            />
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1773,6 +1782,19 @@ const styles = StyleSheet.create({
   },
   linkButtonDisabled: {
     opacity: 0.7,
+  },
+  webTerminalContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+    zIndex: 9999,
+    display: 'flex',
+  },
+  webTerminalFrameWrapper: {
+    flex: 1,
   },
   terminalOverlay: {
     position: 'absolute',
