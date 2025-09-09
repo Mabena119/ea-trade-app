@@ -75,6 +75,15 @@ async function handleApi(request: Request): Promise<Response> {
             return new Response('Method Not Allowed', { status: 405 });
         }
 
+        // Add symbols routing
+        if (pathname === '/api/symbols') {
+            const route = await import('./app/api/symbols/route.ts');
+            if (request.method === 'GET' && typeof route.GET === 'function') {
+                return route.GET(request) as Promise<Response>;
+            }
+            return new Response('Method Not Allowed', { status: 405 });
+        }
+
         return new Response('Not Found', { status: 404 });
     } catch (error) {
         console.error('API handler error:', error);
