@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { WebView } from 'react-native-webview';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, WebView } from 'react-native';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -612,7 +611,11 @@ export default function MetaTraderScreen() {
     return `
       (function() {
         const sendMessage = (type, data) => {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type, ...data }));
+          try {
+            window.postMessage(JSON.stringify({ type, ...data }), '*');
+          } catch(e) {
+            console.log('Message send failed:', e);
+          }
         };
         
         const extractBrokers = () => {
@@ -880,8 +883,24 @@ export default function MetaTraderScreen() {
 
   const onWebViewMessage = (event: any) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data);
-      console.log('WebView message:', data);
+      // Native WebView message format
+      const message = event.nativeEvent.data;
+      console.log('WebView message:', message);
+      
+      // Try to parse as JSON first
+      let data;
+      try {
+        data = JSON.parse(message);
+      } catch {
+        // If not JSON, treat as plain text message
+        if (message.includes('success') || message.includes('Success')) {
+          data = { type: 'authentication_success', message: 'Login Successful!' };
+        } else if (message.includes('failed') || message.includes('Failed') || message.includes('error')) {
+          data = { type: 'authentication_failed', message: 'Authentication failed' };
+        } else {
+          data = { type: 'step_update', message: message };
+        }
+      }
 
       if (data.type === 'authentication_success') {
         if (fallbackSuccessRef.current) {
@@ -972,7 +991,7 @@ export default function MetaTraderScreen() {
           let done = false;
 
           const send = (type, message) => {
-            try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch (e) {}
+            try { window.postMessage(JSON.stringify({ type, message }), '*'); } catch (e) {}
           };
 
           const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -1096,7 +1115,7 @@ export default function MetaTraderScreen() {
       return `
         (function(){
           const sendMessage = (type, message) => {
-            try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
+            try { window.postMessage(JSON.stringify({ type, message }), '*'); } catch(e) {}
           };
 
           // Enhanced field input function from trade script
@@ -1475,10 +1494,10 @@ export default function MetaTraderScreen() {
                 }}
                 javaScriptEnabled={true}
                 domStorageEnabled={true}
-                incognito={true}
-                cacheEnabled={false}
-                sharedCookiesEnabled={false}
-                thirdPartyCookiesEnabled={false}
+                startInLoadingState={true}
+                scalesPageToFit={true}
+                allowsInlineMediaPlayback={true}
+                mediaPlaybackRequiresUserAction={false}
               />
             </View>
           </View>
