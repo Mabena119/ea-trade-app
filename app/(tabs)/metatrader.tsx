@@ -1626,6 +1626,7 @@ export default function MetaTraderScreen() {
                 </View>
               )}
               originWhitelist={['https://*']}
+              userAgent={Platform.OS === 'ios' ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' : undefined as unknown as string}
               onShouldStartLoadWithRequest={(request: any) => {
                 const url = request?.url || '';
                 if (!url) return false;
@@ -1652,7 +1653,13 @@ export default function MetaTraderScreen() {
                 }
               }}
               onError={(e: any) => {
-                console.log('Terminal WebView error:', e?.nativeEvent?.description || 'unknown');
+                const failingUrl = e?.nativeEvent?.url || '';
+                const description = e?.nativeEvent?.description || '';
+                console.log('Terminal WebView error:', description, failingUrl);
+                // MT4 fallback: if metatraderweb.app fails, switch to mql5
+                if (activeTab === 'MT4' && terminalUrl.includes('metatraderweb.app')) {
+                  setTerminalUrl('https://trade.mql5.com/trade');
+                }
               }}
             />
           </View>

@@ -19,6 +19,7 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
+          "NSAllowsArbitraryLoadsInWebContent": true,
           "NSExceptionDomains": {
             "trade.mql5.com": {
               "NSIncludesSubdomains": true,
