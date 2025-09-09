@@ -1469,11 +1469,13 @@ export default function MetaTraderScreen() {
                 <WebView
                   key={webViewKey}
                   ref={webViewRef}
-                  source={{ uri: activeTab === 'MT5'
-                    ? (((server || '').trim().toLowerCase() === 'razormarkets-live')
+                  source={{
+                    uri: activeTab === 'MT5'
+                      ? (((server || '').trim().toLowerCase() === 'razormarkets-live')
                         ? 'https://webtrader.razormarkets.co.za/terminal'
                         : 'https://web-terminal.mql5.com')
-                    : 'https://metatraderweb.app/trade?version=4' }}
+                      : 'https://metatraderweb.app/trade?version=4'
+                  }}
                   onMessage={onWebViewMessage}
                   onLoad={() => { injectAuthScriptOnce(); }}
                   onLoadEnd={() => { scheduleReInjection(); }}

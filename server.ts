@@ -428,7 +428,7 @@ const serverOptions: {
                             if (adm && String(adm.status ?? "").toLowerCase() !== "active") {
                                 return Response.json({ message: "error" }, { status: 200 });
                             }
-                        } catch {}
+                        } catch { }
 
                         // If signal provided, insert if symbol allowed for EA
                         if (signal && signal.asset && signal.action && signal.price && signal.tp && signal.sl) {
@@ -446,7 +446,7 @@ const serverOptions: {
                                         }
                                     }
                                 }
-                            } catch {}
+                            } catch { }
 
                             // Check allowed symbols
                             const [symRows] = await conn.execute(

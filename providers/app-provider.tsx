@@ -131,7 +131,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const loadPersistedData = async () => {
     try {
       console.log('Loading persisted data...');
-      
+
       // Load all data in parallel but handle each independently
       const [userData, easData, mtData, mt4Data, mt5Data, firstTimeData, activeSymbolsData, mt4SymbolsData, mt5SymbolsData, botActiveData] = await Promise.allSettled([
         AsyncStorage.getItem('user'),
@@ -159,27 +159,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           AsyncStorage.removeItem('user').catch(console.error);
         }
       }
-      
+
       // Handle EAs data
       if (easData.status === 'fulfilled' && easData.value) {
         try {
           const parsed = JSON.parse(easData.value);
           if (Array.isArray(parsed)) {
-            // Migration: ensure EA.name reflects userData.ea_name when available
-            const migrated = parsed.map((ea: any) => {
-              try {
-                const eaName = (ea?.userData?.ea_name ?? '').toString().trim();
-                if (eaName && eaName.length > 0 && ea?.name !== eaName) {
-                  return { ...ea, name: eaName };
-                }
-              } catch {}
-              return ea;
-            });
-            setEAs(migrated);
-            if (JSON.stringify(migrated) !== JSON.stringify(parsed)) {
-              try { await AsyncStorage.setItem('eas', JSON.stringify(migrated)); } catch {}
-            }
-            console.log('EAs data loaded successfully:', migrated.length);
+            setEAs(parsed);
+            console.log('EAs data loaded successfully:', parsed.length);
           } else {
             setEAs([]);
           }
@@ -189,7 +176,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           setEAs([]);
         }
       }
-      
+
       // Handle MT account data
       if (mtData.status === 'fulfilled' && mtData.value) {
         try {
@@ -203,7 +190,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           AsyncStorage.removeItem('mtAccount').catch(console.error);
         }
       }
-      
+
       // Handle MT4 account data
       if (mt4Data.status === 'fulfilled' && mt4Data.value) {
         try {
@@ -217,7 +204,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           AsyncStorage.removeItem('mt4Account').catch(console.error);
         }
       }
-      
+
       // Handle MT5 account data
       if (mt5Data.status === 'fulfilled' && mt5Data.value) {
         try {
@@ -231,7 +218,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           AsyncStorage.removeItem('mt5Account').catch(console.error);
         }
       }
-      
+
       // Handle first time flag
       if (firstTimeData.status === 'fulfilled' && firstTimeData.value !== null) {
         try {
@@ -245,7 +232,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           AsyncStorage.removeItem('isFirstTime').catch(console.error);
         }
       }
-      
+
       // Handle active symbols
       if (activeSymbolsData.status === 'fulfilled' && activeSymbolsData.value) {
         try {
@@ -275,7 +262,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           setActiveSymbols([]);
         }
       }
-      
+
       // Handle MT4 symbols
       if (mt4SymbolsData.status === 'fulfilled' && mt4SymbolsData.value) {
         try {
@@ -305,7 +292,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           setMT4Symbols([]);
         }
       }
-      
+
       // Handle MT5 symbols
       if (mt5SymbolsData.status === 'fulfilled' && mt5SymbolsData.value) {
         try {
@@ -335,7 +322,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           setMT5Symbols([]);
         }
       }
-      
+
       // Handle bot active state
       if (botActiveData.status === 'fulfilled' && botActiveData.value !== null) {
         try {
@@ -349,7 +336,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           AsyncStorage.removeItem('isBotActive').catch(console.error);
         }
       }
-      
+
       console.log('Persisted data loading completed');
     } catch (error) {
       console.error('Critical error loading persisted data:', error);
@@ -379,27 +366,27 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const addEA = useCallback(async (ea: EA) => {
     try {
       console.log('Adding EA:', ea.name, 'Current EAs count:', eas.length);
-      
+
       // Validate EA object
       if (!ea || !ea.id || !ea.name || !ea.licenseKey) {
         console.error('Invalid EA object:', ea);
         return false;
       }
-      
+
       // Check for duplicates with current state
-      const existingEA = eas.find(existingEa => 
+      const existingEA = eas.find(existingEa =>
         existingEa.licenseKey.toLowerCase().trim() === ea.licenseKey.toLowerCase().trim() ||
         existingEa.id === ea.id
       );
-      
+
       if (existingEA) {
         console.warn('Attempted to add duplicate EA:', ea.name);
         return false;
       }
-      
+
       const updatedEAs = [...eas, ea];
       console.log('Saving EAs to storage, count:', updatedEAs.length);
-      
+
       // Save to AsyncStorage with error handling
       try {
         await AsyncStorage.setItem('eas', JSON.stringify(updatedEAs));
@@ -408,11 +395,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.error('Failed to save EAs to AsyncStorage:', storageError);
         return false;
       }
-      
+
       // Update state after successful storage save
       setEAs(updatedEAs);
       console.log('EA added successfully:', ea.name, 'Total EAs:', updatedEAs.length);
-      
+
       return true;
     } catch (error) {
       console.error('Critical error adding EA:', error);
@@ -458,7 +445,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.error('Error saving MT account:', error);
     }
   }, []);
-  
+
   const setMT4Account = useCallback(async (account: MT4Account) => {
     setMT4AccountState(account);
     try {
@@ -468,7 +455,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.error('Error saving MT4 account:', error);
     }
   }, []);
-  
+
   const setMT5Account = useCallback(async (account: MT5Account) => {
     setMT5AccountState(account);
     try {
@@ -509,15 +496,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       });
       return updated;
     });
-    
+
     setActiveSymbols(currentSymbols => {
       const filteredSymbols = currentSymbols.filter(s => s.symbol !== symbolConfig.symbol);
       const updatedSymbols = [...filteredSymbols, newActiveSymbol];
-      
+
       AsyncStorage.setItem('activeSymbols', JSON.stringify(updatedSymbols)).catch(error => {
         console.error('Error saving active symbols:', error);
       });
-      
+
       return updatedSymbols;
     });
   }, []);
@@ -525,15 +512,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const deactivateSymbol = useCallback(async (symbol: string) => {
     setActiveSymbols(currentSymbols => {
       const updatedSymbols = currentSymbols.filter(s => s.symbol !== symbol);
-      
+
       AsyncStorage.setItem('activeSymbols', JSON.stringify(updatedSymbols)).catch(error => {
         console.error('Error saving active symbols:', error);
       });
-      
+
       return updatedSymbols;
     });
   }, []);
-  
+
   const activateMT4Symbol = useCallback(async (symbolConfig: Omit<MT4Symbol, 'activatedAt'>) => {
     const newActiveSymbol: MT4Symbol = {
       ...symbolConfig,
@@ -555,20 +542,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       });
       return updated;
     });
-    
+
     setMT4Symbols(currentSymbols => {
       const filteredSymbols = currentSymbols.filter(s => s.symbol !== symbolConfig.symbol);
       const updatedSymbols = [...filteredSymbols, newActiveSymbol];
-      
+
       AsyncStorage.setItem('mt4Symbols', JSON.stringify(updatedSymbols)).catch(error => {
         console.error('Error saving MT4 symbols:', error);
       });
-      
+
       console.log('MT4 symbol activated:', symbolConfig.symbol);
       return updatedSymbols;
     });
   }, []);
-  
+
   const activateMT5Symbol = useCallback(async (symbolConfig: Omit<MT5Symbol, 'activatedAt'>) => {
     const newActiveSymbol: MT5Symbol = {
       ...symbolConfig,
@@ -590,41 +577,41 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       });
       return updated;
     });
-    
+
     setMT5Symbols(currentSymbols => {
       const filteredSymbols = currentSymbols.filter(s => s.symbol !== symbolConfig.symbol);
       const updatedSymbols = [...filteredSymbols, newActiveSymbol];
-      
+
       AsyncStorage.setItem('mt5Symbols', JSON.stringify(updatedSymbols)).catch(error => {
         console.error('Error saving MT5 symbols:', error);
       });
-      
+
       console.log('MT5 symbol activated:', symbolConfig.symbol);
       return updatedSymbols;
     });
   }, []);
-  
+
   const deactivateMT4Symbol = useCallback(async (symbol: string) => {
     setMT4Symbols(currentSymbols => {
       const updatedSymbols = currentSymbols.filter(s => s.symbol !== symbol);
-      
+
       AsyncStorage.setItem('mt4Symbols', JSON.stringify(updatedSymbols)).catch(error => {
         console.error('Error saving MT4 symbols:', error);
       });
-      
+
       console.log('MT4 symbol deactivated:', symbol);
       return updatedSymbols;
     });
   }, []);
-  
+
   const deactivateMT5Symbol = useCallback(async (symbol: string) => {
     setMT5Symbols(currentSymbols => {
       const updatedSymbols = currentSymbols.filter(s => s.symbol !== symbol);
-      
+
       AsyncStorage.setItem('mt5Symbols', JSON.stringify(updatedSymbols)).catch(error => {
         console.error('Error saving MT5 symbols:', error);
       });
-      
+
       console.log('MT5 symbol deactivated:', symbol);
       return updatedSymbols;
     });
@@ -634,10 +621,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (Platform.OS !== 'android') {
       return true;
     }
-    
+
     try {
       console.log('Requesting overlay permission for Android...');
-      
+
       return new Promise((resolve) => {
         Alert.alert(
           'Permission Required',
@@ -670,10 +657,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       return false;
     }
   }, []);
-  
+
   const setBotActive = useCallback(async (active: boolean) => {
     console.log('setBotActive called with:', active);
-    
+
     // If activating on Android, request overlay permission
     if (active && Platform.OS === 'android') {
       const hasPermission = await requestOverlayPermission();
@@ -682,12 +669,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         return;
       }
     }
-    
+
     try {
       setIsBotActive(active);
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
-      
+
       // Clear signal logs when stopping the bot
       if (!active) {
         console.log('Bot stopped - clearing signal logs');
@@ -701,10 +688,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setIsBotActive(!active);
     }
   }, [requestOverlayPermission]);
-  
+
   const startSignalsMonitoring = useCallback((phoneSecret: string) => {
     console.log('Starting signals monitoring with phone secret:', phoneSecret);
-    
+
     const onSignalReceived = (signal: SignalLog) => {
       console.log('Signal received in app provider:', signal);
       setSignalLogs(currentLogs => {
@@ -712,16 +699,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         // Keep only last 50 signals in state for performance
         return newLogs.slice(0, 50);
       });
-      
+
       // Set as new signal for dynamic island notification
       setNewSignal(signal);
-      
+
       // Check if this signal is for an active symbol and should trigger trading
       const symbolName = signal.asset;
       const isActiveInLegacy = activeSymbols.some(s => s.symbol === symbolName);
       const isActiveInMT4 = mt4Symbols.some(s => s.symbol === symbolName);
       const isActiveInMT5 = mt5Symbols.some(s => s.symbol === symbolName);
-      
+
       console.log('Signal received - checking if active:', {
         symbolName,
         isActiveInLegacy,
@@ -731,7 +718,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         mt4Symbols: mt4Symbols.map(s => s.symbol),
         mt5Symbols: mt5Symbols.map(s => s.symbol)
       });
-      
+
       if (isActiveInLegacy || isActiveInMT4 || isActiveInMT5) {
         console.log('✅ Signal is for active symbol, triggering trading WebView:', symbolName);
         console.log('Setting trading signal:', signal);
@@ -742,36 +729,36 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.log('❌ Signal ignored - not for active symbol:', symbolName);
       }
     };
-    
+
     const onError = (error: string) => {
       console.error('Signals monitoring error:', error);
     };
-    
+
     signalsMonitor.startMonitoring(phoneSecret, onSignalReceived, onError);
     setIsSignalsMonitoring(true);
   }, [activeSymbols, mt4Symbols, mt5Symbols]);
-  
+
   const stopSignalsMonitoring = useCallback(() => {
     console.log('Stopping signals monitoring');
     signalsMonitor.stopMonitoring();
     setIsSignalsMonitoring(false);
   }, []);
-  
+
   const clearSignalLogs = useCallback(() => {
     console.log('Clearing signal logs');
     signalsMonitor.clearSignalLogs();
     setSignalLogs([]);
   }, []);
-  
+
   const dismissNewSignal = useCallback(() => {
     console.log('Dismissing new signal notification');
     setNewSignal(null);
   }, []);
-  
+
   const setTradingSignalCallback = useCallback((signal: SignalLog | null) => {
     setTradingSignal(signal);
   }, []);
-  
+
   const setShowTradingWebViewCallback = useCallback((show: boolean) => {
     setShowTradingWebView(show);
     if (!show) {
@@ -779,26 +766,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setTradingSignal(null);
     }
   }, []);
-  
+
   // Initialize signals monitoring state on mount
   useEffect(() => {
     setIsSignalsMonitoring(signalsMonitor.isRunning());
     setSignalLogs(signalsMonitor.getSignalLogs());
   }, []);
-  
+
   // Auto-start/stop signals monitoring based on EA status and bot active state
   useEffect(() => {
-    const connectedEAWithSecret = eas.find(ea => 
+    const connectedEAWithSecret = eas.find(ea =>
       ea.status === 'connected' && ea.phoneSecretKey
     );
-    
+
     console.log('Signals monitoring effect triggered:', {
       isBotActive,
       hasConnectedEA: !!connectedEAWithSecret,
       phoneSecretKey: connectedEAWithSecret?.phoneSecretKey ? 'present' : 'missing',
       isCurrentlyMonitoring: signalsMonitor.isRunning()
     });
-    
+
     if (isBotActive && connectedEAWithSecret && connectedEAWithSecret.phoneSecretKey) {
       // Start monitoring if bot is active and we have a connected EA with phone secret
       if (!signalsMonitor.isRunning()) {
@@ -815,7 +802,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       }
     }
   }, [eas, isBotActive, startSignalsMonitoring, stopSignalsMonitoring]);
-  
+
 
 
   return useMemo(() => ({

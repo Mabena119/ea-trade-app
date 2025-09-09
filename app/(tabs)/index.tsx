@@ -28,12 +28,7 @@ export default function HomeScreen() {
       if (logo.startsWith('http://') || logo.startsWith('https://') || logo.startsWith('data:')) {
         return logo;
       }
-      // Support relative admin upload paths
-      if (logo.startsWith('/')) {
-        return `https://ea-converter.com${logo}`;
-      }
-      // Common case: stored path like admin/uploads/xxx.jpg
-      return `https://ea-converter.com/${logo}`;
+      return null;
     } catch {
       return null;
     }
