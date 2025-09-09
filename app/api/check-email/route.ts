@@ -61,7 +61,8 @@ export async function POST(request: Request): Promise<Response> {
         }
     } catch (error) {
         console.error('check-email error:', error);
-        return Response.json({ error: 'Internal Server Error' }, { status: 500 });
+        // Graceful fallback: treat as not found/unpaid/unused so client can show payment
+        return Response.json({ found: 0, used: 0, paid: 0 }, { status: 200 });
     }
 }
 

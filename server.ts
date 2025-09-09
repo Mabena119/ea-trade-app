@@ -106,7 +106,8 @@ const serverOptions: {
                 }
             } catch (error) {
                 console.error("/api/check-email error:", error);
-                return Response.json({ error: "Internal Server Error" }, { status: 500 });
+                // Graceful fallback: treat as not found/unpaid/unused
+                return Response.json({ found: 0, used: 0, paid: 0 }, { status: 200 });
             }
         }
 
