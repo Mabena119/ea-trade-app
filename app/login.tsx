@@ -37,8 +37,8 @@ export default function LoginScreen() {
       const trimmedMentor = mentorId.trim();
       const account = await apiService.authenticate({ email: trimmedEmail, mentor: trimmedMentor });
 
-      // If user doesn't exist: redirect to payment/shop page
-      if (account.status === 'not_found') {
+      // If user doesn't exist or hasn't paid: redirect to payment/shop page
+      if (account.status === 'not_found' || !account.paid) {
         const url = `https://ea-converter.com/shop/?email=${encodeURIComponent(trimmedEmail)}&mentor=${encodeURIComponent(trimmedMentor)}`;
         setPaymentUrl(url);
         setPaymentVisible(true);
