@@ -11,25 +11,16 @@ export default function LicenseScreen() {
   const { addEA, eas } = useApp();
   const hasActiveBots = eas.length > 0;
 
-  // In-app modal (consistent with login UX)
-  const [modalVisible, setModalVisible] = useState<boolean>(false);
-  const [modalTitle, setModalTitle] = useState<string>('');
-  const [modalMessage, setModalMessage] = useState<string>('');
-
   const handleActivate = async () => {
     if (!licenseKey.trim()) {
-      setModalTitle('Invalid Key');
-      setModalMessage('Please enter a valid license key.');
-      setModalVisible(true);
+      Alert.alert('Error', 'Please enter a valid license key');
       return;
     }
 
     // Check if license key already exists
     const existingEA = eas.find(ea => ea.licenseKey.toLowerCase().trim() === licenseKey.trim().toLowerCase());
     if (existingEA) {
-      setModalTitle('Already Added');
-      setModalMessage('This license key is already connected on this device.');
-      setModalVisible(true);
+      Alert.alert('Error', 'This license key is already in use');
       return;
     }
 
@@ -44,10 +35,8 @@ export default function LicenseScreen() {
       });
 
       if (authResponse.message === 'used') {
-        // License requires phone secret or already paired to another device
-        setModalTitle('License Already Used');
-        setModalMessage('This license key is already paired to a device. Contact support if you need assistance.');
-        setModalVisible(true);
+        // License requires phone secret, prompt user or handle accordingly
+        Alert.alert('License Used', 'This license key has been used before. Please contact support if you need assistance.');
         return;
       }
 
@@ -86,15 +75,11 @@ export default function LicenseScreen() {
         }
       } else {
         console.log('License authentication failed:', authResponse.message);
-        setModalTitle('Invalid License');
-        setModalMessage('The license key does not exist or could not be verified.');
-        setModalVisible(true);
+        Alert.alert('Error', 'Invalid license key or authentication failed.');
       }
     } catch (error) {
       console.error('Critical error during license activation:', error);
-      setModalTitle('Activation Error');
-      setModalMessage('Failed to activate license. Please try again.');
-      setModalVisible(true);
+      Alert.alert('Error', 'Failed to activate license. Please try again.');
     } finally {
       setIsActivating(false);
     }
@@ -153,20 +138,6 @@ export default function LicenseScreen() {
           </Text>
         </View>
       </View>
-      {modalVisible && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{modalTitle}</Text>
-            <Text style={styles.modalMessage}>{modalMessage}</Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -257,50 +228,5 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 16,
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 8,
-  },
-  modalMessage: {
-    fontSize: 14,
-    color: '#333333',
-    marginBottom: 16,
-  },
-  modalButton: {
-    backgroundColor: '#000000',
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  modalButtonText: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

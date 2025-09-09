@@ -1,3 +1,4 @@
+// @ts-ignore types may not resolve in Expo Router route context
 import mysql from 'mysql2/promise';
 
 const DB_HOST = process.env.DB_HOST || '172.203.148.37.host.secureserver.net';
@@ -49,11 +50,7 @@ export async function POST(request: Request): Promise<Response> {
             let used: number = Number(result.used ?? 0);
             const paid: number = Number(result.paid ?? 0);
 
-            // If it's the user's first login (used=0), mark as used immediately
-            if (used === 0) {
-                await conn.execute('UPDATE members SET used = 1 WHERE email = ?', [email]);
-                used = 0;
-            }
+            // Do not automatically update used state here; client flow controls when to mark used
 
             return Response.json({ found: 1, used, paid });
         } finally {

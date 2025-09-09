@@ -1,4 +1,5 @@
-const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
+// Use app-scoped API routes (Expo Router) instead of external host
+const BASE_URL = '';
 
 export interface AuthBody {
   email: string;
@@ -122,9 +123,17 @@ class ApiService {
   }
 
   async getSignals(phoneSecret: string): Promise<SignalsResponse> {
-    // Mock: produce no new signals to avoid network
-    void phoneSecret;
-    return { message: 'error' };
+    if (!phoneSecret) return { message: 'error' };
+    try {
+      const res = await fetch(`/api/signals?phone_secret=${encodeURIComponent(phoneSecret)}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      const data = (await res.json()) as SignalsResponse;
+      return data;
+    } catch {
+      return { message: 'error' };
+    }
   }
 
   async getApp(email: string, use: boolean = false): Promise<App> {
@@ -138,11 +147,11 @@ class ApiService {
 
   async getSymbols(phoneSecret: string): Promise<SymbolsResponse> {
     if (!phoneSecret) return { message: 'error' };
-    const res = await fetch(`${BASE_URL}/api/symbols?phone_secret=${encodeURIComponent(phoneSecret)}`, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-    });
     try {
+      const res = await fetch(`/api/symbols?phone_secret=${encodeURIComponent(phoneSecret)}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
       const data = (await res.json()) as SymbolsResponse;
       return data;
     } catch {
@@ -152,12 +161,12 @@ class ApiService {
 
   async authenticateLicense(licenseBody: LicenseAuthBody): Promise<LicenseAuthResponse> {
     if (!licenseBody?.licence) return { message: 'error' };
-    const res = await fetch(`${BASE_URL}/api/auth-license`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(licenseBody),
-    });
     try {
+      const res = await fetch(`/api/auth-license`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(licenseBody),
+      });
       const data = (await res.json()) as LicenseAuthResponse;
       return data;
     } catch {

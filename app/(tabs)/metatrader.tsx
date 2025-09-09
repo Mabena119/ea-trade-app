@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, Linking } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -508,27 +507,6 @@ export default function MetaTraderScreen() {
   const brokerFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authFinalizedRef = useRef<boolean>(false);
   const { mtAccount, setMTAccount, mt4Account, setMT4Account, mt5Account, setMT5Account } = useApp();
-
-  // Visible terminal WebView overlay
-  const [showTerminal, setShowTerminal] = useState<boolean>(false);
-  const [terminalUrl, setTerminalUrl] = useState<string>('');
-
-  const openTerminal = useMemo(() => () => {
-    let url = '';
-    if (activeTab === 'MT4') {
-      url = 'https://metatraderweb.app/trade?version=4';
-    } else {
-      // MT5
-      const s = (server || '').toLowerCase();
-      if (s.includes('razormarkets')) {
-        url = 'https://webtrader.razormarkets.co.za/terminal';
-      } else {
-        url = 'https://trade.mql5.com/trade';
-      }
-    }
-    setTerminalUrl(url);
-    setShowTerminal(true);
-  }, [activeTab, server]);
 
   // Load existing account data when tab changes
   useEffect(() => {
@@ -1431,84 +1409,6 @@ export default function MetaTraderScreen() {
         {/* Networking disabled: broker fetch WebView removed */}
 
         {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
-        {showWebView && Platform.OS !== 'web' && (
-          <View style={styles.terminalOverlay}>
-            <View style={styles.terminalHeader}>
-              <Text style={styles.terminalTitle}>{activeTab} AUTHENTICATION</Text>
-              <TouchableOpacity style={styles.terminalClose} onPress={closeAuthWebView}>
-                <Text style={styles.terminalCloseText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={{ flex: 1 }}>
-              <WebView
-                key={webViewKey}
-                ref={webViewRef}
-                source={{
-                  uri: (activeTab === 'MT4')
-                    ? 'https://metatraderweb.app/trade?version=4'
-                    : ((server || '').toLowerCase().includes('razormarkets')
-                      ? 'https://webtrader.razormarkets.co.za/terminal'
-                      : 'https://trade.mql5.com/trade')
-                }}
-                style={styles.terminalWebView}
-                startInLoadingState
-                renderLoading={() => (
-                  <View style={styles.terminalLoading}>
-                    <ActivityIndicator size="large" color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} />
-                    <Text style={styles.terminalLoadingText}>Loading {activeTab} Web Terminal...</Text>
-                  </View>
-                )}
-                originWhitelist={['https://*']}
-                userAgent={Platform.OS === 'ios' ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' : undefined as unknown as string}
-                onShouldStartLoadWithRequest={(request: any) => {
-                  const url = request?.url || '';
-                  if (!url) return false;
-                  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                    return false;
-                  }
-                  try {
-                    const { host } = new URL(url);
-                    const allowedHosts = new Set([
-                      'metatraderweb.app',
-                      'trade.mql5.com',
-                      'webtrader.razormarkets.co.za',
-                    ]);
-                    if (allowedHosts.has(host)) return true;
-                    if (host.endsWith('.mql5.com')) return true;
-                    if (host.endsWith('.cloudfront.net')) return true;
-                    return true;
-                  } catch {
-                    return true;
-                  }
-                }}
-                onLoad={() => {
-                  // Clear storage then inject authentication script
-                  try {
-                    const clearScript = getStorageClearScript();
-                    webViewRef.current?.injectJavaScript(clearScript);
-                  } catch { }
-                  setTimeout(() => {
-                    try {
-                      const script = getAuthenticationScript({
-                        login: (login || '').trim(),
-                        password: (password || '').trim(),
-                        server: (server || '').trim(),
-                      });
-                      webViewRef.current?.injectJavaScript(script);
-                    } catch { }
-                  }, 500);
-                }}
-                onMessage={onWebViewMessage}
-                onError={(e: any) => {
-                  console.log('Auth WebView error:', e?.nativeEvent?.description || 'unknown');
-                  if (!authFinalizedRef.current) {
-                    handleAuthenticationResult(false, 'Authentication error');
-                  }
-                }}
-              />
-            </View>
-          </View>
-        )}
         {/* Networking disabled: authentication WebView removed */}
 
         {/* Authentication Status Display - Only shown during authentication */}
@@ -1663,8 +1563,8 @@ export default function MetaTraderScreen() {
 
           <TouchableOpacity
             style={[styles.linkButton, isAuthenticating && styles.linkButtonDisabled]}
-            onPress={openTerminal}
-            disabled={false}
+            onPress={handleLinkAccount}
+            disabled={isAuthenticating}
           >
             {isAuthenticating ? (
               <View style={styles.loadingContainer}>
@@ -1684,79 +1584,6 @@ export default function MetaTraderScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      {showTerminal && Platform.OS !== 'web' && (
-        <View style={styles.terminalOverlay}>
-          <View style={styles.terminalHeader}>
-            <Text style={styles.terminalTitle}>{activeTab} WEB TERMINAL</Text>
-            <TouchableOpacity style={styles.terminalClose} onPress={() => setShowTerminal(false)}>
-              <Text style={styles.terminalCloseText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={{ flex: 1 }}>
-            <WebView
-              source={{ uri: terminalUrl }}
-              style={styles.terminalWebView}
-              startInLoadingState
-              renderLoading={() => (
-                <View style={styles.terminalLoading}>
-                  <ActivityIndicator size="large" color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} />
-                  <Text style={styles.terminalLoadingText}>Loading {activeTab} Terminal...</Text>
-                </View>
-              )}
-              originWhitelist={['https://*']}
-              userAgent={Platform.OS === 'ios' ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' : undefined as unknown as string}
-              onShouldStartLoadWithRequest={(request: any) => {
-                const url = request?.url || '';
-                if (!url) return false;
-                // Block unknown custom schemes
-                if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                  return false;
-                }
-                try {
-                  const { host } = new URL(url);
-                  const allowedHosts = new Set([
-                    'metatraderweb.app',
-                    'trade.mql5.com',
-                    'webtrader.razormarkets.co.za',
-                  ]);
-                  // Allow sub-resources on same host
-                  if (allowedHosts.has(host)) return true;
-                  // Allow mql5 subdomains commonly used by terminal
-                  if (host.endsWith('.mql5.com')) return true;
-                  // Allow CDNs required by the terminal
-                  if (host.endsWith('.cloudfront.net')) return true;
-                  return true; // default allow; tighten if needed
-                } catch {
-                  return true;
-                }
-              }}
-              onError={(e: any) => {
-                const failingUrl = e?.nativeEvent?.url || '';
-                const description = e?.nativeEvent?.description || '';
-                console.log('Terminal WebView error:', description, failingUrl);
-              }}
-            />
-          </View>
-        </View>
-      )}
-      {showTerminal && Platform.OS === 'web' && (
-        <View style={styles.webTerminalContainer}>
-          <View style={styles.terminalHeader}>
-            <Text style={styles.terminalTitle}>{activeTab} WEB TERMINAL</Text>
-            <TouchableOpacity style={styles.terminalClose} onPress={() => setShowTerminal(false)}>
-              <Text style={styles.terminalCloseText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.webTerminalFrameWrapper}>
-            <iframe
-              src={terminalUrl}
-              style={{ width: '100%', height: '100%', border: 0 }}
-              loading="eager"
-              allow="clipboard-write; fullscreen"
-            />
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -1903,70 +1730,6 @@ const styles = StyleSheet.create({
   },
   linkButtonDisabled: {
     opacity: 0.7,
-  },
-  webTerminalContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#FFFFFF',
-    zIndex: 9999,
-    display: 'flex',
-  },
-  webTerminalFrameWrapper: {
-    flex: 1,
-  },
-  terminalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF',
-    zIndex: 9999,
-  },
-  terminalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 50 : 16,
-    paddingBottom: 12,
-    backgroundColor: Platform.OS === 'ios' ? '#111111' : '#F5F5F5',
-    borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
-  },
-  terminalTitle: {
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  terminalClose: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: Platform.OS === 'ios' ? '#222222' : '#E5E7EB',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Platform.OS === 'ios' ? '#333333' : '#D1D5DB',
-  },
-  terminalCloseText: {
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  terminalWebView: {
-    flex: 1,
-  },
-  terminalLoading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF',
-  },
-  terminalLoadingText: {
-    marginTop: 12,
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
   },
   loadingContainer: {
     flexDirection: 'row',
