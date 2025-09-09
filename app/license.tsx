@@ -10,6 +10,9 @@ export default function LicenseScreen() {
   const [isActivating, setIsActivating] = useState<boolean>(false);
   const { addEA, eas } = useApp();
   const hasActiveBots = eas.length > 0;
+  const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [modalTitle, setModalTitle] = useState<string>('');
+  const [modalMessage, setModalMessage] = useState<string>('');
 
   const handleActivate = async () => {
     if (!licenseKey.trim()) {
@@ -20,7 +23,9 @@ export default function LicenseScreen() {
     // Check if license key already exists
     const existingEA = eas.find(ea => ea.licenseKey.toLowerCase().trim() === licenseKey.trim().toLowerCase());
     if (existingEA) {
-      Alert.alert('Error', 'This license key is already in use');
+      setModalTitle('License Already Added');
+      setModalMessage('This license key is already added on this device.');
+      setModalVisible(true);
       return;
     }
 
@@ -35,15 +40,16 @@ export default function LicenseScreen() {
       });
 
       if (authResponse.message === 'used') {
-        Alert.alert(
-          'License Already Used',
-          'This license key is bound to another device. Please contact support if you need assistance.'
-        );
+        setModalTitle('License Already Used');
+        setModalMessage('This license key is bound to another device. Please contact support if you need assistance.');
+        setModalVisible(true);
         return;
       }
 
       if (authResponse.message !== 'accept' || !authResponse.data) {
-        Alert.alert('Invalid License', 'The license key does not exist or authentication failed.');
+        setModalTitle('Invalid License');
+        setModalMessage('The license key does not exist or authentication failed.');
+        setModalVisible(true);
         return;
       }
 
@@ -134,6 +140,20 @@ export default function LicenseScreen() {
           </Text>
         </View>
       </View>
+      {modalVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
+            <Text style={styles.modalMessage}>{modalMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -224,5 +244,50 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 16,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: '#333333',
+    marginBottom: 16,
+  },
+  modalButton: {
+    backgroundColor: '#000000',
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
