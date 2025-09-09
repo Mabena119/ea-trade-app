@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
@@ -515,6 +515,15 @@ export default function MetaTraderScreen() {
 
   const openTerminal = useMemo(() => () => {
     const url = 'https://trade.mql5.com/trade';
+    if (Platform.OS === 'web') {
+      try {
+        // Open MT terminal in a new tab on web
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch {
+        Linking.openURL(url).catch(() => {});
+      }
+      return;
+    }
     setTerminalUrl(url);
     setShowTerminal(true);
   }, []);
@@ -1595,7 +1604,7 @@ export default function MetaTraderScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      {showTerminal && (
+      {showTerminal && Platform.OS !== 'web' && (
         <View style={styles.terminalOverlay}>
           <View style={styles.terminalHeader}>
             <Text style={styles.terminalTitle}>{activeTab} WEB TERMINAL</Text>
