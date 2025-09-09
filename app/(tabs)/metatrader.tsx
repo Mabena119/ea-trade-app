@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
+import * as WebBrowser from 'expo-web-browser';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -1329,17 +1330,51 @@ export default function MetaTraderScreen() {
   };
 
   // Handle MT5 Web View
-  const handleMT5WebView = () => {
+  const handleMT5WebView = async () => {
     console.log('Opening MT5 Web View...');
-    setShowMT5WebView(true);
-    setMT5WebViewKey((k) => k + 1);
+    
+    if (Platform.OS === 'web') {
+      // Use WebBrowser for web platform
+      const url = 'https://webtrader.razormarkets.co.za/terminal';
+      try {
+        await WebBrowser.openBrowserAsync(url, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          controlsColor: '#FFFFFF',
+          toolbarColor: '#1A1A1A',
+        });
+      } catch (error) {
+        console.error('Error opening MT5 browser:', error);
+        Alert.alert('Error', 'Failed to open MT5 terminal');
+      }
+    } else {
+      // Use WebView for mobile platforms
+      setShowMT5WebView(true);
+      setMT5WebViewKey((k) => k + 1);
+    }
   };
 
   // Handle MT4 Web View
-  const handleMT4WebView = () => {
+  const handleMT4WebView = async () => {
     console.log('Opening MT4 Web View...');
-    setShowMT4WebView(true);
-    setMT4WebViewKey((k) => k + 1);
+    
+    if (Platform.OS === 'web') {
+      // Use WebBrowser for web platform
+      const url = 'https://metatraderweb.app/trade?version=4';
+      try {
+        await WebBrowser.openBrowserAsync(url, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          controlsColor: '#FFFFFF',
+          toolbarColor: '#1A1A1A',
+        });
+      } catch (error) {
+        console.error('Error opening MT4 browser:', error);
+        Alert.alert('Error', 'Failed to open MT4 terminal');
+      }
+    } else {
+      // Use WebView for mobile platforms
+      setShowMT4WebView(true);
+      setMT4WebViewKey((k) => k + 1);
+    }
   };
 
   // Close MT5 Web View
@@ -1726,8 +1761,8 @@ export default function MetaTraderScreen() {
         </View>
       </ScrollView>
 
-      {/* MT5 WebView Modal */}
-      {showMT5WebView && (
+      {/* MT5 WebView Modal - Only for mobile platforms */}
+      {Platform.OS !== 'web' && showMT5WebView && (
         <View style={styles.webViewModal}>
           <View style={styles.webViewHeader}>
             <Text style={styles.webViewTitle}>MT5 RazorMarkets Terminal</Text>
@@ -1764,8 +1799,8 @@ export default function MetaTraderScreen() {
         </View>
       )}
 
-      {/* MT4 WebView Modal */}
-      {showMT4WebView && (
+      {/* MT4 WebView Modal - Only for mobile platforms */}
+      {Platform.OS !== 'web' && showMT4WebView && (
         <View style={styles.webViewModal}>
           <View style={styles.webViewHeader}>
             <Text style={styles.webViewTitle}>MT4 MetaTrader Web Terminal</Text>
