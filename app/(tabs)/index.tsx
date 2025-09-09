@@ -19,10 +19,16 @@ export default function HomeScreen() {
 
   const [logoError, setLogoError] = useState<boolean>(false);
 
-  // Networking disabled: avoid remote images, use local placeholder
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
-    void ea;
-    return null;
+    if (!ea || !ea.userData || !ea.userData.owner) return null;
+    const raw = (ea.userData.owner.logo || '').toString().trim();
+    if (!raw) return null;
+    // If already an absolute URL, return as-is
+    if (/^https?:\/\//i.test(raw)) return raw;
+    // Otherwise, treat as filename and prefix uploads base URL
+    const filename = raw.replace(/^\/+/, '');
+    const base = 'https://ea-converter.com/admin/uploads';
+    return `${base}/${filename}`;
   }, []);
 
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
