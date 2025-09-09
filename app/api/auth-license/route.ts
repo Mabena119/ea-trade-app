@@ -2,6 +2,7 @@
 // POST /api/auth-license
 // Body: { licence: string, phone_secret?: string }
 
+import crypto from 'crypto';
 // Use dynamic import to avoid tooling type issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MySQLModule = any;
@@ -33,6 +34,10 @@ async function getPool() {
   return pool;
 }
 
+function sha256Hex(input: string): string {
+  return crypto.createHash('sha256').update(input).digest('hex');
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = await request.json().catch(() => ({} as any));
@@ -46,52 +51,87 @@ export async function POST(request: Request): Promise<Response> {
     const pool = await getPool();
     const conn = await pool.getConnection();
     try {
-      const [rows] = await conn.execute(
-        `SELECT 
-           l.user,
-           l.status,
-           l.expires,
-           l.key,
-           l.phone_secret_key,
-           l.ea_name,
-           l.ea_notification,
-           o.name as owner_name,
-           o.email as owner_email,
-           o.phone as owner_phone,
-           o.logo as owner_logo
-         FROM licenses l
-         LEFT JOIN owners o ON l.owner_id = o.id
-         WHERE l.key = ?
+      // Fetch licence info
+      const [licRows] = await conn.execute(
+        `SELECT l.k_ey as key,
+                l.status as status,
+                l.expires as expires,
+                l.phone_secret_code as phone_secret_code,
+                l.ea as ea_id
+         FROM licences l
+         WHERE l.k_ey = ?
          LIMIT 1`,
         [licence]
       );
 
-      const result = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any) : null;
-
-      if (!result) {
+      const lic = Array.isArray(licRows) && licRows.length > 0 ? (licRows[0] as any) : null;
+      if (!lic) {
         return Response.json({ message: 'error' }, { status: 200 });
       }
 
-      const statusValue = String(result.status ?? '').toLowerCase();
-      const phoneSecretKey = result.phone_secret_key ?? '';
+      const statusValue = String(lic.status ?? '').toLowerCase();
+      const storedHash: string | null = lic.phone_secret_code ? String(lic.phone_secret_code) : null;
 
-      if (statusValue === 'used' && (!phoneSecret || phoneSecret !== phoneSecretKey)) {
-        return Response.json({ message: 'used' }, { status: 200 });
+      // If already used and no matching phone secret provided, block with 'used'
+      if (storedHash) {
+        if (!phoneSecret || sha256Hex(phoneSecret) !== storedHash) {
+          return Response.json({ message: 'used' }, { status: 200 });
+        }
+      } else {
+        // Not yet bound to a phone secret; if provided, set it now
+        if (phoneSecret && phoneSecret.length > 0) {
+          const newHash = sha256Hex(phoneSecret);
+          await conn.execute(
+            'UPDATE licences SET phone_secret_code = ? WHERE k_ey = ?',
+            [newHash, licence]
+          );
+        }
+      }
+
+      // Fetch EA info (name, owner)
+      let eaName = 'EA CONVERTER';
+      let ownerId: string | number | null = null;
+      if (lic.ea_id != null) {
+        const [eaRows] = await conn.execute(
+          'SELECT name, owner FROM eas WHERE id = ? LIMIT 1',
+          [lic.ea_id]
+        );
+        if (Array.isArray(eaRows) && eaRows.length > 0) {
+          const ea = eaRows[0] as any;
+          eaName = ea.name ?? eaName;
+          ownerId = ea.owner ?? null;
+        }
+      }
+
+      // Fetch admin info (image, displayname)
+      let ownerName = 'EA CONVERTER';
+      let ownerLogo = '';
+      if (ownerId != null) {
+        const [adminRows] = await conn.execute(
+          'SELECT image, displayname FROM admin WHERE id = ? LIMIT 1',
+          [ownerId]
+        );
+        if (Array.isArray(adminRows) && adminRows.length > 0) {
+          const admin = adminRows[0] as any;
+          ownerLogo = admin.image ?? '';
+          ownerName = admin.displayname ?? ownerName;
+        }
       }
 
       const data = {
-        user: result.user ?? '',
-        status: result.status ?? 'active',
-        expires: result.expires ?? '',
-        key: result.key ?? licence,
-        phone_secret_key: result.phone_secret_key ?? '',
-        ea_name: result.ea_name ?? 'EA CONVERTER',
-        ea_notification: result.ea_notification ?? '',
+        user: String(lic.ea_id ?? ''),
+        status: lic.status ?? (storedHash ? 'used' : 'active'),
+        expires: lic.expires ?? '',
+        key: lic.key ?? licence,
+        // Return the stored hash as phone_secret_key so the app can keep a reference
+        phone_secret_key: storedHash || (phoneSecret ? sha256Hex(phoneSecret) : ''),
+        ea_name: eaName,
+        ea_notification: '',
         owner: {
-          name: result.owner_name ?? 'EA CONVERTER',
-          email: result.owner_email ?? 'support@ea-converter.com',
-          phone: result.owner_phone ?? '',
-          logo: result.owner_logo ?? '',
+          name: ownerName,
+          email: '',
+          phone: '',
+          logo: ownerLogo,
         },
       };
 
