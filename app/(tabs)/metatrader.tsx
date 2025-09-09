@@ -886,7 +886,7 @@ export default function MetaTraderScreen() {
       // Native WebView message format
       const message = event.nativeEvent.data;
       console.log('WebView message:', message);
-      
+
       // Try to parse as JSON first
       let data;
       try {
