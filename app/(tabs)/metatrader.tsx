@@ -1399,6 +1399,25 @@ export default function MetaTraderScreen() {
   // Handle MT5 Web View
   const handleMT5WebView = () => {
     console.log('Opening MT5 Web View...');
+    
+    // Suppress viewport warnings from external terminals
+    if (Platform.OS === 'web') {
+      const originalWarn = console.warn;
+      console.warn = (...args) => {
+        const message = args.join(' ');
+        if (message.includes('interactive-widget') || message.includes('viewport')) {
+          // Suppress viewport warnings from external terminals
+          return;
+        }
+        originalWarn.apply(console, args);
+      };
+      
+      // Restore original console.warn after 30 seconds
+      setTimeout(() => {
+        console.warn = originalWarn;
+      }, 30000);
+    }
+    
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -1406,6 +1425,25 @@ export default function MetaTraderScreen() {
   // Handle MT4 Web View
   const handleMT4WebView = () => {
     console.log('Opening MT4 Web View...');
+    
+    // Suppress viewport warnings from external terminals
+    if (Platform.OS === 'web') {
+      const originalWarn = console.warn;
+      console.warn = (...args) => {
+        const message = args.join(' ');
+        if (message.includes('interactive-widget') || message.includes('viewport')) {
+          // Suppress viewport warnings from external terminals
+          return;
+        }
+        originalWarn.apply(console, args);
+      };
+      
+      // Restore original console.warn after 30 seconds
+      setTimeout(() => {
+        console.warn = originalWarn;
+      }, 30000);
+    }
+    
     setShowMT4WebView(true);
     setMT4WebViewKey((k) => k + 1);
   };
@@ -2025,6 +2063,8 @@ export default function MetaTraderScreen() {
                   allow="payment *; clipboard-write;"
                   sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
                   referrerPolicy="strict-origin-when-cross-origin"
+                  title="MT5 RazorMarkets Terminal"
+                  allowFullScreen={false}
                 />
               </View>
             ) : (
@@ -2078,6 +2118,8 @@ export default function MetaTraderScreen() {
                   allow="payment *; clipboard-write;"
                   sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
                   referrerPolicy="strict-origin-when-cross-origin"
+                  title="MT4 MetaTrader Web Terminal"
+                  allowFullScreen={false}
                 />
               </View>
             ) : (
