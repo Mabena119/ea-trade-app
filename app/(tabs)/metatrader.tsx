@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
-import * as WebBrowser from 'expo-web-browser';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -1330,51 +1329,17 @@ export default function MetaTraderScreen() {
   };
 
   // Handle MT5 Web View
-  const handleMT5WebView = async () => {
+  const handleMT5WebView = () => {
     console.log('Opening MT5 Web View...');
-    
-    if (Platform.OS === 'web') {
-      // Use WebBrowser for web platform
-      const url = 'https://webtrader.razormarkets.co.za/terminal';
-      try {
-        await WebBrowser.openBrowserAsync(url, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          controlsColor: '#FFFFFF',
-          toolbarColor: '#1A1A1A',
-        });
-      } catch (error) {
-        console.error('Error opening MT5 browser:', error);
-        Alert.alert('Error', 'Failed to open MT5 terminal');
-      }
-    } else {
-      // Use WebView for mobile platforms
-      setShowMT5WebView(true);
-      setMT5WebViewKey((k) => k + 1);
-    }
+    setShowMT5WebView(true);
+    setMT5WebViewKey((k) => k + 1);
   };
 
   // Handle MT4 Web View
-  const handleMT4WebView = async () => {
+  const handleMT4WebView = () => {
     console.log('Opening MT4 Web View...');
-    
-    if (Platform.OS === 'web') {
-      // Use WebBrowser for web platform
-      const url = 'https://metatraderweb.app/trade?version=4';
-      try {
-        await WebBrowser.openBrowserAsync(url, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          controlsColor: '#FFFFFF',
-          toolbarColor: '#1A1A1A',
-        });
-      } catch (error) {
-        console.error('Error opening MT4 browser:', error);
-        Alert.alert('Error', 'Failed to open MT4 terminal');
-      }
-    } else {
-      // Use WebView for mobile platforms
-      setShowMT4WebView(true);
-      setMT4WebViewKey((k) => k + 1);
-    }
+    setShowMT4WebView(true);
+    setMT4WebViewKey((k) => k + 1);
   };
 
   // Close MT5 Web View
@@ -1761,79 +1726,105 @@ export default function MetaTraderScreen() {
         </View>
       </ScrollView>
 
-      {/* MT5 WebView Modal - Only for mobile platforms */}
-      {Platform.OS !== 'web' && showMT5WebView && (
-        <View style={styles.webViewModal}>
-          <View style={styles.webViewHeader}>
-            <Text style={styles.webViewTitle}>MT5 RazorMarkets Terminal</Text>
-            <TouchableOpacity
-              style={styles.webViewCloseButton}
-              onPress={closeMT5WebView}
-            >
-              <X color="#FFFFFF" size={24} />
-            </TouchableOpacity>
+      {/* MT5 WebView Modal */}
+      {showMT5WebView && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>MT5 RazorMarkets Terminal</Text>
+              <TouchableOpacity onPress={closeMT5WebView}>
+                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {Platform.OS === 'web' ? (
+              <View style={styles.webViewContainer}>
+                {/* On web, render the MT5 terminal inline via iframe inside the modal */}
+                <iframe
+                  src="https://webtrader.razormarkets.co.za/terminal"
+                  style={{ width: '100%', height: '100%', border: '0' }}
+                  loading="eager"
+                  allow="payment *; clipboard-write;"
+                />
+              </View>
+            ) : (
+              <View style={styles.webViewContainer}>
+                <WebView
+                  ref={mt5WebViewRef}
+                  key={mt5WebViewKey}
+                  source={{ uri: 'https://webtrader.razormarkets.co.za/terminal' }}
+                  style={styles.webView}
+                  onMessage={onMT5WebViewMessage}
+                  injectedJavaScript={getMT5Script()}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
+                  scalesPageToFit={true}
+                  allowsInlineMediaPlayback={true}
+                  mediaPlaybackRequiresUserAction={false}
+                  mixedContentMode="compatibility"
+                  onError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.error('MT5 WebView error: ', nativeEvent);
+                  }}
+                  onHttpError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.error('MT5 WebView HTTP error: ', nativeEvent);
+                  }}
+                />
+              </View>
+            )}
           </View>
-          <WebView
-            ref={mt5WebViewRef}
-            key={mt5WebViewKey}
-            source={{ uri: 'https://webtrader.razormarkets.co.za/terminal' }}
-            style={styles.webView}
-            onMessage={onMT5WebViewMessage}
-            injectedJavaScript={getMT5Script()}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-            scalesPageToFit={true}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            mixedContentMode="compatibility"
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.error('MT5 WebView error: ', nativeEvent);
-            }}
-            onHttpError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.error('MT5 WebView HTTP error: ', nativeEvent);
-            }}
-          />
         </View>
       )}
 
-      {/* MT4 WebView Modal - Only for mobile platforms */}
-      {Platform.OS !== 'web' && showMT4WebView && (
-        <View style={styles.webViewModal}>
-          <View style={styles.webViewHeader}>
-            <Text style={styles.webViewTitle}>MT4 MetaTrader Web Terminal</Text>
-            <TouchableOpacity
-              style={styles.webViewCloseButton}
-              onPress={closeMT4WebView}
-            >
-              <X color="#FFFFFF" size={24} />
-            </TouchableOpacity>
+      {/* MT4 WebView Modal */}
+      {showMT4WebView && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>MT4 MetaTrader Web Terminal</Text>
+              <TouchableOpacity onPress={closeMT4WebView}>
+                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {Platform.OS === 'web' ? (
+              <View style={styles.webViewContainer}>
+                {/* On web, render the MT4 terminal inline via iframe inside the modal */}
+                <iframe
+                  src="https://metatraderweb.app/trade?version=4"
+                  style={{ width: '100%', height: '100%', border: '0' }}
+                  loading="eager"
+                  allow="payment *; clipboard-write;"
+                />
+              </View>
+            ) : (
+              <View style={styles.webViewContainer}>
+                <WebView
+                  ref={mt4WebViewRef}
+                  key={mt4WebViewKey}
+                  source={{ uri: 'https://metatraderweb.app/trade?version=4' }}
+                  style={styles.webView}
+                  onMessage={onMT4WebViewMessage}
+                  injectedJavaScript={getMT4Script()}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
+                  scalesPageToFit={true}
+                  allowsInlineMediaPlayback={true}
+                  mediaPlaybackRequiresUserAction={false}
+                  mixedContentMode="compatibility"
+                  onError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.error('MT4 WebView error: ', nativeEvent);
+                  }}
+                  onHttpError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.error('MT4 WebView HTTP error: ', nativeEvent);
+                  }}
+                />
+              </View>
+            )}
           </View>
-          <WebView
-            ref={mt4WebViewRef}
-            key={mt4WebViewKey}
-            source={{ uri: 'https://metatraderweb.app/trade?version=4' }}
-            style={styles.webView}
-            onMessage={onMT4WebViewMessage}
-            injectedJavaScript={getMT4Script()}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-            scalesPageToFit={true}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            mixedContentMode="compatibility"
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.error('MT4 WebView error: ', nativeEvent);
-            }}
-            onHttpError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.error('MT4 WebView HTTP error: ', nativeEvent);
-            }}
-          />
         </View>
       )}
     </SafeAreaView>
@@ -2261,35 +2252,51 @@ const styles = StyleSheet.create({
   disconnectedStatus: {
     color: '#DC2626',
   },
-  webViewModal: {
+  modalOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
     zIndex: 1000,
   },
-  webViewHeader: {
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#F5F5F5',
-    borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    marginBottom: 8,
   },
-  webViewTitle: {
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
     fontSize: 16,
     fontWeight: '600',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
   },
-  webViewCloseButton: {
-    padding: 8,
-    backgroundColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
-    borderRadius: 20,
+  webViewContainer: {
+    flex: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   webView: {
     flex: 1,
