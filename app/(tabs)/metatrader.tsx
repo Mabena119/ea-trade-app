@@ -1439,69 +1439,105 @@ export default function MetaTraderScreen() {
         sendMessage('mt5_loaded', 'MT5 RazorMarkets terminal loaded successfully');
         
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        const asset = 'XAUUSD';
         
         const authenticateMT5 = async () => {
           try {
-            sendMessage('step_update', 'Starting MT5 authentication...');
-            await sleep(2000);
+            sendMessage('step_update', 'Initializing MT5 Account...');
+            await sleep(5500);
             
-            // Fill login credentials
-            const loginField = document.querySelector('input[name="login"], input[placeholder*="login"], input[placeholder*="Login"]');
-            const passwordField = document.querySelector('input[name="password"], input[type="password"]');
-            const serverField = document.querySelector('input[name="server"], input[placeholder*="server"], input[placeholder*="Server"]');
-            
-            if (loginField && '${login.trim()}') {
-              loginField.value = '${login.trim()}';
-              loginField.dispatchEvent(new Event('input', { bubbles: true }));
-              sendMessage('step_update', 'Login field filled');
+            // Check for disclaimer and accept if present
+            const disclaimer = document.querySelector('#disclaimer');
+            if (disclaimer) {
+              const acceptButton = document.querySelector('.accept-button');
+              if (acceptButton) {
+                acceptButton.click();
+                sendMessage('step_update', 'Checking Login...');
+                await sleep(5500);
+              }
             }
             
-            if (passwordField && '${password.trim()}') {
-              passwordField.value = '${password.trim()}';
-              passwordField.dispatchEvent(new Event('input', { bubbles: true }));
-              sendMessage('step_update', 'Password field filled');
-            }
-            
-            if (serverField && '${server.trim()}') {
-              serverField.value = '${server.trim()}';
-              serverField.dispatchEvent(new Event('input', { bubbles: true }));
-              sendMessage('step_update', 'Server field filled');
-            }
-            
-            await sleep(1000);
-            
-            // Find and click login button
-            const loginButton = document.querySelector('button[type="submit"], .login-button, .button.primary, .btn-login, button:contains("Login"), button:contains("Sign In")');
-            if (loginButton) {
-              sendMessage('step_update', 'Clicking login button...');
-              loginButton.click();
-              
-              // Wait for authentication result
-              await sleep(3000);
-              
-              // Check for success indicators
-              const successIndicators = document.querySelector('.dashboard, .terminal, .trading, .balance, .account, .portfolio');
-              const errorIndicators = document.querySelector('.error, .invalid, .failed, .denied');
-              
-              if (successIndicators) {
-                sendMessage('authentication_success', 'MT5 authentication successful');
-              } else if (errorIndicators) {
-                sendMessage('authentication_failed', 'MT5 authentication failed');
+            // Check if form is visible and remove any existing connections
+            const form = document.querySelector('.form');
+            if (form && !form.classList.contains('hidden')) {
+              // Press remove button first
+              const removeButton = document.querySelector('.button.svelte-1wrky82.red');
+              if (removeButton) {
+                removeButton.click();
               } else {
-                // Check URL or page content for success
-                const currentUrl = window.location.href;
-                const pageText = document.body.innerText.toLowerCase();
-                
-                if (currentUrl.includes('dashboard') || currentUrl.includes('terminal') || 
-                    pageText.includes('balance') || pageText.includes('account')) {
-                  sendMessage('authentication_success', 'MT5 authentication successful');
-                } else {
-                  sendMessage('authentication_failed', 'MT5 authentication status unclear');
+                // Fallback: look for Remove button by text
+                const buttons = document.getElementsByTagName('button');
+                for (let i = 0; i < buttons.length; i++) {
+                  if (buttons[i].textContent.trim() === 'Remove') {
+                    buttons[i].click();
+                    break;
+                  }
                 }
               }
-            } else {
-              sendMessage('authentication_failed', 'Login button not found');
+              sendMessage('step_update', 'Checking password...');
+              await sleep(5500);
             }
+            
+            // Fill login credentials
+            if (form && !form.classList.contains('hidden')) {
+              const loginField = document.querySelector('input[name="login"]');
+              const passwordField = document.querySelector('input[name="password"]');
+              
+              if (loginField && '${login.trim()}') {
+                loginField.value = '${login.trim()}';
+                loginField.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+              
+              if (passwordField && '${password.trim()}') {
+                passwordField.value = '${password.trim()}';
+                passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+              
+              sendMessage('step_update', 'Connecting to Server...');
+              await sleep(5000);
+            }
+            
+            // Click login button
+            if (form && !form.classList.contains('hidden')) {
+              const loginButton = document.querySelector('.button.svelte-1wrky82.active');
+              if (loginButton) {
+                loginButton.click();
+                sendMessage('step_update', 'Connecting to Server...');
+                await sleep(8000);
+              }
+            }
+            
+            // Search for XAUUSD symbol
+            const searchField = document.querySelector('input[placeholder="Search symbol"]');
+            if (searchField) {
+              searchField.value = asset;
+              searchField.dispatchEvent(new Event('input', { bubbles: true }));
+              searchField.focus();
+              sendMessage('step_update', 'Connecting to Server...');
+              await sleep(3000);
+            }
+            
+            // Try to select XAUUSD symbol
+            const symbolSpan = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl');
+            if (symbolSpan) {
+              const text = symbolSpan.innerText.trim();
+              if (text === asset || text === asset + '.mic') {
+                symbolSpan.click();
+                sendMessage('authentication_success', 'MT5 Login Successful');
+                return;
+              }
+            }
+            
+            // Fallback: check for other success indicators
+            const currentUrl = window.location.href;
+            const pageText = document.body.innerText.toLowerCase();
+            
+            if (currentUrl.includes('terminal') || pageText.includes('balance') || pageText.includes('account')) {
+              sendMessage('authentication_success', 'MT5 Login Successful');
+            } else {
+              sendMessage('authentication_failed', 'Invalid Login or Password');
+            }
+            
           } catch(e) {
             sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
           }
@@ -1528,65 +1564,152 @@ export default function MetaTraderScreen() {
         const authenticateMT4 = async () => {
           try {
             sendMessage('step_update', 'Starting MT4 authentication...');
-            await sleep(2000);
+            await sleep(3000);
             
-            // Fill login credentials
+            // Fill login credentials using enhanced method from your Android code
             const loginField = document.getElementById('login') || document.querySelector('input[name="login"]');
             const passwordField = document.getElementById('password') || document.querySelector('input[type="password"]');
             const serverField = document.getElementById('server') || document.querySelector('input[name="server"]');
             
             if (loginField && '${login.trim()}') {
-              loginField.value = '${login.trim()}';
-              loginField.dispatchEvent(new Event('input', { bubbles: true }));
-              sendMessage('step_update', 'Login field filled');
-            }
-            
-            if (passwordField && '${password.trim()}') {
-              passwordField.value = '${password.trim()}';
-              passwordField.dispatchEvent(new Event('input', { bubbles: true }));
-              sendMessage('step_update', 'Password field filled');
+              loginField.focus();
+              loginField.select();
+              loginField.value = '';
+              loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+              
+              setTimeout(() => {
+                loginField.focus();
+                loginField.value = '${login.trim()}';
+                loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                loginField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+              }, 100);
+              
+              sendMessage('step_update', 'Filling MT4 credentials...');
             }
             
             if (serverField && '${server.trim()}') {
-              serverField.value = '${server.trim()}';
-              serverField.dispatchEvent(new Event('input', { bubbles: true }));
-              sendMessage('step_update', 'Server field filled');
+              serverField.focus();
+              serverField.select();
+              serverField.value = '';
+              serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+              
+              setTimeout(() => {
+                serverField.focus();
+                serverField.value = '${server.trim()}';
+                serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                serverField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+              }, 100);
             }
             
-            await sleep(1000);
+            if (passwordField && '${password.trim()}') {
+              passwordField.focus();
+              passwordField.select();
+              passwordField.value = '';
+              passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+              
+              setTimeout(() => {
+                passwordField.focus();
+                passwordField.value = '${password.trim()}';
+                passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                passwordField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+              }, 100);
+            }
             
-            // Find and click login button (MT4 specific selectors)
-            const loginButton = document.querySelector('button.input-button:nth-child(4), .login-button, button[type="submit"], .btn-login, button:contains("Login")');
+            await sleep(500);
+            
+            // Submit login using MT4 specific button selector
+            const loginButton = document.querySelector('button.input-button:nth-child(4)');
             if (loginButton) {
-              sendMessage('step_update', 'Clicking login button...');
+              loginButton.removeAttribute('disabled');
+              loginButton.disabled = false;
               loginButton.click();
-              
-              // Wait for authentication result
-              await sleep(4000);
-              
-              // Check for success indicators (MT4 specific)
-              const successIndicators = document.querySelector('.market-watch, .chart, .terminal, .trading, .balance, .account, .symbols');
-              const errorIndicators = document.querySelector('.error, .invalid, .failed, .denied, .login-error');
-              
-              if (successIndicators) {
-                sendMessage('authentication_success', 'MT4 authentication successful');
-              } else if (errorIndicators) {
-                sendMessage('authentication_failed', 'MT4 authentication failed');
-              } else {
-                // Check URL or page content for success
-                const currentUrl = window.location.href;
-                const pageText = document.body.innerText.toLowerCase();
-                
-                if (currentUrl.includes('terminal') || currentUrl.includes('trading') || 
-                    pageText.includes('market') || pageText.includes('symbol') || pageText.includes('chart')) {
-                  sendMessage('authentication_success', 'MT4 authentication successful');
-                } else {
-                  sendMessage('authentication_failed', 'MT4 authentication status unclear');
-                }
-              }
+              sendMessage('step_update', 'Submitting MT4 login...');
             } else {
               sendMessage('authentication_failed', 'Login button not found');
+              return;
             }
+            
+            await sleep(4000);
+            
+            // Show all symbols to verify authentication (copied from your Android code)
+            const marketWatchElement = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody > tr:nth-child(1)');
+            if (marketWatchElement) {
+              const ev1 = new MouseEvent("mousedown", {
+                bubbles: true,
+                cancelable: false,
+                view: window,
+                button: 2,
+                buttons: 2,
+                clientX: marketWatchElement.getBoundingClientRect().x,
+                clientY: marketWatchElement.getBoundingClientRect().y
+              });
+              marketWatchElement.dispatchEvent(ev1);
+              
+              const ev2 = new MouseEvent("mouseup", {
+                bubbles: true,
+                cancelable: false,
+                view: window,
+                button: 2,
+                buttons: 0,
+                clientX: marketWatchElement.getBoundingClientRect().x,
+                clientY: marketWatchElement.getBoundingClientRect().y
+              });
+              marketWatchElement.dispatchEvent(ev2);
+              
+              const ev3 = new MouseEvent("contextmenu", {
+                bubbles: true,
+                cancelable: false,
+                view: window,
+                button: 2,
+                buttons: 0,
+                clientX: marketWatchElement.getBoundingClientRect().x,
+                clientY: marketWatchElement.getBoundingClientRect().y
+              });
+              marketWatchElement.dispatchEvent(ev3);
+              
+              setTimeout(() => {
+                const showAllButton = document.querySelector('body > div.page-menu.context.expanded > div > div > span.box > span > div:nth-child(7)');
+                if (showAllButton) {
+                  showAllButton.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+                  showAllButton.click();
+                  sendMessage('step_update', 'Verifying authentication - showing all symbols...');
+                }
+              }, 500);
+            }
+            
+            await sleep(5000);
+            
+            // Verify authentication by checking if symbols are visible
+            const tableB = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+            if (tableB) {
+              const allTRs = tableB.querySelectorAll('tr');
+              if (allTRs.length > 0) {
+                // Try to find XAUUSD symbol
+                const ev = document.createEvent('MouseEvents');
+                ev.initEvent('dblclick', true, true);
+                for (let i = 0; i < allTRs.length; i++) {
+                  const a = allTRs[i].getElementsByTagName('td')[0];
+                  if (a && a.textContent && a.textContent.trim() === 'XAUUSD') {
+                    a.dispatchEvent(ev);
+                    sendMessage('authentication_success', 'MT4 Authentication Successful - XAUUSD symbol found and selected');
+                    return;
+                  }
+                }
+                // XAUUSD not found but symbols are visible - still successful
+                sendMessage('authentication_success', 'MT4 Authentication Successful - Symbol list accessible');
+              } else {
+                sendMessage('authentication_failed', 'Authentication failed - No symbols visible in market watch');
+              }
+            } else {
+              sendMessage('authentication_failed', 'Authentication failed - Market watch not accessible');
+            }
+            
           } catch(e) {
             sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
           }
