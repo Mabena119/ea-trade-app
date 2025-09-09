@@ -35,13 +35,21 @@ export default function LoginScreen() {
     try {
       const trimmedEmail = email.trim();
       const trimmedMentor = mentorId.trim();
-      const account = await apiService.authenticate({ email: trimmedEmail, password: trimmedMentor });
+      const account = await apiService.authenticate({ email: trimmedEmail, mentor: trimmedMentor });
 
       // If user doesn't exist: redirect to payment/shop page
       if (account.status === 'not_found') {
         const url = `https://ea-converter.com/shop/?email=${encodeURIComponent(trimmedEmail)}&mentor=${encodeURIComponent(trimmedMentor)}`;
         setPaymentUrl(url);
         setPaymentVisible(true);
+        return;
+      }
+
+      // If invalid mentor id is returned, block with message
+      if ((account as any).invalidMentor === 1) {
+        setModalTitle('Invalid Mentor ID');
+        setModalMessage('The Mentor ID does not match our records for this email.');
+        setModalVisible(true);
         return;
       }
 

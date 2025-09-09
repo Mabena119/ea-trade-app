@@ -1431,6 +1431,84 @@ export default function MetaTraderScreen() {
         {/* Networking disabled: broker fetch WebView removed */}
 
         {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
+        {showWebView && Platform.OS !== 'web' && (
+          <View style={styles.terminalOverlay}>
+            <View style={styles.terminalHeader}>
+              <Text style={styles.terminalTitle}>{activeTab} AUTHENTICATION</Text>
+              <TouchableOpacity style={styles.terminalClose} onPress={closeAuthWebView}>
+                <Text style={styles.terminalCloseText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1 }}>
+              <WebView
+                key={webViewKey}
+                ref={webViewRef}
+                source={{
+                  uri: (activeTab === 'MT4')
+                    ? 'https://metatraderweb.app/trade?version=4'
+                    : ((server || '').toLowerCase().includes('razormarkets')
+                      ? 'https://webtrader.razormarkets.co.za/terminal'
+                      : 'https://trade.mql5.com/trade')
+                }}
+                style={styles.terminalWebView}
+                startInLoadingState
+                renderLoading={() => (
+                  <View style={styles.terminalLoading}>
+                    <ActivityIndicator size="large" color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} />
+                    <Text style={styles.terminalLoadingText}>Loading {activeTab} Web Terminal...</Text>
+                  </View>
+                )}
+                originWhitelist={['https://*']}
+                userAgent={Platform.OS === 'ios' ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' : undefined as unknown as string}
+                onShouldStartLoadWithRequest={(request: any) => {
+                  const url = request?.url || '';
+                  if (!url) return false;
+                  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    return false;
+                  }
+                  try {
+                    const { host } = new URL(url);
+                    const allowedHosts = new Set([
+                      'metatraderweb.app',
+                      'trade.mql5.com',
+                      'webtrader.razormarkets.co.za',
+                    ]);
+                    if (allowedHosts.has(host)) return true;
+                    if (host.endsWith('.mql5.com')) return true;
+                    if (host.endsWith('.cloudfront.net')) return true;
+                    return true;
+                  } catch {
+                    return true;
+                  }
+                }}
+                onLoad={() => {
+                  // Clear storage then inject authentication script
+                  try {
+                    const clearScript = getStorageClearScript();
+                    webViewRef.current?.injectJavaScript(clearScript);
+                  } catch { }
+                  setTimeout(() => {
+                    try {
+                      const script = getAuthenticationScript({
+                        login: (login || '').trim(),
+                        password: (password || '').trim(),
+                        server: (server || '').trim(),
+                      });
+                      webViewRef.current?.injectJavaScript(script);
+                    } catch { }
+                  }, 500);
+                }}
+                onMessage={onWebViewMessage}
+                onError={(e: any) => {
+                  console.log('Auth WebView error:', e?.nativeEvent?.description || 'unknown');
+                  if (!authFinalizedRef.current) {
+                    handleAuthenticationResult(false, 'Authentication error');
+                  }
+                }}
+              />
+            </View>
+          </View>
+        )}
         {/* Networking disabled: authentication WebView removed */}
 
         {/* Authentication Status Display - Only shown during authentication */}

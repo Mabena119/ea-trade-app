@@ -1,8 +1,9 @@
-const BASE_URL = typeof window === 'undefined' ? '' : '';
+const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
 export interface AuthBody {
   email: string;
-  password: string;
+  password?: string;
+  mentor?: string;
 }
 
 export interface Account {
@@ -84,12 +85,23 @@ export interface LicenseAuthResponse {
 class ApiService {
   async authenticate(authBody: AuthBody): Promise<Account> {
     if (!authBody?.email) throw new Error('Email is required');
-    // Call our API route in the same origin
-    const res = await fetch(`${BASE_URL}/api/check-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: authBody.email.trim().toLowerCase() }),
-    });
+    const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/check-email`;
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: authBody.email.trim().toLowerCase(),
+          mentor: (authBody.mentor || authBody.password || '').toString().trim(),
+        }),
+      });
+    } catch (networkError) {
+      const hint = BASE_URL
+        ? ''
+        : ' Set EXPO_PUBLIC_API_BASE_URL to your API host for native builds.';
+      throw new Error(`Network error contacting auth service.${hint}`);
+    }
     let data: { found?: number; used?: number; paid?: number } = {};
     try {
       data = (await res.json()) as { used?: number; paid?: number };

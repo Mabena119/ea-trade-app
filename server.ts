@@ -73,7 +73,9 @@ const serverOptions: {
             try {
                 const body = await request.json().catch(() => ({}));
                 const emailRaw = (body?.email ?? "") as string;
+                const mentorRaw = (body?.mentor ?? "") as string;
                 const email = emailRaw.trim().toLowerCase();
+                const mentor = mentorRaw.trim();
                 if (!email) {
                     return Response.json({ error: "Email is required" }, { status: 400 });
                 }
@@ -82,7 +84,7 @@ const serverOptions: {
                 const conn = await pool.getConnection();
                 try {
                     const [rows] = await conn.execute(
-                        "SELECT id, email, paid, used FROM members WHERE email = ? LIMIT 1",
+                        "SELECT id, email, paid, used, mentor_id FROM members WHERE email = ? LIMIT 1",
                         [email]
                     );
 
@@ -99,6 +101,16 @@ const serverOptions: {
                         await conn.execute("UPDATE members SET used = 1 WHERE email = ?", [email]);
                         used = 0; // per original logic, still return 0 on first login
                     }
+
+                    // Validate mentor if provided and column exists
+                    try {
+                        if (mentor) {
+                            const stored = result.mentor_id != null ? String(result.mentor_id).trim().toLowerCase() : null;
+                            if (stored && stored !== mentor.toLowerCase()) {
+                                return Response.json({ found: 1, used, paid, invalidMentor: 1 });
+                            }
+                        }
+                    } catch {}
 
                     return Response.json({ found: 1, used, paid });
                 } finally {
