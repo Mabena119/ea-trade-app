@@ -955,7 +955,8 @@ export default function MetaTraderScreen() {
   };
 
   const getAuthenticationUrl = () => {
-    if (activeTab === 'MT5') {
+    const targetType = currentLoginData?.type || activeTab;
+    if (targetType === 'MT5') {
       // RazorMarkets MT5 WebTrader
       return 'https://webtrader.razormarkets.co.za/terminal';
     }
