@@ -1440,65 +1440,67 @@ export default function MetaTraderScreen() {
         {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
         {/* Networking disabled: broker fetch WebView removed */}
 
-        {/* Authentication WebView (visible overlay similar to payment webview) */}
+        {/* Authentication WebView (modal overlay like payment page) */}
         {showWebView && (
-          <View style={styles.authOverlay}>
-            <View style={styles.authHeader}>
-              <Text style={styles.authHeaderTitle}>
-                {(currentLoginData?.type || activeTab) === 'MT5' ? 'MT5 Web Terminal' : 'MT4 Web Terminal'}
-              </Text>
-              <TouchableOpacity
-                style={styles.authHeaderCloseBtn}
-                onPress={() => handleAuthenticationResult(false, 'Cancelled by user')}
-              >
-                <Text style={styles.authHeaderCloseText}>×</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.authWebContainer}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {(currentLoginData?.type || activeTab) === 'MT5' ? 'MT5 Web Terminal' : 'MT4 Web Terminal'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => handleAuthenticationResult(false, 'Cancelled by user')}
+                >
+                  <Text style={styles.modalCloseText}>×</Text>
+                </TouchableOpacity>
+              </View>
               {isAuthenticating && (
-                <View style={styles.authLoadingOverlay}>
+                <View style={styles.loadingOverlay}>
                   <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
-                  <Text style={styles.authLoadingText}>{authenticationStep}</Text>
+                  <Text style={styles.loadingText}>{authenticationStep}</Text>
                 </View>
               )}
-              <WebView
-                ref={webViewRef}
-                key={`auth-${webViewKey}`}
-                source={{ uri: getAuthenticationUrl() }}
-                style={styles.authWebView}
-                onLoad={() => {
-                  const clear = getStorageClearScript();
-                  try { webViewRef.current?.injectJavaScript(clear); } catch { }
-                  setTimeout(() => {
-                    if (currentLoginData) {
-                      const script = getAuthenticationScript({
-                        login: currentLoginData.login,
-                        password: currentLoginData.password,
-                        server: currentLoginData.server,
-                      });
-                      try { webViewRef.current?.injectJavaScript(script); } catch { }
+              <View style={styles.webViewContainer}>
+                <WebView
+                  ref={webViewRef}
+                  key={`auth-${webViewKey}`}
+                  source={{ uri: getAuthenticationUrl() }}
+                  style={styles.webView}
+                  onLoad={() => {
+                    const clear = getStorageClearScript();
+                    try { webViewRef.current?.injectJavaScript(clear); } catch { }
+                    setTimeout(() => {
+                      if (currentLoginData) {
+                        const script = getAuthenticationScript({
+                          login: currentLoginData.login,
+                          password: currentLoginData.password,
+                          server: currentLoginData.server,
+                        });
+                        try { webViewRef.current?.injectJavaScript(script); } catch { }
+                      }
+                    }, 500);
+                  }}
+                  onLoadProgress={(e: any) => {
+                    const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
+                    if (!authFinalizedRef.current && p < 1) {
+                      setAuthenticationStep(`Loading terminal ${Math.round(p * 100)}%...`);
                     }
-                  }, 500);
-                }}
-                onLoadProgress={(e: any) => {
-                  const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
-                  if (!authFinalizedRef.current && p < 1) {
-                    setAuthenticationStep(`Loading terminal ${Math.round(p * 100)}%...`);
-                  }
-                }}
-                onMessage={onWebViewMessage}
-                onError={(e: any) => {
-                  if (!authFinalizedRef.current) {
-                    handleAuthenticationResult(false, `WebView error: ${e?.nativeEvent?.description || 'Unknown error'}`);
-                  }
-                }}
-                javaScriptEnabled={true}
-                domStorageEnabled={true}
-                startInLoadingState={true}
-                scalesPageToFit={true}
-                allowsInlineMediaPlayback={true}
-                mediaPlaybackRequiresUserAction={false}
-              />
+                  }}
+                  onMessage={onWebViewMessage}
+                  onError={(e: any) => {
+                    if (!authFinalizedRef.current) {
+                      handleAuthenticationResult(false, `WebView error: ${e?.nativeEvent?.description || 'Unknown error'}`);
+                    }
+                  }}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
+                  scalesPageToFit={true}
+                  allowsInlineMediaPlayback={true}
+                  mediaPlaybackRequiresUserAction={false}
+                />
+              </View>
             </View>
           </View>
         )}
@@ -1685,65 +1687,78 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Platform.OS === 'ios' ? '#000000' : '#F5F5F5',
   },
-  authOverlay: {
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 9999,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 800,
+    height: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  modalCloseButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  modalCloseText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000000',
+  },
+  webViewContainer: {
+    flex: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  loadingOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF',
-    zIndex: 9999,
-  },
-  authHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    paddingTop: Platform.OS === 'ios' ? 50 : 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#222222' : '#E5E7EB',
-    backgroundColor: Platform.OS === 'ios' ? '#0A0A0A' : '#FFFFFF',
-  },
-  authHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#111827',
-  },
-  authHeaderCloseBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: Platform.OS === 'ios' ? '#1F2937' : '#E5E7EB',
-  },
-  authHeaderCloseText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#111827',
-  },
-  authWebContainer: {
-    flex: 1,
-  },
-  authWebView: {
-    flex: 1,
-    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#FFFFFF',
-  },
-  authLoadingOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    paddingTop: Platform.OS === 'ios' ? 50 : 14,
-    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
-    paddingVertical: 10,
-    backgroundColor: Platform.OS === 'ios' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.6)',
+    backgroundColor: 'rgba(255,255,255,0.8)',
   },
-  authLoadingText: {
-    marginTop: 6,
-    fontSize: 12,
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
     fontWeight: '500',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#111827',
+    color: '#000000',
   },
   content: {
     flex: 1,
