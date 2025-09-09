@@ -1,5 +1,4 @@
-// Use app-scoped API routes (Expo Router) instead of external host
-const BASE_URL = '';
+const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
 export interface AuthBody {
   email: string;
@@ -13,6 +12,7 @@ export interface Account {
   status: string;
   paid: boolean;
   used: boolean;
+  invalidMentor?: number;
 }
 
 export interface App {
@@ -103,15 +103,16 @@ class ApiService {
         : ' Set EXPO_PUBLIC_API_BASE_URL to your API host for native builds.';
       throw new Error(`Network error contacting auth service.${hint}`);
     }
-    let data: { found?: number; used?: number; paid?: number } = {};
+    let data: { found?: number; used?: number; paid?: number; invalidMentor?: number } = {};
     try {
-      data = (await res.json()) as { used?: number; paid?: number };
+      data = (await res.json()) as { used?: number; paid?: number; invalidMentor?: number };
     } catch (e) {
       throw new Error('Authentication failed');
     }
     const found = Number(data?.found ?? 0) === 1;
     const used = Number(data?.used ?? 0) === 1;
     const paid = Number(data?.paid ?? 0) === 1;
+    const invalidMentor = Number(data?.invalidMentor ?? 0);
 
     return {
       id: authBody.email,
@@ -119,21 +120,14 @@ class ApiService {
       status: found ? 'ok' : 'not_found',
       paid,
       used,
+      invalidMentor,
     };
   }
 
   async getSignals(phoneSecret: string): Promise<SignalsResponse> {
-    if (!phoneSecret) return { message: 'error' };
-    try {
-      const res = await fetch(`/api/signals?phone_secret=${encodeURIComponent(phoneSecret)}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      });
-      const data = (await res.json()) as SignalsResponse;
-      return data;
-    } catch {
-      return { message: 'error' };
-    }
+    // Mock: produce no new signals to avoid network
+    void phoneSecret;
+    return { message: 'error' };
   }
 
   async getApp(email: string, use: boolean = false): Promise<App> {
@@ -147,11 +141,11 @@ class ApiService {
 
   async getSymbols(phoneSecret: string): Promise<SymbolsResponse> {
     if (!phoneSecret) return { message: 'error' };
+    const res = await fetch(`${BASE_URL}/api/symbols?phone_secret=${encodeURIComponent(phoneSecret)}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
     try {
-      const res = await fetch(`/api/symbols?phone_secret=${encodeURIComponent(phoneSecret)}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      });
       const data = (await res.json()) as SymbolsResponse;
       return data;
     } catch {
@@ -161,12 +155,12 @@ class ApiService {
 
   async authenticateLicense(licenseBody: LicenseAuthBody): Promise<LicenseAuthResponse> {
     if (!licenseBody?.licence) return { message: 'error' };
+    const res = await fetch(`${BASE_URL}/api/auth-license`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(licenseBody),
+    });
     try {
-      const res = await fetch(`/api/auth-license`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(licenseBody),
-      });
       const data = (await res.json()) as LicenseAuthResponse;
       return data;
     } catch {

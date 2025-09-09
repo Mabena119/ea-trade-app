@@ -1,5 +1,7 @@
-// @ts-ignore types may not resolve in Expo Router route context
-import mysql from 'mysql2/promise';
+// Use dynamic import to avoid TypeScript/node type issues in Expo linting
+// and keep this file web-friendly while still running on the server.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MySQLModule = any;
 
 const DB_HOST = process.env.DB_HOST || '172.203.148.37.host.secureserver.net';
 const DB_USER = process.env.DB_USER || 'eauser';
@@ -7,10 +9,13 @@ const DB_PASSWORD = process.env.DB_PASSWORD || 'snVO2i%fZSG%';
 const DB_NAME = process.env.DB_NAME || 'eaconverter';
 const DB_PORT = Number(process.env.DB_PORT || 3306);
 
-let pool: mysql.Pool | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let pool: any | null = null;
 
-function getPool(): mysql.Pool {
+async function getPool() {
     if (!pool) {
+        // @ts-ignore - dynamic import; types may not be available in Expo lint context
+        const mysql: MySQLModule = await import('mysql2/promise');
         pool = mysql.createPool({
             host: DB_HOST,
             user: DB_USER,
@@ -29,11 +34,12 @@ export async function POST(request: Request): Promise<Response> {
     try {
         const body = await request.json().catch(() => ({}));
         const email = (body?.email as string | undefined)?.trim().toLowerCase();
+        const mentor = (body?.mentor as string | undefined)?.toString().trim();
         if (!email) {
             return Response.json({ error: 'Email is required' }, { status: 400 });
         }
 
-        const pool = getPool();
+        const pool = await getPool();
         const conn = await pool.getConnection();
         try {
             const [rows] = await conn.execute(
@@ -44,22 +50,29 @@ export async function POST(request: Request): Promise<Response> {
             const result = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any) : null;
 
             if (!result) {
-                return Response.json({ found: 0, used: 0, paid: 0 });
+                return Response.json({ found: 0, used: 0, paid: 0, invalidMentor: 0 });
             }
 
             let used: number = Number(result.used ?? 0);
             const paid: number = Number(result.paid ?? 0);
 
-            // Do not automatically update used state here; client flow controls when to mark used
+            // If it's the user's first login (used=0), mark as used immediately
+            if (used === 0) {
+                await conn.execute('UPDATE members SET used = 1 WHERE email = ?', [email]);
+                used = 0;
+            }
 
-            return Response.json({ found: 1, used, paid });
+            // Note: mentor validation not enforced currently; include flag for client compatibility
+            const invalidMentor = 0;
+
+            return Response.json({ found: 1, used, paid, invalidMentor });
         } finally {
             conn.release();
         }
     } catch (error) {
         console.error('check-email error:', error);
         // Graceful fallback: treat as not found/unpaid/unused so client can show payment
-        return Response.json({ found: 0, used: 0, paid: 0 }, { status: 200 });
+        return Response.json({ found: 0, used: 0, paid: 0, invalidMentor: 0 }, { status: 200 });
     }
 }
 

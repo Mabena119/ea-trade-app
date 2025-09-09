@@ -33,13 +33,8 @@ class SignalsMonitorService {
 
     console.log('Starting signals monitoring with phone_secret:', phoneSecret);
 
-    // Start polling every 5 seconds
-    this.intervalId = setInterval(() => {
-      this.fetchSignals().catch((err) => {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        this.onError?.(message);
-      });
-    }, 5000);
+    // Networking disabled: do not poll or fetch signals
+    this.intervalId = null;
   }
 
   stopMonitoring() {
@@ -53,17 +48,8 @@ class SignalsMonitorService {
   }
 
   private async fetchSignals() {
-    if (!this.phoneSecret) return;
-    const res: SignalsResponse = await apiService.getSignals(this.phoneSecret);
-    if (res.message !== 'accept' || !res.data) return;
-    const signal = {
-      ...res.data,
-      receivedAt: new Date(),
-    } as const as SignalLog;
-    this.signalLogs.unshift(signal);
-    // Keep last 100
-    this.signalLogs = this.signalLogs.slice(0, 100);
-    this.onSignalReceived?.(signal);
+    // Networking disabled: no-op
+    return;
   }
 
   getSignalLogs(): SignalLog[] {
