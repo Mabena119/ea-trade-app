@@ -1116,9 +1116,14 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         login: credentials.login,
         server: credentials.server,
         hasPassword: !!credentials.password
-      } : null
+      } : null,
+      activeSymbols: activeSymbols?.length || 0,
+      mt4Symbols: mt4Symbols?.length || 0,
+      mt5Symbols: mt5Symbols?.length || 0,
+      mt4Account: !!mt4Account,
+      mt5Account: !!mt5Account
     });
-  }, [visible, signal, tradeConfig, credentials]);
+  }, [visible, signal, tradeConfig, credentials, activeSymbols, mt4Symbols, mt5Symbols, mt4Account, mt5Account]);
 
   // Don't render if no signal or config
   if (!signal || !tradeConfig || !credentials) {
