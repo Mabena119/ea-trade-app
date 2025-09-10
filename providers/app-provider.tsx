@@ -130,6 +130,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   // Load persisted data on mount
   useEffect(() => {
+    // Ensure database signals polling is stopped on app initialization
+    databaseSignalsPollingService.stopPolling();
+    console.log('App initialization: Database signals polling stopped');
+    
     loadPersistedData();
   }, []);
 
@@ -328,13 +332,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       }
 
-      // Handle bot active state
+      // Handle bot active state - but don't auto-start polling on app load
       if (botActiveData.status === 'fulfilled' && botActiveData.value !== null) {
         try {
           const parsed = JSON.parse(botActiveData.value);
           if (typeof parsed === 'boolean') {
-            setIsBotActive(parsed);
-            console.log('Bot active state loaded successfully:', parsed);
+            // Always start with bot inactive to prevent auto-polling on deployment
+            setIsBotActive(false);
+            console.log('Bot active state loaded but set to inactive to prevent auto-polling on deployment');
+            
+            // Clear the stored state to prevent future auto-activation
+            AsyncStorage.removeItem('isBotActive').catch(console.error);
           }
         } catch (parseError) {
           console.error('Error parsing bot active data:', parseError);
