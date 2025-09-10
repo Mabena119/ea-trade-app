@@ -6,6 +6,7 @@ interface WebWebViewProps {
   script?: string;
   onMessage?: (event: any) => void;
   onLoadEnd?: () => void;
+  onDestroy?: () => void;
   style?: any;
 }
 
@@ -14,10 +15,51 @@ const WebWebView: React.FC<WebWebViewProps> = ({
   script,
   onMessage,
   onLoadEnd,
+  onDestroy,
   style
 }) => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Function to clear cache and destroy the WebView
+  const clearCacheAndDestroy = () => {
+    const iframe = iframeRef.current;
+    if (iframe) {
+      try {
+        // Clear iframe content
+        iframe.src = 'about:blank';
+        
+        // Clear any stored data
+        if (iframe.contentWindow) {
+          try {
+            iframe.contentWindow.location.replace('about:blank');
+          } catch (e) {
+            // CORS might prevent this, that's okay
+          }
+        }
+        
+        // Remove the iframe from DOM
+        iframe.remove();
+        
+        console.log('WebView cache cleared and destroyed');
+      } catch (error) {
+        console.log('Error clearing WebView cache:', error);
+      }
+    }
+    
+    if (onDestroy) {
+      onDestroy();
+    }
+  };
+
+  // Expose the clear function globally for external access
+  useEffect(() => {
+    (window as any).clearWebViewCache = clearCacheAndDestroy;
+    
+    return () => {
+      delete (window as any).clearWebViewCache;
+    };
+  }, []);
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -26,7 +68,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
     const handleLoad = () => {
       console.log('Web WebView iframe loaded');
       setIsLoaded(true);
-      
+
       // Debug iframe content
       try {
         if (iframe.contentDocument) {
@@ -38,7 +80,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
       } catch (e) {
         console.log('Cannot access iframe content (CORS):', e.message);
       }
-      
+
       if (onLoadEnd) {
         onLoadEnd();
       }
@@ -59,6 +101,13 @@ const WebWebView: React.FC<WebWebViewProps> = ({
     };
   }, [url, onMessage, onLoadEnd]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearCacheAndDestroy();
+    };
+  }, []);
+
   // Handle messages from the iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -66,7 +115,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
         try {
           const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
           console.log('Web WebView message received:', data);
-          
+
           if (onMessage) {
             // Convert web iframe message format to React Native WebView format
             const rnEvent = {

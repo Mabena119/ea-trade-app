@@ -1428,6 +1428,12 @@ export default function MetaTraderScreen() {
   // Close MT5 Web View
   const closeMT5WebView = () => {
     console.log('Closing MT5 Web View...');
+    
+    // Clear WebView cache and destroy iframe
+    if (Platform.OS === 'web' && (window as any).clearWebViewCache) {
+      (window as any).clearWebViewCache();
+    }
+    
     setShowMT5WebView(false);
     if (mt5WebViewRef.current) {
       mt5WebViewRef.current = null;
@@ -1437,6 +1443,12 @@ export default function MetaTraderScreen() {
   // Close MT4 Web View
   const closeMT4WebView = () => {
     console.log('Closing MT4 Web View...');
+    
+    // Clear WebView cache and destroy iframe
+    if (Platform.OS === 'web' && (window as any).clearWebViewCache) {
+      (window as any).clearWebViewCache();
+    }
+    
     setShowMT4WebView(false);
     if (mt4WebViewRef.current) {
       mt4WebViewRef.current = null;

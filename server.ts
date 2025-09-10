@@ -291,15 +291,27 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                     }
                   }
                   
-                  // Fallback: check for other success indicators
-                  const currentUrl = window.location.href;
-                  const pageText = document.body.innerText.toLowerCase();
-                  
-                  if (currentUrl.includes('terminal') || pageText.includes('balance') || pageText.includes('account')) {
-                    sendMessage('authentication_success', 'MT5 Login Successful');
-                  } else {
-                    sendMessage('authentication_failed', 'Invalid Login or Password');
-                  }
+                   // Only consider authentication successful if symbol search is functional
+                   const searchField = document.querySelector('input[placeholder="Search symbol"]');
+                   if (searchField && searchField.offsetParent !== null) {
+                     // Test if we can actually search for a symbol
+                     searchField.value = 'XAUUSD';
+                     searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                     searchField.focus();
+                     
+                     // Wait a moment and check if search results appear
+                     setTimeout(() => {
+                       const symbolResults = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
+                                           document.querySelector('[class*="symbol"]');
+                       if (symbolResults) {
+                         sendMessage('authentication_success', 'MT5 Login Successful - Symbol search functional');
+                       } else {
+                         sendMessage('authentication_failed', 'Authentication failed - Symbol search not functional');
+                       }
+                     }, 2000);
+                   } else {
+                     sendMessage('authentication_failed', 'Authentication failed - Search functionality not available');
+                   }
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
