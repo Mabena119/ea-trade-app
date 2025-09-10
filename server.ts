@@ -3,12 +3,32 @@
 // - Routes /api/check-email to the route handler in app/api/check-email/route.ts
 
 import path from 'path';
+import { createPool } from 'mysql2/promise';
 // Declare Bun global for TypeScript linting in non-Bun tooling contexts
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 declare const Bun: any;
 
 const DIST_DIR = path.join(process.cwd(), 'dist');
 const PORT = Number(process.env.PORT || 3000);
+
+// Database configuration
+const dbConfig = {
+  host: '172.203.148.37.host.secureserver.net',
+  user: 'eauser',
+  password: 'snVO2i%fZSG%',
+  database: 'eaconverter',
+  port: 3306,
+  connectTimeout: 60000,
+  acquireTimeout: 60000,
+  timeout: 60000,
+};
+
+// Create database connection pool
+const pool = createPool(dbConfig);
+
+function getPool() {
+  return pool;
+}
 
 async function serveStatic(request: Request): Promise<Response> {
   try {

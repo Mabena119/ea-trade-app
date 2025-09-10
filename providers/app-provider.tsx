@@ -689,8 +689,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           const onDatabaseSignalFound = (signal: DatabaseSignal) => {
             console.log('Database signal found:', signal);
             setDatabaseSignal(signal);
-            // Update dynamic island with database signal
-            setNewSignal({
+            // Add database signal to existing signals monitoring system
+            const signalLog: SignalLog = {
               id: signal.id,
               asset: signal.asset,
               action: signal.action,
@@ -699,8 +699,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               sl: signal.sl,
               time: signal.time,
               type: 'DATABASE_SIGNAL',
-              source: 'database'
-            });
+              source: 'database',
+              latestupdate: signal.latestupdate
+            };
+            
+            // Add to signal logs
+            setSignalLogs(prev => [...prev, signalLog]);
+            
+            // Update new signal for dynamic island
+            setNewSignal(signalLog);
           };
 
           const onDatabaseError = (error: string) => {
