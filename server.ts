@@ -11,130 +11,130 @@ const DIST_DIR = path.join(process.cwd(), 'dist');
 const PORT = Number(process.env.PORT || 3000);
 
 async function serveStatic(request: Request): Promise<Response> {
-    try {
-        const url = new URL(request.url);
-        let filePath = url.pathname;
+  try {
+    const url = new URL(request.url);
+    let filePath = url.pathname;
 
-        // Prevent path traversal
-        if (filePath.includes('..')) {
-            return new Response('Not Found', { status: 404 });
-        }
-
-        // Default to index.html
-        if (filePath === '/' || filePath === '') {
-            filePath = '/index.html';
-        }
-
-        const absolutePath = path.join(DIST_DIR, filePath);
-        const file = Bun.file(absolutePath);
-        if (await file.exists()) {
-            // Set proper MIME type based on file extension
-            const ext = path.extname(filePath).toLowerCase();
-            let contentType = 'application/octet-stream';
-            
-            switch (ext) {
-                case '.html':
-                    contentType = 'text/html; charset=utf-8';
-                    break;
-                case '.css':
-                    contentType = 'text/css; charset=utf-8';
-                    break;
-                case '.js':
-                    contentType = 'application/javascript; charset=utf-8';
-                    break;
-                case '.json':
-                    contentType = 'application/json; charset=utf-8';
-                    break;
-                case '.png':
-                    contentType = 'image/png';
-                    break;
-                case '.jpg':
-                case '.jpeg':
-                    contentType = 'image/jpeg';
-                    break;
-                case '.gif':
-                    contentType = 'image/gif';
-                    break;
-                case '.svg':
-                    contentType = 'image/svg+xml';
-                    break;
-                case '.ico':
-                    contentType = 'image/x-icon';
-                    break;
-                case '.woff':
-                    contentType = 'font/woff';
-                    break;
-                case '.woff2':
-                    contentType = 'font/woff2';
-                    break;
-                case '.ttf':
-                    contentType = 'font/ttf';
-                    break;
-                case '.eot':
-                    contentType = 'application/vnd.ms-fontobject';
-                    break;
-            }
-            
-            return new Response(file, {
-                headers: {
-                    'Content-Type': contentType,
-                    'Cache-Control': ext === '.html' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=31536000',
-                },
-            });
-        }
-
-        // SPA fallback
-        const indexFile = Bun.file(path.join(DIST_DIR, 'index.html'));
-        if (await indexFile.exists()) {
-            return new Response(indexFile, {
-                headers: {
-                    'Content-Type': 'text/html; charset=utf-8',
-                },
-            });
-        }
-
-        return new Response('Not Found', { status: 404 });
-    } catch (error) {
-        console.error('Static serve error:', error);
-        return new Response('Internal Server Error', { status: 500 });
+    // Prevent path traversal
+    if (filePath.includes('..')) {
+      return new Response('Not Found', { status: 404 });
     }
+
+    // Default to index.html
+    if (filePath === '/' || filePath === '') {
+      filePath = '/index.html';
+    }
+
+    const absolutePath = path.join(DIST_DIR, filePath);
+    const file = Bun.file(absolutePath);
+    if (await file.exists()) {
+      // Set proper MIME type based on file extension
+      const ext = path.extname(filePath).toLowerCase();
+      let contentType = 'application/octet-stream';
+
+      switch (ext) {
+        case '.html':
+          contentType = 'text/html; charset=utf-8';
+          break;
+        case '.css':
+          contentType = 'text/css; charset=utf-8';
+          break;
+        case '.js':
+          contentType = 'application/javascript; charset=utf-8';
+          break;
+        case '.json':
+          contentType = 'application/json; charset=utf-8';
+          break;
+        case '.png':
+          contentType = 'image/png';
+          break;
+        case '.jpg':
+        case '.jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case '.gif':
+          contentType = 'image/gif';
+          break;
+        case '.svg':
+          contentType = 'image/svg+xml';
+          break;
+        case '.ico':
+          contentType = 'image/x-icon';
+          break;
+        case '.woff':
+          contentType = 'font/woff';
+          break;
+        case '.woff2':
+          contentType = 'font/woff2';
+          break;
+        case '.ttf':
+          contentType = 'font/ttf';
+          break;
+        case '.eot':
+          contentType = 'application/vnd.ms-fontobject';
+          break;
+      }
+
+      return new Response(file, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': ext === '.html' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=31536000',
+        },
+      });
+    }
+
+    // SPA fallback
+    const indexFile = Bun.file(path.join(DIST_DIR, 'index.html'));
+    if (await indexFile.exists()) {
+      return new Response(indexFile, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+        },
+      });
+    }
+
+    return new Response('Not Found', { status: 404 });
+  } catch (error) {
+    console.error('Static serve error:', error);
+    return new Response('Internal Server Error', { status: 500 });
+  }
 }
 
 async function handleMT5Proxy(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const targetUrl = url.searchParams.get('url');
-    const login = url.searchParams.get('login');
-    const password = url.searchParams.get('password');
+  const url = new URL(request.url);
+  const targetUrl = url.searchParams.get('url');
+  const login = url.searchParams.get('login');
+  const password = url.searchParams.get('password');
 
-    if (!targetUrl) {
-        return new Response(JSON.stringify({ error: 'Missing URL parameter' }), { 
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
-        });
+  if (!targetUrl) {
+    return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  try {
+    // Fetch the target terminal page
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.status}`);
     }
 
-    try {
-        // Fetch the target terminal page
-        const response = await fetch(targetUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            },
-        });
+    let html = await response.text();
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.status}`);
-        }
-
-        let html = await response.text();
-
-        // Create the authentication script based on your Android code
-        const authScript = `
+    // Create the authentication script based on your Android code
+    const authScript = `
           <script>
             (function() {
               // Override console methods to suppress warnings
@@ -318,77 +318,77 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
           </script>
         `;
 
-        // Rewrite WebSocket URLs to point to the original terminal
-        html = html.replace(/wss:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
-        html = html.replace(/ws:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+    // Rewrite WebSocket URLs to point to the original terminal
+    html = html.replace(/wss:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+    html = html.replace(/ws:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
 
-        // Inject the script before the closing body tag
-        if (html.includes('</body>')) {
-            html = html.replace('</body>', authScript + '</body>');
-        } else {
-            html += authScript;
-        }
-
-        // Return the modified HTML
-        return new Response(html, {
-            headers: {
-                'Content-Type': 'text/html; charset=utf-8',
-                'X-Frame-Options': 'ALLOWALL',
-                'X-Content-Type-Options': 'nosniff',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type',
-            },
-        });
-
-    } catch (error) {
-        console.error('MT5 Proxy error:', error);
-        return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), { 
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+    // Inject the script before the closing body tag
+    if (html.includes('</body>')) {
+      html = html.replace('</body>', authScript + '</body>');
+    } else {
+      html += authScript;
     }
+
+    // Return the modified HTML
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Frame-Options': 'ALLOWALL',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
+
+  } catch (error) {
+    console.error('MT5 Proxy error:', error);
+    return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 async function handleMT4Proxy(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const targetUrl = url.searchParams.get('url');
-    const login = url.searchParams.get('login');
-    const password = url.searchParams.get('password');
-    const server = url.searchParams.get('server');
+  const url = new URL(request.url);
+  const targetUrl = url.searchParams.get('url');
+  const login = url.searchParams.get('login');
+  const password = url.searchParams.get('password');
+  const server = url.searchParams.get('server');
 
-    if (!targetUrl) {
-        return new Response(JSON.stringify({ error: 'Missing URL parameter' }), { 
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
-        });
+  if (!targetUrl) {
+    return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  try {
+    // Fetch the target terminal page
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.status}`);
     }
 
-    try {
-        // Fetch the target terminal page
-        const response = await fetch(targetUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            },
-        });
+    let html = await response.text();
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.status}`);
-        }
-
-        let html = await response.text();
-
-        // Create the authentication script based on your Android code
-        const authScript = `
+    // Create the authentication script based on your Android code
+    const authScript = `
           <script>
             (function() {
               // Override console methods to suppress warnings
@@ -608,181 +608,181 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
           </script>
         `;
 
-        // Rewrite WebSocket URLs to point to the original terminal
-        html = html.replace(/wss:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
-        html = html.replace(/ws:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+    // Rewrite WebSocket URLs to point to the original terminal
+    html = html.replace(/wss:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+    html = html.replace(/ws:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
 
-        // Inject the script before the closing body tag
-        if (html.includes('</body>')) {
-            html = html.replace('</body>', authScript + '</body>');
-        } else {
-            html += authScript;
-        }
-
-        // Return the modified HTML
-        return new Response(html, {
-            headers: {
-                'Content-Type': 'text/html; charset=utf-8',
-                'X-Frame-Options': 'ALLOWALL',
-                'X-Content-Type-Options': 'nosniff',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type',
-            },
-        });
-
-    } catch (error) {
-        console.error('MT4 Proxy error:', error);
-        return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), { 
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+    // Inject the script before the closing body tag
+    if (html.includes('</body>')) {
+      html = html.replace('</body>', authScript + '</body>');
+    } else {
+      html += authScript;
     }
+
+    // Return the modified HTML
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Frame-Options': 'ALLOWALL',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
+
+  } catch (error) {
+    console.error('MT4 Proxy error:', error);
+    return new Response(JSON.stringify({ error: `Proxy error: ${error.message}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 async function handleApi(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const { pathname } = url;
+  const url = new URL(request.url);
+  const { pathname } = url;
 
-    try {
-        if (pathname === '/api/check-email') {
-            const route = await import('./app/api/check-email/route.ts');
-            if (request.method === 'POST' && typeof route.POST === 'function') {
-                return route.POST(request) as Promise<Response>;
-            }
-            if (request.method === 'GET' && typeof route.GET === 'function') {
-                return route.GET() as Promise<Response>;
-            }
-            return new Response('Method Not Allowed', { status: 405 });
-        }
-        // Add auth-license routing
-        if (pathname === '/api/auth-license') {
-            const route = await import('./app/api/auth-license/route.ts');
-            if (request.method === 'POST' && typeof route.POST === 'function') {
-                return route.POST(request) as Promise<Response>;
-            }
-            if (request.method === 'GET' && typeof route.GET === 'function') {
-                return route.GET() as Promise<Response>;
-            }
-            return new Response('Method Not Allowed', { status: 405 });
-        }
-
-        // Add symbols routing
-        if (pathname === '/api/symbols') {
-            const route = await import('./app/api/symbols/route.ts');
-            if (request.method === 'GET' && typeof route.GET === 'function') {
-                return route.GET(request) as Promise<Response>;
-            }
-            return new Response('Method Not Allowed', { status: 405 });
-        }
-
-        // Add terminal-proxy routing
-        if (pathname === '/api/terminal-proxy') {
-            const route = await import('./app/api/terminal-proxy.ts');
-            if (request.method === 'GET' && typeof route.default === 'function') {
-                // Convert Bun Request to Express-like request/response
-                const expressReq = {
-                    method: request.method,
-                    query: Object.fromEntries(new URL(request.url).searchParams),
-                    url: request.url
-                } as any;
-                
-                const expressRes = {
-                    status: (code: number) => ({
-                        json: (data: any) => new Response(JSON.stringify(data), { 
-                            status: code, 
-                            headers: { 'Content-Type': 'application/json' } 
-                        }),
-                        send: (data: string) => new Response(data, { 
-                            status: code, 
-                            headers: { 'Content-Type': 'text/html; charset=utf-8' } 
-                        })
-                    }),
-                    setHeader: (name: string, value: string) => {}
-                } as any;
-                
-                return route.default(expressReq, expressRes);
-            }
-            return new Response('Method Not Allowed', { status: 405 });
-        }
-
-        // Add MT5 proxy routing
-        if (pathname === '/api/mt5-proxy') {
-            if (request.method === 'GET') {
-                return handleMT5Proxy(request);
-            }
-            return new Response('Method Not Allowed', { status: 405 });
-        }
-
-        // Add MT4 proxy routing
-        if (pathname === '/api/mt4-proxy') {
-            if (request.method === 'GET') {
-                return handleMT4Proxy(request);
-            }
-            return new Response('Method Not Allowed', { status: 405 });
-        }
-
-        return new Response('Not Found', { status: 404 });
-    } catch (error) {
-        console.error('API handler error:', error);
-        return new Response('Internal Server Error', { status: 500 });
+  try {
+    if (pathname === '/api/check-email') {
+      const route = await import('./app/api/check-email/route.ts');
+      if (request.method === 'POST' && typeof route.POST === 'function') {
+        return route.POST(request) as Promise<Response>;
+      }
+      if (request.method === 'GET' && typeof route.GET === 'function') {
+        return route.GET() as Promise<Response>;
+      }
+      return new Response('Method Not Allowed', { status: 405 });
     }
+    // Add auth-license routing
+    if (pathname === '/api/auth-license') {
+      const route = await import('./app/api/auth-license/route.ts');
+      if (request.method === 'POST' && typeof route.POST === 'function') {
+        return route.POST(request) as Promise<Response>;
+      }
+      if (request.method === 'GET' && typeof route.GET === 'function') {
+        return route.GET() as Promise<Response>;
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Add symbols routing
+    if (pathname === '/api/symbols') {
+      const route = await import('./app/api/symbols/route.ts');
+      if (request.method === 'GET' && typeof route.GET === 'function') {
+        return route.GET(request) as Promise<Response>;
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Add terminal-proxy routing
+    if (pathname === '/api/terminal-proxy') {
+      const route = await import('./app/api/terminal-proxy.ts');
+      if (request.method === 'GET' && typeof route.default === 'function') {
+        // Convert Bun Request to Express-like request/response
+        const expressReq = {
+          method: request.method,
+          query: Object.fromEntries(new URL(request.url).searchParams),
+          url: request.url
+        } as any;
+
+        const expressRes = {
+          status: (code: number) => ({
+            json: (data: any) => new Response(JSON.stringify(data), {
+              status: code,
+              headers: { 'Content-Type': 'application/json' }
+            }),
+            send: (data: string) => new Response(data, {
+              status: code,
+              headers: { 'Content-Type': 'text/html; charset=utf-8' }
+            })
+          }),
+          setHeader: (name: string, value: string) => { }
+        } as any;
+
+        return route.default(expressReq, expressRes);
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Add MT5 proxy routing
+    if (pathname === '/api/mt5-proxy') {
+      if (request.method === 'GET') {
+        return handleMT5Proxy(request);
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Add MT4 proxy routing
+    if (pathname === '/api/mt4-proxy') {
+      if (request.method === 'GET') {
+        return handleMT4Proxy(request);
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    return new Response('Not Found', { status: 404 });
+  } catch (error) {
+    console.error('API handler error:', error);
+    return new Response('Internal Server Error', { status: 500 });
+  }
 }
 
 const server = Bun.serve({
-    port: PORT,
-    async fetch(request: Request) {
-        const url = new URL(request.url);
+  port: PORT,
+  async fetch(request: Request) {
+    const url = new URL(request.url);
 
-        // Health check
-        if (url.pathname === '/health' || url.pathname === '/_health' || url.pathname === '/status') {
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            });
+    // Health check
+    if (url.pathname === '/health' || url.pathname === '/_health' || url.pathname === '/status') {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Handle terminal assets (CSS, JS, etc.) - proxy to the original MT5 terminal
+    if (url.pathname.startsWith('/terminal/')) {
+      try {
+        const assetPath = url.pathname.replace('/terminal/', '');
+        const targetUrl = `https://webtrader.razormarkets.co.za/terminal/${assetPath}`;
+
+        const response = await fetch(targetUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+        });
+
+        if (response.ok) {
+          const contentType = response.headers.get('content-type') || 'application/octet-stream';
+          const content = await response.arrayBuffer();
+
+          return new Response(content, {
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': 'public, max-age=3600',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
         }
+      } catch (error) {
+        console.error('Terminal asset proxy error:', error);
+      }
 
-        // Handle terminal assets (CSS, JS, etc.) - proxy to the original MT5 terminal
-        if (url.pathname.startsWith('/terminal/')) {
-            try {
-                const assetPath = url.pathname.replace('/terminal/', '');
-                const targetUrl = `https://webtrader.razormarkets.co.za/terminal/${assetPath}`;
-                
-                const response = await fetch(targetUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    },
-                });
+      return new Response('Asset not found', { status: 404 });
+    }
 
-                if (response.ok) {
-                    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-                    const content = await response.arrayBuffer();
-                    
-                    return new Response(content, {
-                        headers: {
-                            'Content-Type': contentType,
-                            'Cache-Control': 'public, max-age=3600',
-                            'Access-Control-Allow-Origin': '*',
-                        },
-                    });
-                }
-            } catch (error) {
-                console.error('Terminal asset proxy error:', error);
-            }
-            
-            return new Response('Asset not found', { status: 404 });
-        }
+    // API routes
+    if (url.pathname.startsWith('/api/')) {
+      return handleApi(request);
+    }
 
-        // API routes
-        if (url.pathname.startsWith('/api/')) {
-            return handleApi(request);
-        }
-
-        // Static files
-        return serveStatic(request);
-    },
+    // Static files
+    return serveStatic(request);
+  },
 });
 
 console.log(`Server running on http://localhost:${server.port}`);
