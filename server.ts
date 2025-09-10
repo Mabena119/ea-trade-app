@@ -846,16 +846,16 @@ async function handleApi(request: Request): Promise<Response> {
             query = `
               SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
               FROM \`signals\` 
-              WHERE ea = ? AND latestupdate > ? AND results = 'PENDING'
+              WHERE ea = ? AND latestupdate > ? AND results = 'active'
               ORDER BY latestupdate DESC
             `;
             params = [eaId, since];
           } else {
-            // Get all pending signals for EA
+            // Get all active signals for EA
             query = `
               SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
               FROM \`signals\` 
-              WHERE ea = ? AND results = 'PENDING'
+              WHERE ea = ? AND results = 'active'
               ORDER BY latestupdate DESC
             `;
             params = [eaId];
