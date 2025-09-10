@@ -84,6 +84,36 @@ async function handleApi(request: Request): Promise<Response> {
             return new Response('Method Not Allowed', { status: 405 });
         }
 
+        // Add terminal-proxy routing
+        if (pathname === '/api/terminal-proxy') {
+            const route = await import('./app/api/terminal-proxy.ts');
+            if (request.method === 'GET' && typeof route.default === 'function') {
+                // Convert Bun Request to Express-like request/response
+                const expressReq = {
+                    method: request.method,
+                    query: Object.fromEntries(new URL(request.url).searchParams),
+                    url: request.url
+                } as any;
+                
+                const expressRes = {
+                    status: (code: number) => ({
+                        json: (data: any) => new Response(JSON.stringify(data), { 
+                            status: code, 
+                            headers: { 'Content-Type': 'application/json' } 
+                        }),
+                        send: (data: string) => new Response(data, { 
+                            status: code, 
+                            headers: { 'Content-Type': 'text/html; charset=utf-8' } 
+                        })
+                    }),
+                    setHeader: (name: string, value: string) => {}
+                } as any;
+                
+                return route.default(expressReq, expressRes);
+            }
+            return new Response('Method Not Allowed', { status: 405 });
+        }
+
         return new Response('Not Found', { status: 404 });
     } catch (error) {
         console.error('API handler error:', error);
