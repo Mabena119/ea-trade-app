@@ -387,133 +387,133 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 }
                 };
                
-                // Trading execution function with multiple trades support
-                const executeTrading = async () => {
-                  try {
-                    const numberOfTrades = parseInt('${numberOfTrades}') || 1;
-                    sendMessage('step', 'Starting execution of ' + numberOfTrades + ' trade(s) for ${asset}...');
-                    
-                    // Function to execute a single trade
-                    const executeSingleTrade = async (tradeIndex) => {
-                      try {
-                        sendMessage('step', 'Executing trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
-                        
-                        // Search for the specific asset
-                        const searchField = document.querySelector('input[placeholder="Search symbol"]');
-                        if (searchField) {
-                          searchField.value = '${asset}';
-                          searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                          searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                          await new Promise(r => setTimeout(r, 1500));
-                        }
-                        
-                        // Select the asset
-                        const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                           document.querySelector('[class*="symbol"][class*="svelte"]');
-                        if (assetElement) {
-                          assetElement.click();
-                          sendMessage('step', 'Asset ${asset} selected for trade ' + (tradeIndex + 1) + '...');
-                          await new Promise(r => setTimeout(r, 1500));
-                        }
-                        
-                        // Open order dialog
-                        const orderButton = document.querySelector('.icon-button.withText span.button-text');
-                        if (orderButton) {
-                          orderButton.click();
-                          sendMessage('step', 'Order dialog opened for trade ' + (tradeIndex + 1) + '...');
-                          await new Promise(r => setTimeout(r, 1500));
-                        }
-                        
-                        // Set trading parameters
-                        const setFieldValue = (selector, value, fieldName) => {
-                          const field = document.querySelector(selector);
-                          if (field) {
-                            field.focus();
-                            field.select();
-                            field.value = value;
-                            field.dispatchEvent(new Event('input', { bubbles: true }));
-                            field.dispatchEvent(new Event('change', { bubbles: true }));
-                            field.dispatchEvent(new Event('blur', { bubbles: true }));
-                            console.log('Set ' + fieldName + ' to: ' + value);
-                          }
-                        };
-                        
-                        // Set volume
-                        setFieldValue('.trade-input input[type="text"]', '${volume}', 'Volume');
-                        await new Promise(r => setTimeout(r, 300));
-                        
-                        // Set stop loss
-                        setFieldValue('.sl input[type="text"]', '${sl}', 'Stop Loss');
-                        await new Promise(r => setTimeout(r, 300));
-                        
-                        // Set take profit
-                        setFieldValue('.tp input[type="text"]', '${tp}', 'Take Profit');
-                        await new Promise(r => setTimeout(r, 300));
-                        
-                        // Set comment with trade number
-                        const commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') ||
-                                           document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
-                        if (commentField) {
-                          commentField.focus();
-                          commentField.select();
-                          commentField.value = '${botname} #' + (tradeIndex + 1);
-                          commentField.dispatchEvent(new Event('input', { bubbles: true }));
-                          commentField.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                        
-                        sendMessage('step', 'Parameters set for trade ' + (tradeIndex + 1) + ', executing ${action} order...');
-                        await new Promise(r => setTimeout(r, 500));
-                        
-                        // Execute the order
-                        const executeButton = '${action}' === 'BUY' ? 
-                          document.querySelector('.footer-row button.trade-button:not(.red)') :
-                          document.querySelector('.footer-row button.trade-button.red');
-                        
-                        if (executeButton) {
-                          executeButton.click();
-                          sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' executed, confirming...');
-                          await new Promise(r => setTimeout(r, 1500));
-                          
-                          // Confirm the order
-                          const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0');
-                          if (confirmButton) {
-                            confirmButton.click();
-                            sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                            await new Promise(r => setTimeout(r, 2000));
-                          }
-                        }
-                        
-                        return true;
-                      } catch (error) {
-                        sendMessage('error', 'Trade ' + (tradeIndex + 1) + ' failed: ' + error.message);
-                        return false;
-                      }
-                    };
-                    
-                    // Execute multiple trades
-                    let successfulTrades = 0;
-                    for (let i = 0; i < numberOfTrades; i++) {
-                      const success = await executeSingleTrade(i);
-                      if (success) {
-                        successfulTrades++;
-                      }
-                      
-                      // Wait between trades (except for the last one)
-                      if (i < numberOfTrades - 1) {
-                        sendMessage('step', 'Waiting before next trade...');
-                        await new Promise(r => setTimeout(r, 3000));
-                      }
-                    }
-                    
-                    // Final summary
-                    sendMessage('trade_executed', 'All trades completed: ' + successfulTrades + ' of ' + numberOfTrades + ' successful for ${asset}');
-                    await new Promise(r => setTimeout(r, 2000));
-                    sendMessage('close', 'Trading completed - closing window');
-                    
-                  } catch (error) {
-                    sendMessage('error', 'Trading execution failed: ' + error.message);
-                  }
-                };
+                 // Trading execution function with multiple trades support
+                 const executeTrading = async () => {
+                   try {
+                     const numberOfTrades = parseInt('${numberOfTrades}') || 1;
+                     sendMessage('step', 'Starting execution of ' + numberOfTrades + ' trade(s) for ${asset}...');
+                     
+                     // Function to execute a single trade
+                     const executeSingleTrade = async (tradeIndex) => {
+                       try {
+                         sendMessage('step', 'Executing trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
+                         
+                         // Search for the specific asset
+                         const searchField = document.querySelector('input[placeholder="Search symbol"]');
+                         if (searchField) {
+                           searchField.value = '${asset}';
+                           searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                           searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                           await new Promise(r => setTimeout(r, 1500));
+                         }
+                         
+                         // Select the asset
+                         const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
+                                            document.querySelector('[class*="symbol"][class*="svelte"]');
+                         if (assetElement) {
+                           assetElement.click();
+                           sendMessage('step', 'Asset ${asset} selected for trade ' + (tradeIndex + 1) + '...');
+                           await new Promise(r => setTimeout(r, 1500));
+                         }
+                         
+                         // Open order dialog
+                         const orderButton = document.querySelector('.icon-button.withText span.button-text');
+                         if (orderButton) {
+                           orderButton.click();
+                           sendMessage('step', 'Order dialog opened for trade ' + (tradeIndex + 1) + '...');
+                           await new Promise(r => setTimeout(r, 1500));
+                         }
+                         
+                         // Set trading parameters
+                         const setFieldValue = (selector, value, fieldName) => {
+                           const field = document.querySelector(selector);
+                           if (field) {
+                             field.focus();
+                             field.select();
+                             field.value = value;
+                             field.dispatchEvent(new Event('input', { bubbles: true }));
+                             field.dispatchEvent(new Event('change', { bubbles: true }));
+                             field.dispatchEvent(new Event('blur', { bubbles: true }));
+                             console.log('Set ' + fieldName + ' to: ' + value);
+                           }
+                         };
+                         
+                         // Set volume (lot size from trade config)
+                         setFieldValue('.trade-input input[type="text"]', '${volume}', 'Volume');
+                         await new Promise(r => setTimeout(r, 300));
+                         
+                         // Set stop loss
+                         setFieldValue('.sl input[type="text"]', '${sl}', 'Stop Loss');
+                         await new Promise(r => setTimeout(r, 300));
+                         
+                         // Set take profit
+                         setFieldValue('.tp input[type="text"]', '${tp}', 'Take Profit');
+                         await new Promise(r => setTimeout(r, 300));
+                         
+                         // Set comment with trade number
+                         const commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') ||
+                                            document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
+                         if (commentField) {
+                           commentField.focus();
+                           commentField.select();
+                           commentField.value = '${botname} #' + (tradeIndex + 1);
+                           commentField.dispatchEvent(new Event('input', { bubbles: true }));
+                           commentField.dispatchEvent(new Event('change', { bubbles: true }));
+                         }
+                         
+                         sendMessage('step', 'Parameters set for trade ' + (tradeIndex + 1) + ', executing ${action} order...');
+                         await new Promise(r => setTimeout(r, 500));
+                         
+                         // Execute the order
+                         const executeButton = '${action}' === 'BUY' ? 
+                           document.querySelector('.footer-row button.trade-button:not(.red)') :
+                           document.querySelector('.footer-row button.trade-button.red');
+                         
+                         if (executeButton) {
+                           executeButton.click();
+                           sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' executed, confirming...');
+                           await new Promise(r => setTimeout(r, 1500));
+                           
+                           // Confirm the order
+                           const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0');
+                           if (confirmButton) {
+                             confirmButton.click();
+                             sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
+                             await new Promise(r => setTimeout(r, 2000));
+                           }
+                         }
+                         
+                         return true;
+                       } catch (error) {
+                         sendMessage('error', 'Trade ' + (tradeIndex + 1) + ' failed: ' + error.message);
+                         return false;
+                       }
+                     };
+                     
+                     // Execute multiple trades
+                     let successfulTrades = 0;
+                     for (let i = 0; i < numberOfTrades; i++) {
+                       const success = await executeSingleTrade(i);
+                       if (success) {
+                         successfulTrades++;
+                       }
+                       
+                       // Wait between trades (except for the last one)
+                       if (i < numberOfTrades - 1) {
+                         sendMessage('step', 'Waiting before next trade...');
+                         await new Promise(r => setTimeout(r, 3000));
+                       }
+                     }
+                     
+                     // Final summary
+                     sendMessage('trade_executed', 'All trades completed: ' + successfulTrades + ' of ' + numberOfTrades + ' successful for ${asset}');
+                     await new Promise(r => setTimeout(r, 2000));
+                     sendMessage('close', 'Trading completed - closing window');
+                     
+                   } catch (error) {
+                     sendMessage('error', 'Trading execution failed: ' + error.message);
+                   }
+                 };
 
                 // Start authentication after page loads - optimized timing
               if (document.readyState === 'complete') {
@@ -823,122 +823,122 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                 }
               };
               
-              // Trading execution function for MT4 with multiple trades support
-              const executeTrading = async () => {
-                try {
-                  const numberOfTrades = parseInt('${numberOfTrades}') || 1;
-                  sendMessage('step', 'Starting execution of ' + numberOfTrades + ' MT4 trade(s) for ${asset}...');
-                  
-                  // Function to execute a single MT4 trade
-                  const executeSingleTrade = async (tradeIndex) => {
-                    try {
-                      sendMessage('step', 'Executing MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
-                      
-                      // Search for the specific asset in Market Watch
-                      const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
-                      if (marketWatchTable) {
-                        const allTRs = marketWatchTable.querySelectorAll('tr');
-                        let assetFound = false;
-                        
-                        for (let i = 0; i < allTRs.length; i++) {
-                          const a = allTRs[i].getElementsByTagName('td')[0];
-                          if (a && a.textContent && a.textContent.trim() === '${asset}') {
-                            // Double click to open order dialog
-                            const ev = document.createEvent('MouseEvents');
-                            ev.initEvent('dblclick', true, true);
-                            a.dispatchEvent(ev);
-                            assetFound = true;
-                            sendMessage('step', 'Asset ${asset} selected for MT4 trade ' + (tradeIndex + 1) + '...');
-                            break;
-                          }
-                        }
-                        
-                        if (!assetFound) {
-                          sendMessage('error', 'Asset ${asset} not found in Market Watch for trade ' + (tradeIndex + 1));
-                          return false;
-                        }
-                      }
-                      
-                      // Wait for order dialog to open
-                      await new Promise(r => setTimeout(r, 1500));
-                      
-                      // Set trading parameters
-                      const setFieldValue = (selector, value, fieldName) => {
-                        const field = document.querySelector(selector);
-                        if (field) {
-                          field.focus();
-                          field.select();
-                          field.value = value;
-                          field.dispatchEvent(new Event('input', { bubbles: true }));
-                          field.dispatchEvent(new Event('change', { bubbles: true }));
-                          field.dispatchEvent(new Event('blur', { bubbles: true }));
-                          console.log('Set ' + fieldName + ' to: ' + value);
-                        }
-                      };
-                      
-                      // Set volume
-                      setFieldValue('#volume', '${volume}', 'Volume');
-                      await new Promise(r => setTimeout(r, 300));
-                      
-                      // Set stop loss
-                      setFieldValue('#sl', '${sl}', 'Stop Loss');
-                      await new Promise(r => setTimeout(r, 300));
-                      
-                      // Set take profit
-                      setFieldValue('#tp', '${tp}', 'Take Profit');
-                      await new Promise(r => setTimeout(r, 300));
-                      
-                      // Set comment with trade number
-                      setFieldValue('#comment', '${botname} #' + (tradeIndex + 1), 'Comment');
-                      
-                      sendMessage('step', 'Parameters set for MT4 trade ' + (tradeIndex + 1) + ', executing ${action} order...');
-                      await new Promise(r => setTimeout(r, 500));
-                      
-                      // Execute the order
-                      const executeButton = '${action}' === 'BUY' ? 
-                        document.querySelector('button.input-button.blue') :
-                        document.querySelector('button.input-button.red');
-                      
-                      if (executeButton) {
-                        executeButton.click();
-                        sendMessage('step', 'MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                        await new Promise(r => setTimeout(r, 2000));
-                        return true;
-                      } else {
-                        sendMessage('error', 'Execute button not found for MT4 trade ' + (tradeIndex + 1));
-                        return false;
-                      }
-                      
-                    } catch (error) {
-                      sendMessage('error', 'MT4 trade ' + (tradeIndex + 1) + ' failed: ' + error.message);
-                      return false;
-                    }
-                  };
-                  
-                  // Execute multiple MT4 trades
-                  let successfulTrades = 0;
-                  for (let i = 0; i < numberOfTrades; i++) {
-                    const success = await executeSingleTrade(i);
-                    if (success) {
-                      successfulTrades++;
-                    }
-                    
-                    // Wait between trades (except for the last one)
-                    if (i < numberOfTrades - 1) {
-                      sendMessage('step', 'Waiting before next MT4 trade...');
-                      await new Promise(r => setTimeout(r, 3000));
-                    }
-                  }
-                  
-                  // Final summary
-                  sendMessage('trade_executed', 'All MT4 trades completed: ' + successfulTrades + ' of ' + numberOfTrades + ' successful for ${asset}');
-                  await new Promise(r => setTimeout(r, 2000));
-                  sendMessage('close', 'MT4 trading completed - closing window');
-                  
-                } catch (error) {
-                  sendMessage('error', 'MT4 trading execution failed: ' + error.message);
-                }
-              };
+               // Trading execution function for MT4 with multiple trades support
+               const executeTrading = async () => {
+                 try {
+                   const numberOfTrades = parseInt('${numberOfTrades}') || 1;
+                   sendMessage('step', 'Starting execution of ' + numberOfTrades + ' MT4 trade(s) for ${asset}...');
+                   
+                   // Function to execute a single MT4 trade
+                   const executeSingleTrade = async (tradeIndex) => {
+                     try {
+                       sendMessage('step', 'Executing MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
+                       
+                       // Search for the specific asset in Market Watch
+                       const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+                       if (marketWatchTable) {
+                         const allTRs = marketWatchTable.querySelectorAll('tr');
+                         let assetFound = false;
+                         
+                         for (let i = 0; i < allTRs.length; i++) {
+                           const a = allTRs[i].getElementsByTagName('td')[0];
+                           if (a && a.textContent && a.textContent.trim() === '${asset}') {
+                             // Double click to open order dialog
+                             const ev = document.createEvent('MouseEvents');
+                             ev.initEvent('dblclick', true, true);
+                             a.dispatchEvent(ev);
+                             assetFound = true;
+                             sendMessage('step', 'Asset ${asset} selected for MT4 trade ' + (tradeIndex + 1) + '...');
+                             break;
+                           }
+                         }
+                         
+                         if (!assetFound) {
+                           sendMessage('error', 'Asset ${asset} not found in Market Watch for trade ' + (tradeIndex + 1));
+                           return false;
+                         }
+                       }
+                       
+                       // Wait for order dialog to open
+                       await new Promise(r => setTimeout(r, 1500));
+                       
+                       // Set trading parameters
+                       const setFieldValue = (selector, value, fieldName) => {
+                         const field = document.querySelector(selector);
+                         if (field) {
+                           field.focus();
+                           field.select();
+                           field.value = value;
+                           field.dispatchEvent(new Event('input', { bubbles: true }));
+                           field.dispatchEvent(new Event('change', { bubbles: true }));
+                           field.dispatchEvent(new Event('blur', { bubbles: true }));
+                           console.log('Set ' + fieldName + ' to: ' + value);
+                         }
+                       };
+                       
+                       // Set volume (lot size from trade config)
+                       setFieldValue('#volume', '${volume}', 'Volume');
+                       await new Promise(r => setTimeout(r, 300));
+                       
+                       // Set stop loss
+                       setFieldValue('#sl', '${sl}', 'Stop Loss');
+                       await new Promise(r => setTimeout(r, 300));
+                       
+                       // Set take profit
+                       setFieldValue('#tp', '${tp}', 'Take Profit');
+                       await new Promise(r => setTimeout(r, 300));
+                       
+                       // Set comment with trade number
+                       setFieldValue('#comment', '${botname} #' + (tradeIndex + 1), 'Comment');
+                       
+                       sendMessage('step', 'Parameters set for MT4 trade ' + (tradeIndex + 1) + ', executing ${action} order...');
+                       await new Promise(r => setTimeout(r, 500));
+                       
+                       // Execute the order
+                       const executeButton = '${action}' === 'BUY' ? 
+                         document.querySelector('button.input-button.blue') :
+                         document.querySelector('button.input-button.red');
+                       
+                       if (executeButton) {
+                         executeButton.click();
+                         sendMessage('step', 'MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
+                         await new Promise(r => setTimeout(r, 2000));
+                         return true;
+                       } else {
+                         sendMessage('error', 'Execute button not found for MT4 trade ' + (tradeIndex + 1));
+                         return false;
+                       }
+                       
+                     } catch (error) {
+                       sendMessage('error', 'MT4 trade ' + (tradeIndex + 1) + ' failed: ' + error.message);
+                       return false;
+                     }
+                   };
+                   
+                   // Execute multiple MT4 trades
+                   let successfulTrades = 0;
+                   for (let i = 0; i < numberOfTrades; i++) {
+                     const success = await executeSingleTrade(i);
+                     if (success) {
+                       successfulTrades++;
+                     }
+                     
+                     // Wait between trades (except for the last one)
+                     if (i < numberOfTrades - 1) {
+                       sendMessage('step', 'Waiting before next MT4 trade...');
+                       await new Promise(r => setTimeout(r, 3000));
+                     }
+                   }
+                   
+                   // Final summary
+                   sendMessage('trade_executed', 'All MT4 trades completed: ' + successfulTrades + ' of ' + numberOfTrades + ' successful for ${asset}');
+                   await new Promise(r => setTimeout(r, 2000));
+                   sendMessage('close', 'MT4 trading completed - closing window');
+                   
+                 } catch (error) {
+                   sendMessage('error', 'MT4 trading execution failed: ' + error.message);
+                 }
+               };
               
               // Start authentication after page loads
               if (document.readyState === 'complete') {
