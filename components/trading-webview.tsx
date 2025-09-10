@@ -89,6 +89,28 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 
   const tradeConfig = getTradeConfig();
 
+  // Debug logging for trade configuration
+  useEffect(() => {
+    if (tradeConfig) {
+      console.log('🎯 Trade Configuration Applied:', {
+        symbol: tradeConfig.symbol,
+        lotSize: tradeConfig.lotSize,
+        platform: tradeConfig.platform,
+        direction: tradeConfig.direction,
+        numberOfTrades: tradeConfig.numberOfTrades
+      });
+      console.log('🎯 Signal Details:', {
+        asset: signal?.asset,
+        action: signal?.action,
+        price: signal?.price,
+        tp: signal?.tp,
+        sl: signal?.sl
+      });
+    } else {
+      console.log('❌ No trade configuration found for signal:', signal?.asset);
+    }
+  }, [tradeConfig, signal]);
+
   const eaName = useMemo<string>(() => {
     try {
       const connected = eas?.find(e => e.status === 'connected');
@@ -898,17 +920,30 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
-  // Get MT5 WebView URL for trading
+  // Get WebView URL for trading based on platform
   const getWebViewUrl = useCallback(() => {
     if (!tradeConfig || !credentials) return '';
     
+    // Determine the correct action based on trade config direction and signal
+    let action = signal?.action || '';
+    
+    // If trade config has specific direction, use it instead of signal action
+    if (tradeConfig.direction === 'BUY') {
+      action = 'BUY';
+    } else if (tradeConfig.direction === 'SELL') {
+      action = 'SELL';
+    }
+    // If direction is 'BOTH', keep the signal action
+    
     const params = new URLSearchParams({
-      url: 'https://webtrader.razormarkets.co.za/terminal/',
+      url: tradeConfig.platform === 'MT4' 
+        ? 'https://metatraderweb.app/trade?version=4'
+        : 'https://webtrader.razormarkets.co.za/terminal/',
       login: credentials.login,
       password: credentials.password,
       server: credentials.server,
       asset: signal?.asset || '',
-      action: signal?.action || '',
+      action: action,
       price: signal?.price || '',
       tp: signal?.tp || '',
       sl: signal?.sl || '',
@@ -917,7 +952,18 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       botname: eaName
     });
 
-    return `/api/mt5-proxy?${params.toString()}`;
+    // Use the correct proxy based on platform
+    const proxyEndpoint = tradeConfig.platform === 'MT4' ? '/api/mt4-proxy' : '/api/mt5-proxy';
+    const finalUrl = `${proxyEndpoint}?${params.toString()}`;
+    
+    console.log('🎯 Trading WebView URL:', {
+      platform: tradeConfig.platform,
+      proxyEndpoint: proxyEndpoint,
+      finalUrl: finalUrl,
+      params: Object.fromEntries(params.entries())
+    });
+    
+    return finalUrl;
   }, [tradeConfig, credentials, signal, eaName]);
 
   // Storage clear script for MT5 cleanup

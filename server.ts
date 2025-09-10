@@ -536,6 +536,17 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
   const login = url.searchParams.get('login');
   const password = url.searchParams.get('password');
   const server = url.searchParams.get('server');
+  const asset = url.searchParams.get('asset');
+  const action = url.searchParams.get('action');
+  const price = url.searchParams.get('price');
+  const tp = url.searchParams.get('tp');
+  const sl = url.searchParams.get('sl');
+  const volume = url.searchParams.get('volume');
+  const numberOfTrades = url.searchParams.get('numberOfTrades');
+  const botname = url.searchParams.get('botname');
+
+  // Check if this is a trading request (has trading parameters)
+  const isTradingRequest = asset && action && tp && sl && volume;
 
   if (!targetUrl) {
     return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
@@ -761,6 +772,13 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                       }
                       // XAUUSD not found but symbols are visible - still successful
                       sendMessage('authentication_success', 'MT4 Authentication Successful - Symbol list accessible');
+                      
+                      // If this is a trading request, proceed with trading
+                      ${isTradingRequest ? `
+                      setTimeout(() => {
+                        executeTrading();
+                      }, 2000);
+                      ` : ''}
                     } else {
                       sendMessage('authentication_failed', 'Authentication failed - No symbols visible in market watch');
                     }
@@ -770,6 +788,88 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
+                }
+              };
+              
+              // Trading execution function for MT4
+              const executeTrading = async () => {
+                try {
+                  sendMessage('step', 'Starting MT4 trade execution for ${asset}...');
+                  
+                  // Search for the specific asset in Market Watch
+                  const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+                  if (marketWatchTable) {
+                    const allTRs = marketWatchTable.querySelectorAll('tr');
+                    let assetFound = false;
+                    
+                    for (let i = 0; i < allTRs.length; i++) {
+                      const a = allTRs[i].getElementsByTagName('td')[0];
+                      if (a && a.textContent && a.textContent.trim() === '${asset}') {
+                        // Double click to open order dialog
+                        const ev = document.createEvent('MouseEvents');
+                        ev.initEvent('dblclick', true, true);
+                        a.dispatchEvent(ev);
+                        assetFound = true;
+                        sendMessage('step', 'Asset ${asset} selected, opening order dialog...');
+                        break;
+                      }
+                    }
+                    
+                    if (!assetFound) {
+                      sendMessage('error', 'Asset ${asset} not found in Market Watch');
+                      return;
+                    }
+                  }
+                  
+                  // Wait for order dialog to open
+                  await new Promise(r => setTimeout(r, 2000));
+                  
+                  // Set trading parameters
+                  const setFieldValue = (selector, value, fieldName) => {
+                    const field = document.querySelector(selector);
+                    if (field) {
+                      field.focus();
+                      field.select();
+                      field.value = value;
+                      field.dispatchEvent(new Event('input', { bubbles: true }));
+                      field.dispatchEvent(new Event('change', { bubbles: true }));
+                      field.dispatchEvent(new Event('blur', { bubbles: true }));
+                      console.log('Set ' + fieldName + ' to: ' + value);
+                    }
+                  };
+                  
+                  // Set volume
+                  setFieldValue('#volume', '${volume}', 'Volume');
+                  await new Promise(r => setTimeout(r, 500));
+                  
+                  // Set stop loss
+                  setFieldValue('#sl', '${sl}', 'Stop Loss');
+                  await new Promise(r => setTimeout(r, 500));
+                  
+                  // Set take profit
+                  setFieldValue('#tp', '${tp}', 'Take Profit');
+                  await new Promise(r => setTimeout(r, 500));
+                  
+                  // Set comment
+                  setFieldValue('#comment', '${botname}', 'Comment');
+                  
+                  sendMessage('step', 'Parameters set, executing ${action} order...');
+                  await new Promise(r => setTimeout(r, 1000));
+                  
+                  // Execute the order
+                  const executeButton = '${action}' === 'BUY' ? 
+                    document.querySelector('button.input-button.blue') :
+                    document.querySelector('button.input-button.red');
+                  
+                  if (executeButton) {
+                    executeButton.click();
+                    sendMessage('trade_executed', 'MT4 trade executed successfully for ${asset}');
+                    await new Promise(r => setTimeout(r, 3000));
+                    sendMessage('close', 'Trading completed - closing window');
+                  }
+                  
+                } catch (error) {
+                  sendMessage('error', 'MT4 trading execution failed: ' + error.message);
                 }
               };
               
