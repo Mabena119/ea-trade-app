@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import SimpleWebView from './simple-webview';
 
 interface FallbackWebViewProps {
@@ -19,14 +19,53 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
 }) => {
   const [useProxy, setUseProxy] = useState(true);
   const [proxyError, setProxyError] = useState<string | null>(null);
+  const [proxyTimeout, setProxyTimeout] = useState<NodeJS.Timeout | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
+    // Set a timeout to fallback if proxy doesn't work within 10 seconds
+    if (useProxy) {
+      const timeout = setTimeout(() => {
+        console.log('Proxy timeout - falling back to SimpleWebView');
+        setProxyError('Proxy timeout, using fallback');
+        setUseProxy(false);
+      }, 10000);
+      setProxyTimeout(timeout);
+    }
+
     const handleLoad = () => {
       console.log('Fallback WebView iframe loaded');
+      
+      // Clear timeout since iframe loaded successfully
+      if (proxyTimeout) {
+        clearTimeout(proxyTimeout);
+        setProxyTimeout(null);
+      }
+      
+      // Check if iframe content is actually loaded by trying to access it
+      setTimeout(() => {
+        try {
+          if (iframe.contentDocument && iframe.contentDocument.body) {
+            const bodyText = iframe.contentDocument.body.innerText;
+            console.log('Iframe content length:', bodyText.length);
+            if (bodyText.length < 100) {
+              console.log('Iframe appears to have minimal content, might be an error page');
+              if (useProxy) {
+                console.log('Switching to fallback due to minimal content');
+                setProxyError('Proxy returned minimal content, using fallback');
+                setUseProxy(false);
+              }
+            }
+          } else {
+            console.log('Cannot access iframe content (CORS restriction)');
+          }
+        } catch (e) {
+          console.log('CORS error accessing iframe content:', e);
+        }
+      }, 2000);
       
       if (onLoadEnd) {
         onLoadEnd();
@@ -67,6 +106,11 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
         iframe.removeEventListener('error', handleError);
       }
       window.removeEventListener('message', handleMessage);
+      
+      // Clear timeout on cleanup
+      if (proxyTimeout) {
+        clearTimeout(proxyTimeout);
+      }
     };
   }, [url, onMessage, onLoadEnd, useProxy]);
 
@@ -103,6 +147,21 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
           <Text style={styles.errorText}>{proxyError}</Text>
         </View>
       )}
+      {useProxy && !proxyError && (
+        <View style={styles.loadingBanner}>
+          <Text style={styles.loadingText}>Loading terminal with JavaScript injection...</Text>
+          <TouchableOpacity 
+            style={styles.fallbackButton}
+            onPress={() => {
+              console.log('Manual fallback triggered');
+              setProxyError('Manual fallback activated');
+              setUseProxy(false);
+            }}
+          >
+            <Text style={styles.fallbackButtonText}>Use Fallback</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <iframe
         ref={iframeRef}
         src={createProxyUrl()}
@@ -136,6 +195,32 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
     fontSize: 12,
     textAlign: 'center',
+  },
+  loadingBanner: {
+    backgroundColor: '#e3f2fd',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2196f3',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#1976d2',
+    fontSize: 12,
+    flex: 1,
+  },
+  fallbackButton: {
+    backgroundColor: '#ff9800',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  fallbackButtonText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
 });
 
