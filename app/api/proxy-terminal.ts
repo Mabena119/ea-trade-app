@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { ExpoRequest, ExpoResponse } from 'expo-router/server';
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const targetUrl = searchParams.get('url');
-  const script = searchParams.get('script');
+export async function GET(request: ExpoRequest): Promise<ExpoResponse> {
+  const url = new URL(request.url);
+  const targetUrl = url.searchParams.get('url');
+  const script = url.searchParams.get('script');
 
   if (!targetUrl) {
-    return NextResponse.json({ error: 'Missing target URL' }, { status: 400 });
+    return ExpoResponse.json({ error: 'Missing target URL' }, { status: 400 });
   }
 
   try {
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return the modified HTML
-    return new NextResponse(html, {
+    return new ExpoResponse(html, {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Proxy error:', error);
-    return NextResponse.json(
+    return ExpoResponse.json(
       { error: 'Failed to fetch target URL' },
       { status: 500 }
     );
