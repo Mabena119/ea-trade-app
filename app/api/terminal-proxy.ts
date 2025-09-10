@@ -1,17 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { Request, Response } from 'express';
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const targetUrl = searchParams.get('url');
-  const script = searchParams.get('script');
+export default async function handler(req: Request, res: Response) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-  if (!targetUrl) {
-    return new NextResponse('Missing URL parameter', { status: 400 });
+  const { url, script } = req.query;
+
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ error: 'Missing URL parameter' });
   }
 
   try {
     // Fetch the target terminal page
-    const response = await fetch(targetUrl, {
+    const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
     let html = await response.text();
 
     // Inject our script into the HTML
-    if (script) {
+    if (script && typeof script === 'string') {
       const decodedScript = decodeURIComponent(script);
       
       // Create a script injection that runs after the page loads
@@ -95,20 +97,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Return the modified HTML
-    return new NextResponse(html, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'X-Frame-Options': 'SAMEORIGIN',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      },
-    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.status(200).send(html);
 
   } catch (error) {
     console.error('Proxy error:', error);
-    return new NextResponse(`Proxy error: ${error.message}`, { status: 500 });
+    res.status(500).json({ error: `Proxy error: ${error.message}` });
   }
 }
