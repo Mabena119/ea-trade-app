@@ -9,7 +9,50 @@ import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
 import { TradingWebView } from "@/components/trading-webview";
 
-
+// Early console suppression - must be at the very top
+if (typeof window !== 'undefined' && Platform.OS === 'web') {
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  const originalLog = console.log;
+  
+  function shouldSuppress(message) {
+    return message.includes('interactive-widget') || 
+           message.includes('viewport') ||
+           message.includes('Viewport argument key') ||
+           message.includes('AES-CBC') ||
+           message.includes('AES-CTR') ||
+           message.includes('AES-GCM') ||
+           message.includes('chosen-ciphertext') ||
+           message.includes('authentication by default') ||
+           message.includes('not recognized and ignored') ||
+           message.includes('We recommended using authenticated encryption') ||
+           message.includes('implementing it manually can result in minor') ||
+           message.includes('serious mistakes') ||
+           message.includes('protect against chosen-ciphertext attacks') ||
+           message.includes('do not provide authentication by default') ||
+           message.includes('can result in minor, but serious mistakes') ||
+           message.includes('We recommended using') ||
+           message.includes('authenticated encryption like AES-GCM');
+  }
+  
+  console.warn = function(...args) {
+    const message = args.join(' ');
+    if (shouldSuppress(message)) return;
+    originalWarn.apply(console, args);
+  };
+  
+  console.error = function(...args) {
+    const message = args.join(' ');
+    if (shouldSuppress(message)) return;
+    originalError.apply(console, args);
+  };
+  
+  console.log = function(...args) {
+    const message = args.join(' ');
+    if (shouldSuppress(message)) return;
+    originalLog.apply(console, args);
+  };
+}
 
 // Error Boundary Component
 class ErrorBoundary extends Component<
@@ -172,7 +215,15 @@ export default function RootLayout() {
             message.includes('AES-GCM') ||
             message.includes('chosen-ciphertext') ||
             message.includes('authentication by default') ||
-            message.includes('not recognized and ignored')) {
+            message.includes('not recognized and ignored') ||
+            message.includes('We recommended using authenticated encryption') ||
+            message.includes('implementing it manually can result in minor') ||
+            message.includes('serious mistakes') ||
+            message.includes('protect against chosen-ciphertext attacks') ||
+            message.includes('do not provide authentication by default') ||
+            message.includes('can result in minor, but serious mistakes') ||
+            message.includes('We recommended using') ||
+            message.includes('authenticated encryption like AES-GCM')) {
           return;
         }
         originalWarn.apply(console, args);
@@ -190,7 +241,15 @@ export default function RootLayout() {
             message.includes('AES-GCM') ||
             message.includes('chosen-ciphertext') ||
             message.includes('authentication by default') ||
-            message.includes('not recognized and ignored')) {
+            message.includes('not recognized and ignored') ||
+            message.includes('We recommended using authenticated encryption') ||
+            message.includes('implementing it manually can result in minor') ||
+            message.includes('serious mistakes') ||
+            message.includes('protect against chosen-ciphertext attacks') ||
+            message.includes('do not provide authentication by default') ||
+            message.includes('can result in minor, but serious mistakes') ||
+            message.includes('We recommended using') ||
+            message.includes('authenticated encryption like AES-GCM')) {
           return;
         }
         originalError.apply(console, args);
@@ -208,7 +267,15 @@ export default function RootLayout() {
             message.includes('AES-GCM') ||
             message.includes('chosen-ciphertext') ||
             message.includes('authentication by default') ||
-            message.includes('not recognized and ignored')) {
+            message.includes('not recognized and ignored') ||
+            message.includes('We recommended using authenticated encryption') ||
+            message.includes('implementing it manually can result in minor') ||
+            message.includes('serious mistakes') ||
+            message.includes('protect against chosen-ciphertext attacks') ||
+            message.includes('do not provide authentication by default') ||
+            message.includes('can result in minor, but serious mistakes') ||
+            message.includes('We recommended using') ||
+            message.includes('authenticated encryption like AES-GCM')) {
           return;
         }
         originalLog.apply(console, args);
