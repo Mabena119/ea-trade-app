@@ -73,40 +73,12 @@
         // Get URL parameter for terminal type
         const urlParams = new URLSearchParams(window.location.search);
         const targetUrl = urlParams.get('url');
-        const script = urlParams.get('script');
-
+        
         if (targetUrl) {
             const iframe = document.getElementById('terminal-frame');
             iframe.src = decodeURIComponent(targetUrl);
             iframe.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals';
             iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-
-            // If script is provided, try to inject it into the iframe
-            if (script) {
-                const decodedScript = decodeURIComponent(script);
-
-                const injectScript = () => {
-                    try {
-                        if (iframe.contentWindow && iframe.contentDocument) {
-                            // Try to execute script in iframe context
-                            iframe.contentWindow.eval(decodedScript);
-                            console.log('Script injected into iframe successfully');
-                        }
-                    } catch (error) {
-                        console.log('Cannot inject script into iframe due to CORS restrictions:', error);
-                        // Fallback: show script in console for manual execution
-                        console.log('=== AUTHENTICATION SCRIPT ===');
-                        console.log('Copy and paste this script in the terminal console:');
-                        console.log(decodedScript);
-                        console.log('=== END SCRIPT ===');
-                    }
-                };
-
-                // Try to inject script when iframe loads
-                iframe.addEventListener('load', () => {
-                    setTimeout(injectScript, 5000);
-                });
-            }
         }
     </script>
 </body>

@@ -2032,11 +2032,11 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <FallbackWebView
+                <WebWebView
                   url="https://webtrader.razormarkets.co.za/terminal"
                   script={getMT5Script()}
                   onMessage={onMT5WebViewMessage}
-                  onLoadEnd={() => console.log('MT5 Fallback WebView loaded')}
+                  onLoadEnd={() => console.log('MT5 Web WebView loaded')}
                   style={styles.webView}
                 />
               </View>
@@ -2067,11 +2067,11 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <FallbackWebView
+                <WebWebView
                   url="https://metatraderweb.app/trade?version=4"
                   script={getMT4Script()}
                   onMessage={onMT4WebViewMessage}
-                  onLoadEnd={() => console.log('MT4 Fallback WebView loaded')}
+                  onLoadEnd={() => console.log('MT4 Web WebView loaded')}
                   style={styles.webView}
                 />
               </View>

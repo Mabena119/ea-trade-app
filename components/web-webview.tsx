@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 
 interface WebWebViewProps {
   url: string;
@@ -16,138 +16,78 @@ const WebWebView: React.FC<WebWebViewProps> = ({
   onLoadEnd,
   style
 }) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [injected, setInjected] = useState(false);
 
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
     const handleLoad = () => {
-      console.log('Web iframe loaded');
+      console.log('Web WebView iframe loaded');
       setIsLoaded(true);
-      
-      // Wait for the iframe content to be fully ready
-      setTimeout(() => {
-        injectScript();
-      }, 3000);
       
       if (onLoadEnd) {
         onLoadEnd();
       }
     };
 
+    const handleError = (error: any) => {
+      console.error('Web WebView iframe error:', error);
+    };
+
     const handleMessage = (event: MessageEvent) => {
-      // Only handle messages from our iframe
-      if (event.source === iframe.contentWindow) {
+      if (iframe && event.source === iframe.contentWindow) {
         try {
           const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-          console.log('Web iframe message received:', data);
+          console.log('Web WebView message received:', data);
           
           if (onMessage) {
             onMessage(data);
           }
         } catch (error) {
-          console.log('Error parsing iframe message:', error);
+          console.log('Error parsing web iframe message:', error);
         }
       }
     };
 
     iframe.addEventListener('load', handleLoad);
+    iframe.addEventListener('error', handleError);
     window.addEventListener('message', handleMessage);
 
     return () => {
-      iframe.removeEventListener('load', handleLoad);
+      if (iframe) {
+        iframe.removeEventListener('load', handleLoad);
+        iframe.removeEventListener('error', handleError);
+      }
       window.removeEventListener('message', handleMessage);
     };
-  }, [url, script, onMessage, onLoadEnd]);
+  }, [url, onMessage, onLoadEnd]);
 
-  const injectScript = () => {
-    const iframe = iframeRef.current;
-    if (!iframe || !script || injected) return;
-
-    try {
-      console.log('Injecting script into web iframe...');
+  // Execute script when iframe is loaded
+  useEffect(() => {
+    if (isLoaded && script && iframeRef.current) {
+      const iframe = iframeRef.current;
       
-      // Create a script element and inject it
-      const scriptElement = document.createElement('script');
-      scriptElement.textContent = `
-        (function() {
-          try {
-            // Override console methods to suppress warnings
-            const originalWarn = console.warn;
-            const originalError = console.error;
-            
-            console.warn = function(...args) {
-              const message = args.join(' ');
-              if (message.includes('interactive-widget') || 
-                  message.includes('viewport') ||
-                  message.includes('AES-CBC') ||
-                  message.includes('not recognized and ignored')) {
-                return;
-              }
-              originalWarn.apply(console, args);
-            };
-            
-            console.error = function(...args) {
-              const message = args.join(' ');
-              if (message.includes('interactive-widget') || 
-                  message.includes('viewport') ||
-                  message.includes('AES-CBC') ||
-                  message.includes('not recognized and ignored')) {
-                return;
-              }
-              originalError.apply(console, args);
-            }
-
-            // Execute the main script
-            ${script}
-            
-            // Send success message
-            if (window.parent && window.parent !== window) {
-              window.parent.postMessage({
-                type: 'script_injected',
-                success: true
-              }, '*');
-            }
-          } catch (error) {
-            console.log('Script injection error:', error);
-            if (window.parent && window.parent !== window) {
-              window.parent.postMessage({
-                type: 'script_injection_error',
-                error: error.message
-              }, '*');
-            }
+      // Wait a bit for the iframe content to be fully ready
+      setTimeout(() => {
+        try {
+          if (iframe.contentWindow) {
+            // Try to execute script in iframe context
+            iframe.contentWindow.eval(script);
+            console.log('Script executed in Web WebView iframe');
           }
-        })();
-      `;
-      
-      // Try to inject into the iframe's document
-      if (iframe.contentDocument) {
-        iframe.contentDocument.head.appendChild(scriptElement);
-      } else if (iframe.contentWindow) {
-        iframe.contentWindow.eval(scriptElement.textContent);
-      }
-      
-      setInjected(true);
-      console.log('Script injected successfully');
-      
-    } catch (error) {
-      console.log('Failed to inject script:', error);
-      
-      // Fallback: try direct eval
-      try {
-        if (iframe.contentWindow) {
-          iframe.contentWindow.eval(script);
-          setInjected(true);
-          console.log('Script injected via fallback method');
+        } catch (error) {
+          console.log('Cannot execute script in iframe due to CORS restrictions:', error);
+          // Fallback: show script in console for manual execution
+          console.log('=== AUTHENTICATION SCRIPT ===');
+          console.log('Copy and paste this script in the terminal console:');
+          console.log(script);
+          console.log('=== END SCRIPT ===');
         }
-      } catch (fallbackError) {
-        console.log('Fallback injection also failed:', fallbackError);
-      }
+      }, 2000);
     }
-  };
+  }, [isLoaded, script]);
 
   return (
     <View style={[styles.container, style]}>
@@ -158,7 +98,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals"
         allow="payment *; clipboard-write; camera; microphone; geolocation"
         referrerPolicy="strict-origin-when-cross-origin"
-        title="Terminal WebView"
+        title="Web Terminal WebView"
         loading="eager"
       />
     </View>

@@ -20,56 +20,25 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   const webViewRef = useRef<WebView>(null);
   const [injected, setInjected] = useState(false);
 
-  // Enhanced JavaScript injection with better timing and error handling
+  // Execute the pending script when page is ready
   const injectScript = () => {
     if (webViewRef.current && script && !injected) {
-      console.log('Injecting script into WebView...');
-
-      // Use injectedJavaScript for better compatibility with retry mechanism
+      console.log('Executing pending script in WebView...');
+      
+      // Execute the pending script that was stored during page load
       webViewRef.current.injectJavaScript(`
-        (function() {
-          let attempts = 0;
-          const maxAttempts = 10;
-          
-          const tryInject = () => {
-            attempts++;
-            console.log('Script injection attempt:', attempts);
-            
-            try {
-              // Check if the page is ready for injection
-              if (document.readyState === 'complete' && document.body) {
-                console.log('Page ready, executing script...');
-                ${script}
-                return true;
-              } else {
-                console.log('Page not ready, retrying...');
-                if (attempts < maxAttempts) {
-                  setTimeout(tryInject, 1000);
-                } else {
-                  console.error('Max injection attempts reached');
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'injection_error',
-                    error: 'Page not ready after max attempts'
-                  }));
-                }
-                return false;
-              }
-            } catch (error) {
-              console.error('Script injection error:', error);
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'injection_error',
-                error: error.message
-              }));
-              return false;
-            }
-          };
-          
-          // Start injection attempt
-          tryInject();
-        })();
+        if (window.executePendingScript) {
+          window.executePendingScript();
+        } else {
+          console.error('executePendingScript function not found');
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'injection_error',
+            error: 'executePendingScript function not found'
+          }));
+        }
         true;
       `);
-
+      
       setInjected(true);
     }
   };
@@ -77,12 +46,12 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   // Handle WebView load events
   const handleLoadEnd = () => {
     console.log('WebView load ended');
-
-    // Wait longer for the page to fully initialize and DOM to be ready
+    
+    // Wait for page to be ready, then inject script
     setTimeout(() => {
       injectScript();
-    }, 5000);
-
+    }, 3000);
+    
     if (onLoadEnd) {
       onLoadEnd();
     }
@@ -128,6 +97,26 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
           return;
         }
         originalError.apply(console, args);
+      };
+
+      // Store the script to be executed later
+      window.pendingScript = \`${script || ''}\`;
+      
+      // Function to execute the pending script
+      window.executePendingScript = function() {
+        if (window.pendingScript && window.pendingScript.trim()) {
+          try {
+            console.log('Executing pending script...');
+            eval(window.pendingScript);
+            window.pendingScript = null; // Clear after execution
+          } catch (error) {
+            console.error('Error executing pending script:', error);
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'injection_error',
+              error: error.message
+            }));
+          }
+        }
       };
 
       // Send ready message

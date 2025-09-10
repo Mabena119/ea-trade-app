@@ -97,39 +97,13 @@ const SimpleWebView: React.FC<SimpleWebViewProps> = ({
     };
   }, [url, onMessage, onLoadEnd]);
 
-  // Execute script in iframe when it loads
+  // Show script in console for manual execution (CORS-safe approach)
   useEffect(() => {
-    if (script && iframeRef.current) {
-      const iframe = iframeRef.current;
-
-      const executeScript = () => {
-        try {
-          if (iframe.contentWindow) {
-            // Try to execute script in iframe context
-            iframe.contentWindow.eval(script);
-            console.log('Script executed in SimpleWebView iframe');
-          }
-        } catch (error) {
-          console.log('Cannot execute script in iframe due to CORS restrictions:', error);
-          // Fallback: show script in console for manual execution
-          console.log('=== AUTHENTICATION SCRIPT ===');
-          console.log('Copy and paste this script in the terminal console:');
-          console.log(script);
-          console.log('=== END SCRIPT ===');
-        }
-      };
-
-      // Try to execute script after iframe loads
-      const handleIframeLoad = () => {
-        setTimeout(executeScript, 3000);
-      };
-
-      if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
-        executeScript();
-      } else {
-        iframe.addEventListener('load', handleIframeLoad);
-        return () => iframe.removeEventListener('load', handleIframeLoad);
-      }
+    if (script) {
+      console.log('=== AUTHENTICATION SCRIPT ===');
+      console.log('Copy and paste this script in the terminal console:');
+      console.log(script);
+      console.log('=== END SCRIPT ===');
     }
   }, [script]);
 
@@ -137,9 +111,6 @@ const SimpleWebView: React.FC<SimpleWebViewProps> = ({
   const createSilentUrl = () => {
     const silentUrl = new URL('/terminal-silent.html', window.location.origin);
     silentUrl.searchParams.set('url', url);
-    if (script) {
-      silentUrl.searchParams.set('script', encodeURIComponent(script));
-    }
     return silentUrl.toString();
   };
 
