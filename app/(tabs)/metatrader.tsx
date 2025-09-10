@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Scro
 import { WebView } from 'react-native-webview';
 import CustomWebView from '../../components/custom-webview';
 import WebWebView from '../../components/web-webview';
+import ProxyWebView from '../../components/proxy-webview';
+import ExtensionWebView from '../../components/extension-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -2019,11 +2021,11 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <WebWebView
+                <ProxyWebView
                   url="https://webtrader.razormarkets.co.za/terminal"
                   script={getMT5Script()}
                   onMessage={onMT5WebViewMessage}
-                  onLoadEnd={() => console.log('MT5 WebView loaded')}
+                  onLoadEnd={() => console.log('MT5 Proxy WebView loaded')}
                   style={styles.webview}
                 />
               </View>
@@ -2054,11 +2056,11 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <WebWebView
+                <ProxyWebView
                   url="https://metatraderweb.app/trade?version=4"
                   script={getMT4Script()}
                   onMessage={onMT4WebViewMessage}
-                  onLoadEnd={() => console.log('MT4 WebView loaded')}
+                  onLoadEnd={() => console.log('MT4 Proxy WebView loaded')}
                   style={styles.webview}
                 />
               </View>
