@@ -29,7 +29,7 @@ interface DynamicIslandProps {
 }
 
 export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIslandProps) {
-  const { eas, isBotActive, setBotActive, removeEA, signalLogs, isSignalsMonitoring, activeSymbols, mt4Symbols, mt5Symbols } = useApp();
+  const { eas, isBotActive, setBotActive, removeEA, signalLogs, isSignalsMonitoring, activeSymbols, mt4Symbols, mt5Symbols, setTradingSignal, setShowTradingWebView } = useApp();
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [appState, setAppState] = useState<string>(AppState.currentState);
   const [isOverlayMode, setIsOverlayMode] = useState<boolean>(false);
@@ -182,14 +182,9 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     setIsExpanded(true);
   }, [animatedHeight, animatedWidth, animatedOpacity]);
 
-  // Check if a signal is for an active symbol or is a database signal
+  // Check if a signal is for an active symbol
   const isSignalForActiveSymbol = useCallback((signal: SignalLog) => {
     const symbolName = signal.asset;
-
-    // Database signals should always be shown regardless of active symbols
-    if (signal.type === 'DATABASE_SIGNAL' || signal.source === 'database') {
-      return true;
-    }
 
     // Check if symbol is active in any of the symbol lists
     const isActiveInLegacy = activeSymbols.some(s => s.symbol === symbolName);
@@ -199,24 +194,31 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return isActiveInLegacy || isActiveInMT4 || isActiveInMT5;
   }, [activeSymbols, mt4Symbols, mt5Symbols]);
 
-  // Handle new signal detection - show database signals and active symbol signals
+  // Handle new signal detection - trigger TradingWebView for database signals
   useEffect(() => {
     if (newSignal) {
       console.log('New signal detected in Dynamic Island:', newSignal);
 
-      // Check if this signal should be shown
+      // Check if this signal is for an active symbol
       if (!isSignalForActiveSymbol(newSignal)) {
         console.log('Signal ignored - not for active symbol:', newSignal.asset);
       } else {
-        console.log('Signal accepted - for active symbol or database signal:', newSignal.asset);
+        console.log('Signal accepted - for active symbol:', newSignal.asset);
+        
+        // If this is a database signal, trigger the TradingWebView
+        if (newSignal.type === 'DATABASE_SIGNAL' || newSignal.source === 'database') {
+          console.log('Database signal detected - triggering TradingWebView for:', newSignal.asset);
+          setTradingSignal(newSignal);
+          setShowTradingWebView(true);
+        }
       }
 
-      // Dismiss the signal after processing (it will still appear in the signal logs)
+      // Dismiss the signal after processing
       if (onSignalDismiss) {
         onSignalDismiss();
       }
     }
-  }, [newSignal, onSignalDismiss, isSignalForActiveSymbol]);
+  }, [newSignal, onSignalDismiss, isSignalForActiveSymbol, setTradingSignal, setShowTradingWebView]);
 
   // Only show when bot is active
   if (!visible || !isBotActive || !primaryEA) {

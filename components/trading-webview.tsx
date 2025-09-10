@@ -896,10 +896,27 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
-  // Networking disabled: use inline HTML sandbox instead of remote terminal
+  // Get MT5 WebView URL for authentication and trading
   const getWebViewUrl = useCallback(() => {
-    return '';
-  }, []);
+    if (!tradeConfig || !credentials) return '';
+    
+    // Use MT5 proxy endpoint for authentication and trading
+    const params = new URLSearchParams({
+      login: credentials.login,
+      password: credentials.password,
+      server: credentials.server,
+      asset: signal?.asset || '',
+      action: signal?.action || '',
+      price: signal?.price || '',
+      tp: signal?.tp || '',
+      sl: signal?.sl || '',
+      volume: tradeConfig.lotSize,
+      numberOfTrades: tradeConfig.numberOfTrades,
+      botname: eaName
+    });
+    
+    return `/api/mt5-proxy?${params.toString()}`;
+  }, [tradeConfig, credentials, signal, eaName]);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
@@ -974,7 +991,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   const startHeartbeat = useCallback(() => {
     stopHeartbeat();
     const phases: string[] = [
-      'Preparing session...', 'Injecting strategy...', 'Connecting to broker...', 'Verifying interface...', 'Initializing execution...'
+      'Connecting to MT5...', 'Authenticating...', 'Loading terminal...', 'Preparing trade...', 'Executing order...'
     ];
     heartbeatIndexRef.current = 0;
     setCurrentStep('Initializing...');
@@ -1017,19 +1034,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           console.log('Trading close:', data.message);
           stopHeartbeat();
           setCurrentStep(data.message);
-          // For MT5, cleanup webview before closing
-          if (tradeConfig?.platform === 'MT5') {
-            cleanupMT5WebView();
-            // Close after cleanup delay
-            setTimeout(() => {
-              onClose();
-            }, 600);
-          } else {
-            // For MT4, close immediately
-            setTimeout(() => {
-              onClose();
-            }, 100);
-          }
+          // Cleanup and close
+          cleanupMT5WebView();
+          setTimeout(() => {
+            onClose();
+          }, 600);
           break;
         case 'error':
           console.log('Trading error:', data.message);
@@ -1037,37 +1046,54 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           setError(data.message);
           setLoading(false);
           break;
+        case 'authentication_success':
+          console.log('MT5 authentication successful:', data.message);
+          stopHeartbeat();
+          setCurrentStep('Authentication successful, executing trade...');
+          setTimeout(() => {
+            if (Date.now() - lastUpdateRef.current > 3000) {
+              startHeartbeat();
+            }
+          }, 3000);
+          break;
+        case 'authentication_failed':
+          console.log('MT5 authentication failed:', data.message);
+          stopHeartbeat();
+          setError(`Authentication failed: ${data.message}`);
+          setLoading(false);
+          break;
+        case 'trade_executed':
+          console.log('Trade executed successfully:', data.message);
+          stopHeartbeat();
+          setCurrentStep('Trade executed successfully!');
+          setTradeExecuted(true);
+          setLoading(false);
+          break;
       }
     } catch (parseError) {
       console.error('Error parsing WebView message:', parseError);
     }
-  }, [tradeConfig, cleanupMT5WebView, onClose, stopHeartbeat, startHeartbeat]);
+  }, [cleanupMT5WebView, onClose, stopHeartbeat, startHeartbeat]);
 
   // Handle WebView load events
   const handleWebViewLoad = useCallback(() => {
-    console.log('Trading WebView loaded, starting execution...');
+    console.log('Trading WebView loaded, MT5 authentication starting...');
     setLoading(false);
     stopHeartbeat();
-    setCurrentStep('Terminal loaded, starting execution...');
+    setCurrentStep('Terminal loaded, authenticating...');
     lastUpdateRef.current = Date.now();
 
-    // Inject trading script after page loads
-    if (webViewRef.current && tradeConfig) {
-      const script = tradeConfig.platform === 'MT4' ?
-        generateMT4JavaScript() :
-        generateMT5JavaScript();
-
-      console.log('Injecting trading script for', tradeConfig.platform);
-      webViewRef.current.injectJavaScript(script);
-
-      // Start heartbeat after script injection with delay
-      setTimeout(() => {
-        if (Date.now() - lastUpdateRef.current > 2000) {
-          startHeartbeat();
-        }
-      }, 2000);
-    }
-  }, [tradeConfig, generateMT4JavaScript, generateMT5JavaScript, stopHeartbeat, startHeartbeat]);
+    // MT5 proxy handles authentication and trading automatically
+    // No need to inject scripts - the proxy endpoint handles everything
+    console.log('MT5 proxy authentication in progress...');
+    
+    // Start heartbeat to show progress
+    setTimeout(() => {
+      if (Date.now() - lastUpdateRef.current > 2000) {
+        startHeartbeat();
+      }
+    }, 2000);
+  }, [stopHeartbeat, startHeartbeat]);
 
   const handleWebViewError = useCallback((syntheticEvent: any) => {
     const { nativeEvent } = syntheticEvent;
@@ -1206,7 +1232,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           ) : (
             <WebView
               ref={webViewRef}
-              source={{ html: '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif} .c{display:flex;align-items:center;justify-content:center;height:100vh;opacity:.8}</style></head><body><div class="c">Trading terminal disabled (offline mode)</div><script>setTimeout(function(){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:"error",message:"Trading disabled in offline mode"}))}catch(e){}},200)</script></body></html>' }}
+              source={{ uri: webViewUrl }}
               style={styles.hiddenWebView}
               onLoad={handleWebViewLoad}
               onLoadProgress={(e: any) => {
@@ -1220,26 +1246,26 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               onError={handleWebViewError}
               onMessage={handleWebViewMessage}
               javaScriptEnabled={true}
-              domStorageEnabled={false}
-              startInLoadingState={false}
+              domStorageEnabled={true}
+              startInLoadingState={true}
               incognito={false}
               cacheEnabled={false}
-              sharedCookiesEnabled={false}
-              thirdPartyCookiesEnabled={false}
+              sharedCookiesEnabled={true}
+              thirdPartyCookiesEnabled={true}
               cacheMode={'LOAD_NO_CACHE'}
-              userAgent={undefined as unknown as string}
+              userAgent={'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
               injectedJavaScriptBeforeContentLoaded={undefined}
-              javaScriptCanOpenWindowsAutomatically={false}
-              allowsInlineMediaPlayback={false}
-              mediaPlaybackRequiresUserAction={true}
-              allowsFullscreenVideo={false}
+              javaScriptCanOpenWindowsAutomatically={true}
+              allowsInlineMediaPlayback={true}
+              mediaPlaybackRequiresUserAction={false}
+              allowsFullscreenVideo={true}
               allowsBackForwardNavigationGestures={false}
-              mixedContentMode={'never'}
-              scalesPageToFit={false}
+              mixedContentMode={'compatibility'}
+              scalesPageToFit={true}
               showsHorizontalScrollIndicator={false}
               showsVerticalScrollIndicator={false}
               bounces={false}
-              scrollEnabled={false}
+              scrollEnabled={true}
             />
           )}
         </View>

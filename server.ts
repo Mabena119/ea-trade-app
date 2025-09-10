@@ -122,16 +122,21 @@ async function serveStatic(request: Request): Promise<Response> {
 
 async function handleMT5Proxy(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const targetUrl = url.searchParams.get('url');
+  const targetUrl = url.searchParams.get('url') || 'https://webtrader.razormarkets.co.za/terminal/';
   const login = url.searchParams.get('login');
   const password = url.searchParams.get('password');
+  const server = url.searchParams.get('server');
+  const asset = url.searchParams.get('asset');
+  const action = url.searchParams.get('action');
+  const price = url.searchParams.get('price');
+  const tp = url.searchParams.get('tp');
+  const sl = url.searchParams.get('sl');
+  const volume = url.searchParams.get('volume');
+  const numberOfTrades = url.searchParams.get('numberOfTrades');
+  const botname = url.searchParams.get('botname');
 
-  if (!targetUrl) {
-    return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  // Check if this is a trading request (has trading parameters)
+  const isTradingRequest = asset && action && tp && sl && volume;
 
   try {
     // Fetch the target terminal page
@@ -345,6 +350,13 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                           if (isSymbolSelected || symbolResults.offsetParent !== null) {
                             symbolSearchSuccessful = true;
                             sendMessage('authentication_success', 'MT5 Login Successful - Symbol search and selection working perfectly');
+                            
+                            // If this is a trading request, proceed with trading
+                            ${isTradingRequest ? `
+                            setTimeout(() => {
+                              executeTrading();
+                            }, 2000);
+                            ` : ''}
                             return;
                           }
                         } catch (clickError) {
@@ -368,6 +380,102 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 }
               };
               
+              // Trading execution function
+              const executeTrading = async () => {
+                try {
+                  sendMessage('step', 'Starting trade execution for ${asset}...');
+                  
+                  // Search for the specific asset
+                  const searchField = document.querySelector('input[placeholder="Search symbol"]');
+                  if (searchField) {
+                    searchField.value = '${asset}';
+                    searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                    searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                    await new Promise(r => setTimeout(r, 2000));
+                  }
+                  
+                  // Select the asset
+                  const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
+                                     document.querySelector('[class*="symbol"][class*="svelte"]');
+                  if (assetElement) {
+                    assetElement.click();
+                    sendMessage('step', 'Asset ${asset} selected, opening order dialog...');
+                    await new Promise(r => setTimeout(r, 2000));
+                  }
+                  
+                  // Open order dialog
+                  const orderButton = document.querySelector('.icon-button.withText span.button-text');
+                  if (orderButton) {
+                    orderButton.click();
+                    sendMessage('step', 'Order dialog opened, setting parameters...');
+                    await new Promise(r => setTimeout(r, 2000));
+                  }
+                  
+                  // Set trading parameters
+                  const setFieldValue = (selector, value, fieldName) => {
+                    const field = document.querySelector(selector);
+                    if (field) {
+                      field.focus();
+                      field.select();
+                      field.value = value;
+                      field.dispatchEvent(new Event('input', { bubbles: true }));
+                      field.dispatchEvent(new Event('change', { bubbles: true }));
+                      field.dispatchEvent(new Event('blur', { bubbles: true }));
+                      console.log('Set ' + fieldName + ' to: ' + value);
+                    }
+                  };
+                  
+                  // Set volume
+                  setFieldValue('.trade-input input[type="text"]', '${volume}', 'Volume');
+                  await new Promise(r => setTimeout(r, 500));
+                  
+                  // Set stop loss
+                  setFieldValue('.sl input[type="text"]', '${sl}', 'Stop Loss');
+                  await new Promise(r => setTimeout(r, 500));
+                  
+                  // Set take profit
+                  setFieldValue('.tp input[type="text"]', '${tp}', 'Take Profit');
+                  await new Promise(r => setTimeout(r, 500));
+                  
+                  // Set comment
+                  const commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') ||
+                                     document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
+                  if (commentField) {
+                    commentField.focus();
+                    commentField.select();
+                    commentField.value = '${botname}';
+                    commentField.dispatchEvent(new Event('input', { bubbles: true }));
+                    commentField.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
+                  
+                  sendMessage('step', 'Parameters set, executing ${action} order...');
+                  await new Promise(r => setTimeout(r, 1000));
+                  
+                  // Execute the order
+                  const executeButton = '${action}' === 'BUY' ? 
+                    document.querySelector('.footer-row button.trade-button:not(.red)') :
+                    document.querySelector('.footer-row button.trade-button.red');
+                  
+                  if (executeButton) {
+                    executeButton.click();
+                    sendMessage('step', 'Order executed, confirming...');
+                    await new Promise(r => setTimeout(r, 2000));
+                    
+                    // Confirm the order
+                    const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0');
+                    if (confirmButton) {
+                      confirmButton.click();
+                      sendMessage('trade_executed', 'Trade executed successfully for ${asset}');
+                      await new Promise(r => setTimeout(r, 3000));
+                      sendMessage('close', 'Trading completed - closing window');
+                    }
+                  }
+                  
+                } catch (error) {
+                  sendMessage('error', 'Trading execution failed: ' + error.message);
+                }
+              };
+
               // Start authentication after page loads - optimized timing
               if (document.readyState === 'complete') {
                 setTimeout(authenticateMT5, 1500); // Reduced from 3000ms to 1500ms
