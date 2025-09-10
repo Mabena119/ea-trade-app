@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Silent Terminal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            height: 100vh; 
+            width: 100vw; 
+            background: #000;
+        }
+        iframe { 
+            width: 100%; 
+            height: 100%; 
+            border: none; 
+        }
+    </style>
+    <script>
+        // Override console methods BEFORE any external scripts load
+        (function() {
+            const originalWarn = console.warn;
+            const originalError = console.error;
+            const originalLog = console.log;
+            
+            function shouldSuppress(message) {
+                return message.includes('interactive-widget') || 
+                       message.includes('viewport') ||
+                       message.includes('Viewport argument key') ||
+                       message.includes('AES-CBC') ||
+                       message.includes('AES-CTR') ||
+                       message.includes('AES-GCM') ||
+                       message.includes('chosen-ciphertext') ||
+                       message.includes('authentication by default') ||
+                       message.includes('not recognized and ignored');
+            }
+            
+            console.warn = function(...args) {
+                const message = args.join(' ');
+                if (shouldSuppress(message)) {
+                    return;
+                }
+                originalWarn.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                const message = args.join(' ');
+                if (shouldSuppress(message)) {
+                    return;
+                }
+                originalError.apply(console, args);
+            };
+            
+            console.log = function(...args) {
+                const message = args.join(' ');
+                if (shouldSuppress(message)) {
+                    return;
+                }
+                originalLog.apply(console, args);
+            };
+        })();
+    </script>
+</head>
+<body>
+    <iframe id="terminal-frame" src="" allow="payment *; clipboard-write; camera; microphone; geolocation"></iframe>
+    
+    <script>
+        // Get URL parameter for terminal type
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetUrl = urlParams.get('url');
+        
+        if (targetUrl) {
+            const iframe = document.getElementById('terminal-frame');
+            iframe.src = decodeURIComponent(targetUrl);
+            iframe.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals';
+            iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+        }
+    </script>
+</body>
+</html>
