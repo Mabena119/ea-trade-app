@@ -158,6 +158,7 @@ export default function RootLayout() {
     if (Platform.OS === 'web') {
       const originalWarn = console.warn;
       const originalError = console.error;
+      const originalLog = console.log;
       
       // Filter console.warn
       console.warn = (...args) => {
@@ -166,8 +167,11 @@ export default function RootLayout() {
         if (message.includes('interactive-widget') || 
             message.includes('viewport') ||
             message.includes('Viewport argument key') ||
-            message.includes('AES-CBC and AES-CTR do not provide authentication') ||
-            message.includes('AES-GCM to protect against chosen-ciphertext attacks') ||
+            message.includes('AES-CBC') ||
+            message.includes('AES-CTR') ||
+            message.includes('AES-GCM') ||
+            message.includes('chosen-ciphertext') ||
+            message.includes('authentication by default') ||
             message.includes('not recognized and ignored')) {
           return;
         }
@@ -181,12 +185,33 @@ export default function RootLayout() {
         if (message.includes('interactive-widget') || 
             message.includes('viewport') ||
             message.includes('Viewport argument key') ||
-            message.includes('AES-CBC and AES-CTR do not provide authentication') ||
-            message.includes('AES-GCM to protect against chosen-ciphertext attacks') ||
+            message.includes('AES-CBC') ||
+            message.includes('AES-CTR') ||
+            message.includes('AES-GCM') ||
+            message.includes('chosen-ciphertext') ||
+            message.includes('authentication by default') ||
             message.includes('not recognized and ignored')) {
           return;
         }
         originalError.apply(console, args);
+      };
+
+      // Filter console.log for terminal warnings
+      console.log = (...args) => {
+        const message = args.join(' ');
+        // Suppress log messages from external terminals and dependencies
+        if (message.includes('interactive-widget') || 
+            message.includes('viewport') ||
+            message.includes('Viewport argument key') ||
+            message.includes('AES-CBC') ||
+            message.includes('AES-CTR') ||
+            message.includes('AES-GCM') ||
+            message.includes('chosen-ciphertext') ||
+            message.includes('authentication by default') ||
+            message.includes('not recognized and ignored')) {
+          return;
+        }
+        originalLog.apply(console, args);
       };
     }
 
