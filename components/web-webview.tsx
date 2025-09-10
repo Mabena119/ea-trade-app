@@ -36,31 +36,14 @@ const WebWebView: React.FC<WebWebViewProps> = ({
       console.error('Web WebView iframe error:', error);
     };
 
-    const handleMessage = (event: MessageEvent) => {
-      if (iframe && event.source === iframe.contentWindow) {
-        try {
-          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-          console.log('Web WebView message received:', data);
-          
-          if (onMessage) {
-            onMessage(data);
-          }
-        } catch (error) {
-          console.log('Error parsing web iframe message:', error);
-        }
-      }
-    };
-
     iframe.addEventListener('load', handleLoad);
     iframe.addEventListener('error', handleError);
-    window.addEventListener('message', handleMessage);
 
     return () => {
       if (iframe) {
         iframe.removeEventListener('load', handleLoad);
         iframe.removeEventListener('error', handleError);
       }
-      window.removeEventListener('message', handleMessage);
     };
   }, [url, onMessage, onLoadEnd]);
 
