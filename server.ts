@@ -404,7 +404,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                            searchField.value = '${asset}';
                            searchField.dispatchEvent(new Event('input', { bubbles: true }));
                            searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                           await new Promise(r => setTimeout(r, 1500));
+                           await new Promise(r => setTimeout(r, 2500));
                          }
                          
                          // Select the asset
@@ -413,7 +413,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          if (assetElement) {
                            assetElement.click();
                            sendMessage('step', 'Asset ${asset} selected for trade ' + (tradeIndex + 1) + '...');
-                           await new Promise(r => setTimeout(r, 1500));
+                           await new Promise(r => setTimeout(r, 2500));
                          }
                          
                          // Open order dialog
@@ -421,7 +421,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          if (orderButton) {
                            orderButton.click();
                            sendMessage('step', 'Order dialog opened for trade ' + (tradeIndex + 1) + '...');
-                           await new Promise(r => setTimeout(r, 1500));
+                           await new Promise(r => setTimeout(r, 2500));
                          }
                          
                          // Set trading parameters
@@ -440,29 +440,29 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          
                          // Set volume (lot size from trade config)
                          setFieldValue('.trade-input input[type="text"]', '${volume}', 'Volume');
-                         await new Promise(r => setTimeout(r, 300));
+                         await new Promise(r => setTimeout(r, 800));
                          
                          // Set stop loss
                          setFieldValue('.sl input[type="text"]', '${sl}', 'Stop Loss');
-                         await new Promise(r => setTimeout(r, 300));
+                         await new Promise(r => setTimeout(r, 800));
                          
                          // Set take profit
                          setFieldValue('.tp input[type="text"]', '${tp}', 'Take Profit');
-                         await new Promise(r => setTimeout(r, 300));
+                         await new Promise(r => setTimeout(r, 800));
                          
-                         // Set comment with trade number
+                         // Set comment with bot name only
                          const commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') ||
                                             document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
                          if (commentField) {
                            commentField.focus();
                            commentField.select();
-                           commentField.value = '${botname} ' + (tradeIndex + 1);
+                           commentField.value = '${botname}';
                            commentField.dispatchEvent(new Event('input', { bubbles: true }));
                            commentField.dispatchEvent(new Event('change', { bubbles: true }));
                          }
                          
                          sendMessage('step', 'Parameters set for trade ' + (tradeIndex + 1) + ', executing ${action} order...');
-                         await new Promise(r => setTimeout(r, 500));
+                         await new Promise(r => setTimeout(r, 1000));
                          
                          // Execute the order
                          const executeButton = '${action}' === 'BUY' ? 
@@ -472,14 +472,14 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          if (executeButton) {
                            executeButton.click();
                            sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' executed, confirming...');
-                           await new Promise(r => setTimeout(r, 1500));
+                           await new Promise(r => setTimeout(r, 3000));
                            
                            // Confirm the order
                            const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0');
                            if (confirmButton) {
                              confirmButton.click();
                              sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                             await new Promise(r => setTimeout(r, 2000));
+                             await new Promise(r => setTimeout(r, 4000));
                            }
                          }
                          
@@ -501,7 +501,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        // Wait between trades (except for the last one)
                        if (i < numberOfTrades - 1) {
                          sendMessage('step', 'Waiting before next trade...');
-                         await new Promise(r => setTimeout(r, 3000));
+                         await new Promise(r => setTimeout(r, 5000));
                        }
                      }
                      
@@ -860,7 +860,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        }
                        
                        // Wait for order dialog to open
-                       await new Promise(r => setTimeout(r, 1500));
+                       await new Promise(r => setTimeout(r, 2500));
                        
                        // Set trading parameters
                        const setFieldValue = (selector, value, fieldName) => {
@@ -878,21 +878,21 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        
                        // Set volume (lot size from trade config)
                        setFieldValue('#volume', '${volume}', 'Volume');
-                       await new Promise(r => setTimeout(r, 300));
+                       await new Promise(r => setTimeout(r, 800));
                        
                        // Set stop loss
                        setFieldValue('#sl', '${sl}', 'Stop Loss');
-                       await new Promise(r => setTimeout(r, 300));
+                       await new Promise(r => setTimeout(r, 800));
                        
                        // Set take profit
                        setFieldValue('#tp', '${tp}', 'Take Profit');
-                       await new Promise(r => setTimeout(r, 300));
+                       await new Promise(r => setTimeout(r, 800));
                        
-                       // Set comment with trade number
-                       setFieldValue('#comment', '${botname} ' + (tradeIndex + 1), 'Comment');
+                       // Set comment with bot name only
+                       setFieldValue('#comment', '${botname}', 'Comment');
                        
                        sendMessage('step', 'Parameters set for MT4 trade ' + (tradeIndex + 1) + ', executing ${action} order...');
-                       await new Promise(r => setTimeout(r, 500));
+                       await new Promise(r => setTimeout(r, 1000));
                        
                        // Execute the order
                        const executeButton = '${action}' === 'BUY' ? 
@@ -902,7 +902,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        if (executeButton) {
                          executeButton.click();
                          sendMessage('step', 'MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                         await new Promise(r => setTimeout(r, 2000));
+                         await new Promise(r => setTimeout(r, 4000));
                          return true;
                        } else {
                          sendMessage('error', 'Execute button not found for MT4 trade ' + (tradeIndex + 1));
@@ -926,7 +926,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      // Wait between trades (except for the last one)
                      if (i < numberOfTrades - 1) {
                        sendMessage('step', 'Waiting before next MT4 trade...');
-                       await new Promise(r => setTimeout(r, 3000));
+                       await new Promise(r => setTimeout(r, 5000));
                      }
                    }
                    
