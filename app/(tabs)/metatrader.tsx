@@ -4,6 +4,7 @@ import { WebView } from 'react-native-webview';
 import CustomWebView from '../../components/custom-webview';
 import WebWebView from '../../components/web-webview';
 import SimpleWebView from '../../components/simple-webview';
+import InjectableWebView from '../../components/injectable-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -2020,12 +2021,12 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <SimpleWebView
+                <InjectableWebView
                   url="https://webtrader.razormarkets.co.za/terminal"
                   script={getMT5Script()}
                   onMessage={onMT5WebViewMessage}
-                  onLoadEnd={() => console.log('MT5 Simple WebView loaded')}
-                  style={styles.webview}
+                  onLoadEnd={() => console.log('MT5 Injectable WebView loaded')}
+                  style={styles.webView}
                 />
               </View>
             ) : (
@@ -2035,7 +2036,7 @@ export default function MetaTraderScreen() {
                   script={getMT5Script()}
                   onMessage={onMT5WebViewMessage}
                   onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
-                  style={styles.webview}
+                  style={styles.webView}
                 />
               </View>
             )}
@@ -2055,12 +2056,12 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <SimpleWebView
+                <InjectableWebView
                   url="https://metatraderweb.app/trade?version=4"
                   script={getMT4Script()}
                   onMessage={onMT4WebViewMessage}
-                  onLoadEnd={() => console.log('MT4 Simple WebView loaded')}
-                  style={styles.webview}
+                  onLoadEnd={() => console.log('MT4 Injectable WebView loaded')}
+                  style={styles.webView}
                 />
               </View>
             ) : (
@@ -2070,7 +2071,7 @@ export default function MetaTraderScreen() {
                   script={getMT4Script()}
                   onMessage={onMT4WebViewMessage}
                   onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
-                  style={styles.webview}
+                  style={styles.webView}
                 />
               </View>
             )}
