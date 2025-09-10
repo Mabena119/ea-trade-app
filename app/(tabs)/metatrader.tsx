@@ -2033,8 +2033,7 @@ export default function MetaTraderScreen() {
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
                 <WebWebView
-                  url="https://webtrader.razormarkets.co.za/terminal"
-                  script={getMT5Script()}
+                  url={`/api/mt5-proxy?url=${encodeURIComponent('https://webtrader.razormarkets.co.za/terminal')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`}
                   onMessage={onMT5WebViewMessage}
                   onLoadEnd={() => console.log('MT5 Web WebView loaded')}
                   style={styles.webView}
@@ -2068,8 +2067,7 @@ export default function MetaTraderScreen() {
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
                 <WebWebView
-                  url="https://metatraderweb.app/trade?version=4"
-                  script={getMT4Script()}
+                  url={`/api/mt4-proxy?url=${encodeURIComponent('https://metatraderweb.app/trade?version=4')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&server=${encodeURIComponent(server)}`}
                   onMessage={onMT4WebViewMessage}
                   onLoadEnd={() => console.log('MT4 Web WebView loaded')}
                   style={styles.webView}

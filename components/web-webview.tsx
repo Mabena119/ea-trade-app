@@ -64,30 +64,26 @@ const WebWebView: React.FC<WebWebViewProps> = ({
     };
   }, [url, onMessage, onLoadEnd]);
 
-  // Execute script when iframe is loaded
+  // Handle messages from the iframe
   useEffect(() => {
-    if (isLoaded && script && iframeRef.current) {
-      const iframe = iframeRef.current;
-      
-      // Wait a bit for the iframe content to be fully ready
-      setTimeout(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (iframeRef.current && event.source === iframeRef.current.contentWindow) {
         try {
-          if (iframe.contentWindow) {
-            // Try to execute script in iframe context
-            iframe.contentWindow.eval(script);
-            console.log('Script executed in Web WebView iframe');
+          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          console.log('Web WebView message received:', data);
+          
+          if (onMessage) {
+            onMessage(data);
           }
         } catch (error) {
-          console.log('Cannot execute script in iframe due to CORS restrictions:', error);
-          // Fallback: show script in console for manual execution
-          console.log('=== AUTHENTICATION SCRIPT ===');
-          console.log('Copy and paste this script in the terminal console:');
-          console.log(script);
-          console.log('=== END SCRIPT ===');
+          console.log('Error parsing web iframe message:', error);
         }
-      }, 2000);
-    }
-  }, [isLoaded, script]);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onMessage]);
 
   return (
     <View style={[styles.container, style]}>
