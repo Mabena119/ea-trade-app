@@ -802,7 +802,7 @@ async function handleApi(request: Request): Promise<Response> {
         try {
           const pool = getPool();
           const [rows] = await pool.execute(
-            'SELECT ea FROM licenses WHERE k_ey = ? LIMIT 1',
+            'SELECT ea FROM licences WHERE k_ey = ? LIMIT 1',
             [licenseKey]
           );
 
@@ -845,7 +845,7 @@ async function handleApi(request: Request): Promise<Response> {
             // Get signals since a specific time
             query = `
               SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
-              FROM signals 
+              FROM \`signals\` 
               WHERE ea = ? AND latestupdate > ? AND results = 'PENDING'
               ORDER BY latestupdate DESC
             `;
@@ -854,7 +854,7 @@ async function handleApi(request: Request): Promise<Response> {
             // Get all pending signals for EA
             query = `
               SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
-              FROM signals 
+              FROM \`signals\` 
               WHERE ea = ? AND results = 'PENDING'
               ORDER BY latestupdate DESC
             `;
