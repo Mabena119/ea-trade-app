@@ -5,6 +5,7 @@ import CustomWebView from '../../components/custom-webview';
 import WebWebView from '../../components/web-webview';
 import SimpleWebView from '../../components/simple-webview';
 import InjectableWebView from '../../components/injectable-webview';
+import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 
@@ -2021,11 +2022,11 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <InjectableWebView
+                <FallbackWebView
                   url="https://webtrader.razormarkets.co.za/terminal"
                   script={getMT5Script()}
                   onMessage={onMT5WebViewMessage}
-                  onLoadEnd={() => console.log('MT5 Injectable WebView loaded')}
+                  onLoadEnd={() => console.log('MT5 Fallback WebView loaded')}
                   style={styles.webView}
                 />
               </View>
@@ -2056,11 +2057,11 @@ export default function MetaTraderScreen() {
             </View>
             {Platform.OS === 'web' ? (
               <View style={styles.webViewContainer}>
-                <InjectableWebView
+                <FallbackWebView
                   url="https://metatraderweb.app/trade?version=4"
                   script={getMT4Script()}
                   onMessage={onMT4WebViewMessage}
-                  onLoadEnd={() => console.log('MT4 Injectable WebView loaded')}
+                  onLoadEnd={() => console.log('MT4 Fallback WebView loaded')}
                   style={styles.webView}
                 />
               </View>
