@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terminal Injector</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            height: 100vh; 
+            width: 100vw; 
+            background: #000;
+        }
+        iframe { 
+            width: 100%; 
+            height: 100%; 
+            border: none; 
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading Terminal...</div>
+    <iframe id="terminal-frame" src="" allow="payment *; clipboard-write; camera; microphone; geolocation"></iframe>
+    
+    <script>
+        (function() {
+            // Override console methods to suppress warnings
+            const originalWarn = console.warn;
+            const originalError = console.error;
+            
+            console.warn = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('interactive-widget') || 
+                    message.includes('viewport') ||
+                    message.includes('AES-CBC') ||
+                    message.includes('not recognized and ignored')) {
+                    return;
+                }
+                originalWarn.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('interactive-widget') || 
+                    message.includes('viewport') ||
+                    message.includes('AES-CBC') ||
+                    message.includes('not recognized and ignored')) {
+                    return;
+                }
+                originalError.apply(console, args);
+            }
+
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetUrl = urlParams.get('url');
+            const script = urlParams.get('script');
+            const delay = parseInt(urlParams.get('delay') || '3000');
+
+            if (!targetUrl) {
+                document.body.innerHTML = '<div class="loading">Error: No target URL provided</div>';
+                return;
+            }
+
+            // Set up the iframe
+            const iframe = document.getElementById('terminal-frame');
+            const loading = document.getElementById('loading');
+            
+            iframe.src = targetUrl;
+            iframe.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals';
+            iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+
+            // Handle iframe load
+            iframe.onload = function() {
+                console.log('Terminal iframe loaded');
+                
+                // Hide loading indicator
+                if (loading) {
+                    loading.style.display = 'none';
+                }
+
+                // Attempt script injection after delay
+                if (script) {
+                    setTimeout(function() {
+                        attemptScriptInjection();
+                    }, delay);
+                }
+            };
+
+            // Handle iframe errors
+            iframe.onerror = function() {
+                console.log('Terminal iframe failed to load');
+                if (loading) {
+                    loading.textContent = 'Failed to load terminal';
+                }
+            };
+
+            // Script injection function
+            function attemptScriptInjection() {
+                console.log('Attempting script injection...');
+                
+                try {
+                    // Decode the script
+                    const decodedScript = decodeURIComponent(script);
+                    
+                    // Try direct injection
+                    try {
+                        if (iframe.contentWindow) {
+                            iframe.contentWindow.eval(decodedScript);
+                            console.log('Script injected successfully via direct eval');
+                            return;
+                        }
+                    } catch (evalError) {
+                        console.log('Direct eval failed:', evalError);
+                    }
+
+                    // Try postMessage injection
+                    try {
+                        if (iframe.contentWindow) {
+                            iframe.contentWindow.postMessage({
+                                type: 'inject_script',
+                                script: decodedScript
+                            }, '*');
+                            console.log('Script injection attempted via postMessage');
+                        }
+                    } catch (postError) {
+                        console.log('PostMessage injection failed:', postError);
+                    }
+
+                    // Try creating a script element in the iframe
+                    try {
+                        if (iframe.contentDocument) {
+                            const scriptElement = iframe.contentDocument.createElement('script');
+                            scriptElement.textContent = decodedScript;
+                            iframe.contentDocument.head.appendChild(scriptElement);
+                            console.log('Script injected via DOM manipulation');
+                        }
+                    } catch (domError) {
+                        console.log('DOM injection failed:', domError);
+                    }
+
+                } catch (error) {
+                    console.log('All injection methods failed:', error);
+                }
+            }
+
+            // Listen for messages from the iframe
+            window.addEventListener('message', function(event) {
+                if (event.source === iframe.contentWindow) {
+                    try {
+                        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                        console.log('Message from terminal:', data);
+                        
+                        // Forward messages to parent window
+                        if (window.parent && window.parent !== window) {
+                            window.parent.postMessage(data, '*');
+                        }
+                    } catch (error) {
+                        console.log('Error handling message from terminal:', error);
+                    }
+                }
+            });
+
+        })();
+    </script>
+</body>
+</html>
