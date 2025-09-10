@@ -516,6 +516,12 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        
                        // Execute trades for this attempt
                        for (let i = completedTrades; i < numberOfTrades; i++) {
+                         // Check if we've already completed all trades before starting this trade
+                         if (completedTrades >= numberOfTrades) {
+                           console.log('MT5 Trading: All trades completed, breaking out of execution loop');
+                           break;
+                         }
+                         
                          console.log('MT5 Trading: Processing trade', (i + 1), 'of', numberOfTrades, '(Attempt', totalAttempts + ')');
                          const success = await executeSingleTrade(i);
                          
@@ -524,8 +530,9 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                            console.log('MT5 Trading: Completed trades:', completedTrades, 'of', numberOfTrades);
                            sendMessage('step', 'Trade ' + (i + 1) + ' completed successfully! (' + completedTrades + '/' + numberOfTrades + ' done)');
                            
-                           // If we've reached the target, break out of the loop
+                           // If we've reached the target, break out of the inner loop
                            if (completedTrades >= numberOfTrades) {
+                             console.log('MT5 Trading: Target reached, breaking out of trade loop');
                              break;
                            }
                          } else {
@@ -533,11 +540,17 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                            console.log('MT5 Trading: Failed trades:', failedTrades, 'of', numberOfTrades);
                          }
                          
-                         // Wait between trades (except for the last one)
-                         if (i < numberOfTrades - 1) {
+                         // Wait between trades (except for the last one or if we've completed all)
+                         if (i < numberOfTrades - 1 && completedTrades < numberOfTrades) {
                            sendMessage('step', 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
                            await new Promise(r => setTimeout(r, 2000));
                          }
+                       }
+                       
+                       // Check if we've completed all trades and exit the while loop
+                       if (completedTrades >= numberOfTrades) {
+                         console.log('MT5 Trading: All trades completed, exiting retry loop');
+                         break;
                        }
                        
                        // If we haven't completed all trades, wait before retrying
@@ -988,6 +1001,12 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      
                      // Execute trades for this attempt
                      for (let i = completedTrades; i < numberOfTrades; i++) {
+                       // Check if we've already completed all trades before starting this trade
+                       if (completedTrades >= numberOfTrades) {
+                         console.log('MT4 Trading: All trades completed, breaking out of execution loop');
+                         break;
+                       }
+                       
                        console.log('MT4 Trading: Processing trade', (i + 1), 'of', numberOfTrades, '(Attempt', totalAttempts + ')');
                        const success = await executeSingleTrade(i);
                        
@@ -996,8 +1015,9 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                          console.log('MT4 Trading: Completed trades:', completedTrades, 'of', numberOfTrades);
                          sendMessage('step', 'MT4 trade ' + (i + 1) + ' completed successfully! (' + completedTrades + '/' + numberOfTrades + ' done)');
                          
-                         // If we've reached the target, break out of the loop
+                         // If we've reached the target, break out of the inner loop
                          if (completedTrades >= numberOfTrades) {
+                           console.log('MT4 Trading: Target reached, breaking out of trade loop');
                            break;
                          }
                        } else {
@@ -1005,11 +1025,17 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                          console.log('MT4 Trading: Failed trades:', failedTrades, 'of', numberOfTrades);
                        }
                        
-                       // Wait between trades (except for the last one)
-                       if (i < numberOfTrades - 1) {
+                       // Wait between trades (except for the last one or if we've completed all)
+                       if (i < numberOfTrades - 1 && completedTrades < numberOfTrades) {
                          sendMessage('step', 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
                          await new Promise(r => setTimeout(r, 2000));
                        }
+                     }
+                     
+                     // Check if we've completed all trades and exit the while loop
+                     if (completedTrades >= numberOfTrades) {
+                       console.log('MT4 Trading: All trades completed, exiting retry loop');
+                       break;
                      }
                      
                      // If we haven't completed all trades, wait before retrying
