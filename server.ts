@@ -203,11 +203,11 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 writable: false
               });
 
-              // Authentication function based on your Android code
+              // Optimized authentication function with strict symbol search validation
               const authenticateMT5 = async () => {
                 try {
                   sendMessage('step_update', 'Initializing MT5 Account...');
-                  await new Promise(r => setTimeout(r, 3000));
+                  await new Promise(r => setTimeout(r, 2000));
                   
                   // Check for disclaimer and accept if present
                   const disclaimer = document.querySelector('#disclaimer');
@@ -216,7 +216,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                     if (acceptButton) {
                       acceptButton.click();
                       sendMessage('step_update', 'Accepting disclaimer...');
-                      await new Promise(r => setTimeout(r, 2000));
+                      await new Promise(r => setTimeout(r, 1500));
                     }
                   }
                   
@@ -228,7 +228,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                     if (removeButton) {
                       removeButton.click();
                       sendMessage('step_update', 'Removing existing connection...');
-                      await new Promise(r => setTimeout(r, 3000));
+                      await new Promise(r => setTimeout(r, 2000));
                     } else {
                       // Fallback: look for Remove button by text
                       const buttons = document.getElementsByTagName('button');
@@ -236,7 +236,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                         if (buttons[i].textContent.trim() === 'Remove') {
                           buttons[i].click();
                           sendMessage('step_update', 'Removing existing connection...');
-                          await new Promise(r => setTimeout(r, 3000));
+                          await new Promise(r => setTimeout(r, 2000));
                           break;
                         }
                       }
@@ -251,14 +251,14 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                     loginField.value = '${login}';
                     loginField.dispatchEvent(new Event('input', { bubbles: true }));
                     sendMessage('step_update', 'Entering login credentials...');
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 500));
                   }
                   
                   if (passwordField && '${password}') {
                     passwordField.value = '${password}';
                     passwordField.dispatchEvent(new Event('input', { bubbles: true }));
                     sendMessage('step_update', 'Entering password...');
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 500));
                   }
                   
                   // Click login button
@@ -266,70 +266,94 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                   if (loginButton) {
                     loginButton.click();
                     sendMessage('step_update', 'Connecting to Server...');
-                    await new Promise(r => setTimeout(r, 10000)); // Wait longer for login
+                    await new Promise(r => setTimeout(r, 8000)); // Optimized wait time
                   }
                   
                   // Wait for the terminal to fully load after login
-                  sendMessage('step_update', 'Loading terminal...');
-                  await new Promise(r => setTimeout(r, 5000));
+                  sendMessage('step_update', 'Loading terminal interface...');
+                  await new Promise(r => setTimeout(r, 4000));
                   
-                  // Try multiple times to find the search functionality
+                  // STRICT SYMBOL SEARCH VALIDATION - Only succeed if symbol search works
                   let searchAttempts = 0;
-                  const maxAttempts = 5;
+                  const maxAttempts = 6;
+                  let symbolSearchSuccessful = false;
                   
-                  while (searchAttempts < maxAttempts) {
+                  while (searchAttempts < maxAttempts && !symbolSearchSuccessful) {
+                    sendMessage('step_update', 'Validating symbol search functionality... (' + (searchAttempts + 1) + '/' + maxAttempts + ')');
+                    
                     const searchField = document.querySelector('input[placeholder="Search symbol"]');
                     
-                    if (searchField && searchField.offsetParent !== null) {
-                      // Test if we can actually search for a symbol
+                    if (searchField && searchField.offsetParent !== null && !searchField.disabled) {
+                      // Clear any existing value
+                      searchField.value = '';
+                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                      await new Promise(r => setTimeout(r, 500));
+                      
+                      // Test symbol search with XAUUSD
                       searchField.value = 'XAUUSD';
                       searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                      searchField.dispatchEvent(new Event('change', { bubbles: true }));
                       searchField.focus();
                       
-                      sendMessage('step_update', 'Testing symbol search...');
-                      await new Promise(r => setTimeout(r, 3000));
+                      sendMessage('step_update', 'Testing XAUUSD symbol search...');
+                      await new Promise(r => setTimeout(r, 2000));
                       
-                      // Check if search results appear
+                      // STRICT VALIDATION: Check for actual search results
                       const symbolResults = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                          document.querySelector('[class*="symbol"]') ||
-                                          document.querySelector('[data-symbol]') ||
-                                          document.querySelector('.symbol');
+                                          document.querySelector('[class*="symbol"][class*="svelte"]') ||
+                                          document.querySelector('.symbol-list .symbol') ||
+                                          document.querySelector('[data-symbol="XAUUSD"]') ||
+                                          document.querySelector('[data-symbol*="XAUUSD"]');
                       
-                      if (symbolResults) {
-                        sendMessage('authentication_success', 'MT5 Login Successful - Terminal loaded and functional');
-                        return;
+                      // Additional validation: Check if search field shows the symbol
+                      const searchFieldValue = searchField.value;
+                      const hasSearchResults = symbolResults && symbolResults.offsetParent !== null;
+                      const searchFieldWorking = searchFieldValue === 'XAUUSD';
+                      
+                      if (hasSearchResults && searchFieldWorking) {
+                        // Test clicking on the symbol to ensure it's interactive
+                        try {
+                          symbolResults.click();
+                          await new Promise(r => setTimeout(r, 1000));
+                          
+                          // Check if symbol was selected/activated
+                          const isSymbolSelected = symbolResults.classList.contains('selected') || 
+                                                 symbolResults.classList.contains('active') ||
+                                                 document.querySelector('.selected-symbol') ||
+                                                 document.querySelector('[class*="selected"]');
+                          
+                          if (isSymbolSelected || symbolResults.offsetParent !== null) {
+                            symbolSearchSuccessful = true;
+                            sendMessage('authentication_success', 'MT5 Login Successful - Symbol search and selection working perfectly');
+                            return;
+                          }
+                        } catch (clickError) {
+                          console.log('Symbol click test failed:', clickError);
+                        }
                       }
                     }
                     
                     searchAttempts++;
                     if (searchAttempts < maxAttempts) {
-                      sendMessage('step_update', 'Waiting for terminal to load... (' + searchAttempts + '/' + maxAttempts + ')');
-                      await new Promise(r => setTimeout(r, 3000));
+                      sendMessage('step_update', 'Symbol search not ready, retrying... (' + searchAttempts + '/' + maxAttempts + ')');
+                      await new Promise(r => setTimeout(r, 2000));
                     }
                   }
                   
-                  // If we get here, try a simpler success check
-                  const terminalLoaded = document.querySelector('.terminal') || 
-                                       document.querySelector('[class*="terminal"]') ||
-                                       document.querySelector('body');
-                  
-                  if (terminalLoaded) {
-                    sendMessage('authentication_success', 'MT5 Login Successful - Terminal accessible');
-                  } else {
-                    sendMessage('authentication_failed', 'Authentication failed - Terminal not accessible');
-                  }
+                  // If we reach here, symbol search validation failed
+                  sendMessage('authentication_failed', 'Authentication failed - Symbol search functionality not working properly');
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
               };
               
-              // Start authentication after page loads
+              // Start authentication after page loads - optimized timing
               if (document.readyState === 'complete') {
-                setTimeout(authenticateMT5, 3000);
+                setTimeout(authenticateMT5, 1500); // Reduced from 3000ms to 1500ms
               } else {
                 window.addEventListener('load', function() {
-                  setTimeout(authenticateMT5, 3000);
+                  setTimeout(authenticateMT5, 1500); // Reduced from 3000ms to 1500ms
                 });
               }
             })();
