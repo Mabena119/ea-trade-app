@@ -1028,6 +1028,37 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     }
   }, [tradeConfig, getStorageClearScript]);
 
+  // Comprehensive cleanup and destroy function
+  const cleanupAndDestroyWebView = useCallback(() => {
+    console.log('Starting comprehensive WebView cleanup and destruction...');
+    
+    // Stop heartbeat
+    stopHeartbeat();
+    
+    // Cleanup platform-specific WebView
+    if (tradeConfig?.platform === 'MT5') {
+      cleanupMT5WebView();
+    }
+    
+    // Clear all storage and destroy WebView
+    if (Platform.OS === 'web') {
+      // For web platform, clear iframe and storage
+      try {
+        if (typeof window !== 'undefined' && (window as any).clearWebViewCache) {
+          (window as any).clearWebViewCache();
+        }
+      } catch (error) {
+        console.log('Error clearing web WebView cache:', error);
+      }
+    }
+    
+    // Close the WebView modal after cleanup
+    setTimeout(() => {
+      console.log('WebView cleanup completed - closing modal');
+      onClose();
+    }, 1000);
+  }, [tradeConfig, cleanupMT5WebView, stopHeartbeat, onClose]);
+
   // Handle WebView messages
   const stopHeartbeat = useCallback(() => {
     if (heartbeatRef.current) {
@@ -1088,19 +1119,9 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             setError(data.message);
             setLoading(false);
           } else {
-            // For MT5, cleanup webview before closing
-            if (tradeConfig?.platform === 'MT5') {
-              cleanupMT5WebView();
-              // Close after cleanup delay
-              setTimeout(() => {
-                onClose();
-              }, 600);
-            } else {
-              // For MT4, close immediately
-              setTimeout(() => {
-                onClose();
-              }, 100);
-            }
+            // Cleanup and destroy WebView after all trades completed
+            console.log('All trades completed - cleaning up and destroying WebView');
+            cleanupAndDestroyWebView();
           }
           break;
         case 'error':
@@ -1245,15 +1266,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               <TouchableOpacity
                 style={styles.toastCloseButton}
                 onPress={() => {
-                  // For MT5, cleanup before closing
-                  if (tradeConfig?.platform === 'MT5') {
-                    cleanupMT5WebView();
-                    setTimeout(() => {
-                      onClose();
-                    }, 600);
-                  } else {
-                    onClose();
-                  }
+                  // Use comprehensive cleanup for all platforms
+                  cleanupAndDestroyWebView();
                 }}
               >
                 <X color="#FFFFFF" size={16} />
@@ -1277,15 +1291,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => {
-              // For MT5, cleanup before closing
-              if (tradeConfig?.platform === 'MT5') {
-                cleanupMT5WebView();
-                setTimeout(() => {
-                  onClose();
-                }, 600);
-              } else {
-                onClose();
-              }
+              // Use comprehensive cleanup for all platforms
+              cleanupAndDestroyWebView();
             }}
           >
             <X color="#FFFFFF" size={24} />
