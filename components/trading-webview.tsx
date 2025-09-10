@@ -896,12 +896,12 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
-  // Get MT5 WebView URL for authentication and trading
+  // Get MT5 WebView URL for trading
   const getWebViewUrl = useCallback(() => {
     if (!tradeConfig || !credentials) return '';
     
-    // Use MT5 proxy endpoint for authentication and trading
     const params = new URLSearchParams({
+      url: 'https://webtrader.razormarkets.co.za/terminal/',
       login: credentials.login,
       password: credentials.password,
       server: credentials.server,
@@ -914,7 +914,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       numberOfTrades: tradeConfig.numberOfTrades,
       botname: eaName
     });
-    
+
     return `/api/mt5-proxy?${params.toString()}`;
   }, [tradeConfig, credentials, signal, eaName]);
 
@@ -991,7 +991,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   const startHeartbeat = useCallback(() => {
     stopHeartbeat();
     const phases: string[] = [
-      'Connecting to MT5...', 'Authenticating...', 'Loading terminal...', 'Preparing trade...', 'Executing order...'
+      'Preparing session...', 'Injecting strategy...', 'Connecting to broker...', 'Verifying interface...', 'Initializing execution...'
     ];
     heartbeatIndexRef.current = 0;
     setCurrentStep('Initializing...');
@@ -1024,6 +1024,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           }, 3000);
           break;
         case 'success':
+        case 'authentication_success':
           console.log('Trading success:', data.message);
           stopHeartbeat();
           setCurrentStep(data.message);
@@ -1031,14 +1032,28 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           setLoading(false);
           break;
         case 'close':
-          console.log('Trading close:', data.message);
+        case 'authentication_failed':
+          console.log('Trading close/failed:', data.message);
           stopHeartbeat();
           setCurrentStep(data.message);
-          // Cleanup and close
-          cleanupMT5WebView();
-          setTimeout(() => {
-            onClose();
-          }, 600);
+          if (data.type === 'authentication_failed') {
+            setError(data.message);
+            setLoading(false);
+          } else {
+            // For MT5, cleanup webview before closing
+            if (tradeConfig?.platform === 'MT5') {
+              cleanupMT5WebView();
+              // Close after cleanup delay
+              setTimeout(() => {
+                onClose();
+              }, 600);
+            } else {
+              // For MT4, close immediately
+              setTimeout(() => {
+                onClose();
+              }, 100);
+            }
+          }
           break;
         case 'error':
           console.log('Trading error:', data.message);
@@ -1046,26 +1061,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           setError(data.message);
           setLoading(false);
           break;
-        case 'authentication_success':
-          console.log('MT5 authentication successful:', data.message);
-          stopHeartbeat();
-          setCurrentStep('Authentication successful, executing trade...');
-          setTimeout(() => {
-            if (Date.now() - lastUpdateRef.current > 3000) {
-              startHeartbeat();
-            }
-          }, 3000);
-          break;
-        case 'authentication_failed':
-          console.log('MT5 authentication failed:', data.message);
-          stopHeartbeat();
-          setError(`Authentication failed: ${data.message}`);
-          setLoading(false);
-          break;
         case 'trade_executed':
-          console.log('Trade executed successfully:', data.message);
+          console.log('Trade executed:', data.message);
           stopHeartbeat();
-          setCurrentStep('Trade executed successfully!');
+          setCurrentStep(data.message);
           setTradeExecuted(true);
           setLoading(false);
           break;
@@ -1073,27 +1072,27 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     } catch (parseError) {
       console.error('Error parsing WebView message:', parseError);
     }
-  }, [cleanupMT5WebView, onClose, stopHeartbeat, startHeartbeat]);
+  }, [tradeConfig, cleanupMT5WebView, onClose, stopHeartbeat, startHeartbeat]);
 
   // Handle WebView load events
   const handleWebViewLoad = useCallback(() => {
-    console.log('Trading WebView loaded, MT5 authentication starting...');
+    console.log('Trading WebView loaded, MT5 proxy will handle authentication and trading...');
     setLoading(false);
     stopHeartbeat();
-    setCurrentStep('Terminal loaded, authenticating...');
+    setCurrentStep('Terminal loaded, MT5 proxy handling authentication...');
     lastUpdateRef.current = Date.now();
 
-    // MT5 proxy handles authentication and trading automatically
-    // No need to inject scripts - the proxy endpoint handles everything
-    console.log('MT5 proxy authentication in progress...');
-    
-    // Start heartbeat to show progress
+    // MT5 proxy will handle all authentication and trading automatically
+    // No need to inject JavaScript - the proxy does everything
+    console.log('MT5 proxy will handle authentication and trading for', tradeConfig?.platform);
+
+    // Start heartbeat to show progress while proxy works
     setTimeout(() => {
       if (Date.now() - lastUpdateRef.current > 2000) {
         startHeartbeat();
       }
     }, 2000);
-  }, [stopHeartbeat, startHeartbeat]);
+  }, [tradeConfig, stopHeartbeat, startHeartbeat]);
 
   const handleWebViewError = useCallback((syntheticEvent: any) => {
     const { nativeEvent } = syntheticEvent;

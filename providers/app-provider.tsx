@@ -130,10 +130,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   // Load persisted data on mount
   useEffect(() => {
-    // Ensure database signals polling is stopped on app initialization
-    databaseSignalsPollingService.stopPolling();
-    console.log('App initialization: Database signals polling stopped');
-    
     loadPersistedData();
   }, []);
 
@@ -332,17 +328,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       }
 
-      // Handle bot active state - but don't auto-start polling on app load
+      // Handle bot active state
       if (botActiveData.status === 'fulfilled' && botActiveData.value !== null) {
         try {
           const parsed = JSON.parse(botActiveData.value);
           if (typeof parsed === 'boolean') {
-            // Always start with bot inactive to prevent auto-polling on deployment
-            setIsBotActive(false);
-            console.log('Bot active state loaded but set to inactive to prevent auto-polling on deployment');
-            
-            // Clear the stored state to prevent future auto-activation
-            AsyncStorage.removeItem('isBotActive').catch(console.error);
+            setIsBotActive(parsed);
+            console.log('Bot active state loaded successfully:', parsed);
           }
         } catch (parseError) {
           console.error('Error parsing bot active data:', parseError);
@@ -693,7 +685,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
         if (primaryEA && primaryEA.licenseKey) {
           console.log('Starting database signals polling for license:', primaryEA.licenseKey);
-          
+
           const onDatabaseSignalFound = (signal: DatabaseSignal) => {
             console.log('Database signal found:', signal);
             setDatabaseSignal(signal);
@@ -710,10 +702,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               source: 'database',
               latestupdate: signal.latestupdate
             };
-            
+
             // Add to signal logs
             setSignalLogs(prev => [...prev, signalLog]);
-            
+
             // Update new signal for dynamic island
             setNewSignal(signalLog);
           };
