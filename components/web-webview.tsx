@@ -73,7 +73,13 @@ const WebWebView: React.FC<WebWebViewProps> = ({
           console.log('Web WebView message received:', data);
           
           if (onMessage) {
-            onMessage(data);
+            // Convert web iframe message format to React Native WebView format
+            const rnEvent = {
+              nativeEvent: {
+                data: typeof event.data === 'string' ? event.data : JSON.stringify(event.data)
+              }
+            };
+            onMessage(rnEvent);
           }
         } catch (error) {
           console.log('Error parsing web iframe message:', error);
