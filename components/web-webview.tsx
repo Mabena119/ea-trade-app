@@ -27,6 +27,18 @@ const WebWebView: React.FC<WebWebViewProps> = ({
       console.log('Web WebView iframe loaded');
       setIsLoaded(true);
       
+      // Debug iframe content
+      try {
+        if (iframe.contentDocument) {
+          console.log('Iframe content document found:', iframe.contentDocument.title);
+          console.log('Iframe content body:', iframe.contentDocument.body?.innerHTML?.substring(0, 200) + '...');
+        } else {
+          console.log('Iframe content document not accessible (CORS)');
+        }
+      } catch (e) {
+        console.log('Cannot access iframe content (CORS):', e.message);
+      }
+      
       if (onLoadEnd) {
         onLoadEnd();
       }
@@ -80,11 +92,13 @@ const WebWebView: React.FC<WebWebViewProps> = ({
         ref={iframeRef}
         src={url}
         style={styles.iframe}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals"
-        allow="payment *; clipboard-write; camera; microphone; geolocation"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals allow-downloads"
+        allow="payment *; clipboard-write; camera; microphone; geolocation; autoplay; fullscreen"
         referrerPolicy="strict-origin-when-cross-origin"
         title="Web Terminal WebView"
         loading="eager"
+        frameBorder="0"
+        scrolling="auto"
       />
     </View>
   );
@@ -93,11 +107,16 @@ const WebWebView: React.FC<WebWebViewProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#ffffff',
   },
   iframe: {
     width: '100%',
     height: '100%',
     border: 'none',
+    backgroundColor: '#ffffff',
+    display: 'block',
+    visibility: 'visible',
+    opacity: 1,
   },
 });
 
