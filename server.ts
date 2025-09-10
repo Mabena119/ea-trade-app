@@ -767,6 +767,98 @@ async function handleApi(request: Request): Promise<Response> {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
+    // Database API endpoints
+    // Get EA ID from license key
+    if (pathname === '/api/get-ea-from-license') {
+      if (request.method === 'GET') {
+        const licenseKey = url.searchParams.get('licenseKey');
+        if (!licenseKey) {
+          return new Response(JSON.stringify({ error: 'License key required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        try {
+          const pool = getPool();
+          const [rows] = await pool.execute(
+            'SELECT ea FROM licenses WHERE k_ey = ? LIMIT 1',
+            [licenseKey]
+          );
+
+          const result = rows as any[];
+          return new Response(JSON.stringify({ 
+            eaId: result.length > 0 ? result[0].ea : null 
+          }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Database error:', error);
+          return new Response(JSON.stringify({ error: 'Database error' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Get new signals for EA since a specific time
+    if (pathname === '/api/get-new-signals') {
+      if (request.method === 'GET') {
+        const eaId = url.searchParams.get('eaId');
+        const since = url.searchParams.get('since');
+        
+        if (!eaId) {
+          return new Response(JSON.stringify({ error: 'EA ID required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        try {
+          const pool = getPool();
+          let query: string;
+          let params: any[];
+
+          if (since) {
+            // Get signals since a specific time
+            query = `
+              SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
+              FROM signals 
+              WHERE ea = ? AND latestupdate > ? AND results = 'PENDING'
+              ORDER BY latestupdate DESC
+            `;
+            params = [eaId, since];
+          } else {
+            // Get all pending signals for EA
+            query = `
+              SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
+              FROM signals 
+              WHERE ea = ? AND results = 'PENDING'
+              ORDER BY latestupdate DESC
+            `;
+            params = [eaId];
+          }
+
+          const [rows] = await pool.execute(query, params);
+
+          console.log(`Found ${rows.length} new signals for EA ${eaId} since ${since || 'beginning'}`);
+
+          return new Response(JSON.stringify({ signals: rows }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Database error:', error);
+          return new Response(JSON.stringify({ error: 'Database error' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
     return new Response('Not Found', { status: 404 });
   } catch (error) {
     console.error('API handler error:', error);

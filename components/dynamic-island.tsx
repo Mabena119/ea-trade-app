@@ -29,7 +29,7 @@ interface DynamicIslandProps {
 }
 
 export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIslandProps) {
-  const { eas, isBotActive, setBotActive, removeEA, signalLogs, isSignalsMonitoring, activeSymbols, mt4Symbols, mt5Symbols } = useApp();
+  const { eas, isBotActive, setBotActive, removeEA, signalLogs, isSignalsMonitoring, activeSymbols, mt4Symbols, mt5Symbols, databaseSignal, isDatabaseSignalsPolling } = useApp();
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [appState, setAppState] = useState<string>(AppState.currentState);
   const [isOverlayMode, setIsOverlayMode] = useState<boolean>(false);
@@ -503,6 +503,56 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                     }
                   </View>
                 )}
+
+                {/* Database Signals Status */}
+                {isDatabaseSignalsPolling && (
+                  <View style={styles.databaseSignalsContainer}>
+                    <View style={styles.databaseSignalsHeader}>
+                      <Activity color='#00FF88' size={14} />
+                      <Text style={styles.databaseSignalsText}>
+                        DATABASE SIGNALS
+                      </Text>
+                    </View>
+                    <Text style={styles.databaseSignalsStatus}>
+                      {databaseSignal ? 'Signal Available' : 'Polling...'}
+                    </Text>
+
+                    {/* Show database signal details if available */}
+                    {databaseSignal && (
+                      <View style={styles.databaseSignalContainer}>
+                        <View style={styles.databaseSignalHeader}>
+                          <Text style={styles.databaseSignalAsset}>{databaseSignal.asset}</Text>
+                          <View style={[
+                            styles.databaseSignalBadge,
+                            databaseSignal.action === 'BUY' ? styles.databaseBuyBadge : styles.databaseSellBadge
+                          ]}>
+                            <Text style={styles.databaseSignalAction}>{databaseSignal.action}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.databaseSignalPrices}>
+                          <View style={styles.databasePriceItem}>
+                            <Text style={styles.databasePriceLabel}>Entry:</Text>
+                            <Text style={styles.databasePriceValue}>{databaseSignal.price}</Text>
+                          </View>
+                          <View style={styles.databasePriceItem}>
+                            <Text style={styles.databasePriceLabel}>TP:</Text>
+                            <Text style={[styles.databasePriceValue, styles.databaseTpValue]}>{databaseSignal.tp}</Text>
+                          </View>
+                          <View style={styles.databasePriceItem}>
+                            <Text style={styles.databasePriceLabel}>SL:</Text>
+                            <Text style={[styles.databasePriceValue, styles.databaseSlValue]}>{databaseSignal.sl}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.databaseSignalFooter}>
+                          <Text style={styles.databaseSignalTime}>
+                            {formatTime(databaseSignal.time)}
+                          </Text>
+                          <Text style={styles.databaseSignalId}>DB: {databaseSignal.id}</Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
             )}
 
@@ -912,6 +962,104 @@ const styles = StyleSheet.create({
   latestSignalId: {
     fontSize: 7,
     color: '#999999',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  // Database Signals Styles
+  databaseSignalsContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  databaseSignalsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  databaseSignalsText: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: '#00FF88',
+    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
+  databaseSignalsStatus: {
+    fontSize: 9,
+    color: '#00FF88',
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  databaseSignalContainer: {
+    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+    borderRadius: 6,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 136, 0.3)',
+  },
+  databaseSignalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  databaseSignalAsset: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#00FF88',
+  },
+  databaseSignalBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  databaseBuyBadge: {
+    backgroundColor: '#16A34A',
+  },
+  databaseSellBadge: {
+    backgroundColor: '#DC2626',
+  },
+  databaseSignalAction: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '600',
+  },
+  databaseSignalPrices: {
+    marginBottom: 4,
+  },
+  databasePriceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  databasePriceLabel: {
+    fontSize: 8,
+    color: '#CCCCCC',
+    fontWeight: '500',
+  },
+  databasePriceValue: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: '#00FF88',
+  },
+  databaseTpValue: {
+    color: '#16A34A',
+  },
+  databaseSlValue: {
+    color: '#DC2626',
+  },
+  databaseSignalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  databaseSignalTime: {
+    fontSize: 7,
+    color: '#CCCCCC',
+  },
+  databaseSignalId: {
+    fontSize: 6,
+    color: '#00FF88',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });

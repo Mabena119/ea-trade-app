@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert } from 'react-native';
 import { LicenseData } from '@/services/api';
 import signalsMonitor, { SignalLog } from '@/services/signals-monitor';
+import databaseSignalsPollingService, { DatabaseSignal } from '@/services/database-signals-polling';
 
 export interface User {
   mentorId: string;
@@ -82,6 +83,8 @@ interface AppState {
   newSignal: SignalLog | null;
   tradingSignal: SignalLog | null;
   showTradingWebView: boolean;
+  databaseSignal: DatabaseSignal | null;
+  isDatabaseSignalsPolling: boolean;
   setUser: (user: User) => void;
   addEA: (ea: EA) => Promise<boolean>;
   removeEA: (id: string) => Promise<boolean>;
@@ -122,6 +125,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [newSignal, setNewSignal] = useState<SignalLog | null>(null);
   const [tradingSignal, setTradingSignal] = useState<SignalLog | null>(null);
   const [showTradingWebView, setShowTradingWebView] = useState<boolean>(false);
+  const [databaseSignal, setDatabaseSignal] = useState<DatabaseSignal | null>(null);
+  const [isDatabaseSignalsPolling, setIsDatabaseSignalsPolling] = useState<boolean>(false);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -675,19 +680,58 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
 
-      // Clear signal logs when stopping the bot
-      if (!active) {
-        console.log('Bot stopped - clearing signal logs');
+      if (active) {
+        // Start database signals polling when bot is activated
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        if (primaryEA && primaryEA.licenseKey) {
+          console.log('Starting database signals polling for license:', primaryEA.licenseKey);
+          
+          const onDatabaseSignalFound = (signal: DatabaseSignal) => {
+            console.log('Database signal found:', signal);
+            setDatabaseSignal(signal);
+            // Update dynamic island with database signal
+            setNewSignal({
+              id: signal.id,
+              asset: signal.asset,
+              action: signal.action,
+              price: signal.price,
+              tp: signal.tp,
+              sl: signal.sl,
+              time: signal.time,
+              type: 'DATABASE_SIGNAL',
+              source: 'database'
+            });
+          };
+
+          const onDatabaseError = (error: string) => {
+            console.error('Database signals polling error:', error);
+          };
+
+          databaseSignalsPollingService.startPolling(
+            primaryEA.licenseKey,
+            onDatabaseSignalFound,
+            onDatabaseError
+          );
+          setIsDatabaseSignalsPolling(true);
+        } else {
+          console.log('No primary EA with license key found for database signals polling');
+        }
+      } else {
+        // Clear signal logs and stop database signals polling when stopping the bot
+        console.log('Bot stopped - clearing signal logs and stopping database signals polling');
         signalsMonitor.clearSignalLogs();
+        databaseSignalsPollingService.stopPolling();
         setSignalLogs([]);
         setNewSignal(null);
+        setDatabaseSignal(null);
+        setIsDatabaseSignalsPolling(false);
       }
     } catch (error) {
       console.error('Error saving bot active state:', error);
       // Revert state on error
       setIsBotActive(!active);
     }
-  }, [requestOverlayPermission]);
+  }, [requestOverlayPermission, eas]);
 
   const startSignalsMonitoring = useCallback((phoneSecret: string) => {
     console.log('Starting signals monitoring with phone secret:', phoneSecret);
@@ -821,6 +865,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     newSignal,
     tradingSignal,
     showTradingWebView,
+    databaseSignal,
+    isDatabaseSignalsPolling,
     setUser,
     addEA,
     removeEA,
@@ -843,5 +889,5 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     dismissNewSignal,
     setTradingSignal: setTradingSignalCallback,
     setShowTradingWebView: setShowTradingWebViewCallback,
-  }), [user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, isBotActive, signalLogs, isSignalsMonitoring, newSignal, tradingSignal, showTradingWebView, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, setTradingSignalCallback, setShowTradingWebViewCallback]);
+  }), [user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, isBotActive, signalLogs, isSignalsMonitoring, newSignal, tradingSignal, showTradingWebView, databaseSignal, isDatabaseSignalsPolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, setTradingSignalCallback, setShowTradingWebViewCallback]);
 });
