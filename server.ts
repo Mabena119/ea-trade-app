@@ -28,7 +28,59 @@ async function serveStatic(request: Request): Promise<Response> {
         const absolutePath = path.join(DIST_DIR, filePath);
         const file = Bun.file(absolutePath);
         if (await file.exists()) {
-            return new Response(file);
+            // Set proper MIME type based on file extension
+            const ext = path.extname(filePath).toLowerCase();
+            let contentType = 'application/octet-stream';
+            
+            switch (ext) {
+                case '.html':
+                    contentType = 'text/html; charset=utf-8';
+                    break;
+                case '.css':
+                    contentType = 'text/css; charset=utf-8';
+                    break;
+                case '.js':
+                    contentType = 'application/javascript; charset=utf-8';
+                    break;
+                case '.json':
+                    contentType = 'application/json; charset=utf-8';
+                    break;
+                case '.png':
+                    contentType = 'image/png';
+                    break;
+                case '.jpg':
+                case '.jpeg':
+                    contentType = 'image/jpeg';
+                    break;
+                case '.gif':
+                    contentType = 'image/gif';
+                    break;
+                case '.svg':
+                    contentType = 'image/svg+xml';
+                    break;
+                case '.ico':
+                    contentType = 'image/x-icon';
+                    break;
+                case '.woff':
+                    contentType = 'font/woff';
+                    break;
+                case '.woff2':
+                    contentType = 'font/woff2';
+                    break;
+                case '.ttf':
+                    contentType = 'font/ttf';
+                    break;
+                case '.eot':
+                    contentType = 'application/vnd.ms-fontobject';
+                    break;
+            }
+            
+            return new Response(file, {
+                headers: {
+                    'Content-Type': contentType,
+                    'Cache-Control': ext === '.html' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=31536000',
+                },
+            });
         }
 
         // SPA fallback
@@ -638,6 +690,37 @@ const server = Bun.serve({
             return new Response(JSON.stringify({ ok: true }), {
                 headers: { 'Content-Type': 'application/json' },
             });
+        }
+
+        // Handle terminal assets (CSS, JS, etc.) - proxy to the original MT5 terminal
+        if (url.pathname.startsWith('/terminal/')) {
+            try {
+                const assetPath = url.pathname.replace('/terminal/', '');
+                const targetUrl = `https://webtrader.razormarkets.co.za/terminal/${assetPath}`;
+                
+                const response = await fetch(targetUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    },
+                });
+
+                if (response.ok) {
+                    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+                    const content = await response.arrayBuffer();
+                    
+                    return new Response(content, {
+                        headers: {
+                            'Content-Type': contentType,
+                            'Cache-Control': 'public, max-age=3600',
+                            'Access-Control-Allow-Origin': '*',
+                        },
+                    });
+                }
+            } catch (error) {
+                console.error('Terminal asset proxy error:', error);
+            }
+            
+            return new Response('Asset not found', { status: 404 });
         }
 
         // API routes
