@@ -9,6 +9,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import CustomWebView from './custom-webview';
+import WebWebView from './web-webview';
 import { X, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react-native';
 import { SignalLog } from '@/services/signals-monitor';
 import { useApp } from '@/providers/app-provider';
@@ -1085,6 +1087,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     // MT5 proxy will handle all authentication and trading automatically
     // No need to inject JavaScript - the proxy does everything
     console.log('MT5 proxy will handle authentication and trading for', tradeConfig?.platform);
+    console.log('Platform:', Platform.OS, 'WebView type:', Platform.OS === 'web' ? 'WebWebView' : 'CustomWebView');
 
     // Start heartbeat to show progress while proxy works
     setTimeout(() => {
@@ -1263,43 +1266,23 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               </TouchableOpacity>
             </View>
           ) : (
-            <WebView
-              ref={webViewRef}
-              source={{ uri: webViewUrl }}
-              style={styles.webView}
-              onLoad={handleWebViewLoad}
-              onLoadProgress={(e: any) => {
-                const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
-                if (!error && !tradeExecuted && p < 1) {
-                  lastUpdateRef.current = Date.now();
-                  stopHeartbeat();
-                  setCurrentStep(`Loading terminal ${Math.round(p * 100)}%...`);
-                }
-              }}
-              onError={handleWebViewError}
-              onMessage={handleWebViewMessage}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              startInLoadingState={true}
-              incognito={false}
-              cacheEnabled={false}
-              sharedCookiesEnabled={true}
-              thirdPartyCookiesEnabled={true}
-              cacheMode={'LOAD_NO_CACHE'}
-              userAgent={'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-              injectedJavaScriptBeforeContentLoaded={undefined}
-              javaScriptCanOpenWindowsAutomatically={true}
-              allowsInlineMediaPlayback={true}
-              mediaPlaybackRequiresUserAction={false}
-              allowsFullscreenVideo={true}
-              allowsBackForwardNavigationGestures={false}
-              mixedContentMode={'compatibility'}
-              scalesPageToFit={true}
-              showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-              scrollEnabled={true}
-            />
+            <>
+              {Platform.OS === 'web' ? (
+                <WebWebView
+                  url={webViewUrl}
+                  onMessage={handleWebViewMessage}
+                  onLoadEnd={handleWebViewLoad}
+                  style={styles.webView}
+                />
+              ) : (
+                <CustomWebView
+                  url={webViewUrl}
+                  onMessage={handleWebViewMessage}
+                  onLoadEnd={handleWebViewLoad}
+                  style={styles.webView}
+                />
+              )}
+            </>
           )}
         </View>
       )}

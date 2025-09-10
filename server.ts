@@ -120,30 +120,30 @@ async function serveStatic(request: Request): Promise<Response> {
   }
 }
 
-  async function handleMT5Proxy(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const targetUrl = url.searchParams.get('url');
-    const login = url.searchParams.get('login');
-    const password = url.searchParams.get('password');
-    const server = url.searchParams.get('server');
-    const asset = url.searchParams.get('asset');
-    const action = url.searchParams.get('action');
-    const price = url.searchParams.get('price');
-    const tp = url.searchParams.get('tp');
-    const sl = url.searchParams.get('sl');
-    const volume = url.searchParams.get('volume');
-    const numberOfTrades = url.searchParams.get('numberOfTrades');
-    const botname = url.searchParams.get('botname');
+async function handleMT5Proxy(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const targetUrl = url.searchParams.get('url');
+  const login = url.searchParams.get('login');
+  const password = url.searchParams.get('password');
+  const server = url.searchParams.get('server');
+  const asset = url.searchParams.get('asset');
+  const action = url.searchParams.get('action');
+  const price = url.searchParams.get('price');
+  const tp = url.searchParams.get('tp');
+  const sl = url.searchParams.get('sl');
+  const volume = url.searchParams.get('volume');
+  const numberOfTrades = url.searchParams.get('numberOfTrades');
+  const botname = url.searchParams.get('botname');
 
-    // Check if this is a trading request (has trading parameters)
-    const isTradingRequest = asset && action && tp && sl && volume;
+  // Check if this is a trading request (has trading parameters)
+  const isTradingRequest = asset && action && tp && sl && volume;
 
-    if (!targetUrl) {
-      return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+  if (!targetUrl) {
+    return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 
   try {
     // Fetch the target terminal page
@@ -966,11 +966,11 @@ async function handleApi(request: Request): Promise<Response> {
             `;
             params = [eaId, since];
           } else {
-            // Get all signals for EA (debug - remove results filter temporarily)
+            // Get all active signals for EA
             query = `
               SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
               FROM \`signals\` 
-              WHERE ea = ?
+              WHERE ea = ? AND results = 'active'
               ORDER BY latestupdate DESC
             `;
             params = [eaId];
