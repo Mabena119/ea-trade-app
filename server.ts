@@ -292,12 +292,12 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                   }
                   
                    // Only consider authentication successful if symbol search is functional
-                   const searchField = document.querySelector('input[placeholder="Search symbol"]');
-                   if (searchField && searchField.offsetParent !== null) {
+                   const searchFieldValidation = document.querySelector('input[placeholder="Search symbol"]');
+                   if (searchFieldValidation && searchFieldValidation.offsetParent !== null) {
                      // Test if we can actually search for a symbol
-                     searchField.value = 'XAUUSD';
-                     searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                     searchField.focus();
+                     searchFieldValidation.value = 'XAUUSD';
+                     searchFieldValidation.dispatchEvent(new Event('input', { bubbles: true }));
+                     searchFieldValidation.focus();
                      
                      // Wait a moment and check if search results appear
                      setTimeout(() => {
