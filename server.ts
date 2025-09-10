@@ -181,6 +181,28 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 }
               };
 
+              // Override WebSocket to redirect to original terminal
+              const originalWebSocket = window.WebSocket;
+              window.WebSocket = function(url, protocols) {
+                console.log('WebSocket connection attempt to:', url);
+                
+                // Redirect WebSocket connections to the original terminal
+                if (url.includes('/terminal/ws')) {
+                  const newUrl = url.replace(/wss?:\/\/[^\/]+\/terminal\/ws/, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+                  console.log('Redirecting WebSocket to:', newUrl);
+                  return new originalWebSocket(newUrl, protocols);
+                }
+                
+                return new originalWebSocket(url, protocols);
+              };
+              
+              // Copy static properties
+              Object.setPrototypeOf(window.WebSocket, originalWebSocket);
+              Object.defineProperty(window.WebSocket, 'prototype', {
+                value: originalWebSocket.prototype,
+                writable: false
+              });
+
               // Authentication function based on your Android code
               const authenticateMT5 = async () => {
                 try {
@@ -412,6 +434,28 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                   console.log('Message send error:', e);
                 }
               };
+
+              // Override WebSocket to redirect to original terminal
+              const originalWebSocket = window.WebSocket;
+              window.WebSocket = function(url, protocols) {
+                console.log('WebSocket connection attempt to:', url);
+                
+                // Redirect WebSocket connections to the original terminal
+                if (url.includes('/terminal/ws')) {
+                  const newUrl = url.replace(/wss?:\/\/[^\/]+\/terminal\/ws/, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+                  console.log('Redirecting WebSocket to:', newUrl);
+                  return new originalWebSocket(newUrl, protocols);
+                }
+                
+                return new originalWebSocket(url, protocols);
+              };
+              
+              // Copy static properties
+              Object.setPrototypeOf(window.WebSocket, originalWebSocket);
+              Object.defineProperty(window.WebSocket, 'prototype', {
+                value: originalWebSocket.prototype,
+                writable: false
+              });
 
               // Enhanced field input function from your Android code
               const typeInput = (el, value) => {
