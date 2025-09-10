@@ -24,37 +24,37 @@ const SimpleWebView: React.FC<SimpleWebViewProps> = ({
 
     const handleLoad = () => {
       console.log('Simple WebView iframe loaded');
-      
+
       // Try to suppress warnings in the iframe context
       try {
         if (iframe.contentWindow) {
           // Override console methods in iframe context
           iframe.contentWindow.console = {
             ...iframe.contentWindow.console,
-            warn: function(...args) {
+            warn: function (...args) {
               const message = args.join(' ');
-              if (message.includes('interactive-widget') || 
-                  message.includes('viewport') ||
-                  message.includes('AES-CBC') ||
-                  message.includes('AES-CTR') ||
-                  message.includes('AES-GCM') ||
-                  message.includes('chosen-ciphertext') ||
-                  message.includes('authentication by default') ||
-                  message.includes('not recognized and ignored')) {
+              if (message.includes('interactive-widget') ||
+                message.includes('viewport') ||
+                message.includes('AES-CBC') ||
+                message.includes('AES-CTR') ||
+                message.includes('AES-GCM') ||
+                message.includes('chosen-ciphertext') ||
+                message.includes('authentication by default') ||
+                message.includes('not recognized and ignored')) {
                 return;
               }
               console.warn.apply(console, args);
             },
-            error: function(...args) {
+            error: function (...args) {
               const message = args.join(' ');
-              if (message.includes('interactive-widget') || 
-                  message.includes('viewport') ||
-                  message.includes('AES-CBC') ||
-                  message.includes('AES-CTR') ||
-                  message.includes('AES-GCM') ||
-                  message.includes('chosen-ciphertext') ||
-                  message.includes('authentication by default') ||
-                  message.includes('not recognized and ignored')) {
+              if (message.includes('interactive-widget') ||
+                message.includes('viewport') ||
+                message.includes('AES-CBC') ||
+                message.includes('AES-CTR') ||
+                message.includes('AES-GCM') ||
+                message.includes('chosen-ciphertext') ||
+                message.includes('authentication by default') ||
+                message.includes('not recognized and ignored')) {
                 return;
               }
               console.error.apply(console, args);
@@ -65,7 +65,7 @@ const SimpleWebView: React.FC<SimpleWebViewProps> = ({
         // CORS restrictions prevent iframe console access
         console.log('Cannot access iframe console due to CORS restrictions');
       }
-      
+
       if (onLoadEnd) {
         onLoadEnd();
       }
@@ -76,7 +76,7 @@ const SimpleWebView: React.FC<SimpleWebViewProps> = ({
         try {
           const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
           console.log('Simple WebView message received:', data);
-          
+
           if (onMessage) {
             onMessage(data);
           }
@@ -97,13 +97,39 @@ const SimpleWebView: React.FC<SimpleWebViewProps> = ({
     };
   }, [url, onMessage, onLoadEnd]);
 
-  // Show script in console for manual execution
+  // Execute script in iframe when it loads
   useEffect(() => {
-    if (script) {
-      console.log('=== AUTHENTICATION SCRIPT ===');
-      console.log('Copy and paste this script in the terminal console:');
-      console.log(script);
-      console.log('=== END SCRIPT ===');
+    if (script && iframeRef.current) {
+      const iframe = iframeRef.current;
+
+      const executeScript = () => {
+        try {
+          if (iframe.contentWindow) {
+            // Try to execute script in iframe context
+            iframe.contentWindow.eval(script);
+            console.log('Script executed in SimpleWebView iframe');
+          }
+        } catch (error) {
+          console.log('Cannot execute script in iframe due to CORS restrictions:', error);
+          // Fallback: show script in console for manual execution
+          console.log('=== AUTHENTICATION SCRIPT ===');
+          console.log('Copy and paste this script in the terminal console:');
+          console.log(script);
+          console.log('=== END SCRIPT ===');
+        }
+      };
+
+      // Try to execute script after iframe loads
+      const handleIframeLoad = () => {
+        setTimeout(executeScript, 3000);
+      };
+
+      if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+        executeScript();
+      } else {
+        iframe.addEventListener('load', handleIframeLoad);
+        return () => iframe.removeEventListener('load', handleIframeLoad);
+      }
     }
   }, [script]);
 
@@ -111,6 +137,9 @@ const SimpleWebView: React.FC<SimpleWebViewProps> = ({
   const createSilentUrl = () => {
     const silentUrl = new URL('/terminal-silent.html', window.location.origin);
     silentUrl.searchParams.set('url', url);
+    if (script) {
+      silentUrl.searchParams.set('script', encodeURIComponent(script));
+    }
     return silentUrl.toString();
   };
 

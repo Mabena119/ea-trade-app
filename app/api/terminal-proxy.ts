@@ -34,7 +34,7 @@ export default async function handler(req: Request, res: Response) {
     // Inject our script into the HTML
     if (script && typeof script === 'string') {
       const decodedScript = decodeURIComponent(script);
-      
+
       // Create a script injection that runs after the page loads
       const injectionScript = `
         <script>
@@ -75,16 +75,51 @@ export default async function handler(req: Request, res: Response) {
             };
           })();
 
-          // Wait for page to load, then inject authentication script
-          window.addEventListener('load', function() {
-            setTimeout(function() {
+          // Enhanced script injection with better timing and retry mechanism
+          (function() {
+            let attempts = 0;
+            const maxAttempts = 15;
+            
+            const tryInject = () => {
+              attempts++;
+              console.log('Script injection attempt:', attempts);
+              
               try {
-                ${decodedScript}
+                // Check if the page is ready for injection
+                if (document.readyState === 'complete' && document.body && document.body.children.length > 0) {
+                  console.log('Page ready, executing script...');
+                  ${decodedScript}
+                  return true;
+                } else {
+                  console.log('Page not ready, retrying in 1 second...');
+                  if (attempts < maxAttempts) {
+                    setTimeout(tryInject, 1000);
+                  } else {
+                    console.error('Max injection attempts reached - page may not be fully loaded');
+                    // Try to execute anyway as a last resort
+                    try {
+                      ${decodedScript}
+                    } catch (error) {
+                      console.error('Final script injection attempt failed:', error);
+                    }
+                  }
+                  return false;
+                }
               } catch (error) {
                 console.error('Script injection error:', error);
+                return false;
               }
-            }, 2000);
-          });
+            };
+            
+            // Start injection when page loads
+            if (document.readyState === 'complete') {
+              setTimeout(tryInject, 3000);
+            } else {
+              window.addEventListener('load', function() {
+                setTimeout(tryInject, 3000);
+              });
+            }
+          })();
         </script>
       `;
 

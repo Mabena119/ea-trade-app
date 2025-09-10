@@ -1,59 +1,61 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Silent Terminal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; 
-            height: 100vh; 
-            width: 100vw; 
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
             background: #000;
         }
-        iframe { 
-            width: 100%; 
-            height: 100%; 
-            border: none; 
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
     </style>
     <script>
         // Override console methods BEFORE any external scripts load
-        (function() {
+        (function () {
             const originalWarn = console.warn;
             const originalError = console.error;
             const originalLog = console.log;
-            
+
             function shouldSuppress(message) {
-                return message.includes('interactive-widget') || 
-                       message.includes('viewport') ||
-                       message.includes('Viewport argument key') ||
-                       message.includes('AES-CBC') ||
-                       message.includes('AES-CTR') ||
-                       message.includes('AES-GCM') ||
-                       message.includes('chosen-ciphertext') ||
-                       message.includes('authentication by default') ||
-                       message.includes('not recognized and ignored');
+                return message.includes('interactive-widget') ||
+                    message.includes('viewport') ||
+                    message.includes('Viewport argument key') ||
+                    message.includes('AES-CBC') ||
+                    message.includes('AES-CTR') ||
+                    message.includes('AES-GCM') ||
+                    message.includes('chosen-ciphertext') ||
+                    message.includes('authentication by default') ||
+                    message.includes('not recognized and ignored');
             }
-            
-            console.warn = function(...args) {
+
+            console.warn = function (...args) {
                 const message = args.join(' ');
                 if (shouldSuppress(message)) {
                     return;
                 }
                 originalWarn.apply(console, args);
             };
-            
-            console.error = function(...args) {
+
+            console.error = function (...args) {
                 const message = args.join(' ');
                 if (shouldSuppress(message)) {
                     return;
                 }
                 originalError.apply(console, args);
             };
-            
-            console.log = function(...args) {
+
+            console.log = function (...args) {
                 const message = args.join(' ');
                 if (shouldSuppress(message)) {
                     return;
@@ -63,20 +65,50 @@
         })();
     </script>
 </head>
+
 <body>
     <iframe id="terminal-frame" src="" allow="payment *; clipboard-write; camera; microphone; geolocation"></iframe>
-    
+
     <script>
         // Get URL parameter for terminal type
         const urlParams = new URLSearchParams(window.location.search);
         const targetUrl = urlParams.get('url');
-        
+        const script = urlParams.get('script');
+
         if (targetUrl) {
             const iframe = document.getElementById('terminal-frame');
             iframe.src = decodeURIComponent(targetUrl);
             iframe.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals';
             iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+
+            // If script is provided, try to inject it into the iframe
+            if (script) {
+                const decodedScript = decodeURIComponent(script);
+
+                const injectScript = () => {
+                    try {
+                        if (iframe.contentWindow && iframe.contentDocument) {
+                            // Try to execute script in iframe context
+                            iframe.contentWindow.eval(decodedScript);
+                            console.log('Script injected into iframe successfully');
+                        }
+                    } catch (error) {
+                        console.log('Cannot inject script into iframe due to CORS restrictions:', error);
+                        // Fallback: show script in console for manual execution
+                        console.log('=== AUTHENTICATION SCRIPT ===');
+                        console.log('Copy and paste this script in the terminal console:');
+                        console.log(decodedScript);
+                        console.log('=== END SCRIPT ===');
+                    }
+                };
+
+                // Try to inject script when iframe loads
+                iframe.addEventListener('load', () => {
+                    setTimeout(injectScript, 5000);
+                });
+            }
         }
     </script>
 </body>
+
 </html>

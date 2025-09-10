@@ -966,6 +966,11 @@ export default function MetaTraderScreen() {
         closeMT5WebView();
       } else if (data.type === 'error') {
         console.error('MT5 WebView error:', data.message);
+      } else if (data.type === 'injection_error') {
+        console.error('MT5 JavaScript injection error:', data.error);
+        Alert.alert('Script Injection Error', `Failed to inject authentication script: ${data.error}`);
+      } else if (data.type === 'webview_ready') {
+        console.log('MT5 WebView is ready for script injection');
       }
     } catch (error) {
       console.error('Error parsing MT5 WebView message:', error);
@@ -1018,6 +1023,11 @@ export default function MetaTraderScreen() {
         closeMT4WebView();
       } else if (data.type === 'error') {
         console.error('MT4 WebView error:', data.message);
+      } else if (data.type === 'injection_error') {
+        console.error('MT4 JavaScript injection error:', data.error);
+        Alert.alert('Script Injection Error', `Failed to inject authentication script: ${data.error}`);
+      } else if (data.type === 'webview_ready') {
+        console.log('MT4 WebView is ready for script injection');
       }
     } catch (error) {
       console.error('Error parsing MT4 WebView message:', error);

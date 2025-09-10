@@ -24,20 +24,52 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   const injectScript = () => {
     if (webViewRef.current && script && !injected) {
       console.log('Injecting script into WebView...');
-      
-      // Use injectedJavaScript for better compatibility
+
+      // Use injectedJavaScript for better compatibility with retry mechanism
       webViewRef.current.injectJavaScript(`
-        try {
-          ${script}
-        } catch (error) {
-          console.log('Script injection error:', error);
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'injection_error',
-            error: error.message
-          }));
-        }
+        (function() {
+          let attempts = 0;
+          const maxAttempts = 10;
+          
+          const tryInject = () => {
+            attempts++;
+            console.log('Script injection attempt:', attempts);
+            
+            try {
+              // Check if the page is ready for injection
+              if (document.readyState === 'complete' && document.body) {
+                console.log('Page ready, executing script...');
+                ${script}
+                return true;
+              } else {
+                console.log('Page not ready, retrying...');
+                if (attempts < maxAttempts) {
+                  setTimeout(tryInject, 1000);
+                } else {
+                  console.error('Max injection attempts reached');
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'injection_error',
+                    error: 'Page not ready after max attempts'
+                  }));
+                }
+                return false;
+              }
+            } catch (error) {
+              console.error('Script injection error:', error);
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'injection_error',
+                error: error.message
+              }));
+              return false;
+            }
+          };
+          
+          // Start injection attempt
+          tryInject();
+        })();
+        true;
       `);
-      
+
       setInjected(true);
     }
   };
@@ -45,12 +77,12 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   // Handle WebView load events
   const handleLoadEnd = () => {
     console.log('WebView load ended');
-    
-    // Wait a bit more for the page to fully initialize
+
+    // Wait longer for the page to fully initialize and DOM to be ready
     setTimeout(() => {
       injectScript();
-    }, 2000);
-    
+    }, 5000);
+
     if (onLoadEnd) {
       onLoadEnd();
     }
@@ -60,7 +92,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
     try {
       const data = JSON.parse(event.nativeEvent.data);
       console.log('WebView message received:', data);
-      
+
       if (onMessage) {
         onMessage(data);
       }
