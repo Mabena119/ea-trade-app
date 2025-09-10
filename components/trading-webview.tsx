@@ -1221,18 +1221,52 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* Hidden WebView for trading execution */}
+      {/* Full-screen WebView for trading execution */}
       {visible && (
-        <View style={styles.hiddenContainer}>
+        <View style={styles.webViewContainer}>
+          {/* Close button */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              // For MT5, cleanup before closing
+              if (tradeConfig?.platform === 'MT5') {
+                cleanupMT5WebView();
+                setTimeout(() => {
+                  onClose();
+                }, 600);
+              } else {
+                onClose();
+              }
+            }}
+          >
+            <X color="#FFFFFF" size={24} />
+          </TouchableOpacity>
+
           {error ? (
-            <View style={styles.hiddenErrorContainer}>
-              {/* Error handling in background */}
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorTitle}>Trading Error</Text>
+              <Text style={styles.errorMessage}>{error}</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  setError(null);
+                  setLoading(true);
+                  setTradeExecuted(false);
+                  setCurrentStep('Retrying...');
+                  // Reload the WebView
+                  if (webViewRef.current) {
+                    webViewRef.current.reload();
+                  }
+                }}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <WebView
               ref={webViewRef}
               source={{ uri: webViewUrl }}
-              style={styles.hiddenWebView}
+              style={styles.webView}
               onLoad={handleWebViewLoad}
               onLoadProgress={(e: any) => {
                 const p = Math.max(0, Math.min(1, e?.nativeEvent?.progress ?? 0));
@@ -1355,24 +1389,31 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
 
-  // Hidden WebView Styles
-  hiddenContainer: {
+  // Full-screen WebView Styles
+  webViewContainer: {
     position: 'absolute',
-    width: 1,
-    height: 1,
-    left: -9999,
-    top: -9999,
-    opacity: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000000',
+    zIndex: 10000,
   },
-  hiddenWebView: {
-    width: 1,
-    height: 1,
-    opacity: 0,
+  webView: {
+    flex: 1,
+    backgroundColor: '#000000',
   },
-  hiddenErrorContainer: {
-    width: 1,
-    height: 1,
-    opacity: 0,
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 20,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10001,
   },
 
   // Legacy styles (kept for compatibility)

@@ -29,7 +29,7 @@ interface DynamicIslandProps {
 }
 
 export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIslandProps) {
-  const { eas, isBotActive, setBotActive, removeEA, signalLogs, isSignalsMonitoring, activeSymbols, mt4Symbols, mt5Symbols } = useApp();
+  const { eas, isBotActive, setBotActive, removeEA, signalLogs, isSignalsMonitoring, activeSymbols, mt4Symbols, mt5Symbols, setTradingSignal, setShowTradingWebView } = useApp();
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [appState, setAppState] = useState<string>(AppState.currentState);
   const [isOverlayMode, setIsOverlayMode] = useState<boolean>(false);
@@ -194,8 +194,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return isActiveInLegacy || isActiveInMT4 || isActiveInMT5;
   }, [activeSymbols, mt4Symbols, mt5Symbols]);
 
-  // Handle new signal detection - only show signals for active symbols
-  // Just dismiss the signal without showing popup
+  // Handle new signal detection - automatically trigger trading WebView for active symbols
   useEffect(() => {
     if (newSignal) {
       console.log('New signal detected in Dynamic Island:', newSignal);
@@ -203,16 +202,27 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
       // Check if this signal is for an active symbol
       if (!isSignalForActiveSymbol(newSignal)) {
         console.log('Signal ignored - not for active symbol:', newSignal.asset);
+        // Dismiss signal immediately if not for active symbol
+        if (onSignalDismiss) {
+          onSignalDismiss();
+        }
       } else {
         console.log('Signal accepted - for active symbol:', newSignal.asset);
-      }
-
-      // Always dismiss the signal immediately without showing popup
-      if (onSignalDismiss) {
-        onSignalDismiss();
+        console.log('Automatically triggering trading WebView for signal:', newSignal.asset);
+        
+        // Set the trading signal and show the trading WebView
+        setTradingSignal(newSignal);
+        setShowTradingWebView(true);
+        
+        // Dismiss the signal after a short delay to allow WebView to open
+        setTimeout(() => {
+          if (onSignalDismiss) {
+            onSignalDismiss();
+          }
+        }, 500);
       }
     }
-  }, [newSignal, onSignalDismiss, isSignalForActiveSymbol]);
+  }, [newSignal, onSignalDismiss, isSignalForActiveSymbol, setTradingSignal, setShowTradingWebView]);
 
   // Only show when bot is active
   if (!visible || !isBotActive || !primaryEA) {
