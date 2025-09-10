@@ -296,6 +296,10 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
           </script>
         `;
 
+        // Rewrite WebSocket URLs to point to the original terminal
+        html = html.replace(/wss?:\/\/[^\/]+\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+        html = html.replace(/\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+
         // Inject the script before the closing body tag
         if (html.includes('</body>')) {
             html = html.replace('</body>', authScript + '</body>');
@@ -559,6 +563,10 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
             })();
           </script>
         `;
+
+        // Rewrite WebSocket URLs to point to the original terminal
+        html = html.replace(/wss?:\/\/[^\/]+\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+        html = html.replace(/\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
 
         // Inject the script before the closing body tag
         if (html.includes('</body>')) {
