@@ -182,9 +182,14 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     setIsExpanded(true);
   }, [animatedHeight, animatedWidth, animatedOpacity]);
 
-  // Check if a signal is for an active symbol
+  // Check if a signal is for an active symbol or is a database signal
   const isSignalForActiveSymbol = useCallback((signal: SignalLog) => {
     const symbolName = signal.asset;
+
+    // Database signals should always be shown regardless of active symbols
+    if (signal.type === 'DATABASE_SIGNAL' || signal.source === 'database') {
+      return true;
+    }
 
     // Check if symbol is active in any of the symbol lists
     const isActiveInLegacy = activeSymbols.some(s => s.symbol === symbolName);
@@ -194,20 +199,19 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return isActiveInLegacy || isActiveInMT4 || isActiveInMT5;
   }, [activeSymbols, mt4Symbols, mt5Symbols]);
 
-  // Handle new signal detection - only show signals for active symbols
-  // Just dismiss the signal without showing popup
+  // Handle new signal detection - show database signals and active symbol signals
   useEffect(() => {
     if (newSignal) {
       console.log('New signal detected in Dynamic Island:', newSignal);
 
-      // Check if this signal is for an active symbol
+      // Check if this signal should be shown
       if (!isSignalForActiveSymbol(newSignal)) {
         console.log('Signal ignored - not for active symbol:', newSignal.asset);
       } else {
-        console.log('Signal accepted - for active symbol:', newSignal.asset);
+        console.log('Signal accepted - for active symbol or database signal:', newSignal.asset);
       }
 
-      // Always dismiss the signal immediately without showing popup
+      // Dismiss the signal after processing (it will still appear in the signal logs)
       if (onSignalDismiss) {
         onSignalDismiss();
       }
