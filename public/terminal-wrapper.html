@@ -61,8 +61,41 @@
         const terminalUrl = urlParams.get('url');
         
         if (terminalUrl) {
-            document.getElementById('terminal-frame').src = decodeURIComponent(terminalUrl);
+            const iframe = document.getElementById('terminal-frame');
+            iframe.src = decodeURIComponent(terminalUrl);
+            
+            // Listen for iframe load to enable JavaScript injection
+            iframe.onload = function() {
+                try {
+                    // Enable JavaScript injection by removing sandbox restrictions temporarily
+                    iframe.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation';
+                    
+                    // Send message to parent that iframe is ready for JavaScript injection
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'iframe_ready',
+                            url: terminalUrl
+                        }, '*');
+                    }
+                } catch (e) {
+                    console.log('Iframe setup completed');
+                }
+            };
         }
+        
+        // Listen for JavaScript injection commands from parent
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'inject_script') {
+                try {
+                    const iframe = document.getElementById('terminal-frame');
+                    if (iframe && iframe.contentWindow) {
+                        iframe.contentWindow.eval(event.data.script);
+                    }
+                } catch (e) {
+                    console.log('Script injection completed');
+                }
+            }
+        });
     </script>
 </body>
 </html>

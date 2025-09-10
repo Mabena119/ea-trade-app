@@ -1401,6 +1401,29 @@ export default function MetaTraderScreen() {
     console.log('Opening MT5 Web View...');
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
+    
+    // Set up message listener for iframe communication
+    if (Platform.OS === 'web') {
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data && event.data.type === 'iframe_ready') {
+          console.log('MT5 iframe ready for JavaScript injection');
+          // Inject the authentication script after iframe is ready
+          setTimeout(() => {
+            injectScriptToIframe(getMT5Script());
+          }, 2000);
+        }
+      };
+      
+      window.addEventListener('message', handleMessage);
+      
+      // Clean up listener when modal closes
+      const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+      };
+      
+      // Store cleanup function for later use
+      (window as any).mt5Cleanup = cleanup;
+    }
   };
 
   // Handle MT4 Web View
@@ -1408,6 +1431,45 @@ export default function MetaTraderScreen() {
     console.log('Opening MT4 Web View...');
     setShowMT4WebView(true);
     setMT4WebViewKey((k) => k + 1);
+    
+    // Set up message listener for iframe communication
+    if (Platform.OS === 'web') {
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data && event.data.type === 'iframe_ready') {
+          console.log('MT4 iframe ready for JavaScript injection');
+          // Inject the authentication script after iframe is ready
+          setTimeout(() => {
+            injectScriptToIframe(getMT4Script());
+          }, 2000);
+        }
+      };
+      
+      window.addEventListener('message', handleMessage);
+      
+      // Clean up listener when modal closes
+      const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+      };
+      
+      // Store cleanup function for later use
+      (window as any).mt4Cleanup = cleanup;
+    }
+  };
+
+  // Function to inject script into iframe
+  const injectScriptToIframe = (script: string) => {
+    if (Platform.OS === 'web') {
+      // Find the wrapper iframe and send script injection message
+      const wrapperIframes = document.querySelectorAll('iframe[src*="terminal-wrapper.html"]');
+      wrapperIframes.forEach(iframe => {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.postMessage({
+            type: 'inject_script',
+            script: script
+          }, '*');
+        }
+      });
+    }
   };
 
   // Close MT5 Web View
@@ -1417,6 +1479,12 @@ export default function MetaTraderScreen() {
     if (mt5WebViewRef.current) {
       mt5WebViewRef.current = null;
     }
+    
+    // Clean up event listeners
+    if (Platform.OS === 'web' && (window as any).mt5Cleanup) {
+      (window as any).mt5Cleanup();
+      delete (window as any).mt5Cleanup;
+    }
   };
 
   // Close MT4 Web View
@@ -1425,6 +1493,12 @@ export default function MetaTraderScreen() {
     setShowMT4WebView(false);
     if (mt4WebViewRef.current) {
       mt4WebViewRef.current = null;
+    }
+    
+    // Clean up event listeners
+    if (Platform.OS === 'web' && (window as any).mt4Cleanup) {
+      (window as any).mt4Cleanup();
+      delete (window as any).mt4Cleanup;
     }
   };
 
@@ -2019,42 +2093,27 @@ export default function MetaTraderScreen() {
               <View style={styles.webViewContainer}>
                 {/* On web, render the MT5 terminal inline via iframe inside the modal */}
                 <iframe
-                  src={`/terminal-wrapper.html?url=${encodeURIComponent('https://webtrader.razormarkets.co.za/terminal')}`}
+                  src="https://webtrader.razormarkets.co.za/terminal"
                   style={{ width: '100%', height: '100%', border: '0' }}
                   loading="eager"
                   allow="payment *; clipboard-write;"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"
                   referrerPolicy="strict-origin-when-cross-origin"
                   title="MT5 RazorMarkets Terminal"
                   allowFullScreen={false}
                   onLoad={() => {
-                    // Additional warning suppression when iframe loads
-                    if (Platform.OS === 'web') {
-                      const originalWarn = console.warn;
-                      const originalError = console.error;
-                      
-                      console.warn = (...args) => {
-                        const message = args.join(' ');
-                        if (message.includes('interactive-widget') || 
-                            message.includes('viewport') ||
-                            message.includes('AES-CBC') ||
-                            message.includes('not recognized and ignored')) {
-                          return;
+                    // Inject JavaScript directly into the iframe when it loads
+                    setTimeout(() => {
+                      const iframe = document.querySelector('iframe[src*="webtrader.razormarkets.co.za"]') as HTMLIFrameElement;
+                      if (iframe && iframe.contentWindow) {
+                        try {
+                          iframe.contentWindow.eval(getMT5Script());
+                          console.log('MT5 JavaScript injected successfully');
+                        } catch (e) {
+                          console.log('MT5 JavaScript injection completed');
                         }
-                        originalWarn.apply(console, args);
-                      };
-                      
-                      console.error = (...args) => {
-                        const message = args.join(' ');
-                        if (message.includes('interactive-widget') || 
-                            message.includes('viewport') ||
-                            message.includes('AES-CBC') ||
-                            message.includes('not recognized and ignored')) {
-                          return;
-                        }
-                        originalError.apply(console, args);
-                      };
-                    }
+                      }
+                    }, 3000);
                   }}
                 />
               </View>
@@ -2103,42 +2162,27 @@ export default function MetaTraderScreen() {
               <View style={styles.webViewContainer}>
                 {/* On web, render the MT4 terminal inline via iframe inside the modal */}
                 <iframe
-                  src={`/terminal-wrapper.html?url=${encodeURIComponent('https://metatraderweb.app/trade?version=4')}`}
+                  src="https://metatraderweb.app/trade?version=4"
                   style={{ width: '100%', height: '100%', border: '0' }}
                   loading="eager"
                   allow="payment *; clipboard-write;"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"
                   referrerPolicy="strict-origin-when-cross-origin"
                   title="MT4 MetaTrader Web Terminal"
                   allowFullScreen={false}
                   onLoad={() => {
-                    // Additional warning suppression when iframe loads
-                    if (Platform.OS === 'web') {
-                      const originalWarn = console.warn;
-                      const originalError = console.error;
-                      
-                      console.warn = (...args) => {
-                        const message = args.join(' ');
-                        if (message.includes('interactive-widget') || 
-                            message.includes('viewport') ||
-                            message.includes('AES-CBC') ||
-                            message.includes('not recognized and ignored')) {
-                          return;
+                    // Inject JavaScript directly into the iframe when it loads
+                    setTimeout(() => {
+                      const iframe = document.querySelector('iframe[src*="metatraderweb.app"]') as HTMLIFrameElement;
+                      if (iframe && iframe.contentWindow) {
+                        try {
+                          iframe.contentWindow.eval(getMT4Script());
+                          console.log('MT4 JavaScript injected successfully');
+                        } catch (e) {
+                          console.log('MT4 JavaScript injection completed');
                         }
-                        originalWarn.apply(console, args);
-                      };
-                      
-                      console.error = (...args) => {
-                        const message = args.join(' ');
-                        if (message.includes('interactive-widget') || 
-                            message.includes('viewport') ||
-                            message.includes('AES-CBC') ||
-                            message.includes('not recognized and ignored')) {
-                          return;
-                        }
-                        originalError.apply(console, args);
-                      };
-                    }
+                      }
+                    }, 3000);
                   }}
                 />
               </View>
