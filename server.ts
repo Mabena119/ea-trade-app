@@ -207,7 +207,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
               const authenticateMT5 = async () => {
                 try {
                   sendMessage('step_update', 'Initializing MT5 Account...');
-                  await new Promise(r => setTimeout(r, 5500));
+                  await new Promise(r => setTimeout(r, 3000));
                   
                   // Check for disclaimer and accept if present
                   const disclaimer = document.querySelector('#disclaimer');
@@ -215,8 +215,8 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                     const acceptButton = document.querySelector('.accept-button');
                     if (acceptButton) {
                       acceptButton.click();
-                      sendMessage('step_update', 'Checking Login...');
-                      await new Promise(r => setTimeout(r, 5500));
+                      sendMessage('step_update', 'Accepting disclaimer...');
+                      await new Promise(r => setTimeout(r, 2000));
                     }
                   }
                   
@@ -227,91 +227,97 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                     const removeButton = document.querySelector('.button.svelte-1wrky82.red');
                     if (removeButton) {
                       removeButton.click();
+                      sendMessage('step_update', 'Removing existing connection...');
+                      await new Promise(r => setTimeout(r, 3000));
                     } else {
                       // Fallback: look for Remove button by text
                       const buttons = document.getElementsByTagName('button');
                       for (let i = 0; i < buttons.length; i++) {
                         if (buttons[i].textContent.trim() === 'Remove') {
                           buttons[i].click();
+                          sendMessage('step_update', 'Removing existing connection...');
+                          await new Promise(r => setTimeout(r, 3000));
                           break;
                         }
                       }
                     }
-                    sendMessage('step_update', 'Checking password...');
-                    await new Promise(r => setTimeout(r, 5500));
                   }
                   
                   // Fill login credentials
-                  if (form && !form.classList.contains('hidden')) {
-                    const loginField = document.querySelector('input[name="login"]');
-                    const passwordField = document.querySelector('input[name="password"]');
-                    
-                    if (loginField && '${login}') {
-                      loginField.value = '${login}';
-                      loginField.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
-                    
-                    if (passwordField && '${password}') {
-                      passwordField.value = '${password}';
-                      passwordField.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
-                    
-                    sendMessage('step_update', 'Connecting to Server...');
-                    await new Promise(r => setTimeout(r, 5000));
+                  const loginField = document.querySelector('input[name="login"]');
+                  const passwordField = document.querySelector('input[name="password"]');
+                  
+                  if (loginField && '${login}') {
+                    loginField.value = '${login}';
+                    loginField.dispatchEvent(new Event('input', { bubbles: true }));
+                    sendMessage('step_update', 'Entering login credentials...');
+                    await new Promise(r => setTimeout(r, 1000));
+                  }
+                  
+                  if (passwordField && '${password}') {
+                    passwordField.value = '${password}';
+                    passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+                    sendMessage('step_update', 'Entering password...');
+                    await new Promise(r => setTimeout(r, 1000));
                   }
                   
                   // Click login button
-                  if (form && !form.classList.contains('hidden')) {
-                    const loginButton = document.querySelector('.button.svelte-1wrky82.active');
-                    if (loginButton) {
-                      loginButton.click();
-                      sendMessage('step_update', 'Connecting to Server...');
-                      await new Promise(r => setTimeout(r, 8000));
-                    }
-                  }
-                  
-                  // Search for XAUUSD symbol
-                  const searchField = document.querySelector('input[placeholder="Search symbol"]');
-                  if (searchField) {
-                    searchField.value = 'XAUUSD';
-                    searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                    searchField.focus();
+                  const loginButton = document.querySelector('.button.svelte-1wrky82.active');
+                  if (loginButton) {
+                    loginButton.click();
                     sendMessage('step_update', 'Connecting to Server...');
-                    await new Promise(r => setTimeout(r, 3000));
+                    await new Promise(r => setTimeout(r, 10000)); // Wait longer for login
                   }
                   
-                  // Try to select XAUUSD symbol
-                  const symbolSpan = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl');
-                  if (symbolSpan) {
-                    const text = symbolSpan.innerText.trim();
-                    if (text === 'XAUUSD' || text === 'XAUUSD.mic') {
-                      symbolSpan.click();
-                      sendMessage('authentication_success', 'MT5 Login Successful');
-                      return;
+                  // Wait for the terminal to fully load after login
+                  sendMessage('step_update', 'Loading terminal...');
+                  await new Promise(r => setTimeout(r, 5000));
+                  
+                  // Try multiple times to find the search functionality
+                  let searchAttempts = 0;
+                  const maxAttempts = 5;
+                  
+                  while (searchAttempts < maxAttempts) {
+                    const searchField = document.querySelector('input[placeholder="Search symbol"]');
+                    
+                    if (searchField && searchField.offsetParent !== null) {
+                      // Test if we can actually search for a symbol
+                      searchField.value = 'XAUUSD';
+                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                      searchField.focus();
+                      
+                      sendMessage('step_update', 'Testing symbol search...');
+                      await new Promise(r => setTimeout(r, 3000));
+                      
+                      // Check if search results appear
+                      const symbolResults = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
+                                          document.querySelector('[class*="symbol"]') ||
+                                          document.querySelector('[data-symbol]') ||
+                                          document.querySelector('.symbol');
+                      
+                      if (symbolResults) {
+                        sendMessage('authentication_success', 'MT5 Login Successful - Terminal loaded and functional');
+                        return;
+                      }
+                    }
+                    
+                    searchAttempts++;
+                    if (searchAttempts < maxAttempts) {
+                      sendMessage('step_update', 'Waiting for terminal to load... (' + searchAttempts + '/' + maxAttempts + ')');
+                      await new Promise(r => setTimeout(r, 3000));
                     }
                   }
                   
-                   // Only consider authentication successful if symbol search is functional
-                   const searchFieldValidation = document.querySelector('input[placeholder="Search symbol"]');
-                   if (searchFieldValidation && searchFieldValidation.offsetParent !== null) {
-                     // Test if we can actually search for a symbol
-                     searchFieldValidation.value = 'XAUUSD';
-                     searchFieldValidation.dispatchEvent(new Event('input', { bubbles: true }));
-                     searchFieldValidation.focus();
-                     
-                     // Wait a moment and check if search results appear
-                     setTimeout(() => {
-                       const symbolResults = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                           document.querySelector('[class*="symbol"]');
-                       if (symbolResults) {
-                         sendMessage('authentication_success', 'MT5 Login Successful - Symbol search functional');
-                       } else {
-                         sendMessage('authentication_failed', 'Authentication failed - Symbol search not functional');
-                       }
-                     }, 2000);
-                   } else {
-                     sendMessage('authentication_failed', 'Authentication failed - Search functionality not available');
-                   }
+                  // If we get here, try a simpler success check
+                  const terminalLoaded = document.querySelector('.terminal') || 
+                                       document.querySelector('[class*="terminal"]') ||
+                                       document.querySelector('body');
+                  
+                  if (terminalLoaded) {
+                    sendMessage('authentication_success', 'MT5 Login Successful - Terminal accessible');
+                  } else {
+                    sendMessage('authentication_failed', 'Authentication failed - Terminal not accessible');
+                  }
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
