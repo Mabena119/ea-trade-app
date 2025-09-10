@@ -966,11 +966,11 @@ async function handleApi(request: Request): Promise<Response> {
             `;
             params = [eaId, since];
           } else {
-            // Get all active signals for EA
+            // Get all signals for EA (debug - remove results filter temporarily)
             query = `
               SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
               FROM \`signals\` 
-              WHERE ea = ? AND results = 'active'
+              WHERE ea = ?
               ORDER BY latestupdate DESC
             `;
             params = [eaId];

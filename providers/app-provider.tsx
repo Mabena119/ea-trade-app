@@ -687,7 +687,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           console.log('Starting database signals polling for license:', primaryEA.licenseKey);
 
           const onDatabaseSignalFound = (signal: DatabaseSignal) => {
-            console.log('Database signal found:', signal);
+            console.log('🎯 Database signal found:', signal);
             setDatabaseSignal(signal);
             // Add database signal to existing signals monitoring system
             const signalLog: SignalLog = {
@@ -703,10 +703,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               latestupdate: signal.latestupdate
             };
 
+            console.log('🎯 Converted to SignalLog:', signalLog);
+
             // Add to signal logs
-            setSignalLogs(prev => [...prev, signalLog]);
+            setSignalLogs(prev => {
+              const newLogs = [...prev, signalLog];
+              console.log('🎯 Updated signal logs:', newLogs);
+              return newLogs;
+            });
 
             // Update new signal for dynamic island
+            console.log('🎯 Setting new signal for dynamic island:', signalLog);
             setNewSignal(signalLog);
           };
 

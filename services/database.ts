@@ -102,7 +102,7 @@ class DatabaseService {
             o.email as owner_email,
             o.phone as owner_phone,
             o.logo as owner_logo
-          FROM licenses l
+          FROM licences l
           LEFT JOIN owners o ON l.owner_id = o.id
           WHERE l.key = ? AND l.phone_secret_key = ?
           LIMIT 1
@@ -122,7 +122,7 @@ class DatabaseService {
             o.email as owner_email,
             o.phone as owner_phone,
             o.logo as owner_logo
-          FROM licenses l
+          FROM licences l
           LEFT JOIN owners o ON l.owner_id = o.id
           WHERE l.key = ?
           LIMIT 1
@@ -157,7 +157,7 @@ class DatabaseService {
   async markLicenseAsUsed(licenseKey: string): Promise<boolean> {
     try {
       const query = `
-        UPDATE licenses 
+        UPDATE licences 
         SET status = 'used' 
         WHERE key = ?
       `;
@@ -193,7 +193,7 @@ class DatabaseService {
       const query = `
         SELECT s.id, s.name
         FROM symbols s
-        INNER JOIN licenses l ON l.phone_secret_key = ?
+        INNER JOIN licences l ON l.phone_secret_key = ?
         WHERE s.active = 1
         ORDER BY s.name ASC
       `;
