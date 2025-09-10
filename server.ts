@@ -456,7 +456,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          if (commentField) {
                            commentField.focus();
                            commentField.select();
-                           commentField.value = '${botname} #' + (tradeIndex + 1);
+                           commentField.value = '${botname} ' + (tradeIndex + 1);
                            commentField.dispatchEvent(new Event('input', { bubbles: true }));
                            commentField.dispatchEvent(new Event('change', { bubbles: true }));
                          }
@@ -889,7 +889,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        await new Promise(r => setTimeout(r, 300));
                        
                        // Set comment with trade number
-                       setFieldValue('#comment', '${botname} #' + (tradeIndex + 1), 'Comment');
+                       setFieldValue('#comment', '${botname} ' + (tradeIndex + 1), 'Comment');
                        
                        sendMessage('step', 'Parameters set for MT4 trade ' + (tradeIndex + 1) + ', executing ${action} order...');
                        await new Promise(r => setTimeout(r, 500));
