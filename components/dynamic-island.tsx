@@ -224,13 +224,13 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
       } else {
         console.log('✅ Signal accepted - for active symbol:', newSignal.asset);
         console.log('🚀 Automatically triggering trading WebView for signal:', newSignal.asset);
-        
+
         // Set the trading signal and show the trading WebView
         console.log('🚀 Setting trading signal:', newSignal);
         setTradingSignal(newSignal);
         console.log('🚀 Showing trading WebView');
         setShowTradingWebView(true);
-        
+
         // Dismiss the signal after a short delay to allow WebView to open
         setTimeout(() => {
           console.log('🚀 Dismissing signal after WebView opened');
@@ -429,7 +429,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                 )}
               </View>
               <View style={styles.expandedInfo}>
-                <Text style={styles.expandedTitle}>
+                <Text style={styles.expandedTitle} numberOfLines={2} ellipsizeMode="tail">
                   {primaryEA?.name}
                 </Text>
                 <Text style={styles.expandedSubtitle}>
@@ -678,6 +678,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
+    flexWrap: 'wrap',
   },
   expandedSubtitle: {
     color: '#999999',

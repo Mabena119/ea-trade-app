@@ -136,7 +136,7 @@ export default function HomeScreen() {
               />
               <View style={styles.topSection}>
                 <View style={styles.titleBlock}>
-                  <Text testID="ea-title" style={styles.botMainName}>{primaryEA.name}</Text>
+                  <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name}</Text>
                 </View>
               </View>
 
@@ -225,7 +225,7 @@ export default function HomeScreen() {
                         </View>
                       )}
                     </View>
-                    <Text style={styles.botName}>{ea.name}</Text>
+                    <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name}</Text>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -382,6 +382,8 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+    textAlign: 'center',
+    flexWrap: 'wrap',
   },
   botDescription: {
     color: '#CCCCCC',
@@ -550,6 +552,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    flex: 1,
+    flexWrap: 'wrap',
+    numberOfLines: 2,
   },
   addEAButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',

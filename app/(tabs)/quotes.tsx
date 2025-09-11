@@ -252,7 +252,7 @@ export default function QuotesScreen() {
             )}
           </View>
           {primaryEA && (
-            <Text style={styles.botName}>{primaryEA.name}</Text>
+            <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{primaryEA.name}</Text>
           )}
           {apiSymbols.length > 0 && (
             <Text style={styles.symbolCount}>{apiSymbols.length} symbols available</Text>
@@ -415,6 +415,8 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     fontSize: 12,
     fontWeight: '500',
+    flex: 1,
+    flexWrap: 'wrap',
   },
   content: {
     flex: 1,
