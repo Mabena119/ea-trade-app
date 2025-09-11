@@ -1943,7 +1943,7 @@ export default function MetaTraderScreen() {
                         disabled={isLoadingBrokers}
                       >
                         <RefreshCw
-                          color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'}
+                          color="#FFFFFF"
                           size={16}
                           style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
                         />
@@ -1964,7 +1964,7 @@ export default function MetaTraderScreen() {
                 )}
                 {isLoadingBrokers && (
                   <View style={styles.loadingBrokersContainer}>
-                    <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
+                    <ActivityIndicator color="#FFFFFF" size="small" />
                     <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
                   </View>
                 )}

@@ -2,7 +2,7 @@ export default {
   primary: '#DC2626',
   secondary: '#000000',
   background: '#000000',
-  surface: '#FFFFFF',
+  surface: '#1a1a1a',
   text: '#FFFFFF',
   textSecondary: '#CCCCCC',
   border: '#333333',

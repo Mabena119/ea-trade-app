@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   splashStartButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#DC2626',
     paddingHorizontal: 60,
     paddingVertical: 16,
     borderRadius: 8,
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   tradeButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#DC2626',
   },
   secondaryButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
