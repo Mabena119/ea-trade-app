@@ -10,7 +10,8 @@
     "newArchEnabled": true,
     "statusBar": {
       "style": "light",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#000000",
+      "translucent": false
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -22,7 +23,8 @@
       "bundleIdentifier": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
       "statusBar": {
         "style": "light",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#000000",
+        "translucent": false
       },
       "infoPlist": {
         "NSAppTransportSecurity": {
@@ -59,7 +61,8 @@
       "package": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
       "statusBar": {
         "style": "light",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#000000",
+        "translucent": false
       }
     },
     "web": {
