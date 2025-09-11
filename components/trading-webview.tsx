@@ -1218,9 +1218,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           styles.toastContainer,
           {
             width: screenWidth - 40,
-            // Position toast at top when webview is hidden (background execution), bottom only when webview is visible (errors)
-            top: !error ? (Platform.OS === 'ios' ? 60 : 40) : undefined,
-            bottom: error ? (Platform.OS === 'ios' ? 100 : 80) : undefined,
+            // Position toast always at top since webview is never visible
+            top: Platform.OS === 'ios' ? 60 : 40,
           }
         ]}>
           <View style={styles.toastContent}>
@@ -1250,6 +1249,23 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               {loading && !tradeExecuted && !error && (
                 <ActivityIndicator size="small" color="#CCCCCC" />
               )}
+              {error && (
+                <TouchableOpacity
+                  style={styles.toastRetryButton}
+                  onPress={() => {
+                    setError(null);
+                    setLoading(true);
+                    setTradeExecuted(false);
+                    setCurrentStep('Retrying...');
+                    // Reload the WebView
+                    if (webViewRef.current) {
+                      webViewRef.current.reload();
+                    }
+                  }}
+                >
+                  <Text style={styles.toastRetryText}>Retry</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={styles.toastCloseButton}
                 onPress={() => {
@@ -1278,67 +1294,24 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* WebView for trading execution - Hidden during trading (background execution), only visible for errors */}
+      {/* WebView for trading execution - ALWAYS hidden in background, never visible */}
       {visible && (
-        <View style={error ? styles.webViewContainer : styles.hiddenWebViewContainer}>
-          {/* Close button - only show when webview is visible (errors) */}
-          {error && (
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => {
-                // For MT5, cleanup before closing
-                if (tradeConfig?.platform === 'MT5') {
-                  cleanupMT5WebView();
-                  setTimeout(() => {
-                    onClose();
-                  }, 600);
-                } else {
-                  onClose();
-                }
-              }}
-            >
-              <X color="#FFFFFF" size={24} />
-            </TouchableOpacity>
-          )}
-
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorTitle}>Trading Error</Text>
-              <Text style={styles.errorMessage}>{error}</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={() => {
-                  setError(null);
-                  setLoading(true);
-                  setTradeExecuted(false);
-                  setCurrentStep('Retrying...');
-                  // Reload the WebView
-                  if (webViewRef.current) {
-                    webViewRef.current.reload();
-                  }
-                }}
-              >
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.hiddenWebViewContainer}>
+          {/* WebView always runs hidden in background */}
+          {Platform.OS === 'web' ? (
+            <WebWebView
+              url={webViewUrl}
+              onMessage={handleWebViewMessage}
+              onLoadEnd={handleWebViewLoad}
+              style={styles.hiddenWebView}
+            />
           ) : (
-            <>
-              {Platform.OS === 'web' ? (
-                <WebWebView
-                  url={webViewUrl}
-                  onMessage={handleWebViewMessage}
-                  onLoadEnd={handleWebViewLoad}
-                  style={error ? styles.webView : styles.hiddenWebView}
-                />
-              ) : (
-                <CustomWebView
-                  url={webViewUrl}
-                  onMessage={handleWebViewMessage}
-                  onLoadEnd={handleWebViewLoad}
-                  style={error ? styles.webView : styles.hiddenWebView}
-                />
-              )}
-            </>
+            <CustomWebView
+              url={webViewUrl}
+              onMessage={handleWebViewMessage}
+              onLoadEnd={handleWebViewLoad}
+              style={styles.hiddenWebView}
+            />
           )}
         </View>
       )}
@@ -1347,7 +1320,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 }
 
 const styles = StyleSheet.create({
-  // Dynamic Toast Styles - Top when webview hidden (background execution), bottom when webview visible (errors)
+  // Toast Styles - Always at top since webview is never visible
   toastContainer: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 100 : 80, // Default to bottom
@@ -1404,6 +1377,18 @@ const styles = StyleSheet.create({
   toastRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  toastRetryButton: {
+    backgroundColor: '#00FF00',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  toastRetryText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '600',
   },
   toastCloseButton: {
     width: 28,
