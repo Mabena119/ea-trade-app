@@ -2032,71 +2032,97 @@ export default function MetaTraderScreen() {
         </View>
       </ScrollView>
 
-      {/* MT5 WebView Modal */}
+      {/* MT5 Authentication Toast */}
       {showMT5WebView && (
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>MT5 RazorMarkets Terminal</Text>
-              <TouchableOpacity onPress={closeMT5WebView}>
-                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
-              </TouchableOpacity>
+        <View style={styles.authToastContainer}>
+          <View style={styles.authToastContent}>
+            <View style={styles.authToastLeft}>
+              <View style={styles.authToastIcon}>
+                <ActivityIndicator size="small" color="#00FF00" />
+              </View>
+              <View style={styles.authToastInfo}>
+                <Text style={styles.authToastTitle}>MT5 Authentication</Text>
+                <Text style={styles.authToastStatus}>
+                  {authenticationStep || 'Connecting to RazorMarkets...'}
+                </Text>
+              </View>
             </View>
-            {Platform.OS === 'web' ? (
-              <View style={styles.webViewContainer}>
-                <WebWebView
-                  url={`/api/mt5-proxy?url=${encodeURIComponent('https://webtrader.razormarkets.co.za/terminal')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`}
-                  onMessage={onMT5WebViewMessage}
-                  onLoadEnd={() => console.log('MT5 Web WebView loaded')}
-                  style={styles.webView}
-                />
-              </View>
-            ) : (
-              <View style={styles.webViewContainer}>
-                <CustomWebView
-                  url="https://webtrader.razormarkets.co.za/terminal"
-                  script={getMT5Script()}
-                  onMessage={onMT5WebViewMessage}
-                  onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
-                  style={styles.webView}
-                />
-              </View>
-            )}
+            <TouchableOpacity
+              style={styles.authToastCloseButton}
+              onPress={closeMT5WebView}
+            >
+              <X color="#FFFFFF" size={16} />
+            </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* MT4 WebView Modal */}
+      {/* MT5 WebView - Completely invisible, runs in background */}
+      {showMT5WebView && (
+        <View style={styles.invisibleWebViewContainer}>
+          {Platform.OS === 'web' ? (
+            <WebWebView
+              url={`/api/mt5-proxy?url=${encodeURIComponent('https://webtrader.razormarkets.co.za/terminal')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`}
+              onMessage={onMT5WebViewMessage}
+              onLoadEnd={() => console.log('MT5 Web WebView loaded')}
+              style={styles.invisibleWebView}
+            />
+          ) : (
+            <CustomWebView
+              url="https://webtrader.razormarkets.co.za/terminal"
+              script={getMT5Script()}
+              onMessage={onMT5WebViewMessage}
+              onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
+              style={styles.invisibleWebView}
+            />
+          )}
+        </View>
+      )}
+
+      {/* MT4 Authentication Toast */}
       {showMT4WebView && (
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>MT4 MetaTrader Web Terminal</Text>
-              <TouchableOpacity onPress={closeMT4WebView}>
-                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
-              </TouchableOpacity>
+        <View style={styles.authToastContainer}>
+          <View style={styles.authToastContent}>
+            <View style={styles.authToastLeft}>
+              <View style={styles.authToastIcon}>
+                <ActivityIndicator size="small" color="#00FF00" />
+              </View>
+              <View style={styles.authToastInfo}>
+                <Text style={styles.authToastTitle}>MT4 Authentication</Text>
+                <Text style={styles.authToastStatus}>
+                  {authenticationStep || 'Connecting to MetaTrader...'}
+                </Text>
+              </View>
             </View>
-            {Platform.OS === 'web' ? (
-              <View style={styles.webViewContainer}>
-                <WebWebView
-                  url={`/api/mt4-proxy?url=${encodeURIComponent('https://metatraderweb.app/trade?version=4')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&server=${encodeURIComponent(server)}`}
-                  onMessage={onMT4WebViewMessage}
-                  onLoadEnd={() => console.log('MT4 Web WebView loaded')}
-                  style={styles.webView}
-                />
-              </View>
-            ) : (
-              <View style={styles.webViewContainer}>
-                <CustomWebView
-                  url="https://metatraderweb.app/trade?version=4"
-                  script={getMT4Script()}
-                  onMessage={onMT4WebViewMessage}
-                  onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
-                  style={styles.webView}
-                />
-              </View>
-            )}
+            <TouchableOpacity
+              style={styles.authToastCloseButton}
+              onPress={closeMT4WebView}
+            >
+              <X color="#FFFFFF" size={16} />
+            </TouchableOpacity>
           </View>
+        </View>
+      )}
+
+      {/* MT4 WebView - Completely invisible, runs in background */}
+      {showMT4WebView && (
+        <View style={styles.invisibleWebViewContainer}>
+          {Platform.OS === 'web' ? (
+            <WebWebView
+              url={`/api/mt4-proxy?url=${encodeURIComponent('https://metatraderweb.app/trade?version=4')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&server=${encodeURIComponent(server)}`}
+              onMessage={onMT4WebViewMessage}
+              onLoadEnd={() => console.log('MT4 Web WebView loaded')}
+              style={styles.invisibleWebView}
+            />
+          ) : (
+            <CustomWebView
+              url="https://metatraderweb.app/trade?version=4"
+              script={getMT4Script()}
+              onMessage={onMT4WebViewMessage}
+              onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
+              style={styles.invisibleWebView}
+            />
+          )}
         </View>
       )}
     </SafeAreaView>
@@ -2572,5 +2598,92 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
+  },
+
+  // Authentication Toast Styles
+  authToastContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 10000,
+    zIndex: 10000,
+  },
+  authToastContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  authToastLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  authToastIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 255, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  authToastInfo: {
+    flex: 1,
+  },
+  authToastTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  authToastStatus: {
+    color: '#CCCCCC',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  authToastCloseButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+
+  // Invisible WebView Styles - Completely invisible and non-interactive
+  invisibleWebViewContainer: {
+    position: 'absolute',
+    top: -10000, // Move completely off-screen
+    left: -10000,
+    width: 1, // Minimal size
+    height: 1,
+    opacity: 0, // Completely transparent
+    zIndex: -10000, // Far behind everything
+    overflow: 'hidden',
+    pointerEvents: 'none', // Disable all touch events
+    elevation: -10000, // Android: behind everything
+  },
+  invisibleWebView: {
+    width: 1,
+    height: 1,
+    opacity: 0,
+    backgroundColor: 'transparent',
+    pointerEvents: 'none', // Disable all touch events
+    elevation: -10000, // Android: behind everything
   },
 });
