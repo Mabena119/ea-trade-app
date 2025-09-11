@@ -21,8 +21,11 @@ COPY . .
 # Build static web export to dist/ using Node (avoids Bun sideEffects warning)
 RUN node ./node_modules/.bin/expo export --platform web
 
-# Remove build tools and Node to slim image
-RUN apk del python3 make g++ nodejs npm
+# Run post-build script to set up PWA manifest and icons
+RUN node scripts/post-build.js
+
+# Remove build tools and Node to slim image (keep nodejs for post-build script)
+RUN apk del python3 make g++
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
