@@ -38,13 +38,13 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
 
     const handleLoad = () => {
       console.log('Fallback WebView iframe loaded');
-      
+
       // Clear timeout since iframe loaded successfully
       if (proxyTimeout) {
         clearTimeout(proxyTimeout);
         setProxyTimeout(null);
       }
-      
+
       // Check if iframe content is actually loaded by trying to access it
       setTimeout(() => {
         try {
@@ -66,7 +66,7 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
           console.log('CORS error accessing iframe content:', e);
         }
       }, 2000);
-      
+
       if (onLoadEnd) {
         onLoadEnd();
       }
@@ -86,7 +86,7 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
         try {
           const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
           console.log('Fallback WebView message received:', data);
-          
+
           if (onMessage) {
             onMessage(data);
           }
@@ -106,7 +106,7 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
         iframe.removeEventListener('error', handleError);
       }
       window.removeEventListener('message', handleMessage);
-      
+
       // Clear timeout on cleanup
       if (proxyTimeout) {
         clearTimeout(proxyTimeout);
@@ -150,7 +150,7 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
       {useProxy && !proxyError && (
         <View style={styles.loadingBanner}>
           <Text style={styles.loadingText}>Loading terminal with JavaScript injection...</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.fallbackButton}
             onPress={() => {
               console.log('Manual fallback triggered');
@@ -179,46 +179,48 @@ const FallbackWebView: React.FC<FallbackWebViewProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
   },
   iframe: {
     width: '100%',
     height: '100%',
     border: 'none',
+    backgroundColor: '#000000',
   },
   errorBanner: {
-    backgroundColor: '#ffebee',
+    backgroundColor: '#1a1a1a',
     padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f44336',
+    borderBottomColor: '#DC2626',
   },
   errorText: {
-    color: '#d32f2f',
+    color: '#FF4444',
     fontSize: 12,
     textAlign: 'center',
   },
   loadingBanner: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#1a1a1a',
     padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#2196f3',
+    borderBottomColor: '#333333',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   loadingText: {
-    color: '#1976d2',
+    color: '#CCCCCC',
     fontSize: 12,
     flex: 1,
   },
   fallbackButton: {
-    backgroundColor: '#ff9800',
+    backgroundColor: '#DC2626',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 4,
     marginLeft: 8,
   },
   fallbackButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: 'bold',
   },

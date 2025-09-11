@@ -254,7 +254,7 @@ const { width } = Dimensions.get('window');
 const styles = StyleSheet.create({
   splashContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   splashContent: {
     flex: 1,
@@ -269,27 +269,27 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#000000',
+    color: '#FFFFFF',
     marginTop: 16,
     letterSpacing: 2,
   },
   description: {
     fontSize: 14,
-    color: '#000000',
+    color: '#CCCCCC',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 60,
     paddingHorizontal: 20,
   },
   splashStartButton: {
-    backgroundColor: '#000000',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 60,
     paddingVertical: 16,
     borderRadius: 8,
     minWidth: 200,
   },
   startButtonText: {
-    color: '#FFFFFF',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',

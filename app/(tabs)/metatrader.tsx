@@ -2010,7 +2010,7 @@ export default function MetaTraderScreen() {
 
           <TouchableOpacity
             style={[
-              styles.linkButton, 
+              styles.linkButton,
               isAuthenticating && styles.linkButtonDisabled,
               activeTab === 'MT4' && styles.linkButtonComingSoon
             ]}
@@ -2146,7 +2146,7 @@ export default function MetaTraderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Platform.OS === 'ios' ? '#000000' : '#F5F5F5',
+    backgroundColor: '#000000',
   },
   content: {
     flex: 1,
@@ -2162,20 +2162,20 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#1a1a1a',
     marginHorizontal: 4,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#9CA3AF',
+    borderColor: '#333333',
   },
   activeTab: {
-    backgroundColor: '#9CA3AF',
-    borderColor: '#6B7280',
+    backgroundColor: '#333333',
+    borderColor: '#555555',
   },
   tabText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: '#CCCCCC',
   },
   activeTabText: {
     color: '#FFFFFF',
@@ -2203,7 +2203,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Platform.OS === 'ios' ? '#CCCCCC' : '#666666',
+    color: '#CCCCCC',
   },
   connectedText: {
     color: '#16A34A',
@@ -2229,28 +2229,28 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   form: {
     paddingHorizontal: 20,
   },
   input: {
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
-    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderColor: '#333333',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 16,
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
-    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderColor: '#333333',
     borderRadius: 8,
     marginBottom: 16,
   },
@@ -2259,19 +2259,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   eyeButton: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#333333',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#9CA3AF',
+    borderColor: '#555555',
     marginLeft: 8,
   },
   linkButton: {
-    backgroundColor: '#9CA3AF',
+    backgroundColor: '#333333',
     paddingVertical: 16,
     borderRadius: 8,
     marginTop: 20,
@@ -2287,7 +2287,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   linkButtonComingSoon: {
-    backgroundColor: '#6B7280', // Grey background
+    backgroundColor: '#1a1a1a', // Dark background
     opacity: 0.6,
   },
   comingSoonText: {
@@ -2319,9 +2319,9 @@ const styles = StyleSheet.create({
   serverInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
-    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderColor: '#333333',
     borderRadius: 8,
   },
   serverIcon: {
@@ -2332,15 +2332,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   clearButton: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#333333',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#9CA3AF',
+    borderColor: '#555555',
   },
   clearButtonText: {
     color: '#999999',
@@ -2352,9 +2352,9 @@ const styles = StyleSheet.create({
     top: 50,
     left: 0,
     right: 0,
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
-    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderColor: '#333333',
     borderRadius: 8,
     maxHeight: 300,
     shadowColor: '#000',
@@ -2373,19 +2373,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderBottomColor: '#333333',
   },
   brokerListTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   closeBrokerList: {
     padding: 4,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#333333',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#9CA3AF',
+    borderColor: '#555555',
   },
   closeBrokerListText: {
     color: '#999999',
@@ -2399,7 +2399,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#2A2A2A' : '#F0F0F0',
+    borderBottomColor: '#2A2A2A',
   },
   brokerItemContent: {
     flexDirection: 'row',
@@ -2420,13 +2420,13 @@ const styles = StyleSheet.create({
   brokerItemText: {
     flex: 1,
     fontSize: 14,
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   brokerItemType: {
     fontSize: 10,
     fontWeight: '600',
     color: '#999999',
-    backgroundColor: Platform.OS === 'ios' ? '#2A2A2A' : '#F0F0F0',
+    backgroundColor: '#2A2A2A',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -2439,7 +2439,7 @@ const styles = StyleSheet.create({
   noBrokersText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
     marginTop: 12,
   },
   noBrokersSubtext: {
@@ -2454,17 +2454,17 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     marginBottom: 20,
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#F8F9FA',
+    backgroundColor: '#1A1A1A',
     borderRadius: 8,
     marginHorizontal: 20,
     borderWidth: 1,
-    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderColor: '#333333',
   },
   authStatusDisplayText: {
     marginLeft: 12,
     fontSize: 14,
     fontWeight: '500',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   brokerListActions: {
     flexDirection: 'row',
@@ -2473,10 +2473,10 @@ const styles = StyleSheet.create({
   refreshButton: {
     padding: 4,
     marginRight: 8,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#333333',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#9CA3AF',
+    borderColor: '#555555',
   },
   refreshIcon: {
     opacity: 0.7,
@@ -2487,13 +2487,13 @@ const styles = StyleSheet.create({
   errorContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: Platform.OS === 'ios' ? '#DC2626' : '#FEE2E2',
+    backgroundColor: '#DC2626',
     borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderBottomColor: '#333333',
   },
   errorText: {
     fontSize: 12,
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#DC2626',
+    color: '#FFFFFF',
     textAlign: 'center',
   },
   loadingBrokersContainer: {
@@ -2502,12 +2502,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderBottomColor: '#333333',
   },
   loadingBrokersText: {
     marginLeft: 8,
     fontSize: 12,
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
   },
   brokerItemDisabled: {
     opacity: 0.5,
@@ -2520,13 +2520,13 @@ const styles = StyleSheet.create({
   },
   brokerItemTypeDisabled: {
     color: '#666666',
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#E0E0E0',
+    backgroundColor: '#1A1A1A',
   },
   disabledLabel: {
     fontSize: 8,
     fontWeight: '700',
     color: '#DC2626',
-    backgroundColor: Platform.OS === 'ios' ? '#2A2A2A' : '#FEE2E2',
+    backgroundColor: '#2A2A2A',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 3,
@@ -2535,16 +2535,16 @@ const styles = StyleSheet.create({
   accountDetailsContainer: {
     marginHorizontal: 20,
     marginBottom: 30,
-    backgroundColor: Platform.OS === 'ios' ? '#1A1A1A' : '#FFFFFF',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: Platform.OS === 'ios' ? '#333333' : '#E0E0E0',
+    borderColor: '#333333',
   },
   accountDetailsTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
     marginBottom: 12,
     textAlign: 'center',
     letterSpacing: 0.5,
@@ -2555,17 +2555,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Platform.OS === 'ios' ? '#2A2A2A' : '#F0F0F0',
+    borderBottomColor: '#2A2A2A',
   },
   accountDetailLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: Platform.OS === 'ios' ? '#CCCCCC' : '#666666',
+    color: '#CCCCCC',
   },
   accountDetailValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: Platform.OS === 'ios' ? '#FFFFFF' : '#000000',
+    color: '#FFFFFF',
     flex: 1,
     textAlign: 'right',
   },
@@ -2590,7 +2590,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 20,
     shadowColor: '#000',
@@ -2608,7 +2608,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000000',
+    color: '#FFFFFF',
   },
   modalButtonText: {
     color: '#FFFFFF',

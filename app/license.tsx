@@ -96,7 +96,7 @@ export default function LicenseScreen() {
       {hasActiveBots && (
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <ArrowLeft size={24} color="#000000" />
+            <ArrowLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       )}
@@ -161,7 +161,7 @@ export default function LicenseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   header: {
     paddingHorizontal: 16,
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   content: {
     flex: 1,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#000000',
+    color: '#FFFFFF',
     marginTop: 16,
   },
   form: {
@@ -197,15 +197,15 @@ const styles = StyleSheet.create({
     maxWidth: 300,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1a1a1a',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#333333',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 16,
-    color: '#000000',
+    color: '#FFFFFF',
   },
   activateButton: {
     backgroundColor: '#000000',
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 12,
-    color: '#666666',
+    color: '#CCCCCC',
     textAlign: 'center',
     marginTop: 12,
   },
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 20,
     shadowColor: '#000',
@@ -271,12 +271,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000000',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   modalMessage: {
     fontSize: 14,
-    color: '#333333',
+    color: '#CCCCCC',
     marginBottom: 16,
   },
   modalButton: {

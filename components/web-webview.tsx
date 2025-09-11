@@ -28,7 +28,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
       try {
         // Clear iframe content
         iframe.src = 'about:blank';
-        
+
         // Clear any stored data
         if (iframe.contentWindow) {
           try {
@@ -37,16 +37,16 @@ const WebWebView: React.FC<WebWebViewProps> = ({
             // CORS might prevent this, that's okay
           }
         }
-        
+
         // Remove the iframe from DOM
         iframe.remove();
-        
+
         console.log('WebView cache cleared and destroyed');
       } catch (error) {
         console.log('Error clearing WebView cache:', error);
       }
     }
-    
+
     if (onDestroy) {
       onDestroy();
     }
@@ -55,7 +55,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
   // Expose the clear function globally for external access
   useEffect(() => {
     (window as any).clearWebViewCache = clearCacheAndDestroy;
-    
+
     return () => {
       delete (window as any).clearWebViewCache;
     };
@@ -156,13 +156,13 @@ const WebWebView: React.FC<WebWebViewProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#000000',
   },
   iframe: {
     width: '100%',
     height: '100%',
     border: 'none',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#000000',
     display: 'block',
     visibility: 'visible',
     opacity: 1,
