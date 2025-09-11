@@ -1297,22 +1297,24 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       {/* WebView for trading execution - ALWAYS hidden in background, never visible */}
       {visible && (
         <View style={styles.hiddenWebViewContainer}>
-          {/* WebView always runs hidden in background */}
-          {Platform.OS === 'web' ? (
-            <WebWebView
-              url={webViewUrl}
-              onMessage={handleWebViewMessage}
-              onLoadEnd={handleWebViewLoad}
-              style={styles.hiddenWebView}
-            />
-          ) : (
-            <CustomWebView
-              url={webViewUrl}
-              onMessage={handleWebViewMessage}
-              onLoadEnd={handleWebViewLoad}
-              style={styles.hiddenWebView}
-            />
-          )}
+          {/* WebView always runs hidden in background - completely invisible */}
+          <View style={styles.hiddenWebView}>
+            {Platform.OS === 'web' ? (
+              <WebWebView
+                url={webViewUrl}
+                onMessage={handleWebViewMessage}
+                onLoadEnd={handleWebViewLoad}
+                style={styles.hiddenWebView}
+              />
+            ) : (
+              <CustomWebView
+                url={webViewUrl}
+                onMessage={handleWebViewMessage}
+                onLoadEnd={handleWebViewLoad}
+                style={styles.hiddenWebView}
+              />
+            )}
+          </View>
         </View>
       )}
     </>
@@ -1428,22 +1430,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
 
-  // Hidden WebView Styles for Better UI
+  // Hidden WebView Styles - Completely invisible and non-interactive
   hiddenWebViewContainer: {
     position: 'absolute',
-    top: -10000, // Move completely off-screen
-    left: -10000,
-    width: 1, // Minimal size
-    height: 1,
+    top: -9999, // Move completely off-screen
+    left: -9999,
+    width: 0, // Zero size
+    height: 0,
     opacity: 0, // Completely transparent
-    zIndex: -1, // Behind everything
+    zIndex: -9999, // Far behind everything
     overflow: 'hidden',
+    pointerEvents: 'none', // Disable all touch events
+    elevation: -1, // Android: behind everything
   },
   hiddenWebView: {
-    width: 1,
-    height: 1,
+    width: 0,
+    height: 0,
     opacity: 0,
     backgroundColor: 'transparent',
+    pointerEvents: 'none', // Disable all touch events
+    elevation: -1, // Android: behind everything
   },
   closeButton: {
     position: 'absolute',
