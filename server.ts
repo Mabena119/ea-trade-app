@@ -65,6 +65,9 @@ async function serveStatic(request: Request): Promise<Response> {
         case '.json':
           contentType = 'application/json; charset=utf-8';
           break;
+        case '.webmanifest':
+          contentType = 'application/manifest+json; charset=utf-8';
+          break;
         case '.png':
           contentType = 'image/png';
           break;
