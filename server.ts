@@ -531,7 +531,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        if (success) {
                          completedTrades++;
                          console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
-                         sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
+                         sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! (' + completedTrades + '/' + numberOfTrades + ' completed)');
                          
                          // CRITICAL: Check if we've reached the target
                          if (completedTrades >= numberOfTrades) {
@@ -1019,7 +1019,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      if (success) {
                        completedTrades++;
                        console.log('MT4 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
-                       sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
+                       sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! (' + completedTrades + '/' + numberOfTrades + ' completed)');
                        
                        // CRITICAL: Check if we've reached the target
                        if (completedTrades >= numberOfTrades) {
