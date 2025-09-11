@@ -531,7 +531,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        if (success) {
                          completedTrades++;
                          console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
-                         sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                         sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
                          
                          // CRITICAL: Check if we've reached the target
                          if (completedTrades >= numberOfTrades) {
@@ -542,7 +542,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          
                          // Wait between trades (only if we haven't reached the target)
                          if (completedTrades < numberOfTrades) {
-                           sendMessage('step', 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                           sendMessage('step', 'Waiting before next trade... (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
                            await new Promise(r => setTimeout(r, 2000));
                          }
                        } else {
@@ -1019,7 +1019,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      if (success) {
                        completedTrades++;
                        console.log('MT4 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
-                       sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                       sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
                        
                        // CRITICAL: Check if we've reached the target
                        if (completedTrades >= numberOfTrades) {
@@ -1030,7 +1030,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        
                        // Wait between trades (only if we haven't reached the target)
                        if (completedTrades < numberOfTrades) {
-                         sendMessage('step', 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                         sendMessage('step', 'Waiting before next MT4 trade... (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
                          await new Promise(r => setTimeout(r, 2000));
                        }
                      } else {
