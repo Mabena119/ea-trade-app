@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Play, Square, TrendingUp, Trash2, Plus, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -98,7 +98,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {primaryEA ? (
           <View style={styles.mainEAContainer}>
@@ -245,7 +245,7 @@ export default function HomeScreen() {
         </View>
 
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   splashStartButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 60,
     paddingVertical: 16,
     borderRadius: 8,
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   tradeButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#FFFFFF',
   },
   secondaryButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#DC2626',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,

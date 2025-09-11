@@ -314,7 +314,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <AppProvider>
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: Platform.OS === 'ios' ? '#000000' : undefined }}>
-          <StatusBar style="dark" backgroundColor="#000000" />
+          <StatusBar style="light" backgroundColor="#000000" />
           <RootLayoutNav />
         </GestureHandlerRootView>
       </AppProvider>
