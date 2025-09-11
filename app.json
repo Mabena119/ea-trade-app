@@ -51,7 +51,41 @@
       "package": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w"
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "EA Converter",
+      "shortName": "EA Converter",
+      "startUrl": "/",
+      "display": "standalone",
+      "orientation": "portrait",
+      "themeColor": "#000000",
+      "backgroundColor": "#000000",
+      "description": "Automated Forex Trading EA Converter App",
+      "scope": "/",
+      "lang": "en",
+      "categories": ["finance", "business", "productivity"],
+      "icons": [
+        {
+          "src": "./assets/images/icon.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
+        },
+        {
+          "src": "./assets/images/adaptive-icon.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any maskable"
+        }
+      ],
+      "screenshots": [
+        {
+          "src": "./assets/images/icon.png",
+          "sizes": "1280x720",
+          "type": "image/png",
+          "formFactor": "wide"
+        }
+      ],
+      "relatedApplications": []
     },
     "plugins": [
       "expo-router"
