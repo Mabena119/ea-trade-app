@@ -1218,8 +1218,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           styles.toastContainer,
           {
             width: screenWidth - 40,
-            // Position toast always at top since webview is never visible
-            top: Platform.OS === 'ios' ? 60 : 40,
+            // Position toast at top of screen, above menu
+            top: Platform.OS === 'ios' ? 50 : 30,
           }
         ]}>
           <View style={styles.toastContent}>
@@ -1294,27 +1294,24 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* WebView for trading execution - ALWAYS hidden in background, never visible */}
+      {/* WebView for trading execution - Completely invisible, runs in background */}
       {visible && (
-        <View style={styles.hiddenWebViewContainer}>
-          {/* WebView always runs hidden in background - completely invisible */}
-          <View style={styles.hiddenWebView}>
-            {Platform.OS === 'web' ? (
-              <WebWebView
-                url={webViewUrl}
-                onMessage={handleWebViewMessage}
-                onLoadEnd={handleWebViewLoad}
-                style={styles.hiddenWebView}
-              />
-            ) : (
-              <CustomWebView
-                url={webViewUrl}
-                onMessage={handleWebViewMessage}
-                onLoadEnd={handleWebViewLoad}
-                style={styles.hiddenWebView}
-              />
-            )}
-          </View>
+        <View style={styles.invisibleWebViewContainer}>
+          {Platform.OS === 'web' ? (
+            <WebWebView
+              url={webViewUrl}
+              onMessage={handleWebViewMessage}
+              onLoadEnd={handleWebViewLoad}
+              style={styles.invisibleWebView}
+            />
+          ) : (
+            <CustomWebView
+              url={webViewUrl}
+              onMessage={handleWebViewMessage}
+              onLoadEnd={handleWebViewLoad}
+              style={styles.invisibleWebView}
+            />
+          )}
         </View>
       )}
     </>
@@ -1322,10 +1319,9 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 }
 
 const styles = StyleSheet.create({
-  // Toast Styles - Always at top since webview is never visible
+  // Toast Styles - Clean positioning at top of screen
   toastContainer: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 100 : 80, // Default to bottom
     left: 20,
     right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
@@ -1337,10 +1333,10 @@ const styles = StyleSheet.create({
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 12,
-    zIndex: 10001, // Higher z-index for better visibility
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 10000, // Very high elevation to stay on top
+    zIndex: 10000, // Highest z-index to appear above everything
   },
   toastContent: {
     flexDirection: 'row',
@@ -1430,26 +1426,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
 
-  // Hidden WebView Styles - Completely invisible and non-interactive
-  hiddenWebViewContainer: {
+  // Invisible WebView Styles - Completely invisible and non-interactive
+  invisibleWebViewContainer: {
     position: 'absolute',
-    top: -9999, // Move completely off-screen
-    left: -9999,
-    width: 0, // Zero size
-    height: 0,
+    top: -10000, // Move completely off-screen
+    left: -10000,
+    width: 1, // Minimal size
+    height: 1,
     opacity: 0, // Completely transparent
-    zIndex: -9999, // Far behind everything
+    zIndex: -10000, // Far behind everything
     overflow: 'hidden',
     pointerEvents: 'none', // Disable all touch events
-    elevation: -1, // Android: behind everything
+    elevation: -10000, // Android: behind everything
   },
-  hiddenWebView: {
-    width: 0,
-    height: 0,
+  invisibleWebView: {
+    width: 1,
+    height: 1,
     opacity: 0,
     backgroundColor: 'transparent',
     pointerEvents: 'none', // Disable all touch events
-    elevation: -1, // Android: behind everything
+    elevation: -10000, // Android: behind everything
   },
   closeButton: {
     position: 'absolute',
