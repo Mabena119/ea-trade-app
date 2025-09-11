@@ -2009,15 +2009,29 @@ export default function MetaTraderScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.linkButton, isAuthenticating && styles.linkButtonDisabled]}
-            onPress={handleLinkAccount}
-            disabled={isAuthenticating}
+            style={[
+              styles.linkButton, 
+              isAuthenticating && styles.linkButtonDisabled,
+              activeTab === 'MT4' && styles.linkButtonComingSoon
+            ]}
+            onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
+            disabled={isAuthenticating || activeTab === 'MT4'}
           >
             {isAuthenticating ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator color="#FFFFFF" size="small" />
                 <Text style={styles.linkButtonText}>
                   AUTHENTICATING...
+                </Text>
+              </View>
+            ) : activeTab === 'MT4' ? (
+              <View style={styles.buttonContent}>
+                <Shield color="#999999" size={16} style={styles.buttonIcon} />
+                <Text style={styles.linkButtonText}>
+                  LINK MT4 ACCOUNT DETAILS
+                </Text>
+                <Text style={styles.comingSoonText}>
+                  COMING SOON
                 </Text>
               </View>
             ) : (
@@ -2271,6 +2285,17 @@ const styles = StyleSheet.create({
   },
   linkButtonDisabled: {
     opacity: 0.7,
+  },
+  linkButtonComingSoon: {
+    backgroundColor: '#6B7280', // Grey background
+    opacity: 0.6,
+  },
+  comingSoonText: {
+    color: '#FF4444', // Red color
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginLeft: 8,
   },
   loadingContainer: {
     flexDirection: 'row',
