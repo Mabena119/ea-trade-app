@@ -387,27 +387,67 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 }
                 };
                
-                 // Trading execution function with STRICT trade count control
+                 // Enhanced Trading execution function with comprehensive validation and logging
                  const executeTrading = async () => {
                    try {
                      const numberOfTrades = parseInt('${numberOfTrades}') || 1;
                      let completedTrades = 0;
                      let failedTrades = 0;
+                     const executionStartTime = new Date().toISOString();
+                     const tradeExecutionLog = [];
                      
-                     // STRICT VALIDATION: Ensure numberOfTrades is valid
+                     // COMPREHENSIVE VALIDATION
                      if (numberOfTrades < 1 || numberOfTrades > 10) {
                        sendMessage('error', 'Invalid number of trades: ' + numberOfTrades + '. Must be between 1 and 10.');
                        return;
                      }
                      
-                     sendMessage('step', 'Starting STRICT execution of EXACTLY ' + numberOfTrades + ' trade(s) for ${asset}...');
-                     console.log('MT5 Trading: STRICT MODE - Target: EXACTLY', numberOfTrades, 'trades');
+                     // Validate required parameters
+                     if (!'${asset}' || !'${action}' || !'${volume}' || !'${tp}' || !'${sl}') {
+                       sendMessage('error', 'Missing required trading parameters. Please check asset, action, volume, TP, and SL.');
+                       return;
+                     }
                      
-                     // Function to execute a single trade with enhanced tracking
+                     // Log execution start
+                     const executionId = 'MT5_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                     console.log('MT5 Trading: EXECUTION STARTED', {
+                       executionId,
+                       asset: '${asset}',
+                       action: '${action}',
+                       numberOfTrades,
+                       volume: '${volume}',
+                       tp: '${tp}',
+                       sl: '${sl}',
+                       botname: '${botname}',
+                       startTime: executionStartTime
+                     });
+                     
+                     sendMessage('step', 'Starting ENHANCED execution of EXACTLY ' + numberOfTrades + ' trade(s) for ${asset}...');
+                     console.log('MT5 Trading: ENHANCED MODE - Target: EXACTLY', numberOfTrades, 'trades');
+                     
+                     // Enhanced function to execute a single trade with comprehensive tracking
                      const executeSingleTrade = async (tradeIndex) => {
+                       const tradeStartTime = new Date().toISOString();
+                       const tradeId = executionId + '_TRADE_' + (tradeIndex + 1);
+                       
                        try {
-                         console.log('MT5 Trading: Starting trade', (tradeIndex + 1), 'of', numberOfTrades);
+                         console.log('MT5 Trading: Starting trade', (tradeIndex + 1), 'of', numberOfTrades, '| Trade ID:', tradeId);
                          sendMessage('step', 'Executing trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
+                         
+                         // Log trade attempt
+                         const tradeLog = {
+                           tradeId,
+                           tradeIndex: tradeIndex + 1,
+                           totalTrades: numberOfTrades,
+                           asset: '${asset}',
+                           action: '${action}',
+                           volume: '${volume}',
+                           tp: '${tp}',
+                           sl: '${sl}',
+                           startTime: tradeStartTime,
+                           status: 'STARTING'
+                         };
+                         tradeExecutionLog.push(tradeLog);
                          
                          // Search for the specific asset
                          const searchField = document.querySelector('input[placeholder="Search symbol"]');
@@ -492,21 +532,61 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                            const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0');
                            if (confirmButton) {
                              confirmButton.click();
+                             
+                             // Update trade log with success
+                             const tradeEndTime = new Date().toISOString();
+                             const successLog = tradeExecutionLog.find(log => log.tradeId === tradeId);
+                             if (successLog) {
+                               successLog.status = 'COMPLETED';
+                               successLog.endTime = tradeEndTime;
+                               successLog.duration = new Date(tradeEndTime) - new Date(tradeStartTime);
+                             }
+                             
                              sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
                              await new Promise(r => setTimeout(r, 2000));
-                             console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed successfully');
+                             console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed successfully | Trade ID:', tradeId);
                              return true;
                            } else {
-                             console.log('MT5 Trading: Confirm button not found for trade', (tradeIndex + 1));
+                             // Update trade log with failure
+                             const tradeEndTime = new Date().toISOString();
+                             const failLog = tradeExecutionLog.find(log => log.tradeId === tradeId);
+                             if (failLog) {
+                               failLog.status = 'FAILED';
+                               failLog.endTime = tradeEndTime;
+                               failLog.duration = new Date(tradeEndTime) - new Date(tradeStartTime);
+                               failLog.error = 'Confirm button not found';
+                             }
+                             
+                             console.log('MT5 Trading: Confirm button not found for trade', (tradeIndex + 1), '| Trade ID:', tradeId);
                              return false;
                            }
                          } else {
-                           console.log('MT5 Trading: Execute button not found for trade', (tradeIndex + 1));
+                           // Update trade log with failure
+                           const tradeEndTime = new Date().toISOString();
+                           const failLog = tradeExecutionLog.find(log => log.tradeId === tradeId);
+                           if (failLog) {
+                             failLog.status = 'FAILED';
+                             failLog.endTime = tradeEndTime;
+                             failLog.duration = new Date(tradeEndTime) - new Date(tradeStartTime);
+                             failLog.error = 'Execute button not found';
+                           }
+                           
+                           console.log('MT5 Trading: Execute button not found for trade', (tradeIndex + 1), '| Trade ID:', tradeId);
                            return false;
                          }
                          
                        } catch (error) {
-                         console.log('MT5 Trading: Trade', (tradeIndex + 1), 'failed:', error.message);
+                         // Update trade log with error
+                         const tradeEndTime = new Date().toISOString();
+                         const errorLog = tradeExecutionLog.find(log => log.tradeId === tradeId);
+                         if (errorLog) {
+                           errorLog.status = 'ERROR';
+                           errorLog.endTime = tradeEndTime;
+                           errorLog.duration = new Date(tradeEndTime) - new Date(tradeStartTime);
+                           errorLog.error = error.message;
+                         }
+                         
+                         console.log('MT5 Trading: Trade', (tradeIndex + 1), 'failed:', error.message, '| Trade ID:', tradeId);
                          sendMessage('error', 'Trade ' + (tradeIndex + 1) + ' failed: ' + error.message);
                          return false;
                        }
@@ -531,7 +611,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        if (success) {
                          completedTrades++;
                          console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
-                         sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
+                         sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
                          
                          // CRITICAL: Check if we've reached the target
                          if (completedTrades >= numberOfTrades) {
@@ -542,7 +622,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          
                          // Wait between trades (only if we haven't reached the target)
                          if (completedTrades < numberOfTrades) {
-                           sendMessage('step', 'Waiting before next trade... (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
+                           sendMessage('step', 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
                            await new Promise(r => setTimeout(r, 2000));
                          }
                        } else {
@@ -560,18 +640,38 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        console.log('MT5 Trading: STATUS - Completed:', completedTrades, 'Target:', numberOfTrades, 'Current:', currentTradeNumber);
                      }
                      
-                     // Final verification
+                     // Final verification and comprehensive logging
+                     const executionEndTime = new Date().toISOString();
+                     const totalDuration = new Date(executionEndTime) - new Date(executionStartTime);
+                     
                      console.log('MT5 Trading: EXECUTION COMPLETED - Final count:', completedTrades, 'trades completed out of', numberOfTrades, 'target');
                      
-                     // Final summary with detailed tracking
-                     console.log('MT5 Trading: Final summary - Completed:', completedTrades, 'Failed:', failedTrades, 'Total:', numberOfTrades);
-                     sendMessage('trade_executed', 'All trades completed: ' + completedTrades + ' of ' + numberOfTrades + ' successful for ${asset}');
+                     // Comprehensive execution summary
+                     const executionSummary = {
+                       executionId,
+                       asset: '${asset}',
+                       action: '${action}',
+                       totalTrades: numberOfTrades,
+                       completedTrades,
+                       failedTrades,
+                       successRate: ((completedTrades / numberOfTrades) * 100).toFixed(2) + '%',
+                       startTime: executionStartTime,
+                       endTime: executionEndTime,
+                       totalDuration: totalDuration + 'ms',
+                       tradeLogs: tradeExecutionLog
+                     };
                      
-                     // Close after completing all trades
+                     console.log('MT5 Trading: COMPREHENSIVE EXECUTION SUMMARY:', executionSummary);
+                     
+                     // Send detailed summary message
+                     const summaryMessage = \`Execution Complete: \${completedTrades}/\${numberOfTrades} trades successful (\${executionSummary.successRate} success rate) for \${'${asset}'}\`;
+                     sendMessage('trade_executed', summaryMessage);
+                     
+                     // Close after completing all trades with enhanced messaging
                      if (completedTrades === numberOfTrades) {
-                       sendMessage('close', 'All ' + numberOfTrades + ' trades executed successfully - closing window');
+                       sendMessage('close', \`All \${numberOfTrades} trades executed successfully - closing window\`);
                      } else if (completedTrades > 0) {
-                       sendMessage('close', 'Partial completion: ' + completedTrades + ' of ' + numberOfTrades + ' trades executed - closing window');
+                       sendMessage('close', \`Partial completion: \${completedTrades} of \${numberOfTrades} trades executed - closing window\`);
                      } else {
                        sendMessage('close', 'No trades executed successfully - closing window');
                      }
@@ -890,27 +990,67 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                 }
               };
               
-               // Trading execution function for MT4 with STRICT trade count control
+               // Enhanced Trading execution function for MT4 with comprehensive validation and logging
                const executeTrading = async () => {
                  try {
                    const numberOfTrades = parseInt('${numberOfTrades}') || 1;
                    let completedTrades = 0;
                    let failedTrades = 0;
+                   const executionStartTime = new Date().toISOString();
+                   const tradeExecutionLog = [];
                    
-                   // STRICT VALIDATION: Ensure numberOfTrades is valid
+                   // COMPREHENSIVE VALIDATION
                    if (numberOfTrades < 1 || numberOfTrades > 10) {
                      sendMessage('error', 'Invalid number of trades: ' + numberOfTrades + '. Must be between 1 and 10.');
                      return;
                    }
                    
-                   sendMessage('step', 'Starting STRICT execution of EXACTLY ' + numberOfTrades + ' MT4 trade(s) for ${asset}...');
-                   console.log('MT4 Trading: STRICT MODE - Target: EXACTLY', numberOfTrades, 'trades');
+                   // Validate required parameters
+                   if (!'${asset}' || !'${action}' || !'${volume}' || !'${tp}' || !'${sl}') {
+                     sendMessage('error', 'Missing required trading parameters. Please check asset, action, volume, TP, and SL.');
+                     return;
+                   }
                    
-                   // Function to execute a single MT4 trade with enhanced tracking
+                   // Log execution start
+                   const executionId = 'MT4_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                   console.log('MT4 Trading: EXECUTION STARTED', {
+                     executionId,
+                     asset: '${asset}',
+                     action: '${action}',
+                     numberOfTrades,
+                     volume: '${volume}',
+                     tp: '${tp}',
+                     sl: '${sl}',
+                     botname: '${botname}',
+                     startTime: executionStartTime
+                   });
+                   
+                   sendMessage('step', 'Starting ENHANCED execution of EXACTLY ' + numberOfTrades + ' MT4 trade(s) for ${asset}...');
+                   console.log('MT4 Trading: ENHANCED MODE - Target: EXACTLY', numberOfTrades, 'trades');
+                   
+                   // Enhanced function to execute a single MT4 trade with comprehensive tracking
                    const executeSingleTrade = async (tradeIndex) => {
+                     const tradeStartTime = new Date().toISOString();
+                     const tradeId = executionId + '_TRADE_' + (tradeIndex + 1);
+                     
                      try {
-                       console.log('MT4 Trading: Starting trade', (tradeIndex + 1), 'of', numberOfTrades);
+                       console.log('MT4 Trading: Starting trade', (tradeIndex + 1), 'of', numberOfTrades, '| Trade ID:', tradeId);
                        sendMessage('step', 'Executing MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
+                       
+                       // Log trade attempt
+                       const tradeLog = {
+                         tradeId,
+                         tradeIndex: tradeIndex + 1,
+                         totalTrades: numberOfTrades,
+                         asset: '${asset}',
+                         action: '${action}',
+                         volume: '${volume}',
+                         tp: '${tp}',
+                         sl: '${sl}',
+                         startTime: tradeStartTime,
+                         status: 'STARTING'
+                       };
+                       tradeExecutionLog.push(tradeLog);
                        
                        // Search for the specific asset in Market Watch
                        const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
@@ -983,18 +1123,48 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        
                        if (executeButton) {
                          executeButton.click();
+                         
+                         // Update trade log with success
+                         const tradeEndTime = new Date().toISOString();
+                         const successLog = tradeExecutionLog.find(log => log.tradeId === tradeId);
+                         if (successLog) {
+                           successLog.status = 'COMPLETED';
+                           successLog.endTime = tradeEndTime;
+                           successLog.duration = new Date(tradeEndTime) - new Date(tradeStartTime);
+                         }
+                         
                          sendMessage('step', 'MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
                          await new Promise(r => setTimeout(r, 2000));
-                         console.log('MT4 Trading: Trade', (tradeIndex + 1), 'completed successfully');
+                         console.log('MT4 Trading: Trade', (tradeIndex + 1), 'completed successfully | Trade ID:', tradeId);
                          return true;
                        } else {
-                         console.log('MT4 Trading: Execute button not found for trade', (tradeIndex + 1));
+                         // Update trade log with failure
+                         const tradeEndTime = new Date().toISOString();
+                         const failLog = tradeExecutionLog.find(log => log.tradeId === tradeId);
+                         if (failLog) {
+                           failLog.status = 'FAILED';
+                           failLog.endTime = tradeEndTime;
+                           failLog.duration = new Date(tradeEndTime) - new Date(tradeStartTime);
+                           failLog.error = 'Execute button not found';
+                         }
+                         
+                         console.log('MT4 Trading: Execute button not found for trade', (tradeIndex + 1), '| Trade ID:', tradeId);
                          sendMessage('error', 'Execute button not found for MT4 trade ' + (tradeIndex + 1));
                          return false;
                        }
                        
                      } catch (error) {
-                       console.log('MT4 Trading: Trade', (tradeIndex + 1), 'failed:', error.message);
+                       // Update trade log with error
+                       const tradeEndTime = new Date().toISOString();
+                       const errorLog = tradeExecutionLog.find(log => log.tradeId === tradeId);
+                       if (errorLog) {
+                         errorLog.status = 'ERROR';
+                         errorLog.endTime = tradeEndTime;
+                         errorLog.duration = new Date(tradeEndTime) - new Date(tradeStartTime);
+                         errorLog.error = error.message;
+                       }
+                       
+                       console.log('MT4 Trading: Trade', (tradeIndex + 1), 'failed:', error.message, '| Trade ID:', tradeId);
                        sendMessage('error', 'MT4 trade ' + (tradeIndex + 1) + ' failed: ' + error.message);
                        return false;
                      }
@@ -1019,7 +1189,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      if (success) {
                        completedTrades++;
                        console.log('MT4 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
-                       sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
+                       sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
                        
                        // CRITICAL: Check if we've reached the target
                        if (completedTrades >= numberOfTrades) {
@@ -1030,7 +1200,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        
                        // Wait between trades (only if we haven't reached the target)
                        if (completedTrades < numberOfTrades) {
-                         sendMessage('step', 'Waiting before next MT4 trade... (' + currentTradeNumber + '/' + numberOfTrades + ' completed)');
+                         sendMessage('step', 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
                          await new Promise(r => setTimeout(r, 2000));
                        }
                      } else {
@@ -1048,18 +1218,38 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      console.log('MT4 Trading: STATUS - Completed:', completedTrades, 'Target:', numberOfTrades, 'Current:', currentTradeNumber);
                    }
                    
-                   // Final verification
+                   // Final verification and comprehensive logging
+                   const executionEndTime = new Date().toISOString();
+                   const totalDuration = new Date(executionEndTime) - new Date(executionStartTime);
+                   
                    console.log('MT4 Trading: EXECUTION COMPLETED - Final count:', completedTrades, 'trades completed out of', numberOfTrades, 'target');
                    
-                   // Final summary with detailed tracking
-                   console.log('MT4 Trading: Final summary - Completed:', completedTrades, 'Failed:', failedTrades, 'Total:', numberOfTrades);
-                   sendMessage('trade_executed', 'All MT4 trades completed: ' + completedTrades + ' of ' + numberOfTrades + ' successful for ${asset}');
+                   // Comprehensive execution summary
+                   const executionSummary = {
+                     executionId,
+                     asset: '${asset}',
+                     action: '${action}',
+                     totalTrades: numberOfTrades,
+                     completedTrades,
+                     failedTrades,
+                     successRate: ((completedTrades / numberOfTrades) * 100).toFixed(2) + '%',
+                     startTime: executionStartTime,
+                     endTime: executionEndTime,
+                     totalDuration: totalDuration + 'ms',
+                     tradeLogs: tradeExecutionLog
+                   };
                    
-                   // Close after completing all trades
+                   console.log('MT4 Trading: COMPREHENSIVE EXECUTION SUMMARY:', executionSummary);
+                   
+                   // Send detailed summary message
+                   const summaryMessage = \`MT4 Execution Complete: \${completedTrades}/\${numberOfTrades} trades successful (\${executionSummary.successRate} success rate) for \${'${asset}'}\`;
+                   sendMessage('trade_executed', summaryMessage);
+                   
+                   // Close after completing all trades with enhanced messaging
                    if (completedTrades === numberOfTrades) {
-                     sendMessage('close', 'All ' + numberOfTrades + ' MT4 trades executed successfully - closing window');
+                     sendMessage('close', \`All \${numberOfTrades} MT4 trades executed successfully - closing window\`);
                    } else if (completedTrades > 0) {
-                     sendMessage('close', 'Partial completion: ' + completedTrades + ' of ' + numberOfTrades + ' MT4 trades executed - closing window');
+                     sendMessage('close', \`Partial completion: \${completedTrades} of \${numberOfTrades} MT4 trades executed - closing window\`);
                    } else {
                      sendMessage('close', 'No MT4 trades executed successfully - closing window');
                    }
