@@ -14,40 +14,40 @@ if (typeof window !== 'undefined' && Platform.OS === 'web') {
   const originalWarn = console.warn;
   const originalError = console.error;
   const originalLog = console.log;
-  
+
   function shouldSuppress(message) {
-    return message.includes('interactive-widget') || 
-           message.includes('viewport') ||
-           message.includes('Viewport argument key') ||
-           message.includes('AES-CBC') ||
-           message.includes('AES-CTR') ||
-           message.includes('AES-GCM') ||
-           message.includes('chosen-ciphertext') ||
-           message.includes('authentication by default') ||
-           message.includes('not recognized and ignored') ||
-           message.includes('We recommended using authenticated encryption') ||
-           message.includes('implementing it manually can result in minor') ||
-           message.includes('serious mistakes') ||
-           message.includes('protect against chosen-ciphertext attacks') ||
-           message.includes('do not provide authentication by default') ||
-           message.includes('can result in minor, but serious mistakes') ||
-           message.includes('We recommended using') ||
-           message.includes('authenticated encryption like AES-GCM');
+    return message.includes('interactive-widget') ||
+      message.includes('viewport') ||
+      message.includes('Viewport argument key') ||
+      message.includes('AES-CBC') ||
+      message.includes('AES-CTR') ||
+      message.includes('AES-GCM') ||
+      message.includes('chosen-ciphertext') ||
+      message.includes('authentication by default') ||
+      message.includes('not recognized and ignored') ||
+      message.includes('We recommended using authenticated encryption') ||
+      message.includes('implementing it manually can result in minor') ||
+      message.includes('serious mistakes') ||
+      message.includes('protect against chosen-ciphertext attacks') ||
+      message.includes('do not provide authentication by default') ||
+      message.includes('can result in minor, but serious mistakes') ||
+      message.includes('We recommended using') ||
+      message.includes('authenticated encryption like AES-GCM');
   }
-  
-  console.warn = function(...args) {
+
+  console.warn = function (...args) {
     const message = args.join(' ');
     if (shouldSuppress(message)) return;
     originalWarn.apply(console, args);
   };
-  
-  console.error = function(...args) {
+
+  console.error = function (...args) {
     const message = args.join(' ');
     if (shouldSuppress(message)) return;
     originalError.apply(console, args);
   };
-  
-  console.log = function(...args) {
+
+  console.log = function (...args) {
     const message = args.join(' ');
     if (shouldSuppress(message)) return;
     originalLog.apply(console, args);
@@ -202,54 +202,54 @@ export default function RootLayout() {
       const originalWarn = console.warn;
       const originalError = console.error;
       const originalLog = console.log;
-      
+
       // Filter console.warn
       console.warn = (...args) => {
         const message = args.join(' ');
         // Suppress warnings from external terminals and dependencies
-        if (message.includes('interactive-widget') || 
-            message.includes('viewport') ||
-            message.includes('Viewport argument key') ||
-            message.includes('AES-CBC') ||
-            message.includes('AES-CTR') ||
-            message.includes('AES-GCM') ||
-            message.includes('chosen-ciphertext') ||
-            message.includes('authentication by default') ||
-            message.includes('not recognized and ignored') ||
-            message.includes('We recommended using authenticated encryption') ||
-            message.includes('implementing it manually can result in minor') ||
-            message.includes('serious mistakes') ||
-            message.includes('protect against chosen-ciphertext attacks') ||
-            message.includes('do not provide authentication by default') ||
-            message.includes('can result in minor, but serious mistakes') ||
-            message.includes('We recommended using') ||
-            message.includes('authenticated encryption like AES-GCM')) {
+        if (message.includes('interactive-widget') ||
+          message.includes('viewport') ||
+          message.includes('Viewport argument key') ||
+          message.includes('AES-CBC') ||
+          message.includes('AES-CTR') ||
+          message.includes('AES-GCM') ||
+          message.includes('chosen-ciphertext') ||
+          message.includes('authentication by default') ||
+          message.includes('not recognized and ignored') ||
+          message.includes('We recommended using authenticated encryption') ||
+          message.includes('implementing it manually can result in minor') ||
+          message.includes('serious mistakes') ||
+          message.includes('protect against chosen-ciphertext attacks') ||
+          message.includes('do not provide authentication by default') ||
+          message.includes('can result in minor, but serious mistakes') ||
+          message.includes('We recommended using') ||
+          message.includes('authenticated encryption like AES-GCM')) {
           return;
         }
         originalWarn.apply(console, args);
       };
-      
+
       // Filter console.error for the same warnings
       console.error = (...args) => {
         const message = args.join(' ');
         // Suppress error messages from external terminals and dependencies
-        if (message.includes('interactive-widget') || 
-            message.includes('viewport') ||
-            message.includes('Viewport argument key') ||
-            message.includes('AES-CBC') ||
-            message.includes('AES-CTR') ||
-            message.includes('AES-GCM') ||
-            message.includes('chosen-ciphertext') ||
-            message.includes('authentication by default') ||
-            message.includes('not recognized and ignored') ||
-            message.includes('We recommended using authenticated encryption') ||
-            message.includes('implementing it manually can result in minor') ||
-            message.includes('serious mistakes') ||
-            message.includes('protect against chosen-ciphertext attacks') ||
-            message.includes('do not provide authentication by default') ||
-            message.includes('can result in minor, but serious mistakes') ||
-            message.includes('We recommended using') ||
-            message.includes('authenticated encryption like AES-GCM')) {
+        if (message.includes('interactive-widget') ||
+          message.includes('viewport') ||
+          message.includes('Viewport argument key') ||
+          message.includes('AES-CBC') ||
+          message.includes('AES-CTR') ||
+          message.includes('AES-GCM') ||
+          message.includes('chosen-ciphertext') ||
+          message.includes('authentication by default') ||
+          message.includes('not recognized and ignored') ||
+          message.includes('We recommended using authenticated encryption') ||
+          message.includes('implementing it manually can result in minor') ||
+          message.includes('serious mistakes') ||
+          message.includes('protect against chosen-ciphertext attacks') ||
+          message.includes('do not provide authentication by default') ||
+          message.includes('can result in minor, but serious mistakes') ||
+          message.includes('We recommended using') ||
+          message.includes('authenticated encryption like AES-GCM')) {
           return;
         }
         originalError.apply(console, args);
@@ -259,23 +259,23 @@ export default function RootLayout() {
       console.log = (...args) => {
         const message = args.join(' ');
         // Suppress log messages from external terminals and dependencies
-        if (message.includes('interactive-widget') || 
-            message.includes('viewport') ||
-            message.includes('Viewport argument key') ||
-            message.includes('AES-CBC') ||
-            message.includes('AES-CTR') ||
-            message.includes('AES-GCM') ||
-            message.includes('chosen-ciphertext') ||
-            message.includes('authentication by default') ||
-            message.includes('not recognized and ignored') ||
-            message.includes('We recommended using authenticated encryption') ||
-            message.includes('implementing it manually can result in minor') ||
-            message.includes('serious mistakes') ||
-            message.includes('protect against chosen-ciphertext attacks') ||
-            message.includes('do not provide authentication by default') ||
-            message.includes('can result in minor, but serious mistakes') ||
-            message.includes('We recommended using') ||
-            message.includes('authenticated encryption like AES-GCM')) {
+        if (message.includes('interactive-widget') ||
+          message.includes('viewport') ||
+          message.includes('Viewport argument key') ||
+          message.includes('AES-CBC') ||
+          message.includes('AES-CTR') ||
+          message.includes('AES-GCM') ||
+          message.includes('chosen-ciphertext') ||
+          message.includes('authentication by default') ||
+          message.includes('not recognized and ignored') ||
+          message.includes('We recommended using authenticated encryption') ||
+          message.includes('implementing it manually can result in minor') ||
+          message.includes('serious mistakes') ||
+          message.includes('protect against chosen-ciphertext attacks') ||
+          message.includes('do not provide authentication by default') ||
+          message.includes('can result in minor, but serious mistakes') ||
+          message.includes('We recommended using') ||
+          message.includes('authenticated encryption like AES-GCM')) {
           return;
         }
         originalLog.apply(console, args);

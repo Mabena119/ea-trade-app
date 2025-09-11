@@ -1215,12 +1215,12 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       {/* Compact Progress Toast */}
       {visible && (
         <View style={[
-          styles.toastContainer, 
-          { 
+          styles.toastContainer,
+          {
             width: screenWidth - 40,
-            // Position toast at top when webview is hidden (trading completed), bottom when webview is visible (trading in progress)
-            top: !loading || tradeExecuted ? (Platform.OS === 'ios' ? 60 : 40) : undefined,
-            bottom: loading && !tradeExecuted ? (Platform.OS === 'ios' ? 100 : 80) : undefined,
+            // Position toast at top when webview is hidden (background execution), bottom only when webview is visible (errors)
+            top: !error ? (Platform.OS === 'ios' ? 60 : 40) : undefined,
+            bottom: error ? (Platform.OS === 'ios' ? 100 : 80) : undefined,
           }
         ]}>
           <View style={styles.toastContent}>
@@ -1278,26 +1278,28 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* WebView for trading execution - Visible during trading, hidden when completed */}
+      {/* WebView for trading execution - Hidden during trading (background execution), only visible for errors */}
       {visible && (
-        <View style={loading && !tradeExecuted ? styles.webViewContainer : styles.hiddenWebViewContainer}>
-          {/* Close button - always show */}
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => {
-              // For MT5, cleanup before closing
-              if (tradeConfig?.platform === 'MT5') {
-                cleanupMT5WebView();
-                setTimeout(() => {
+        <View style={error ? styles.webViewContainer : styles.hiddenWebViewContainer}>
+          {/* Close button - only show when webview is visible (errors) */}
+          {error && (
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                // For MT5, cleanup before closing
+                if (tradeConfig?.platform === 'MT5') {
+                  cleanupMT5WebView();
+                  setTimeout(() => {
+                    onClose();
+                  }, 600);
+                } else {
                   onClose();
-                }, 600);
-              } else {
-                onClose();
-              }
-            }}
-          >
-            <X color="#FFFFFF" size={24} />
-          </TouchableOpacity>
+                }
+              }}
+            >
+              <X color="#FFFFFF" size={24} />
+            </TouchableOpacity>
+          )}
 
           {error ? (
             <View style={styles.errorContainer}>
@@ -1326,14 +1328,14 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                   url={webViewUrl}
                   onMessage={handleWebViewMessage}
                   onLoadEnd={handleWebViewLoad}
-                  style={loading && !tradeExecuted ? styles.webView : styles.hiddenWebView}
+                  style={error ? styles.webView : styles.hiddenWebView}
                 />
               ) : (
                 <CustomWebView
                   url={webViewUrl}
                   onMessage={handleWebViewMessage}
                   onLoadEnd={handleWebViewLoad}
-                  style={loading && !tradeExecuted ? styles.webView : styles.hiddenWebView}
+                  style={error ? styles.webView : styles.hiddenWebView}
                 />
               )}
             </>
@@ -1345,7 +1347,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 }
 
 const styles = StyleSheet.create({
-  // Dynamic Toast Styles - Top when webview hidden, bottom when webview visible
+  // Dynamic Toast Styles - Top when webview hidden (background execution), bottom when webview visible (errors)
   toastContainer: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 100 : 80, // Default to bottom
