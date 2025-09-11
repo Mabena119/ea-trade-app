@@ -45,32 +45,6 @@ async function serveStatic(request: Request): Promise<Response> {
       filePath = '/index.html';
     }
 
-    // Use custom index.html if it exists
-    if (filePath === '/index.html') {
-      const customIndexFile = Bun.file(path.join(process.cwd(), 'public', 'index.html'));
-      if (await customIndexFile.exists()) {
-        return new Response(customIndexFile, {
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-          },
-        });
-      }
-    }
-
-    // Handle manifest.json
-    if (filePath === '/manifest.json') {
-      const manifestFile = Bun.file(path.join(DIST_DIR, 'manifest.json'));
-      if (await manifestFile.exists()) {
-        return new Response(manifestFile, {
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Cache-Control': 'public, max-age=31536000',
-          },
-        });
-      }
-    }
-
     const absolutePath = path.join(DIST_DIR, filePath);
     const file = Bun.file(absolutePath);
     if (await file.exists()) {
@@ -118,9 +92,6 @@ async function serveStatic(request: Request): Promise<Response> {
           break;
         case '.eot':
           contentType = 'application/vnd.ms-fontobject';
-          break;
-        case '.json':
-          contentType = 'application/json; charset=utf-8';
           break;
       }
 
