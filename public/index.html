@@ -1,106 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>EA Converter</title>
     
-    <!-- PWA Manifest -->
+    <!-- App Icons and Manifest -->
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/images/icon.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/assets/images/icon.png" />
+    <link rel="apple-touch-icon" href="/assets/images/icon.png" />
     <link rel="manifest" href="/manifest.json" />
     
-    <!-- App Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/favicon.png" />
-    <link rel="apple-touch-icon" href="/assets/images/icon.png" />
-    
-    <!-- Theme Colors -->
+    <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#000000" />
-    <meta name="msapplication-TileColor" content="#000000" />
-    <meta name="msapplication-config" content="/browserconfig.xml" />
-    
-    <!-- App Meta -->
-    <meta name="application-name" content="EA Converter" />
+    <meta name="description" content="Automated Forex Trading App" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="EA Converter" />
-    <meta name="description" content="Automated Forex Trading EA Converter" />
-    <meta name="format-detection" content="telephone=no" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="msapplication-tap-highlight" content="no" />
     
-    <title>EA Converter</title>
-    
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000000;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-        }
-        
-        #root {
-            width: 100%;
-            height: 100vh;
-        }
-        
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
-        }
-        
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #333;
-            border-top: 4px solid #00ff00;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .loading-text {
-            color: #cccccc;
-            font-size: 16px;
-        }
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
     </style>
-</head>
-<body>
-    <div id="root">
-        <div class="loading">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Loading EA Converter...</div>
-        </div>
-    </div>
-    
-    <script>
-        // PWA Install prompt
-        let deferredPrompt;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-        });
-        
-        // Service Worker registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then((registration) => {
-                        console.log('SW registered: ', registration);
-                    })
-                    .catch((registrationError) => {
-                        console.log('SW registration failed: ', registrationError);
-                    });
-            });
-        }
-    </script>
-</body>
+  </head>
+
+  <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+    <script src="/_expo/static/js/web/entry-6fa43952c4979c6817d9d8771fca51c0.js" defer></script>
+  </body>
 </html>

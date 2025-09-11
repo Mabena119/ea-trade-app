@@ -1,7 +1,7 @@
 {
   "name": "EA Converter",
   "short_name": "EA Converter",
-  "description": "Automated Forex Trading EA Converter",
+  "description": "Automated Forex Trading App",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -19,30 +19,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/assets/images/icon.png",
-      "sizes": "144x144",
-      "type": "image/png"
-    },
-    {
-      "src": "/assets/images/icon.png",
-      "sizes": "96x96",
-      "type": "image/png"
-    },
-    {
-      "src": "/assets/images/icon.png",
-      "sizes": "72x72",
-      "type": "image/png"
-    },
-    {
-      "src": "/assets/images/icon.png",
-      "sizes": "48x48",
-      "type": "image/png"
     }
-  ],
-  "categories": ["finance", "trading", "utilities"],
-  "lang": "en",
-  "scope": "/",
-  "id": "ea-converter-app"
+  ]
 }
