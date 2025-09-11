@@ -1214,7 +1214,15 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     <>
       {/* Compact Progress Toast */}
       {visible && (
-        <View style={[styles.toastContainer, { width: screenWidth - 40 }]}>
+        <View style={[
+          styles.toastContainer, 
+          { 
+            width: screenWidth - 40,
+            // Position toast at top when webview is hidden (trading completed), bottom when webview is visible (trading in progress)
+            top: !loading || tradeExecuted ? (Platform.OS === 'ios' ? 60 : 40) : undefined,
+            bottom: loading && !tradeExecuted ? (Platform.OS === 'ios' ? 100 : 80) : undefined,
+          }
+        ]}>
           <View style={styles.toastContent}>
             <View style={styles.toastLeft}>
               <View style={styles.toastIcon}>
@@ -1270,28 +1278,26 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* Hidden WebView for trading execution - Better UI */}
+      {/* WebView for trading execution - Visible during trading, hidden when completed */}
       {visible && (
-        <View style={styles.hiddenWebViewContainer}>
-          {/* Close button - only show for MT4 or when there's an error */}
-          {(tradeConfig?.platform === 'MT4' || error) && (
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => {
-                // For MT5, cleanup before closing
-                if (tradeConfig?.platform === 'MT5') {
-                  cleanupMT5WebView();
-                  setTimeout(() => {
-                    onClose();
-                  }, 600);
-                } else {
+        <View style={loading && !tradeExecuted ? styles.webViewContainer : styles.hiddenWebViewContainer}>
+          {/* Close button - always show */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              // For MT5, cleanup before closing
+              if (tradeConfig?.platform === 'MT5') {
+                cleanupMT5WebView();
+                setTimeout(() => {
                   onClose();
-                }
-              }}
-            >
-              <X color="#FFFFFF" size={24} />
-            </TouchableOpacity>
-          )}
+                }, 600);
+              } else {
+                onClose();
+              }
+            }}
+          >
+            <X color="#FFFFFF" size={24} />
+          </TouchableOpacity>
 
           {error ? (
             <View style={styles.errorContainer}>
@@ -1320,14 +1326,14 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                   url={webViewUrl}
                   onMessage={handleWebViewMessage}
                   onLoadEnd={handleWebViewLoad}
-                  style={styles.hiddenWebView}
+                  style={loading && !tradeExecuted ? styles.webView : styles.hiddenWebView}
                 />
               ) : (
                 <CustomWebView
                   url={webViewUrl}
                   onMessage={handleWebViewMessage}
                   onLoadEnd={handleWebViewLoad}
-                  style={styles.hiddenWebView}
+                  style={loading && !tradeExecuted ? styles.webView : styles.hiddenWebView}
                 />
               )}
             </>
@@ -1339,10 +1345,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 }
 
 const styles = StyleSheet.create({
-  // Enhanced Toast Styles for Better UI
+  // Dynamic Toast Styles - Top when webview hidden, bottom when webview visible
   toastContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40, // Move to top for better visibility
+    bottom: Platform.OS === 'ios' ? 100 : 80, // Default to bottom
     left: 20,
     right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
