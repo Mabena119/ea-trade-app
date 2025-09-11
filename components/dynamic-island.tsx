@@ -602,6 +602,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
     maxWidth: 80,
+    textAlign: 'center',
   },
   touchableContainer: {
     flex: 1,
@@ -679,6 +680,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
     flexWrap: 'wrap',
+    textAlign: 'center',
   },
   expandedSubtitle: {
     color: '#999999',

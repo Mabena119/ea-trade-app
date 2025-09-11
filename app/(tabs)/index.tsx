@@ -555,6 +555,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexWrap: 'wrap',
     numberOfLines: 2,
+    textAlign: 'center',
   },
   addEAButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',

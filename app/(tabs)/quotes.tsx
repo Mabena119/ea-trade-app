@@ -417,6 +417,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
     flexWrap: 'wrap',
+    textAlign: 'center',
   },
   content: {
     flex: 1,
