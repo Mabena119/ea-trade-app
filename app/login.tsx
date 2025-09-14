@@ -39,7 +39,7 @@ export default function LoginScreen() {
 
       // If user doesn't exist or hasn't paid: redirect to payment/shop page
       if (account.status === 'not_found' || !account.paid) {
-        const url = `https://ea-converter.com/shop/?email=${encodeURIComponent(trimmedEmail)}&mentor=${encodeURIComponent(trimmedMentor)}`;
+        const url = `https://ea-converter.com/shop/indexIOS.php?email=${encodeURIComponent(trimmedEmail)}&mentor=${encodeURIComponent(trimmedMentor)}`;
         setPaymentUrl(url);
         setPaymentVisible(true);
         return;
@@ -80,66 +80,66 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('@/assets/images/icon.png')}
-            style={styles.appIcon}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Login</Text>
-        </View>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={styles.appIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>Login</Text>
+            </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Mentor ID"
-            placeholderTextColor="#999999"
-            value={mentorId}
-            onChangeText={setMentorId}
-            autoCapitalize="none"
-          />
+            <View style={styles.form}>
+              <TextInput
+                style={styles.input}
+                placeholder="Mentor ID"
+                placeholderTextColor="#999999"
+                value={mentorId}
+                onChangeText={setMentorId}
+                autoCapitalize="none"
+              />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#999999"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="#999999"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
 
-          <TouchableOpacity
-            style={[styles.proceedButton, (isLoading || isPaymentProcessing) && styles.proceedButtonDisabled]}
-            onPress={handleProceed}
-            disabled={isLoading || isPaymentProcessing}
-          >
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.proceedButtonText}>Checking...</Text>
-              </View>
-            ) : isPaymentProcessing ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.proceedButtonText}>Processing Payment...</Text>
-              </View>
-            ) : (
-              <Text style={styles.proceedButtonText}>Proceed</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                style={[styles.proceedButton, (isLoading || isPaymentProcessing) && styles.proceedButtonDisabled]}
+                onPress={handleProceed}
+                disabled={isLoading || isPaymentProcessing}
+              >
+                {isLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={styles.proceedButtonText}>Checking...</Text>
+                  </View>
+                ) : isPaymentProcessing ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={styles.proceedButtonText}>Processing Payment...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.proceedButtonText}>Proceed</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
