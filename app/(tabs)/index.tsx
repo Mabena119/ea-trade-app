@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Play, Square, TrendingUp, Trash2, Plus, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { RobotLogo } from '@/components/robot-logo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '@/providers/app-provider';
 import type { EA } from '@/providers/app-provider';
@@ -19,6 +20,33 @@ export default function HomeScreen() {
 
   const [logoError, setLogoError] = useState<boolean>(false);
 
+  // Check if user has completed email authentication
+  useEffect(() => {
+    const checkAuthenticationStatus = async () => {
+      try {
+        // If not first time but no EAs, check if email auth was completed
+        if (!isFirstTime && eas.length === 0) {
+          const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
+          
+          // If email authentication was never completed, redirect to login
+          if (!emailAuthenticated || emailAuthenticated !== 'true') {
+            console.log('Email authentication not completed, redirecting to login...');
+            await setIsFirstTime(true);
+            router.replace('/login');
+          } else {
+            // Email authentication was completed, but no license added yet - go to license page
+            console.log('Email authenticated but no EA added, redirecting to license...');
+            router.replace('/license');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking authentication status:', error);
+      }
+    };
+
+    checkAuthenticationStatus();
+  }, [isFirstTime, eas.length]);
+
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
     if (!ea || !ea.userData || !ea.userData.owner) return null;
     const raw = (ea.userData.owner.logo || '').toString().trim();
@@ -33,10 +61,12 @@ export default function HomeScreen() {
 
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
 
-  const handleStartNow = () => {
+  const handleStartNow = async () => {
     console.log('Start Now pressed, navigating to login...');
     try {
-      setIsFirstTime(false);
+      // Clear email authentication flag when starting fresh
+      await AsyncStorage.removeItem('emailAuthenticated');
+      await setIsFirstTime(false);
       router.push('/login');
     } catch (error) {
       console.error('Error navigating to login:', error);

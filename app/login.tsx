@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, Linking, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // Networking disabled: avoid external browser/payment flows
 import { useApp } from '@/providers/app-provider';
 import { apiService } from '@/services/api';
@@ -62,6 +63,8 @@ export default function LoginScreen() {
       }
 
       // Allow only existing + not used
+      // Mark that email authentication was successful
+      await AsyncStorage.setItem('emailAuthenticated', 'true');
       setUser({ mentorId: trimmedMentor, email: account.email });
       router.push('/license');
     } catch (error) {
