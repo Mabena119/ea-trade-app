@@ -19,11 +19,18 @@ export default function HomeScreen() {
   console.log('HomeScreen render - EAs count:', eas?.length || 0, 'Primary EA:', primaryEA?.name || 'none');
 
   const [logoError, setLogoError] = useState<boolean>(false);
+  const [hasCheckedAuth, setHasCheckedAuth] = useState<boolean>(false);
 
   // Check if user has completed email authentication
   useEffect(() => {
+    // Only run the check once on mount, not on every EA length change
+    if (hasCheckedAuth) return;
+
     const checkAuthenticationStatus = async () => {
       try {
+        // Wait for initial state to load
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         // If not first time but no EAs, check if email auth was completed
         if (!isFirstTime && eas.length === 0) {
           const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
@@ -39,13 +46,16 @@ export default function HomeScreen() {
             router.replace('/license');
           }
         }
+        
+        setHasCheckedAuth(true);
       } catch (error) {
         console.error('Error checking authentication status:', error);
+        setHasCheckedAuth(true);
       }
     };
 
     checkAuthenticationStatus();
-  }, [isFirstTime, eas.length]);
+  }, [isFirstTime, eas.length, hasCheckedAuth]);
 
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
     if (!ea || !ea.userData || !ea.userData.owner) return null;

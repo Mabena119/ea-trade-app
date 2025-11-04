@@ -74,7 +74,9 @@ export default function LicenseScreen() {
 
       const success = await addEA(newEA);
       if (success) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Wait longer to ensure state is fully updated before navigation
+        await new Promise(resolve => setTimeout(resolve, 600));
+        console.log('License added successfully, navigating to tabs...');
         router.replace('/(tabs)');
       } else {
         Alert.alert('Error', 'Failed to save this license locally.');
