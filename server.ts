@@ -1,6 +1,6 @@
 // Simple Bun server to serve static web export and handle API routes
 // - Serves files from ./dist
-// - Routes /api/check-email to the route handler in app/api/check-email/route.ts
+// - Routes API calls to optimized database connection pool
 
 import path from 'path';
 import { createPool } from 'mysql2/promise';
@@ -11,24 +11,71 @@ declare const Bun: any;
 const DIST_DIR = path.join(process.cwd(), 'dist');
 const PORT = Number(process.env.PORT || 3000);
 
-// Database configuration
-const dbConfig = {
-  host: '172.203.148.37.host.secureserver.net',
-  user: 'eauser',
-  password: 'snVO2i%fZSG%',
-  database: 'eaconverter',
-  port: 3306,
-  connectTimeout: 60000,
-  acquireTimeout: 60000,
-  timeout: 60000,
+// Prefer environment variables for database configuration
+const DB_HOST = process.env.DB_HOST || process.env.MYSQLHOST || process.env.MYSQL_HOST || '172.203.148.37.host.secureserver.net';
+const DB_USER = process.env.DB_USER || process.env.MYSQLUSER || process.env.MYSQL_USER || 'eauser';
+const DB_PASSWORD = process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || 'snVO2i%fZSG%';
+const DB_NAME = process.env.DB_NAME || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || 'eaconverter';
+const DB_PORT = Number(process.env.DB_PORT || process.env.MYSQLPORT || process.env.MYSQL_PORT || 3306);
+
+// Optimized connection pool configuration for scaling AND CPU efficiency
+const POOL_CONFIG = {
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 20),
+  maxIdle: Number(process.env.DB_MAX_IDLE || 10),
+  idleTimeout: Number(process.env.DB_IDLE_TIMEOUT || 60000),
+  queueLimit: Number(process.env.DB_QUEUE_LIMIT || 50),
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
+  waitForConnections: true,
+  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT || 20000),
+  acquireTimeout: Number(process.env.DB_ACQUIRE_TIMEOUT || 20000),
+  timeout: Number(process.env.DB_QUERY_TIMEOUT || 30000),
+
+  // CPU-efficient settings
+  decimalNumbers: true,
+  bigNumberStrings: false,
+  supportBigNumbers: true,
+  dateStrings: false,
+  typeCast: true,
+  multipleStatements: false,
+  rowsAsArray: false,
 };
 
-// Create database connection pool
-const pool = createPool(dbConfig);
+// Create optimized database connection pool
+const pool = createPool({
+  host: DB_HOST,
+  user: DB_USER,
+  password: DB_PASSWORD,
+  database: DB_NAME,
+  port: DB_PORT,
+  ...POOL_CONFIG,
+});
+
+console.log('✅ Database connection pool initialized:', {
+  host: DB_HOST,
+  database: DB_NAME,
+  connectionLimit: POOL_CONFIG.connectionLimit,
+});
 
 function getPool() {
   return pool;
 }
+
+// Graceful shutdown
+async function shutdownServer() {
+  console.log('🔄 Shutting down server...');
+  try {
+    await pool.end();
+    console.log('✅ Database connections closed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', shutdownServer);
+process.on('SIGINT', shutdownServer);
 
 async function serveStatic(request: Request): Promise<Response> {
   try {
@@ -1211,9 +1258,12 @@ async function handleApi(request: Request): Promise<Response> {
           });
         }
 
+        let conn = null;
         try {
           const pool = getPool();
-          const [rows] = await pool.execute(
+          conn = await pool.getConnection();
+
+          const [rows] = await conn.execute(
             'SELECT ea FROM licences WHERE k_ey = ? LIMIT 1',
             [licenseKey]
           );
@@ -1225,11 +1275,19 @@ async function handleApi(request: Request): Promise<Response> {
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
-          console.error('Database error:', error);
+          console.error('❌ Database error in get-ea-from-license:', error);
           return new Response(JSON.stringify({ error: 'Database error' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           });
+        } finally {
+          if (conn) {
+            try {
+              conn.release();
+            } catch (releaseError) {
+              console.error('❌ Failed to release connection:', releaseError);
+            }
+          }
         }
       }
       return new Response('Method Not Allowed', { status: 405 });
@@ -1248,8 +1306,11 @@ async function handleApi(request: Request): Promise<Response> {
           });
         }
 
+        let conn = null;
         try {
           const pool = getPool();
+          conn = await pool.getConnection();
+
           let query: string;
           let params: any[];
 
@@ -1273,7 +1334,7 @@ async function handleApi(request: Request): Promise<Response> {
             params = [eaId];
           }
 
-          const [rows] = await pool.execute(query, params);
+          const [rows] = await conn.execute(query, params);
 
           const result = rows as any[];
           console.log(`Found ${result.length} new signals for EA ${eaId} since ${since || 'beginning'}`);
@@ -1282,11 +1343,19 @@ async function handleApi(request: Request): Promise<Response> {
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
-          console.error('Database error:', error);
+          console.error('❌ Database error in get-new-signals:', error);
           return new Response(JSON.stringify({ error: 'Database error' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           });
+        } finally {
+          if (conn) {
+            try {
+              conn.release();
+            } catch (releaseError) {
+              console.error('❌ Failed to release connection:', releaseError);
+            }
+          }
         }
       }
       return new Response('Method Not Allowed', { status: 405 });
