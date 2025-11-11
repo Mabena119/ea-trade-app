@@ -485,10 +485,13 @@ const DEFAULT_MT4_BROKERS = [
   'TradeFX-SA-Live',
 ];
 
-// MT5 Brokers - RazorMarkets Only
-const MT5_BROKERS = [
-  'RazorMarkets-Live',
-];
+// MT5 Brokers with URL mapping
+const MT5_BROKER_URLS: Record<string, string> = {
+  'RazorMarkets-Live': 'https://webtrader.razormarkets.co.za/terminal',
+  'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal',
+};
+
+const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 
 export default function MetaTraderScreen() {
   const [activeTab, setActiveTab] = useState<'MT5' | 'MT4'>('MT5');
@@ -2086,14 +2089,14 @@ export default function MetaTraderScreen() {
         <View style={styles.invisibleWebViewContainer}>
           {Platform.OS === 'web' ? (
             <WebWebView
-              url={`/api/mt5-proxy?url=${encodeURIComponent('https://webtrader.razormarkets.co.za/terminal')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`}
+              url={`/api/mt5-proxy?url=${encodeURIComponent(MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live'])}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
               style={styles.invisibleWebView}
             />
           ) : (
             <CustomWebView
-              url="https://webtrader.razormarkets.co.za/terminal"
+              url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
               script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
