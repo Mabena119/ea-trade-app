@@ -923,7 +923,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   // MT5 Broker URL mapping
   const MT5_BROKER_URLS: Record<string, string> = {
     'RazorMarkets-Live': 'https://webtrader.razormarkets.co.za/terminal/',
-    'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal',
+    'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal/',
   };
 
   // Get WebView URL for trading based on platform

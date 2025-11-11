@@ -487,8 +487,8 @@ const DEFAULT_MT4_BROKERS = [
 
 // MT5 Brokers with URL mapping
 const MT5_BROKER_URLS: Record<string, string> = {
-  'RazorMarkets-Live': 'https://webtrader.razormarkets.co.za/terminal',
-  'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal',
+  'RazorMarkets-Live': 'https://webtrader.razormarkets.co.za/terminal/',
+  'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal/',
 };
 
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);

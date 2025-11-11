@@ -167,6 +167,17 @@ async function serveStatic(request: Request): Promise<Response> {
   }
 }
 
+// Helper function to extract base URL from terminal URL
+function getBaseUrlFromTerminalUrl(terminalUrl: string): string {
+  try {
+    const url = new URL(terminalUrl);
+    return `${url.protocol}//${url.host}`;
+  } catch (e) {
+    // Default to RazorMarkets if URL parsing fails
+    return 'https://webtrader.razormarkets.co.za';
+  }
+}
+
 async function handleMT5Proxy(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const targetUrl = url.searchParams.get('url');
@@ -191,6 +202,10 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
       headers: { 'Content-Type': 'application/json' }
     });
   }
+
+  // Extract base URL for WebSocket and asset proxying
+  const baseUrl = getBaseUrlFromTerminalUrl(targetUrl);
+  const wsUrl = `${baseUrl.replace('http://', 'wss://').replace('https://', 'wss://')}/terminal/ws`;
 
   try {
     // Fetch the target terminal page
@@ -267,7 +282,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 
                 // Redirect WebSocket connections to the original terminal
                 if (url.includes('/terminal/ws')) {
-                  const newUrl = 'wss://webtrader.razormarkets.co.za/terminal/ws';
+                  const newUrl = '${wsUrl}';
                   console.log('Redirecting WebSocket to:', newUrl);
                   return new originalWebSocket(newUrl, protocols);
                 }
@@ -642,8 +657,8 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
         `;
 
     // Rewrite WebSocket URLs to point to the original terminal
-    html = html.replace(/wss:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
-    html = html.replace(/ws:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, 'wss://webtrader.razormarkets.co.za/terminal/ws');
+    html = html.replace(/wss:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, wsUrl);
+    html = html.replace(/ws:\/\/ea-converter-app\.onrender\.com\/terminal\/ws/g, wsUrl);
 
     // Inject the script before the closing body tag
     if (html.includes('</body>')) {
@@ -1384,7 +1399,18 @@ const server = Bun.serve({
     if (url.pathname.startsWith('/terminal/')) {
       try {
         const assetPath = url.pathname.replace('/terminal/', '');
-        const targetUrl = `https://webtrader.razormarkets.co.za/terminal/${assetPath}`;
+        
+        // Determine broker URL from referer header or default to RazorMarkets
+        const referer = request.headers.get('referer') || '';
+        let brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
+        
+        if (referer.includes('accumarkets.co.za')) {
+          brokerBaseUrl = 'https://webterminal.accumarkets.co.za';
+        } else if (referer.includes('razormarkets.co.za')) {
+          brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
+        }
+        
+        const targetUrl = `${brokerBaseUrl}/terminal/${assetPath}`;
 
         const response = await fetch(targetUrl, {
           headers: {
