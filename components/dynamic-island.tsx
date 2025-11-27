@@ -543,8 +543,8 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
               </TouchableOpacity>
             </View>
 
-            {/* Signals Status - Only show when signals are active */}
-            {isSignalsMonitoring && (
+            {/* Signals Status - Only show latest signal details when signals are active */}
+            {isSignalsMonitoring && signalLogs.filter(signal => isSignalForActiveSymbol(signal)).length > 0 && (
               <View style={styles.signalsStatus}>
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
@@ -553,21 +553,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                   colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
                   style={StyleSheet.absoluteFill}
                 />
-                <View style={styles.signalsStatusHeader}>
-                  <View style={styles.signalsStatusIconContainer}>
-                    <Activity color='#25D366' size={14} />
-                  </View>
-                  <Text style={styles.signalsStatusText}>
-                    MONITORING SIGNALS
-                  </Text>
-                </View>
-                <Text style={styles.signalsCount}>
-                  {signalLogs.filter(signal => isSignalForActiveSymbol(signal)).length} active signals
-                </Text>
-
-                {/* Show latest signal details - Always update when signalLogs change */}
-                {signalLogs.filter(signal => isSignalForActiveSymbol(signal)).length > 0 && (
-                  <View style={styles.latestSignalContainer}>
+                <View style={styles.latestSignalContainer}>
                     {signalLogs
                       .filter(signal => isSignalForActiveSymbol(signal))
                       .slice(-1)
@@ -618,7 +604,6 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                     }
                   </View>
                 )}
-
               </View>
             )}
 
@@ -778,6 +763,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.3,
     borderColor: colors.glass.borderMedium,
     overflow: 'hidden',
+    alignSelf: 'flex-end',
   },
   expandedLogo: {
     width: 48,

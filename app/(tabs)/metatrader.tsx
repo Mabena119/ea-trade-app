@@ -1494,16 +1494,41 @@ export default function MetaTraderScreen() {
 
   // Get MT5 JavaScript injection script
   const getMT5Script = () => {
+    // Escape special characters to prevent injection issues
+    const escapeValue = (value: string) => {
+      return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    };
+    
+    const loginValue = escapeValue(login.trim());
+    const passwordValue = escapeValue(password.trim());
+    const serverValue = escapeValue(server.trim());
+    
+    // Validate that required values are provided
+    if (!loginValue || !passwordValue) {
+      return `
+        (function() {
+          const sendMessage = (type, message) => {
+            try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
+          };
+          sendMessage('authentication_failed', 'Login and password are required');
+        })();
+      `;
+    }
+    
     return `
       (function() {
         const sendMessage = (type, message) => {
           try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
         };
 
-        sendMessage('mt5_loaded', 'MT5 RazorMarkets terminal loaded successfully');
+        sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
         
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-        const asset = 'XAUUSD';
+        
+        // Store credentials
+        const loginCredential = '${loginValue}';
+        const passwordCredential = '${passwordValue}';
+        const serverCredential = '${serverValue}';
         
         const authenticateMT5 = async () => {
           try {
@@ -1516,66 +1541,116 @@ export default function MetaTraderScreen() {
               const acceptButton = document.querySelector('.accept-button');
               if (acceptButton) {
                 acceptButton.click();
-                sendMessage('step_update', 'Checking Login...');
-                await sleep(5500);
+                sendMessage('step_update', 'Accepting disclaimer...');
+                await sleep(2000);
               }
             }
             
             // Check if form is visible and remove any existing connections
             const form = document.querySelector('.form');
             if (form && !form.classList.contains('hidden')) {
-              // Press remove button first
+              // Press remove button first to clear any existing connection
               const removeButton = document.querySelector('.button.svelte-1wrky82.red');
               if (removeButton) {
                 removeButton.click();
+                sendMessage('step_update', 'Removing existing connection...');
+                await sleep(3000);
               } else {
                 // Fallback: look for Remove button by text
                 const buttons = document.getElementsByTagName('button');
                 for (let i = 0; i < buttons.length; i++) {
                   if (buttons[i].textContent.trim() === 'Remove') {
                     buttons[i].click();
+                    sendMessage('step_update', 'Removing existing connection...');
+                    await sleep(3000);
                     break;
                   }
                 }
               }
-              sendMessage('step_update', 'Checking password...');
-              await sleep(5500);
             }
             
-            // Fill login credentials
-            if (form && !form.classList.contains('hidden')) {
-              const loginField = document.querySelector('input[name="login"]');
-              const passwordField = document.querySelector('input[name="password"]');
+            // Wait for form to be ready
+            await sleep(2000);
+            
+            // Fill login credentials with enhanced field detection
+            const loginField = document.querySelector('input[name="login"]') || 
+                              document.querySelector('input[type="text"][placeholder*="login" i]') ||
+                              document.querySelector('input[type="number"]') ||
+                              document.querySelector('input#login');
+            
+            const passwordField = document.querySelector('input[name="password"]') || 
+                                 document.querySelector('input[type="password"]') ||
+                                 document.querySelector('input#password');
+            
+            // Fill login field
+            if (loginField && loginCredential) {
+              loginField.focus();
+              loginField.value = '';
+              loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
               
-              if (loginField && '${login.trim()}') {
-                loginField.value = '${login.trim()}';
-                loginField.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-              
-              if (passwordField && '${password.trim()}') {
-                passwordField.value = '${password.trim()}';
-                passwordField.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-              
-              sendMessage('step_update', 'Connecting to Server...');
-              await sleep(5000);
+              setTimeout(() => {
+                loginField.focus();
+                loginField.value = loginCredential;
+                loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                sendMessage('step_update', 'Login filled');
+              }, 100);
+            } else {
+              sendMessage('authentication_failed', 'Login field not found');
+              return;
             }
+            
+            // Fill password field
+            if (passwordField && passwordCredential) {
+              setTimeout(() => {
+                passwordField.focus();
+                passwordField.value = '';
+                passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                
+                setTimeout(() => {
+                  passwordField.focus();
+                  passwordField.value = passwordCredential;
+                  passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                  passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                  sendMessage('step_update', 'Password filled');
+                }, 100);
+              }, 300);
+            } else {
+              sendMessage('authentication_failed', 'Password field not found');
+              return;
+            }
+            
+            // Wait for fields to be filled
+            await sleep(2000);
             
             // Click login button
-            if (form && !form.classList.contains('hidden')) {
-              const loginButton = document.querySelector('.button.svelte-1wrky82.active');
-              if (loginButton) {
-                loginButton.click();
-                sendMessage('step_update', 'Connecting to Server...');
-                await sleep(8000);
-              }
+            sendMessage('step_update', 'Connecting to Server...');
+            const loginButton = document.querySelector('.button.svelte-1wrky82.active') ||
+                               document.querySelector('button[type="submit"]') ||
+                               document.querySelector('.button.active') ||
+                               Array.from(document.querySelectorAll('button')).find(btn => 
+                                 btn.textContent.trim().toLowerCase().includes('login') ||
+                                 btn.textContent.trim().toLowerCase().includes('connect')
+                               );
+            
+            if (loginButton) {
+              loginButton.click();
+              await sleep(8000);
+            } else {
+              sendMessage('authentication_failed', 'Login button not found');
+              return;
             }
             
             // Check for search bar - this is the most reliable indicator of successful login
             sendMessage('step_update', 'Verifying authentication...');
-            await sleep(2000);
+            await sleep(3000);
             
-            const searchField = document.querySelector('input[placeholder="Search symbol"]');
+            const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                               document.querySelector('input[placeholder*="Search" i]') ||
+                               document.querySelector('input[type="search"]');
+            
             if (searchField && searchField.offsetParent !== null) {
               // Search bar is present and visible - login successful!
               sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
@@ -1584,11 +1659,14 @@ export default function MetaTraderScreen() {
             
             // Double check after a longer wait
             await sleep(3000);
-            const searchFieldRetry = document.querySelector('input[placeholder="Search symbol"]');
+            const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                    document.querySelector('input[placeholder*="Search" i]') ||
+                                    document.querySelector('input[type="search"]');
+            
             if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
               sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
-                return;
-              }
+              return;
+            }
             
             // No search bar found - authentication failed
             sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
@@ -2144,10 +2222,24 @@ export default function MetaTraderScreen() {
       {/* MT5 Authentication Toast */}
       {showMT5WebView && (
         <View style={styles.authToastContainer}>
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.authToastContent}>
             <View style={styles.authToastLeft}>
               <View style={styles.authToastIcon}>
-                <ActivityIndicator size="small" color="#00FF00" />
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <ActivityIndicator size="small" color="#25D366" />
               </View>
               <View style={styles.authToastInfo}>
                 <Text style={styles.authToastTitle}>MT5 Authentication</Text>
@@ -2159,7 +2251,15 @@ export default function MetaTraderScreen() {
             <TouchableOpacity
               style={styles.authToastCloseButton}
               onPress={closeMT5WebView}
+              activeOpacity={0.8}
             >
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                style={StyleSheet.absoluteFill}
+              />
               <X color="#FFFFFF" size={16} />
             </TouchableOpacity>
           </View>
@@ -2193,10 +2293,24 @@ export default function MetaTraderScreen() {
       {/* MT4 Authentication Toast */}
       {showMT4WebView && (
         <View style={styles.authToastContainer}>
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.authToastContent}>
             <View style={styles.authToastLeft}>
               <View style={styles.authToastIcon}>
-                <ActivityIndicator size="small" color="#00FF00" />
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <ActivityIndicator size="small" color="#25D366" />
               </View>
               <View style={styles.authToastInfo}>
                 <Text style={styles.authToastTitle}>MT4 Authentication</Text>
@@ -2208,7 +2322,15 @@ export default function MetaTraderScreen() {
             <TouchableOpacity
               style={styles.authToastCloseButton}
               onPress={closeMT4WebView}
+              activeOpacity={0.8}
             >
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                style={StyleSheet.absoluteFill}
+              />
               <X color="#FFFFFF" size={16} />
             </TouchableOpacity>
           </View>
@@ -2783,19 +2905,20 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 50 : 30,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderRadius: 20,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
     elevation: 10000,
     zIndex: 10000,
+    overflow: 'hidden',
   },
   authToastContent: {
     flexDirection: 'row',
@@ -2813,10 +2936,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 255, 0, 0.1)',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(37, 211, 102, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 0.3,
+    borderColor: 'rgba(37, 211, 102, 0.3)',
+    overflow: 'hidden',
   },
   authToastInfo: {
     flex: 1,
@@ -2836,10 +2962,13 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
   },
 
   // Visible WebView Styles - For debugging

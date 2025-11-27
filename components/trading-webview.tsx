@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
 import CustomWebView from './custom-webview';
 import WebWebView from './web-webview';
@@ -15,6 +17,7 @@ import { X, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react-native';
 import { SignalLog } from '@/services/signals-monitor';
 import { useApp } from '@/providers/app-provider';
 import Constants from 'expo-constants';
+import colors from '@/constants/colors';
 
 
 
@@ -1291,13 +1294,31 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             top: Platform.OS === 'ios' ? 50 : 30,
           }
         ]}>
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.toastContent}>
             <View style={styles.toastLeft}>
               <View style={styles.toastIcon}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={error 
+                    ? ['rgba(220, 38, 38, 0.2)', 'rgba(220, 38, 38, 0.1)']
+                    : tradeExecuted
+                    ? ['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']
+                    : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                  style={StyleSheet.absoluteFill}
+                />
                 {error ? (
-                  <AlertCircle color="#FF4444" size={16} />
+                  <AlertCircle color="#DC2626" size={16} />
                 ) : tradeExecuted ? (
-                  <CheckCircle color="#00FF88" size={16} />
+                  <CheckCircle color="#25D366" size={16} />
                 ) : (
                   <TrendingUp color="#CCCCCC" size={16} />
                 )}
@@ -1331,7 +1352,15 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                       webViewRef.current.reload();
                     }
                   }}
+                  activeOpacity={0.8}
                 >
+                  {Platform.OS === 'ios' && (
+                    <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                  )}
+                  <LinearGradient
+                    colors={['rgba(37, 211, 102, 0.15)', 'rgba(37, 211, 102, 0.08)']}
+                    style={StyleSheet.absoluteFill}
+                  />
                   <Text style={styles.toastRetryText}>Retry</Text>
                 </TouchableOpacity>
               )}
@@ -1344,7 +1373,15 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                     onClose();
                   }, 600);
                 }}
+                activeOpacity={0.8}
               >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                  style={StyleSheet.absoluteFill}
+                />
                 <X color="#FFFFFF" size={16} />
               </TouchableOpacity>
             </View>
@@ -1393,19 +1430,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderRadius: 20,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
     elevation: 10000, // Very high elevation to stay on top
     zIndex: 10000, // Highest z-index to appear above everything
+    overflow: 'hidden',
   },
   toastContent: {
     flexDirection: 'row',
@@ -1423,10 +1461,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
   },
   toastInfo: {
     flex: 1,
@@ -1446,14 +1487,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toastRetryButton: {
-    backgroundColor: '#00FF00',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
     marginRight: 8,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
   },
   toastRetryText: {
-    color: '#000000',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1461,10 +1505,13 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
   },
   progressBarContainer: {
     height: 3,

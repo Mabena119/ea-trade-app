@@ -19,7 +19,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
 }) => {
   const webViewRef = useRef<WebView>(null);
   const [injected, setInjected] = useState(false);
-  
+
   // Reset injected state when URL or script changes (component remounts)
   useEffect(() => {
     setInjected(false);
@@ -38,11 +38,11 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
             ${script}
           } catch (error) {
             console.error('Error executing trading script:', error);
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'injection_error',
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'injection_error',
               error: error.message
-            }));
-          }
+          }));
+        }
         })();
         true;
       `);
@@ -64,12 +64,12 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
           
           if (document.readyState === 'complete') {
             console.log('Page is complete, waiting 3 seconds for MT5 terminal to initialize...');
-            setTimeout(() => {
+    setTimeout(() => {
               console.log('Page ready for script injection');
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'page_ready_for_script'
               }));
-            }, 3000);
+    }, 3000);
           } else {
             console.log('Page not ready yet, checking again in 500ms...');
             setTimeout(waitForPageReady, 500);
