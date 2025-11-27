@@ -5,9 +5,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
 import { TradingWebView } from "@/components/trading-webview";
+import colors from "@/constants/colors";
 
 // Early console suppression - must be at the very top
 if (typeof window !== 'undefined' && Platform.OS === 'web') {
@@ -99,7 +101,7 @@ class ErrorBoundary extends Component<
 const errorStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -107,25 +109,25 @@ const errorStyles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: colors.text,
     marginTop: 20,
     marginBottom: 12,
   },
   message: {
     fontSize: 16,
-    color: '#CCCCCC',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 40,
   },
   button: {
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.error,
     paddingHorizontal: 32,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 16,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -167,6 +169,12 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1 }}>
+      <LinearGradient
+        colors={[colors.background, colors.backgroundSecondary, colors.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+      />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
@@ -307,14 +315,14 @@ export default function RootLayout() {
   }, []);
 
   if (!appIsReady) {
-    return <View style={{ flex: 1, backgroundColor: '#000000' }} />;
+    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 
   return (
     <ErrorBoundary>
       <AppProvider>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000000' }}>
-          <StatusBar style="light" backgroundColor="#000000" translucent={false} />
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+          <StatusBar style="light" backgroundColor={colors.background} translucent={false} />
           <RootLayoutNav />
         </GestureHandlerRootView>
       </AppProvider>
