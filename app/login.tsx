@@ -84,8 +84,10 @@ export default function LoginScreen() {
       // Allow only existing + not used
       // Mark that email authentication was successful
       await AsyncStorage.setItem('emailAuthenticated', 'true');
+      // Set isFirstTime to false after successful authentication
+      await setIsFirstTime(false);
       setUser({ mentorId: trimmedMentor, email: account.email });
-      router.push('/license');
+      router.replace('/license');
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Login failed. Please try again.');

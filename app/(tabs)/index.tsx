@@ -90,8 +90,8 @@ export default function HomeScreen() {
     try {
       // Clear email authentication flag when starting fresh
       await AsyncStorage.removeItem('emailAuthenticated');
-      await setIsFirstTime(false);
-      router.push('/login');
+      // Use replace to avoid showing tabs, and don't set isFirstTime to false yet
+      router.replace('/login');
     } catch (error) {
       console.error('Error navigating to login:', error);
     }
