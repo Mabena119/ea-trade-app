@@ -178,7 +178,7 @@ export default function LicenseScreen() {
                     <Text style={styles.activatingText}>Activating...</Text>
                   </View>
                 ) : (
-                  <Text style={styles.activateButtonText}>Active</Text>
+                  <Text style={styles.activateButtonText}>Activate</Text>
                 )}
               </TouchableOpacity>
             </View>

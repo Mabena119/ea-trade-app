@@ -21,28 +21,28 @@ export default function TabLayout() {
           left: 20,
           right: 20,
           height: 70,
-          backgroundColor: Platform.OS === 'ios' ? 'rgba(17, 27, 33, 0.85)' : colors.glass.background,
+          backgroundColor: Platform.OS === 'ios' ? 'rgba(30, 36, 40, 0.95)' : 'rgba(30, 36, 40, 0.95)',
           borderRadius: 35,
-          borderWidth: 1,
-          borderColor: colors.glass.border,
-          borderTopWidth: 1,
-          borderTopColor: colors.glass.border,
+          borderWidth: 0.5,
+          borderColor: 'rgba(255, 255, 255, 0.15)',
+          borderTopWidth: 0.5,
+          borderTopColor: 'rgba(255, 255, 255, 0.15)',
           paddingBottom: 10,
           paddingTop: 10,
-          shadowColor: colors.glass.shadow,
+          shadowColor: '#000000',
           shadowOffset: {
             width: 0,
-            height: 10,
+            height: 8,
           },
-          shadowOpacity: 0.5,
-          shadowRadius: 20,
-          elevation: 10,
+          shadowOpacity: 0.6,
+          shadowRadius: 16,
+          elevation: 15,
           overflow: 'hidden',
         },
         tabBarBackground: () => (
           Platform.OS === 'ios' ? (
             <BlurView
-              intensity={80}
+              intensity={100}
               tint="dark"
               style={{
                 position: 'absolute',
@@ -52,6 +52,7 @@ export default function TabLayout() {
                 bottom: 0,
                 borderRadius: 35,
                 overflow: 'hidden',
+                backgroundColor: 'rgba(30, 36, 40, 0.7)',
               }}
             />
           ) : null
