@@ -97,24 +97,14 @@ export default function TradeConfigScreen() {
 
   const handleSetSymbol = () => {
     if (symbol) {
-      const symbolConfig = {
+      // Save to both legacy and separate storage for compatibility
+      activateSymbol({
         symbol,
         lotSize: config.lotSize,
         direction: config.direction,
         platform: config.platform,
         numberOfTrades: config.numberOfTrades
-      };
-      
-      console.log('💾 Saving symbol config:', {
-        symbol: symbolConfig.symbol,
-        lotSize: symbolConfig.lotSize,
-        direction: symbolConfig.direction,
-        platform: symbolConfig.platform,
-        numberOfTrades: symbolConfig.numberOfTrades
       });
-      
-      // Save to both legacy and separate storage for compatibility
-      activateSymbol(symbolConfig);
       
       // Save to platform-specific storage (MT4 and MT5 are stored separately)
       if (config.platform === 'MT4') {
@@ -124,7 +114,7 @@ export default function TradeConfigScreen() {
           direction: config.direction,
           numberOfTrades: config.numberOfTrades
         });
-        console.log('✅ MT4 symbol activated and saved:', { symbol, ...config });
+        console.log('MT4 symbol activated:', { symbol, ...config });
       } else {
         activateMT5Symbol({
           symbol,
@@ -132,12 +122,10 @@ export default function TradeConfigScreen() {
           direction: config.direction,
           numberOfTrades: config.numberOfTrades
         });
-        console.log('✅ MT5 symbol activated and saved:', { symbol, ...config });
+        console.log('MT5 symbol activated:', { symbol, ...config });
       }
       
       router.back();
-    } else {
-      console.error('❌ Cannot save symbol config: symbol is missing');
     }
   };
   
@@ -160,7 +148,6 @@ export default function TradeConfigScreen() {
   };
 
   const updateConfig = (key: keyof TradeConfig, value: string) => {
-    console.log('⚙️ Trade config update:', { key, value, symbol });
     setConfig(prev => {
       const newConfig = { ...prev, [key]: value };
       
@@ -171,7 +158,6 @@ export default function TradeConfigScreen() {
         if (targetPlatform === 'MT4') {
           const mt4Config = mt4Symbols.find(s => s.symbol === symbol);
           if (mt4Config) {
-            console.log('📥 Loading MT4 config for', symbol, mt4Config);
             return {
               ...newConfig,
               lotSize: mt4Config.lotSize,
@@ -182,7 +168,6 @@ export default function TradeConfigScreen() {
         } else if (targetPlatform === 'MT5') {
           const mt5Config = mt5Symbols.find(s => s.symbol === symbol);
           if (mt5Config) {
-            console.log('📥 Loading MT5 config for', symbol, mt5Config);
             return {
               ...newConfig,
               lotSize: mt5Config.lotSize,
@@ -193,7 +178,6 @@ export default function TradeConfigScreen() {
         }
         
         // If no config found for target platform, use defaults
-        console.log('📥 Using default config for', targetPlatform);
         return {
           ...newConfig,
           lotSize: '0.01',
@@ -202,7 +186,6 @@ export default function TradeConfigScreen() {
         };
       }
       
-      console.log('✅ Config updated:', newConfig);
       return newConfig;
     });
   };
@@ -241,7 +224,7 @@ export default function TradeConfigScreen() {
         {/* Lot Size */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>LOT SIZE</Text>
-          <View style={styles.inputContainer}>
+          <View style={styles.inputContainer} pointerEvents="box-none">
             {Platform.OS === 'ios' && (
               <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
@@ -253,7 +236,10 @@ export default function TradeConfigScreen() {
             <TextInput
               style={styles.input}
               value={config.lotSize}
-              onChangeText={(value) => updateConfig('lotSize', value)}
+              onChangeText={(value) => {
+                console.log('Lot size input changed:', value);
+                updateConfig('lotSize', value);
+              }}
               keyboardType="decimal-pad"
               placeholder="0.01"
               placeholderTextColor="#666666"
@@ -305,7 +291,7 @@ export default function TradeConfigScreen() {
         {/* Number of Trades */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>NUMBER OF TRADES</Text>
-          <View style={styles.inputContainer}>
+          <View style={styles.inputContainer} pointerEvents="box-none">
             {Platform.OS === 'ios' && (
               <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
@@ -317,7 +303,10 @@ export default function TradeConfigScreen() {
             <TextInput
               style={styles.input}
               value={config.numberOfTrades}
-              onChangeText={(value) => updateConfig('numberOfTrades', value)}
+              onChangeText={(value) => {
+                console.log('Number of trades input changed:', value);
+                updateConfig('numberOfTrades', value);
+              }}
               keyboardType="number-pad"
               placeholder="1"
               placeholderTextColor="#666666"
@@ -516,6 +505,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     borderRadius: 16,
     overflow: 'hidden',
+    position: 'relative',
   },
   input: {
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,

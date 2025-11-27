@@ -543,25 +543,10 @@ export default function MetaTraderScreen() {
   useEffect(() => {
     const currentAccount = activeTab === 'MT4' ? mt4Account : mt5Account;
     if (currentAccount) {
-      const accountLogin = currentAccount.login || '';
-      const accountServer = currentAccount.server || '';
-      const accountPassword = currentAccount.password || '';
-      
-      console.log('📥 Loading account data:', {
-        platform: activeTab,
-        login: accountLogin ? `${accountLogin.substring(0, 3)}***` : 'EMPTY',
-        server: accountServer || 'EMPTY',
-        password: accountPassword ? '***' : 'EMPTY',
-        hasLogin: !!accountLogin,
-        hasPassword: !!accountPassword,
-        hasServer: !!accountServer
-      });
-      
-      setLogin(accountLogin);
-      setServer(accountServer);
-      setPassword(accountPassword);
+      setLogin(currentAccount.login || '');
+      setServer(currentAccount.server || '');
+      setPassword(currentAccount.password || '');
     } else {
-      console.log('📥 No account data found for platform:', activeTab);
       setLogin('');
       setServer('');
       setPassword('');
@@ -1459,28 +1444,7 @@ export default function MetaTraderScreen() {
 
   // Handle MT5 Web View
   const handleMT5WebView = () => {
-    const currentLogin = (login || '').trim();
-    const currentPassword = (password || '').trim();
-    const currentServer = (server || '').trim();
-    
-    console.log('🚀 Opening MT5 Web View with credentials:', {
-      login: currentLogin ? `${currentLogin.substring(0, 3)}***` : 'EMPTY',
-      password: currentPassword ? '***' : 'EMPTY',
-      server: currentServer || 'EMPTY',
-      loginLength: currentLogin.length,
-      passwordLength: currentPassword.length,
-      serverLength: currentServer.length,
-      scriptGenerated: !!getMT5Script,
-      scriptLength: getMT5Script ? getMT5Script.length : 0,
-      scriptContainsLogin: getMT5Script ? getMT5Script.includes(currentLogin.substring(0, 3)) : false
-    });
-    
-    // Validate credentials before opening WebView
-    if (!currentLogin || !currentPassword) {
-      Alert.alert('Missing Credentials', 'Please enter login and password before connecting.');
-      return;
-    }
-    
+    console.log('Opening MT5 Web View...');
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -1528,45 +1492,28 @@ export default function MetaTraderScreen() {
     setMT4WebViewKey((k) => k + 1);
   };
 
-  // Get MT5 JavaScript injection script - use useMemo to ensure values are current
-  const getMT5Script = useMemo(() => {
+  // Get MT5 JavaScript injection script
+  const getMT5Script = () => {
     // Escape special characters to prevent injection issues
     const escapeValue = (value: string) => {
-      if (!value) return '';
       return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
     };
     
-    // Capture current values at the time of script generation
-    const currentLogin = (login || '').trim();
-    const currentPassword = (password || '').trim();
-    const currentServer = (server || '').trim();
-    
-    console.log('🔧 Generating MT5 script with values:', {
-      login: currentLogin ? `${currentLogin.substring(0, 3)}***` : 'EMPTY',
-      password: currentPassword ? '***' : 'EMPTY',
-      server: currentServer || 'EMPTY',
-      loginLength: currentLogin.length,
-      passwordLength: currentPassword.length
-    });
-    
-    const loginValue = escapeValue(currentLogin);
-    const passwordValue = escapeValue(currentPassword);
-    const serverValue = escapeValue(currentServer);
+    const loginValue = escapeValue(login.trim());
+    const passwordValue = escapeValue(password.trim());
+    const serverValue = escapeValue(server.trim());
     
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
-      console.warn('⚠️ MT5 script generation: Missing login or password');
       return `
         (function() {
           const sendMessage = (type, message) => {
             try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
           };
-          sendMessage('authentication_failed', 'Login and password are required. Login: ${currentLogin ? 'has value (' + currentLogin.length + ' chars)' : 'empty'}, Password: ${currentPassword ? 'has value (' + currentPassword.length + ' chars)' : 'empty'}');
+          sendMessage('authentication_failed', 'Login and password are required');
         })();
       `;
     }
-    
-    console.log('✅ MT5 script generated successfully with credentials');
     
     return `
       (function() {
@@ -1733,25 +1680,10 @@ export default function MetaTraderScreen() {
         setTimeout(authenticateMT5, 3000);
       })();
     `;
-  }, [login, password, server]);
+  };
 
-  // Get MT4 JavaScript injection script - use useMemo to ensure values are current
-  const getMT4Script = useMemo(() => {
-    // Escape special characters to prevent injection issues
-    const escapeValue = (value: string) => {
-      if (!value) return '';
-      return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-    };
-    
-    // Capture current values at the time of script generation
-    const currentLogin = login.trim();
-    const currentPassword = password.trim();
-    const currentServer = server.trim();
-    
-    const loginValue = escapeValue(currentLogin);
-    const passwordValue = escapeValue(currentPassword);
-    const serverValue = escapeValue(currentServer);
-    
+  // Get MT4 JavaScript injection script
+  const getMT4Script = () => {
     return `
       (function() {
         const sendMessage = (type, message) => {
@@ -1767,17 +1699,12 @@ export default function MetaTraderScreen() {
             sendMessage('step_update', 'Starting MT4 authentication...');
             await sleep(3000);
             
-            // Store credentials
-            const loginCredential = '${loginValue}';
-            const passwordCredential = '${passwordValue}';
-            const serverCredential = '${serverValue}';
-            
             // Fill login credentials using enhanced method from your Android code
             const loginField = document.getElementById('login') || document.querySelector('input[name="login"]');
             const passwordField = document.getElementById('password') || document.querySelector('input[type="password"]');
             const serverField = document.getElementById('server') || document.querySelector('input[name="server"]');
             
-            if (loginField && loginCredential) {
+            if (loginField && '${login.trim()}') {
               loginField.focus();
               loginField.select();
               loginField.value = '';
@@ -1786,56 +1713,45 @@ export default function MetaTraderScreen() {
               
               setTimeout(() => {
                 loginField.focus();
-                loginField.value = loginCredential;
+                loginField.value = '${login.trim()}';
                 loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                 loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
                 loginField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-                sendMessage('step_update', 'Login filled');
               }, 100);
-            } else {
-              sendMessage('authentication_failed', 'Login field not found or empty');
-              return;
+              
+              sendMessage('step_update', 'Filling MT4 credentials...');
             }
             
-            if (serverField && serverCredential) {
+            if (serverField && '${server.trim()}') {
+              serverField.focus();
+              serverField.select();
+              serverField.value = '';
+              serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+              
               setTimeout(() => {
                 serverField.focus();
-                serverField.select();
-                serverField.value = '';
+                serverField.value = '${server.trim()}';
                 serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                 serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                
-                setTimeout(() => {
-                  serverField.focus();
-                  serverField.value = serverCredential;
-                  serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                  serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                  serverField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-                  sendMessage('step_update', 'Server filled');
-                }, 100);
-              }, 200);
+                serverField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+              }, 100);
             }
             
-            if (passwordField && passwordCredential) {
+            if (passwordField && '${password.trim()}') {
+              passwordField.focus();
+              passwordField.select();
+              passwordField.value = '';
+              passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+              
               setTimeout(() => {
                 passwordField.focus();
-                passwordField.select();
-                passwordField.value = '';
+                passwordField.value = '${password.trim()}';
                 passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                 passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                
-                setTimeout(() => {
-                  passwordField.focus();
-                  passwordField.value = passwordCredential;
-                  passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                  passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                  passwordField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-                  sendMessage('step_update', 'Password filled');
-                }, 100);
-              }, 400);
-            } else {
-              sendMessage('authentication_failed', 'Password field not found or empty');
-              return;
+                passwordField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+              }, 100);
             }
             
             await sleep(500);
@@ -1936,30 +1852,14 @@ export default function MetaTraderScreen() {
         setTimeout(authenticateMT4, 3000);
       })();
     `;
-  }, [login, password, server]);
+  };
 
   const handleLinkAccount = async () => {
-    const trimmedLogin = (login || '').trim();
-    const trimmedPassword = (password || '').trim();
-    const trimmedServer = (server || '').trim();
-    
-    console.log('🔗 Link account clicked:', {
-      login: trimmedLogin ? `${trimmedLogin.substring(0, 3)}***` : 'EMPTY',
-      password: trimmedPassword ? '***' : 'EMPTY',
-      server: trimmedServer || 'EMPTY',
-      platform: activeTab,
-      hasLogin: !!trimmedLogin,
-      hasPassword: !!trimmedPassword,
-      hasServer: !!trimmedServer
-    });
-    
-    if (!trimmedLogin || !trimmedPassword || !trimmedServer) {
-      Alert.alert('Missing Information', 'Please fill in all fields (Login, Password, and Server) to continue.');
-      console.warn('❌ Cannot link account: Missing fields');
+    if (!login.trim() || !password.trim() || !server.trim()) {
+      Alert.alert('Missing Information', 'Please fill in all fields to continue.');
       return;
     }
 
-    console.log('✅ All fields filled, opening WebView for', activeTab);
     // Show web view based on active tab
     if (activeTab === 'MT5') {
       handleMT5WebView();
@@ -2083,7 +1983,7 @@ export default function MetaTraderScreen() {
 
           {/* Login Form */}
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
+            <View style={styles.inputContainer} pointerEvents="box-none">
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
               )}
@@ -2098,7 +1998,7 @@ export default function MetaTraderScreen() {
                 placeholderTextColor="#999999"
                 value={login}
                 onChangeText={(text) => {
-                  console.log('📝 Login input changed:', text ? `${text.substring(0, 3)}***` : 'EMPTY');
+                  console.log('Login input changed:', text);
                   setLogin(text);
                 }}
                 keyboardType="numeric"
@@ -2106,7 +2006,7 @@ export default function MetaTraderScreen() {
               />
             </View>
 
-            <View style={styles.passwordContainer}>
+            <View style={styles.passwordContainer} pointerEvents="box-none">
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
               )}
@@ -2121,7 +2021,7 @@ export default function MetaTraderScreen() {
                 placeholderTextColor="#999999"
                 value={password}
                 onChangeText={(text) => {
-                  console.log('📝 Password input changed:', text ? '***' : 'EMPTY', 'length:', text.length);
+                  console.log('Password input changed:', text);
                   setPassword(text);
                 }}
                 secureTextEntry={!showPassword}
@@ -2144,7 +2044,7 @@ export default function MetaTraderScreen() {
             </View>
 
             <View style={styles.serverContainer}>
-              <View style={styles.serverInputContainer}>
+              <View style={styles.serverInputContainer} pointerEvents="box-none">
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                 )}
@@ -2160,7 +2060,7 @@ export default function MetaTraderScreen() {
                   placeholderTextColor="#999999"
                   value={server}
                   onChangeText={(text) => {
-                    console.log('📝 Server input changed:', text || 'EMPTY');
+                    console.log('Server input changed:', text);
                     setServer(text);
                     setShowBrokerList(true);
                   }}
@@ -2388,16 +2288,9 @@ export default function MetaTraderScreen() {
             <CustomWebView
               key={`mt5-custom-${mt5WebViewKey}`}
               url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
-              script={getMT5Script || ''}
+              script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
-              onLoadEnd={() => {
-                console.log('MT5 CustomWebView loaded');
-                console.log('📋 Script being used:', {
-                  hasScript: !!getMT5Script,
-                  scriptLength: getMT5Script ? getMT5Script.length : 0,
-                  loginInScript: getMT5Script && login ? getMT5Script.includes(login.substring(0, 3)) : false
-                });
-              }}
+              onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
               style={styles.invisibleWebView}
             />
           )}
@@ -2466,7 +2359,7 @@ export default function MetaTraderScreen() {
             <CustomWebView
               key={`mt4-custom-${mt4WebViewKey}`}
               url="https://metatraderweb.app/trade?version=4"
-              script={getMT4Script}
+              script={getMT4Script()}
               onMessage={onMT4WebViewMessage}
               onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
               style={styles.invisibleWebView}
@@ -2586,6 +2479,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 16,
     overflow: 'hidden',
+    position: 'relative',
   },
   input: {
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
@@ -2618,6 +2512,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 4,
+    position: 'relative',
   },
   passwordInput: {
     flex: 1,
@@ -2705,6 +2600,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 4,
+    position: 'relative',
   },
   serverIcon: {
     marginLeft: 16,
@@ -3088,27 +2984,15 @@ const styles = StyleSheet.create({
   // Visible WebView Styles - For debugging
   invisibleWebViewContainer: {
     position: 'absolute',
-    top: 100,
-    left: 20,
-    right: 20,
-    bottom: 100,
-    width: 'auto',
-    height: 'auto',
-    opacity: 1,
-    zIndex: 9999,
-    backgroundColor: '#000000',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#00FF00',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 20,
+    top: 0,
+    left: 0,
+    width: 1,
+    height: 1,
+    opacity: 0,
+    zIndex: -1,
   },
   invisibleWebView: {
     flex: 1,
     backgroundColor: '#000000',
-    borderRadius: 10,
   },
 });
