@@ -1,4 +1,12 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
+// Get API base URL
+const API_BASE_URL = (
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL ||
+  ''
+).replace(/\/$/, '');
 
 // Database configuration
 const dbConfig = {
@@ -192,7 +200,9 @@ class DatabaseSignalsPollingService {
   // Get EA from license key via API
   private async getEAFromLicense(licenseKey: string): Promise<string | null> {
     try {
-      const response = await fetch(`/api/get-ea-from-license?licenseKey=${encodeURIComponent(licenseKey)}`);
+      const url = `${API_BASE_URL}/api/get-ea-from-license?licenseKey=${encodeURIComponent(licenseKey)}`;
+      console.log('Fetching EA from license, URL:', url);
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`API call failed: ${response.status}`);
       }
@@ -212,7 +222,9 @@ class DatabaseSignalsPollingService {
         since: this.lastPollTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // Default to 24 hours ago
       });
 
-      const response = await fetch(`/api/get-new-signals?${params}`);
+      const url = `${API_BASE_URL}/api/get-new-signals?${params}`;
+      console.log('Fetching new signals, URL:', url);
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`API call failed: ${response.status}`);
       }
