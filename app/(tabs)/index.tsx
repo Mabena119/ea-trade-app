@@ -30,22 +30,23 @@ export default function HomeScreen() {
       try {
         // Wait for initial state to load
         await new Promise(resolve => setTimeout(resolve, 300));
-        
+
         // If not first time but no EAs, check if email auth was completed
         if (!isFirstTime && eas.length === 0) {
           const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
-          
-          // If email authentication was never completed, show splash screen
+
+          // If email authentication was never completed, redirect to login
           if (!emailAuthenticated || emailAuthenticated !== 'true') {
-            console.log('Email authentication not completed, showing splash screen...');
+            console.log('Email authentication not completed, redirecting to login...');
             await setIsFirstTime(true);
+            router.replace('/login');
           } else {
-            // Email authentication was completed, but no license added yet
-            // Don't auto-redirect - let user manually add license via "Add New EA" button
-            console.log('Email authenticated but no EA added - user can add license manually');
+            // Email authentication was completed, but no license added yet - go to license page
+            console.log('Email authenticated but no EA added, redirecting to license...');
+            router.replace('/license');
           }
         }
-        
+
         setHasCheckedAuth(true);
       } catch (error) {
         console.error('Error checking authentication status:', error);
@@ -73,19 +74,10 @@ export default function HomeScreen() {
   const handleStartNow = async () => {
     console.log('Start Now pressed, navigating to login...');
     try {
-      // Check if user has already authenticated before
-      const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
-      
+      // Clear email authentication flag when starting fresh
+      await AsyncStorage.removeItem('emailAuthenticated');
       await setIsFirstTime(false);
-      
-      // If already authenticated, go directly to license page
-      if (emailAuthenticated === 'true') {
-        console.log('User already authenticated, skipping to license...');
-        router.push('/license');
-      } else {
-        // First time user, go to login
-        router.push('/login');
-      }
+      router.push('/login');
     } catch (error) {
       console.error('Error navigating to login:', error);
     }
@@ -232,10 +224,6 @@ export default function HomeScreen() {
             <View style={styles.botInfoContainer}>
               <Text style={styles.botMainName}>NO EA CONNECTED</Text>
               <Text style={styles.botDescription}>ADD A LICENSE KEY TO GET STARTED</Text>
-              <TouchableOpacity style={styles.addLicenseButton} onPress={handleAddNewEA}>
-                <Plus color="#000000" size={20} />
-                <Text style={styles.addLicenseButtonText}>ADD LICENSE</Text>
-              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -441,24 +429,6 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     fontSize: 14,
     fontWeight: '500',
-    letterSpacing: 0.5,
-    marginBottom: 24,
-  },
-  addLicenseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    gap: 8,
-    marginTop: 8,
-  },
-  addLicenseButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '700',
     letterSpacing: 0.5,
   },
 

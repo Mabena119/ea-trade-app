@@ -102,55 +102,55 @@ export default function LicenseScreen() {
           </TouchableOpacity>
         </View>
       )}
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('@/assets/images/icon.png')}
-            style={styles.appIcon}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Enter License Key</Text>
-        </View>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={styles.appIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>Enter License Key</Text>
+            </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="License Key"
-            placeholderTextColor="#999999"
-            value={licenseKey}
-            onChangeText={setLicenseKey}
-            autoCapitalize="characters"
-          />
+            <View style={styles.form}>
+              <TextInput
+                style={styles.input}
+                placeholder="License Key"
+                placeholderTextColor="#999999"
+                value={licenseKey}
+                onChangeText={setLicenseKey}
+                autoCapitalize="characters"
+              />
 
-          <TouchableOpacity
-            style={[styles.activateButton, isActivating && styles.activateButtonDisabled]}
-            onPress={handleActivate}
-            disabled={isActivating}
-          >
-            {isActivating ? (
-              <View style={styles.activatingContainer}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.activatingText}>Activating...</Text>
-              </View>
-            ) : (
-              <Text style={styles.activateButtonText}>Activate EA</Text>
-            )}
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.activateButton, isActivating && styles.activateButtonDisabled]}
+                onPress={handleActivate}
+                disabled={isActivating}
+              >
+                {isActivating ? (
+                  <View style={styles.activatingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.activatingText}>Activating...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.activateButtonText}>Activate EA</Text>
+                )}
+              </TouchableOpacity>
 
-          <Text style={styles.hint}>
-            Enter your license key to activate EA
-          </Text>
-        </View>
+              <Text style={styles.hint}>
+                Enter your license key to activate EA
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
