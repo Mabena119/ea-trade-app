@@ -1907,11 +1907,12 @@ export default function MetaTraderScreen() {
           <View style={styles.form}>
             <View style={styles.inputContainer}>
               {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
               )}
               <LinearGradient
                 colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
                 style={StyleSheet.absoluteFill}
+                pointerEvents="none"
               />
               <TextInput
                 style={styles.input}
@@ -1920,16 +1921,18 @@ export default function MetaTraderScreen() {
                 value={login}
                 onChangeText={setLogin}
                 keyboardType="numeric"
+                editable={true}
               />
             </View>
 
             <View style={styles.passwordContainer}>
               {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
               )}
               <LinearGradient
                 colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
                 style={StyleSheet.absoluteFill}
+                pointerEvents="none"
               />
               <TextInput
                 style={styles.passwordInput}
@@ -1938,6 +1941,7 @@ export default function MetaTraderScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                editable={true}
               />
               <TouchableOpacity
                 style={styles.eyeButton}
@@ -1958,11 +1962,12 @@ export default function MetaTraderScreen() {
             <View style={styles.serverContainer}>
               <View style={styles.serverInputContainer}>
                 {Platform.OS === 'ios' && (
-                  <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                 )}
                 <LinearGradient
                   colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
                   style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
                 />
                 <Server color="#999999" size={18} style={styles.serverIcon} />
                 <TextInput
@@ -1978,6 +1983,7 @@ export default function MetaTraderScreen() {
                     setShowBrokerList(true);
                   }}
                   autoCapitalize="none"
+                  editable={true}
                 />
                 {server.length > 0 && (
                   <TouchableOpacity
@@ -2359,6 +2365,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 4,
+    zIndex: 1,
+    position: 'relative',
   },
   passwordContainer: {
     flexDirection: 'row',
@@ -2381,6 +2389,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#FFFFFF',
+    zIndex: 1,
+    position: 'relative',
   },
   eyeButton: {
     paddingHorizontal: 12,
@@ -2469,6 +2479,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#FFFFFF',
+    zIndex: 1,
+    position: 'relative',
   },
   clearButton: {
     paddingHorizontal: 12,

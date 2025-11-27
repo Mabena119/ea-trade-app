@@ -226,11 +226,12 @@ export default function TradeConfigScreen() {
           <Text style={styles.sectionTitle}>LOT SIZE</Text>
           <View style={styles.inputContainer}>
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
               style={StyleSheet.absoluteFill}
+              pointerEvents="none"
             />
             <TextInput
               style={styles.input}
@@ -239,6 +240,7 @@ export default function TradeConfigScreen() {
               keyboardType="decimal-pad"
               placeholder="0.01"
               placeholderTextColor="#666666"
+              editable={true}
             />
           </View>
         </View>
@@ -288,11 +290,12 @@ export default function TradeConfigScreen() {
           <Text style={styles.sectionTitle}>NUMBER OF TRADES</Text>
           <View style={styles.inputContainer}>
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
               style={StyleSheet.absoluteFill}
+              pointerEvents="none"
             />
             <TextInput
               style={styles.input}
@@ -301,6 +304,7 @@ export default function TradeConfigScreen() {
               keyboardType="number-pad"
               placeholder="1"
               placeholderTextColor="#666666"
+              editable={true}
             />
           </View>
         </View>
@@ -511,6 +515,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 4,
+    zIndex: 1,
+    position: 'relative',
   },
   picker: {
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,

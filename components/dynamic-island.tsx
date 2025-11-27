@@ -12,6 +12,8 @@ import {
   PanResponder,
   Image,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Play, Square, TrendingUp, Trash2, Activity } from 'lucide-react-native';
 
 import { RobotLogo } from './robot-logo';
@@ -19,6 +21,7 @@ import { useApp } from '@/providers/app-provider';
 import { router } from 'expo-router';
 import { SignalLog } from '@/services/signals-monitor';
 import type { EA } from '@/providers/app-provider';
+import colors from '@/constants/colors';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -272,8 +275,22 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
           activeOpacity={0.8}
           style={styles.overlayModeWidget}
         >
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.overlayModeContent}>
             <View style={styles.overlayIcon}>
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+                style={StyleSheet.absoluteFill}
+              />
               {primaryEAImage && !logoError ? (
                 <Image
                   source={{ uri: primaryEAImage }}
@@ -384,28 +401,40 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
             {
               height: animatedHeight,
               width: animatedWidth,
-              borderColor: '#000000',
-              borderRadius: isExpanded ? 20 : 25,
+              borderRadius: isExpanded ? 24 : 28,
             },
           ]}
         >
-          {/* Collapsed State - Simple Circle with Bot Logo */}
+          {Platform.OS === 'ios' && (
+            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient
+            colors={isExpanded 
+              ? ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']
+              : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+            style={StyleSheet.absoluteFill}
+          />
+          
+          {/* Collapsed State - Modern Glass Pill */}
           {!isExpanded && (
-            <View style={styles.collapsedCircle}>
-              {primaryEAImage && !logoError ? (
-                <Image
-                  source={{ uri: primaryEAImage }}
-                  style={styles.collapsedLogo}
-                  onError={() => setLogoError(true)}
-                  resizeMode="cover"
-                />
-              ) : (
-                <RobotLogo size={24} />
-              )}
+            <View style={styles.collapsedPill}>
+              <View style={styles.collapsedIconContainer}>
+                {primaryEAImage && !logoError ? (
+                  <Image
+                    source={{ uri: primaryEAImage }}
+                    style={styles.collapsedLogo}
+                    onError={() => setLogoError(true)}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <RobotLogo size={20} />
+                )}
+              </View>
+              <View style={styles.collapsedStatusDot} />
             </View>
           )}
 
-          {/* Expanded State */}
+          {/* Expanded State - Modern Glass Card */}
           <Animated.View
             style={[
               styles.expandedContent,
@@ -416,7 +445,25 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
             pointerEvents={isExpanded ? 'auto' : 'none'}
           >
             <View style={styles.expandedHeader}>
+              <View style={styles.expandedInfo}>
+                <Text style={styles.expandedTitle} numberOfLines={1} ellipsizeMode="tail">
+                  {primaryEA?.name}
+                </Text>
+                <View style={styles.expandedStatusRow}>
+                  <View style={styles.expandedStatusDot} />
+                  <Text style={styles.expandedSubtitle}>
+                    ACTIVE
+                  </Text>
+                </View>
+              </View>
               <View style={styles.expandedIconContainer}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
+                  style={StyleSheet.absoluteFill}
+                />
                 {primaryEAImage && !logoError ? (
                   <Image
                     source={{ uri: primaryEAImage }}
@@ -425,22 +472,14 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                     resizeMode="cover"
                   />
                 ) : (
-                  <RobotLogo size={32} />
+                  <RobotLogo size={28} />
                 )}
-              </View>
-              <View style={styles.expandedInfo}>
-                <Text style={styles.expandedTitle} numberOfLines={2} ellipsizeMode="tail">
-                  {primaryEA?.name}
-                </Text>
-                <Text style={styles.expandedSubtitle}>
-                  EA TRADE
-                </Text>
               </View>
             </View>
 
             <View style={styles.expandedControls}>
               <TouchableOpacity
-                style={styles.controlButton}
+                style={[styles.controlButton, styles.controlButtonPrimary]}
                 onPress={() => {
                   console.log('Android Widget: Start/Stop button pressed, current state:', isBotActive);
                   try {
@@ -450,23 +489,55 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                     console.error('Android Widget: Error changing bot state:', error);
                   }
                 }}
+                activeOpacity={0.8}
               >
-                {isBotActive ? (
-                  <Square color="#DC2626" size={16} fill="#DC2626" />
-                ) : (
-                  <Play color="#FFFFFF" size={16} fill="#FFFFFF" />
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                 )}
-                <Text style={[styles.controlButtonText, { color: isBotActive ? "#DC2626" : "#FFFFFF" }]}>
+                <LinearGradient
+                  colors={isBotActive 
+                    ? ['rgba(220, 38, 38, 0.25)', 'rgba(220, 38, 38, 0.15)']
+                    : ['rgba(37, 211, 102, 0.25)', 'rgba(37, 211, 102, 0.15)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                {isBotActive ? (
+                  <Square color="#DC2626" size={18} fill="#DC2626" />
+                ) : (
+                  <Play color="#25D366" size={18} fill="#25D366" />
+                )}
+                <Text style={[styles.controlButtonText, { color: isBotActive ? "#DC2626" : "#25D366" }]}>
                   {isBotActive ? 'STOP' : 'START'}
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.controlButton} onPress={handleQuotes}>
+              <TouchableOpacity 
+                style={styles.controlButton} 
+                onPress={handleQuotes}
+                activeOpacity={0.8}
+              >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                  style={StyleSheet.absoluteFill}
+                />
                 <TrendingUp color="#FFFFFF" size={16} />
                 <Text style={styles.controlButtonText}>QUOTES</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.controlButton} onPress={handleRemoveBot}>
+              <TouchableOpacity 
+                style={styles.controlButton} 
+                onPress={handleRemoveBot}
+                activeOpacity={0.8}
+              >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                  style={StyleSheet.absoluteFill}
+                />
                 <Trash2 color="#FFFFFF" size={16} />
                 <Text style={styles.controlButtonText}>REMOVE</Text>
               </TouchableOpacity>
@@ -475,8 +546,17 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
             {/* Signals Status - Only show when signals are active */}
             {isSignalsMonitoring && (
               <View style={styles.signalsStatus}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
+                  style={StyleSheet.absoluteFill}
+                />
                 <View style={styles.signalsStatusHeader}>
-                  <Activity color='#FFFFFF' size={14} />
+                  <View style={styles.signalsStatusIconContainer}>
+                    <Activity color='#25D366' size={14} />
+                  </View>
                   <Text style={styles.signalsStatusText}>
                     MONITORING SIGNALS
                   </Text>
@@ -496,6 +576,13 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                         const uniqueKey = `${signal.id}-${signal.latestupdate}-${index}`;
                         return (
                           <View key={uniqueKey} style={styles.latestSignalDetails}>
+                            {Platform.OS === 'ios' && (
+                              <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+                            )}
+                            <LinearGradient
+                              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                              style={StyleSheet.absoluteFill}
+                            />
                             <View style={styles.latestSignalHeader}>
                               <Text style={styles.latestSignalAsset}>{signal.asset}</Text>
                               <View style={[
@@ -554,21 +641,21 @@ const styles = StyleSheet.create({
     elevation: 999,
   },
   overlayModeWidget: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderWidth: 2,
-    borderColor: '#000000',
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
+    shadowOpacity: 0.7,
+    shadowRadius: 12,
     elevation: 20,
-    // Removed: backdropFilter (not supported in React Native styles)
+    overflow: 'hidden',
   },
   overlayModeContent: {
     flexDirection: 'row',
@@ -578,11 +665,13 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 6,
     overflow: 'hidden',
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
   },
   overlayLogo: {
     width: 18,
@@ -590,11 +679,15 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   overlayIndicator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#10B981',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#25D366',
     marginRight: 6,
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
   },
   overlayText: {
     color: '#FFFFFF',
@@ -608,107 +701,145 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overlayWidget: {
-    backgroundColor: '#000000',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: '#000000',
-    // Removed: backdropFilter (not supported in React Native styles)
-  },
-  collapsedCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000000',
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
+    elevation: 20,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
     overflow: 'hidden',
   },
+  collapsedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    width: '100%',
+    height: '100%',
+  },
+  collapsedIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 0.3,
+    borderColor: colors.glass.borderMedium,
+    marginRight: 8,
+  },
   collapsedLogo: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  collapsedStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#25D366',
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
   },
   expandedContent: {
     flex: 1,
     width: '100%',
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
     position: 'relative',
-    backgroundColor: '#000000',
-    borderRadius: 20,
   },
   expandedHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 0.3,
+    borderBottomColor: colors.glass.border,
   },
   expandedIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderWidth: 0.3,
+    borderColor: colors.glass.borderMedium,
     overflow: 'hidden',
   },
   expandedLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   expandedInfo: {
-    marginLeft: 16,
     flex: 1,
+    marginRight: 12,
   },
   expandedTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    letterSpacing: 0.3,
-    flexWrap: 'wrap',
-    textAlign: 'center',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  expandedStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  expandedStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#25D366',
+    marginRight: 6,
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
   },
   expandedSubtitle: {
-    color: '#999999',
+    color: '#25D366',
     fontSize: 11,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-    marginTop: 3,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   expandedControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 16,
-    paddingHorizontal: 8,
+    marginTop: 12,
+    marginBottom: 8,
+    gap: 10,
   },
   controlButton: {
+    flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
-    minWidth: 70,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 14,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
+  },
+  controlButtonPrimary: {
+    flex: 1.2,
   },
   controlButtonText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     marginTop: 6,
     letterSpacing: 0.5,
@@ -844,41 +975,55 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   signalsStatus: {
-    backgroundColor: '#10B981',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderRadius: 16,
+    padding: 14,
     marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#10B981',
+    borderWidth: 0.3,
+    borderColor: colors.glass.borderMedium,
+    overflow: 'hidden',
   },
   signalsStatusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  signalsStatusIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(37, 211, 102, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    borderWidth: 0.3,
+    borderColor: 'rgba(37, 211, 102, 0.3)',
   },
   signalsStatusText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginLeft: 8,
+    letterSpacing: 0.5,
   },
   signalsCount: {
-    fontSize: 10,
-    color: '#FFFFFF',
+    fontSize: 11,
+    color: '#CCCCCC',
     marginTop: 2,
+    fontWeight: '500',
   },
   latestSignalContainer: {
     marginTop: 12,
     paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopWidth: 0.3,
+    borderTopColor: colors.glass.border,
   },
   latestSignalDetails: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 0.3,
+    borderColor: colors.glass.borderMedium,
+    overflow: 'hidden',
   },
   latestSignalHeader: {
     flexDirection: 'row',
