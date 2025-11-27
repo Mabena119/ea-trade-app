@@ -470,25 +470,29 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             eval(selectSymbol);
             
             // Execute multiple orders with proper delays and enhanced tracking
-            console.log('Starting execution of ${numberOfOrders} orders for ${asset}');
+            console.log('🎯 Starting execution of ${numberOfOrders} orders for ${asset}');
+            
+            var ordersExecuted = 0; // Track actual executed orders
+            var targetOrders = ${numberOfOrders};
             
             function executeOrderSequence(orderIndex) {
-              console.log('MT4 executeOrderSequence called with orderIndex:', orderIndex, 'total orders:', ${numberOfOrders});
+              console.log('📊 MT4 executeOrderSequence - orderIndex:', orderIndex, 'ordersExecuted:', ordersExecuted, 'targetOrders:', targetOrders);
               
-              if (orderIndex >= ${numberOfOrders}) {
-                // All orders completed
-                console.log('All MT4 orders completed, total executed:', orderIndex);
+              // Check if we've executed all required orders
+              if (ordersExecuted >= targetOrders) {
+                console.log('✅ All MT4 orders completed! Total executed:', ordersExecuted, 'Target:', targetOrders);
+                
                 setTimeout(function() {
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'success',
-                    message: 'All ${numberOfOrders} order(s) executed successfully for ${asset}'
+                    message: 'All ' + targetOrders + ' order(s) executed successfully for ${asset}'
                   }));
                   
-                  console.log('Waiting 3 seconds before closing trading process...');
+                  console.log('⏳ Waiting 3 seconds before closing trading process...');
                   
                   // Wait 3 seconds then close and return to listening state
                   setTimeout(function() {
-                    console.log('3 seconds elapsed, closing trading process and returning to listening state');
+                    console.log('🔄 3 seconds elapsed, closing trading process and returning to listening state');
                     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                       type: 'close',
                       message: 'All trades completed - returning to listening state'
@@ -498,10 +502,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                 return;
               }
               
-              console.log('Executing MT4 order ' + (orderIndex + 1) + ' of ${numberOfOrders}');
+              console.log('🔨 Executing MT4 order ' + (ordersExecuted + 1) + ' of ' + targetOrders);
               window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'step',
-                message: 'Executing MT4 order ' + (orderIndex + 1) + ' of ${numberOfOrders} for ${asset}...'
+                message: 'Executing MT4 order ' + (ordersExecuted + 1) + ' of ' + targetOrders + ' for ${asset}...'
               }));
               
               // Set parameters for this order
@@ -509,8 +513,12 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               
               // Execute order after parameters are set
               setTimeout(function() {
-                console.log('Placing MT4 order ' + (orderIndex + 1) + ' - ${action}');
+                console.log('💰 Placing MT4 order ' + (ordersExecuted + 1) + ' - ${action}');
                 eval(executeOrder);
+                
+                // Increment the counter AFTER executing
+                ordersExecuted++;
+                console.log('✓ Order executed, ordersExecuted now:', ordersExecuted);
                 
                 // Wait before next order
                 setTimeout(function() {
@@ -841,17 +849,20 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                 window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Opening order dialog...'}));
                 
                 // Enhanced MT5 order execution sequence
-                console.log('Starting MT5 execution of ${numberOfOrders} orders for ${asset}');
+                console.log('🎯 Starting MT5 execution of ${numberOfOrders} orders for ${asset}');
+                
+                var ordersExecuted = 0; // Track actual executed orders
+                var targetOrders = ${numberOfOrders};
                 
                 function executeMT5OrderSequence(orderIndex) {
-                  console.log('MT5 executeMT5OrderSequence called with orderIndex:', orderIndex, 'total orders:', ${numberOfOrders});
+                  console.log('📊 MT5 executeMT5OrderSequence - orderIndex:', orderIndex, 'ordersExecuted:', ordersExecuted, 'targetOrders:', targetOrders);
                   
-                  if (orderIndex >= ${numberOfOrders}) {
+                  if (ordersExecuted >= targetOrders) {
                     // All orders completed - verify all trades are actually executed
-                    console.log('All MT5 orders completed, total executed:', orderIndex, 'verifying execution status...');
+                    console.log('✅ All MT5 orders completed! Total executed:', ordersExecuted, 'Target:', targetOrders, '- verifying execution status...');
                     window.ReactNativeWebView.postMessage(JSON.stringify({
                       type: 'step', 
-                      message: 'All ${numberOfOrders} MT5 order(s) completed, verifying execution...'
+                      message: 'All ' + targetOrders + ' MT5 order(s) completed, verifying execution...'
                     }));
                     
                     // Function to check if all trades are actually executed
@@ -871,7 +882,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         hasOpenDialog: hasOpenDialog,
                         hasLoading: hasLoading,
                         hasPending: hasPending,
-                        totalOrdersExpected: ${numberOfOrders}
+                        ordersExecuted: ordersExecuted,
+                        targetOrders: targetOrders
                       });
                       
                       // If no pending operations, all trades are complete
@@ -879,7 +891,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         console.log('All MT5 trades verified as completed');
                         window.ReactNativeWebView.postMessage(JSON.stringify({
                           type: 'success', 
-                          message: 'All ${numberOfOrders} MT5 order(s) executed successfully for ${asset}'
+                          message: 'All ' + targetOrders + ' MT5 order(s) executed successfully for ${asset}'
                         }));
                         
                         console.log('Waiting 3 seconds before closing trading process...');
@@ -923,7 +935,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         console.log('MT5 verification timeout - assuming all trades completed');
                         window.ReactNativeWebView.postMessage(JSON.stringify({
                           type: 'success', 
-                          message: 'All ${numberOfOrders} MT5 order(s) processing completed for ${asset}'
+                          message: 'All ' + targetOrders + ' MT5 order(s) processing completed for ${asset}'
                         }));
                         
                         console.log('Waiting 3 seconds before closing trading process...');
@@ -943,10 +955,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                     return;
                   }
                   
-                  console.log('Executing MT5 order ' + (orderIndex + 1) + ' of ${numberOfOrders}');
+                  console.log('🔨 Executing MT5 order ' + (ordersExecuted + 1) + ' of ' + targetOrders);
                   window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'step', 
-                    message: \`Opening order dialog for MT5 trade \${orderIndex + 1} of ${numberOfOrders}...\`
+                    message: 'Opening order dialog for MT5 trade ' + (ordersExecuted + 1) + ' of ' + targetOrders + '...'
                   }));
                   
                   eval(openOrderDialog);
@@ -954,23 +966,27 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                   setTimeout(() => {
                     window.ReactNativeWebView.postMessage(JSON.stringify({
                       type: 'step', 
-                      message: \`Setting parameters for MT5 order \${orderIndex + 1} of ${numberOfOrders}...\`
+                      message: 'Setting parameters for MT5 order ' + (ordersExecuted + 1) + ' of ' + targetOrders + '...'
                     }));
                     eval(setOrderParams);
                     
                     setTimeout(() => {
-                      console.log('Placing MT5 order ' + (orderIndex + 1) + ' - ${action}');
+                      console.log('💰 Placing MT5 order ' + (ordersExecuted + 1) + ' - ${action}');
                       window.ReactNativeWebView.postMessage(JSON.stringify({
                         type: 'step', 
-                        message: \`Executing MT5 order \${orderIndex + 1} of ${numberOfOrders} - ${action}...\`
+                        message: 'Executing MT5 order ' + (ordersExecuted + 1) + ' of ' + targetOrders + ' - ${action}...'
                       }));
                       
                       eval(executeOrder);
                       eval(confirmOrder);
                       
+                      // Increment the counter AFTER executing
+                      ordersExecuted++;
+                      console.log('✓ Order executed, ordersExecuted now:', ordersExecuted);
+                      
                       // Enhanced wait time between orders to ensure each trade is fully processed
                       setTimeout(() => {
-                        console.log('MT5 order ' + (orderIndex + 1) + ' processing completed, moving to next...');
+                        console.log('MT5 order processing completed, moving to next...');
                         executeMT5OrderSequence(orderIndex + 1);
                       }, 8000); // Increased from 6 to 8 seconds delay between orders
                     }, 3000); // Increased from 2.5 to 3 seconds for parameter setting
