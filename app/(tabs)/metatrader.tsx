@@ -924,9 +924,9 @@ export default function MetaTraderScreen() {
   };
 
   // Handle MT5 WebView messages
-  const onMT5WebViewMessage = (event: any) => {
+  const onMT5WebViewMessage = (data: any) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data);
+      // Data is already parsed by CustomWebView component
       console.log('MT5 WebView message:', data);
 
       if (data.type === 'mt5_loaded') {
@@ -981,9 +981,9 @@ export default function MetaTraderScreen() {
   };
 
   // Handle MT4 WebView messages
-  const onMT4WebViewMessage = (event: any) => {
+  const onMT4WebViewMessage = (data: any) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data);
+      // Data is already parsed by CustomWebView component
       console.log('MT4 WebView message:', data);
 
       if (data.type === 'mt4_loaded') {
