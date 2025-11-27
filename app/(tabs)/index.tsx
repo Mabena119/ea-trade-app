@@ -129,15 +129,17 @@ export default function HomeScreen() {
       <View style={styles.splashContainer}>
         <View style={styles.splashContent}>
           <View style={styles.logoContainer}>
+            <Image
+              testID="splash-app-icon"
+              source={require('../../assets/images/icon.png')}
+              style={{ width: 240, height: 240, borderRadius: 48 }}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>EA TRADE</Text>
           </View>
 
-          <Text style={styles.description}>
-            A cutting-edge mobile hosting platform designed to empower traders with a secure, reliable, and user-friendly environment for running their automated trading systems. Seamlessly manage your Expert Advisors (EAs) on the go, ensuring optimal performance and peace of mind.
-          </Text>
-
           <TouchableOpacity style={styles.splashStartButton} onPress={handleStartNow}>
-            <Text style={styles.startButtonText}>START NOW</Text>
+            <Text style={styles.startButtonText}>START</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -163,6 +165,12 @@ export default function HomeScreen() {
               </ImageBackground>
             ) : (
               <View style={styles.heroFallback}>
+                <Image
+                  testID="fallback-app-icon"
+                  source={require('../../assets/images/icon.png')}
+                  style={styles.fallbackIcon}
+                  resizeMode="contain"
+                />
                 <View style={styles.gradientOverlay} />
               </View>
             )}
