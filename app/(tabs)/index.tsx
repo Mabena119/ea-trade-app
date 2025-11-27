@@ -208,7 +208,13 @@ export default function HomeScreen() {
               />
               <View style={styles.topSection}>
                 <View style={styles.titleBlock}>
-                  <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name}</Text>
+                  <View style={styles.botNameContainer}>
+                    <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name}</Text>
+                    <View style={[
+                      styles.botStatusDot,
+                      isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
+                    ]} />
+                  </View>
                 </View>
               </View>
 
@@ -476,17 +482,52 @@ const styles = StyleSheet.create({
   titleBlock: {
     alignItems: 'center',
   },
+  botNameContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   botMainName: {
     color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: 'bold',
-    letterSpacing: 2,
+    fontSize: 38,
+    fontWeight: '900',
+    letterSpacing: 1.5,
     marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
     textAlign: 'center',
     flexWrap: 'wrap',
+    fontFamily: Platform.select({
+      ios: 'Arial Rounded MT Bold',
+      android: 'sans-serif-condensed',
+      web: '"Arial Rounded MT Bold", "Helvetica Rounded", "Comic Sans MS", "Arial", sans-serif',
+    }),
+    transform: [{ scaleY: 1.15 }],
+    paddingHorizontal: 8,
+  },
+  botStatusDot: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#000000',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  botStatusDotActive: {
+    backgroundColor: '#25D366',
+    shadowColor: '#25D366',
+  },
+  botStatusDotInactive: {
+    backgroundColor: '#DC2626',
+    shadowColor: '#DC2626',
   },
   botDescription: {
     color: '#CCCCCC',
