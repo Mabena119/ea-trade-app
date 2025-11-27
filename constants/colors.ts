@@ -15,9 +15,12 @@ export default {
   error: '#DC2626',
   warning: '#F59E0B',
   glass: {
-    background: 'rgba(17, 27, 33, 0.85)', // Glass background
-    border: 'rgba(255, 255, 255, 0.12)',
-    shadow: 'rgba(0, 0, 0, 0.5)',
+    background: 'rgba(17, 27, 33, 0.25)', // iOS 26 glass - more transparent
+    backgroundMedium: 'rgba(17, 27, 33, 0.35)', // Medium opacity
+    backgroundStrong: 'rgba(17, 27, 33, 0.45)', // Stronger for cards
+    border: 'rgba(255, 255, 255, 0.06)', // iOS 26 subtle border
+    borderMedium: 'rgba(255, 255, 255, 0.1)', // Medium border
+    shadow: 'rgba(0, 0, 0, 0.8)', // Stronger shadow
   },
   blur: {
     light: 'rgba(255, 255, 255, 0.1)',

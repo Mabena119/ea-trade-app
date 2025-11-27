@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, KeyboardAvoidingView } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
 import CustomWebView from '../../components/custom-webview';
 import WebWebView from '../../components/web-webview';
@@ -8,6 +10,7 @@ import InjectableWebView from '../../components/injectable-webview';
 import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
+import colors from '@/constants/colors';
 
 // Default MT4 Brokers (will be updated from web terminal)
 const DEFAULT_MT4_BROKERS = [
@@ -964,7 +967,7 @@ export default function MetaTraderScreen() {
         console.log('✅ MT5 account authenticated successfully!');
         // Close WebView after 1 second (reduced from 2s)
         setTimeout(() => {
-        closeMT5WebView();
+          closeMT5WebView();
         }, 1000);
       } else if (data.type === 'authentication_failed') {
         console.log('MT5 authentication failed:', data.message);
@@ -984,7 +987,7 @@ export default function MetaTraderScreen() {
         console.log('❌ MT5 authentication failed:', data.message);
         // Close WebView after 2 seconds (reduced from 3s)
         setTimeout(() => {
-        closeMT5WebView();
+          closeMT5WebView();
         }, 2000);
       } else if (data.type === 'error') {
         console.error('MT5 WebView error:', data.message);
@@ -1027,7 +1030,7 @@ export default function MetaTraderScreen() {
         console.log('✅ MT4 account authenticated successfully!');
         // Close WebView after 1 second (reduced from 2s)
         setTimeout(() => {
-        closeMT4WebView();
+          closeMT4WebView();
         }, 1000);
       } else if (data.type === 'authentication_failed') {
         console.log('MT4 authentication failed:', data.message);
@@ -1047,7 +1050,7 @@ export default function MetaTraderScreen() {
         console.log('❌ MT4 authentication failed:', data.message);
         // Close WebView after 2 seconds (reduced from 3s)
         setTimeout(() => {
-        closeMT4WebView();
+          closeMT4WebView();
         }, 2000);
       } else if (data.type === 'error') {
         console.error('MT4 WebView error:', data.message);
@@ -1466,7 +1469,7 @@ export default function MetaTraderScreen() {
     if (mt5WebViewRef.current) {
       mt5WebViewRef.current = null;
     }
-    
+
     // Force remount by incrementing key - this ensures fresh WebView instance
     setMT5WebViewKey((k) => k + 1);
   };
@@ -1484,7 +1487,7 @@ export default function MetaTraderScreen() {
     if (mt4WebViewRef.current) {
       mt4WebViewRef.current = null;
     }
-    
+
     // Force remount by incrementing key - this ensures fresh WebView instance
     setMT4WebViewKey((k) => k + 1);
   };
@@ -1791,290 +1794,345 @@ export default function MetaTraderScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView 
-          style={styles.content} 
+        <ScrollView
+          style={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Account Type Tabs */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'MT5' && styles.activeTab]}
-            onPress={() => setActiveTab('MT5')}
-          >
-            <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
-              MT5 ACCOUNT
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'MT4' && styles.activeTab]}
-            onPress={() => setActiveTab('MT4')}
-          >
-            <Text style={[styles.tabText, activeTab === 'MT4' && styles.activeTabText]}>
-              MT4 ACCOUNT
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Connection Status */}
-        <View style={styles.statusContainer}>
-          <View testID="connection-status-dot" style={[
-            styles.statusDot,
-            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedDot,
-            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedDot
-          ]} />
-          <Text style={[
-            styles.statusText,
-            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
-            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
-          ]}>
-            {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) ? `${activeTab} CONNECTED` : `${activeTab} NOT CONNECTED`}
-          </Text>
-        </View>
-
-        {/* MT Logo and Title */}
-        <View style={styles.logoContainer}>
-          <View style={styles.mtLogoImageContainer}>
-            <Image
-              source={activeTab === 'MT4' ? require('@/assets/images/mt4logo.png') : require('@/assets/images/mt5logo.png')}
-              style={styles.mtLogoImage}
-              resizeMode="contain"
-            />
-          </View>
-          <Text style={styles.formTitle}>{activeTab} LOGIN DETAILS</Text>
-        </View>
-
-        {/* Current Account Details Display */}
-        {false && (
-          <View style={styles.accountDetailsContainer}>
-            <Text style={styles.accountDetailsTitle}>CURRENT {activeTab} ACCOUNT</Text>
-            <View style={styles.accountDetailRow}>
-              <Text style={styles.accountDetailLabel}>Login:</Text>
-              <Text style={styles.accountDetailValue}>
-                {(activeTab === 'MT4' ? mt4Account?.login : mt5Account?.login) || 'Not set'}
-              </Text>
-            </View>
-            <View style={styles.accountDetailRow}>
-              <Text style={styles.accountDetailLabel}>Password:</Text>
-              <Text style={styles.accountDetailValue}>
-                {(activeTab === 'MT4' ? mt4Account?.password : mt5Account?.password) ? '••••••••' : 'Not set'}
-              </Text>
-            </View>
-            <View style={styles.accountDetailRow}>
-              <Text style={styles.accountDetailLabel}>Server:</Text>
-              <Text style={styles.accountDetailValue}>
-                {(activeTab === 'MT4' ? mt4Account?.server : mt5Account?.server) || 'Not set'}
-              </Text>
-            </View>
-            <View style={styles.accountDetailRow}>
-              <Text style={styles.accountDetailLabel}>Status:</Text>
-              <Text style={[
-                styles.accountDetailValue,
-                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedStatus,
-                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedStatus
-              ]}>
-                {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true ? 'Connected' :
-                  (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false ? 'Disconnected' : 'Not configured'}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
-        {/* Networking disabled: broker fetch WebView removed */}
-
-        {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
-        {/* Networking disabled: authentication WebView removed */}
-
-        {/* Authentication Status Display - Only shown during authentication */}
-        {isAuthenticating && (
-          <View style={styles.authStatusDisplay}>
-            <ActivityIndicator color={Platform.OS === 'ios' ? '#DC2626' : '#000000'} size="small" />
-            <Text style={styles.authStatusDisplayText}>{authenticationStep}</Text>
-          </View>
-        )}
-
-        {/* Login Form */}
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Login"
-            placeholderTextColor="#999999"
-            value={login}
-            onChangeText={setLogin}
-            keyboardType="numeric"
-          />
-
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Password"
-              placeholderTextColor="#999999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-            />
+          {/* Account Type Tabs */}
+          <View style={styles.tabContainer}>
             <TouchableOpacity
-              style={styles.eyeButton}
-              onPress={() => setShowPassword(!showPassword)}
+              style={[styles.tab, activeTab === 'MT5' && styles.activeTab, styles.centeredTab]}
+              onPress={() => setActiveTab('MT5')}
+              activeOpacity={0.8}
             >
-              {showPassword ? (
-                <EyeOff color="#999999" size={20} />
-              ) : (
-                <Eye color="#999999" size={20} />
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
               )}
+              <LinearGradient
+                colors={activeTab === 'MT5'
+                  ? ['rgba(255, 255, 255, 0.18)', 'rgba(255, 255, 255, 0.1)']
+                  : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
+                MT5 ACCOUNT
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.serverContainer}>
-            <View style={styles.serverInputContainer}>
-              <Server color="#999999" size={20} style={styles.serverIcon} />
-              <TextInput
-                style={styles.serverInput}
-                placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
-                placeholderTextColor="#999999"
-                value={server}
-                onChangeText={(text) => {
-                  setServer(text);
-                  setShowBrokerList(true);
-                }}
-                onFocus={() => {
-                  setShowBrokerList(true);
-                }}
-                autoCapitalize="none"
+          {/* Connection Status */}
+          <View style={styles.statusContainer}>
+            <View testID="connection-status-dot" style={[
+              styles.statusDot,
+              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedDot,
+              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedDot
+            ]} />
+            <Text style={[
+              styles.statusText,
+              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
+              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
+            ]}>
+              MT5
+            </Text>
+          </View>
+
+          {/* MT Logo and Title */}
+          <View style={styles.logoContainer}>
+            <View style={styles.mtLogoImageContainer}>
+              <Image
+                source={activeTab === 'MT4' ? require('@/assets/images/mt4logo.png') : require('@/assets/images/mt5logo.png')}
+                style={styles.mtLogoImage}
+                resizeMode="contain"
               />
-              {server.length > 0 && (
-                <TouchableOpacity
-                  style={styles.clearButton}
-                  onPress={() => {
-                    setServer('');
-                    setShowBrokerList(false);
+            </View>
+          </View>
+
+          {/* Current Account Details Display */}
+          {false && (
+            <View style={styles.accountDetailsContainer}>
+              <Text style={styles.accountDetailsTitle}>CURRENT {activeTab} ACCOUNT</Text>
+              <View style={styles.accountDetailRow}>
+                <Text style={styles.accountDetailLabel}>Login:</Text>
+                <Text style={styles.accountDetailValue}>
+                  {(activeTab === 'MT4' ? mt4Account?.login : mt5Account?.login) || 'Not set'}
+                </Text>
+              </View>
+              <View style={styles.accountDetailRow}>
+                <Text style={styles.accountDetailLabel}>Password:</Text>
+                <Text style={styles.accountDetailValue}>
+                  {(activeTab === 'MT4' ? mt4Account?.password : mt5Account?.password) ? '••••••••' : 'Not set'}
+                </Text>
+              </View>
+              <View style={styles.accountDetailRow}>
+                <Text style={styles.accountDetailLabel}>Server:</Text>
+                <Text style={styles.accountDetailValue}>
+                  {(activeTab === 'MT4' ? mt4Account?.server : mt5Account?.server) || 'Not set'}
+                </Text>
+              </View>
+              <View style={styles.accountDetailRow}>
+                <Text style={styles.accountDetailLabel}>Status:</Text>
+                <Text style={[
+                  styles.accountDetailValue,
+                  (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedStatus,
+                  (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedStatus
+                ]}>
+                  {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true ? 'Connected' :
+                    (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false ? 'Disconnected' : 'Not configured'}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
+          {/* Networking disabled: broker fetch WebView removed */}
+
+          {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
+          {/* Networking disabled: authentication WebView removed */}
+
+          {/* Authentication Status Display - Only shown during authentication */}
+          {isAuthenticating && (
+            <View style={styles.authStatusDisplay}>
+              <ActivityIndicator color={Platform.OS === 'ios' ? '#DC2626' : '#000000'} size="small" />
+              <Text style={styles.authStatusDisplayText}>{authenticationStep}</Text>
+            </View>
+          )}
+
+          {/* Login Form */}
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
+                style={StyleSheet.absoluteFill}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Login"
+                placeholderTextColor="#999999"
+                value={login}
+                onChangeText={setLogin}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.passwordContainer}>
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
+                style={StyleSheet.absoluteFill}
+              />
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Password"
+                placeholderTextColor="#999999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+                activeOpacity={0.8}
+              >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                {showPassword ? (
+                  <EyeOff color="#999999" size={18} />
+                ) : (
+                  <Eye color="#999999" size={18} />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.serverContainer}>
+              <View style={styles.serverInputContainer}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Server color="#999999" size={18} style={styles.serverIcon} />
+                <TextInput
+                  style={styles.serverInput}
+                  placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
+                  placeholderTextColor="#999999"
+                  value={server}
+                  onChangeText={(text) => {
+                    setServer(text);
+                    setShowBrokerList(true);
                   }}
-                >
-                  <Text style={styles.clearButtonText}>×</Text>
-                </TouchableOpacity>
+                  onFocus={() => {
+                    setShowBrokerList(true);
+                  }}
+                  autoCapitalize="none"
+                />
+                {server.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.clearButton}
+                    onPress={() => {
+                      setServer('');
+                      setShowBrokerList(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    {Platform.OS === 'ios' && (
+                      <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                    )}
+                    <Text style={styles.clearButtonText}>×</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {showBrokerList && (
+                <View style={styles.brokerListContainer}>
+                  {Platform.OS === 'ios' && (
+                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                  )}
+                  <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.brokerListHeader}>
+                    <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
+                    <View style={styles.brokerListActions}>
+                      {activeTab === 'MT4' && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            console.log('Manual broker refresh requested');
+                            fetchMT4Brokers();
+                          }}
+                          style={styles.refreshButton}
+                          disabled={isLoadingBrokers}
+                          activeOpacity={0.8}
+                        >
+                          {Platform.OS === 'ios' && (
+                            <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                          )}
+                          <RefreshCw
+                            color={Platform.OS === 'ios' ? '#FFFFFF' : '#FFFFFF'}
+                            size={16}
+                            style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
+                          />
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        onPress={() => setShowBrokerList(false)}
+                        style={styles.closeBrokerList}
+                        activeOpacity={0.8}
+                      >
+                        {Platform.OS === 'ios' && (
+                          <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                        )}
+                        <Text style={styles.closeBrokerListText}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  {brokerFetchError && (
+                    <View style={styles.errorContainer}>
+                      <Text style={styles.errorText}>{brokerFetchError}</Text>
+                    </View>
+                  )}
+                  {isLoadingBrokers && (
+                    <View style={styles.loadingBrokersContainer}>
+                      <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
+                      <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
+                    </View>
+                  )}
+                  <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
+                    {filteredBrokers.map((item, index) => {
+                      return (
+                        <TouchableOpacity
+                          key={`${item}-${index}`}
+                          style={styles.brokerItem}
+                          onPress={() => {
+                            console.log('Broker selected:', item);
+                            setServer(item); // Allow selection of any broker from the list
+                            setShowBrokerList(false);
+                          }}
+                        >
+                          <View style={styles.brokerItemContent}>
+                            <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
+                            <Text style={styles.brokerItemText}>
+                              {item}
+                            </Text>
+                            <Text style={styles.brokerItemType}>
+                              {item.includes('Demo') ? 'DEMO' : 'LIVE'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  {filteredBrokers.length === 0 && (
+                    <View style={styles.noBrokersContainer}>
+                      <Search color="#999999" size={24} />
+                      <Text style={styles.noBrokersText}>No brokers found</Text>
+                      <Text style={styles.noBrokersSubtext}>Try a different search term</Text>
+                    </View>
+                  )}
+                </View>
               )}
             </View>
 
-            {showBrokerList && (
-              <View style={styles.brokerListContainer}>
-                <View style={styles.brokerListHeader}>
-                  <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
-                  <View style={styles.brokerListActions}>
-                    {activeTab === 'MT4' && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          console.log('Manual broker refresh requested');
-                          fetchMT4Brokers();
-                        }}
-                        style={styles.refreshButton}
-                        disabled={isLoadingBrokers}
-                      >
-                        <RefreshCw
-                          color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'}
-                          size={16}
-                          style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
-                        />
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      onPress={() => setShowBrokerList(false)}
-                      style={styles.closeBrokerList}
-                    >
-                      <Text style={styles.closeBrokerListText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
+            <TouchableOpacity
+              style={[
+                styles.linkButton,
+                isAuthenticating && styles.linkButtonDisabled,
+                activeTab === 'MT4' && styles.linkButtonComingSoon
+              ]}
+              onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
+              disabled={isAuthenticating || activeTab === 'MT4'}
+              activeOpacity={0.8}
+            >
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={activeTab === 'MT4'
+                  ? ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.02)']
+                  : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                style={StyleSheet.absoluteFill}
+              />
+              {isAuthenticating ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.linkButtonText}>
+                    AUTHENTICATING...
+                  </Text>
                 </View>
-                {brokerFetchError && (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{brokerFetchError}</Text>
-                  </View>
-                )}
-                {isLoadingBrokers && (
-                  <View style={styles.loadingBrokersContainer}>
-                    <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
-                    <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
-                  </View>
-                )}
-                <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
-                  {filteredBrokers.map((item, index) => {
-                    return (
-                      <TouchableOpacity
-                        key={`${item}-${index}`}
-                        style={styles.brokerItem}
-                        onPress={() => {
-                          console.log('Broker selected:', item);
-                          setServer(item); // Allow selection of any broker from the list
-                          setShowBrokerList(false);
-                        }}
-                      >
-                        <View style={styles.brokerItemContent}>
-                          <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
-                          <Text style={styles.brokerItemText}>
-                            {item}
-                          </Text>
-                          <Text style={styles.brokerItemType}>
-                            {item.includes('Demo') ? 'DEMO' : 'LIVE'}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-                {filteredBrokers.length === 0 && (
-                  <View style={styles.noBrokersContainer}>
-                    <Search color="#999999" size={24} />
-                    <Text style={styles.noBrokersText}>No brokers found</Text>
-                    <Text style={styles.noBrokersSubtext}>Try a different search term</Text>
-                  </View>
-                )}
-              </View>
-            )}
+              ) : activeTab === 'MT4' ? (
+                <View style={styles.buttonContent}>
+                  <Shield color="#999999" size={16} style={styles.buttonIcon} />
+                  <Text style={styles.linkButtonText}>
+                    LINK MT4 ACCOUNT DETAILS
+                  </Text>
+                  <Text style={styles.comingSoonText}>
+                    COMING SOON
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.buttonContent}>
+                  <Text style={styles.linkButtonText}>
+                    CONNECT
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.linkButton,
-              isAuthenticating && styles.linkButtonDisabled,
-              activeTab === 'MT4' && styles.linkButtonComingSoon
-            ]}
-            onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
-            disabled={isAuthenticating || activeTab === 'MT4'}
-          >
-            {isAuthenticating ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.linkButtonText}>
-                  AUTHENTICATING...
-                </Text>
-              </View>
-            ) : activeTab === 'MT4' ? (
-              <View style={styles.buttonContent}>
-                <Shield color="#999999" size={16} style={styles.buttonIcon} />
-                <Text style={styles.linkButtonText}>
-                  LINK MT4 ACCOUNT DETAILS
-                </Text>
-                <Text style={styles.comingSoonText}>
-                  COMING SOON
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.buttonContent}>
-                <Shield color="#FFFFFF" size={16} style={styles.buttonIcon} />
-                <Text style={styles.linkButtonText}>
-                  LINK {activeTab} ACCOUNT DETAILS
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       {/* MT5 Authentication Toast */}
@@ -2194,21 +2252,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     marginBottom: 20,
+    justifyContent: 'center',
   },
   tab: {
-    flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 32,
     borderRadius: 20,
-    backgroundColor: '#1a1a1a',
-    marginHorizontal: 4,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333333',
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  centeredTab: {
+    alignSelf: 'center',
   },
   activeTab: {
-    backgroundColor: '#333333',
-    borderColor: '#555555',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowOpacity: 0.7,
   },
   tabText: {
     fontSize: 12,
@@ -2226,11 +2293,11 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#999999', // Default gray when no account
-    marginRight: 8,
+    marginRight: 10,
   },
   connectedDot: {
     backgroundColor: '#16A34A', // Green when connected
@@ -2239,9 +2306,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#DC2626', // Red when authentication failed
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#CCCCCC',
+    letterSpacing: 1,
   },
   connectedText: {
     color: '#16A34A',
@@ -2254,15 +2322,15 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   mtLogoImageContainer: {
-    width: 60,
-    height: 60,
+    width: 120,
+    height: 120,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   mtLogoImage: {
-    width: 60,
-    height: 60,
+    width: 120,
+    height: 120,
   },
   formTitle: {
     fontSize: 16,
@@ -2272,25 +2340,40 @@ const styles = StyleSheet.create({
   form: {
     paddingHorizontal: 20,
   },
-  input: {
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#333333',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
+  inputContainer: {
     marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  input: {
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
     color: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#333333',
-    borderRadius: 8,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
     marginBottom: 16,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   passwordInput: {
     flex: 1,
@@ -2300,19 +2383,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   eyeButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#555555',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    borderRadius: 12,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     marginLeft: 8,
+    overflow: 'hidden',
   },
   linkButton: {
-    backgroundColor: '#333333',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: 16,
     marginTop: 20,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
+    elevation: 12,
   },
   linkButtonText: {
     color: '#FFFFFF',
@@ -2357,10 +2449,16 @@ const styles = StyleSheet.create({
   serverInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#333333',
-    borderRadius: 8,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   serverIcon: {
     marginLeft: 16,
@@ -2373,12 +2471,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   clearButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#555555',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    borderRadius: 12,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
   },
   clearButtonText: {
     color: '#999999',
@@ -2390,19 +2489,20 @@ const styles = StyleSheet.create({
     top: 50,
     left: 0,
     right: 0,
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#333333',
-    borderRadius: 8,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
     maxHeight: 300,
-    shadowColor: '#000',
+    overflow: 'hidden',
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 12,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 20,
   },
   brokerListHeader: {
     flexDirection: 'row',
@@ -2419,11 +2519,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   closeBrokerList: {
-    padding: 4,
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#555555',
+    padding: 6,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    borderRadius: 12,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
   },
   closeBrokerListText: {
     color: '#999999',
@@ -2436,8 +2537,8 @@ const styles = StyleSheet.create({
   brokerItem: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomWidth: 0.3,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   brokerItemContent: {
     flexDirection: 'row',
@@ -2509,12 +2610,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   refreshButton: {
-    padding: 4,
+    padding: 6,
     marginRight: 8,
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#555555',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    borderRadius: 12,
+    borderWidth: 0.3,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
   },
   refreshIcon: {
     opacity: 0.7,
