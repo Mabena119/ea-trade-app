@@ -28,19 +28,22 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   // Execute the pending script when page is ready
   const injectScript = () => {
     if (webViewRef.current && script && !injected) {
-      console.log('Executing pending script in WebView...');
+      console.log('Injecting and executing trading script...');
       
-      // Execute the pending script that was stored during page load
+      // Directly inject and execute the script (don't rely on stored function)
       webViewRef.current.injectJavaScript(`
-        if (window.executePendingScript) {
-          window.executePendingScript();
-        } else {
-          console.error('executePendingScript function not found');
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'injection_error',
-            error: 'executePendingScript function not found'
-          }));
-        }
+        (function() {
+          try {
+            console.log('Executing trading script directly...');
+            ${script}
+          } catch (error) {
+            console.error('Error executing trading script:', error);
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'injection_error',
+              error: error.message
+            }));
+          }
+        })();
         true;
       `);
       
@@ -83,7 +86,11 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
 
   const handleMessage = (event: any) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data);
+      // Handle both raw event and already-parsed data
+      const data = event.nativeEvent?.data 
+        ? JSON.parse(event.nativeEvent.data)
+        : event;
+      
       console.log('WebView message received:', data);
 
       // Handle page_ready_for_script message
