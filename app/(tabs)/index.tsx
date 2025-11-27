@@ -44,13 +44,15 @@ export default function HomeScreen() {
         }
 
         // Authenticated
-        console.log('✅ Authenticated - allowing access');
+        console.log('✅ Authenticated - checking EA status');
         setIsAuthenticated(true);
         
-        // If authenticated but no EAs, redirect to license
+        // If authenticated but no EAs, redirect to license immediately
         if (eas.length === 0) {
           console.log('Authenticated but no EA added, redirecting to license...');
+          // Don't render home screen, go straight to license
           router.replace('/license');
+          return; // Stop here, don't set hasCheckedAuth
         }
 
         setHasCheckedAuth(true);
@@ -155,11 +157,21 @@ export default function HomeScreen() {
     );
   }
 
+  // If no EA, don't render (should have been redirected to license)
+  if (!primaryEA) {
+    return (
+      <View style={styles.splashContainer}>
+        <View style={styles.splashContent}>
+          <Text style={styles.title}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {primaryEA ? (
-          <View style={styles.mainEAContainer}>
+        <View style={styles.mainEAContainer}>
             {primaryEAImage && !logoError ? (
               <ImageBackground
                 testID="ea-hero-bg"
@@ -236,14 +248,6 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        ) : (
-          <View style={styles.mainEAContainer}>
-            <View style={styles.botInfoContainer}>
-              <Text style={styles.botMainName}>NO EA CONNECTED</Text>
-              <Text style={styles.botDescription}>ADD A LICENSE KEY TO GET STARTED</Text>
-            </View>
-          </View>
-        )}
 
         <View style={styles.connectedBotsSection}>
           {otherEAs.length > 0 && (
