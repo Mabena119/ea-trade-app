@@ -474,13 +474,22 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             
             var ordersExecuted = 0; // Track actual executed orders
             var targetOrders = ${numberOfOrders};
+            var executionComplete = false; // Flag to prevent infinite loop
             
             function executeOrderSequence(orderIndex) {
               console.log('📊 MT4 executeOrderSequence - orderIndex:', orderIndex, 'ordersExecuted:', ordersExecuted, 'targetOrders:', targetOrders);
               
+              // Check if execution already completed
+              if (executionComplete) {
+                console.log('🛑 Execution already completed, stopping loop');
+                return;
+              }
+              
               // Check if we've executed all required orders
               if (ordersExecuted >= targetOrders) {
+                executionComplete = true; // Set flag IMMEDIATELY to stop any pending calls
                 console.log('✅ All MT4 orders completed! Total executed:', ordersExecuted, 'Target:', targetOrders);
+                console.log('🛑 Execution complete flag set, no more orders will be placed');
                 
                 setTimeout(function() {
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -888,17 +897,19 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                       
                       // If no pending operations, all trades are complete
                       if (!hasOpenDialog && !hasLoading && !hasPending) {
-                        console.log('All MT5 trades verified as completed');
+                        console.log('✅ All MT5 trades verified as completed');
+                        verificationComplete = true; // Set flag IMMEDIATELY to stop any pending attempts
+                        
                         window.ReactNativeWebView.postMessage(JSON.stringify({
                           type: 'success', 
                           message: 'All ' + targetOrders + ' MT5 order(s) executed successfully for ${asset}'
                         }));
                         
-                        console.log('Waiting 3 seconds before closing trading process...');
+                        console.log('⏳ Waiting 3 seconds before closing trading process...');
                         
                         // Wait 3 seconds then close and return to listening state
                         setTimeout(() => {
-                          console.log('3 seconds elapsed, closing trading process and returning to listening state');
+                          console.log('🔄 3 seconds elapsed, closing trading process and returning to listening state');
                           window.ReactNativeWebView.postMessage(JSON.stringify({
                             type: 'close', 
                             message: 'All trades completed - returning to listening state'
@@ -913,13 +924,22 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                     // Start verification process with retries
                     var verificationAttempts = 0;
                     var maxVerificationAttempts = 20; // 20 attempts = up to 40 seconds
+                    var verificationComplete = false; // Flag to prevent infinite loop
                     
                     function attemptVerification() {
+                      // Check if verification already completed
+                      if (verificationComplete) {
+                        console.log('🛑 Verification already completed, stopping loop');
+                        return;
+                      }
+                      
                       verificationAttempts++;
                       console.log('MT5 verification attempt:', verificationAttempts, 'of', maxVerificationAttempts);
                       
                       if (verifyAllTradesExecuted()) {
                         // All trades confirmed executed
+                        verificationComplete = true; // Set flag to stop loop
+                        console.log('🛑 Verification complete flag set, no more attempts will run');
                         return;
                       }
                       
@@ -932,6 +952,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         setTimeout(attemptVerification, 2000);
                       } else {
                         // Max attempts reached - assume completion
+                        verificationComplete = true; // Set flag to stop loop
+                        console.log('🛑 Max verification attempts reached, stopping loop');
                         console.log('MT5 verification timeout - assuming all trades completed');
                         window.ReactNativeWebView.postMessage(JSON.stringify({
                           type: 'success', 
