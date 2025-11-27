@@ -228,42 +228,51 @@ export default function HomeScreen() {
                   activeOpacity={0.8}
                 >
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={120} tint="light" style={StyleSheet.absoluteFill} />
+                    <BlurView intensity={120} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
                   <LinearGradient
                     colors={Platform.OS === 'ios' ? ['rgba(255, 255, 255, 0.25)', 'rgba(255, 255, 255, 0.15)'] : ['#FFFFFF', '#FFFFFF']}
                     style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
                   />
-                  {isBotActive ? (
-                    <Square color="#000000" size={24} />
-                  ) : (
-                    <Play color="#000000" size={24} />
-                  )}
-                  <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
+                  <View style={styles.tradeButtonContent}>
+                    {isBotActive ? (
+                      <Square color="#000000" size={24} />
+                    ) : (
+                      <Play color="#000000" size={24} />
+                    )}
+                    <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
+                  </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.8}>
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
                   <LinearGradient
                     colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
                     style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
                   />
-                  <TrendingUp color="#FFFFFF" size={20} />
-                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
+                  <View style={styles.secondaryButtonContent}>
+                    <TrendingUp color="#FFFFFF" size={20} />
+                    <Text style={styles.secondaryButtonText}>QUOTES</Text>
+                  </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.8}>
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
                   <LinearGradient
                     colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
                     style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
                   />
-                  <Trash2 color="#FFFFFF" size={20} />
-                  <Text style={styles.secondaryButtonText}>REMOVE</Text>
+                  <View style={styles.secondaryButtonContent}>
+                    <Trash2 color="#FFFFFF" size={20} />
+                    <Text style={styles.secondaryButtonText}>REMOVE</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
 
@@ -529,10 +538,28 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(255, 255, 255, 0.95)',
     borderColor: 'rgba(255, 255, 255, 0.2)',
     paddingVertical: 24,
+    position: 'relative',
+  },
+  tradeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    zIndex: 1,
+    position: 'relative',
   },
   secondaryButton: {
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     borderColor: 'rgba(255, 255, 255, 0.08)',
+    position: 'relative',
+  },
+  secondaryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    zIndex: 1,
+    position: 'relative',
   },
   tradeButtonText: {
     color: '#000000',
