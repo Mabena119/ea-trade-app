@@ -27,11 +27,18 @@ export default function HomeScreen() {
       try {
         const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
         
-        // If not authenticated, block everything and redirect to login
+        // If first time, show start page (don't redirect)
+        if (isFirstTime) {
+          console.log('First time user - showing start page');
+          setIsAuthenticated(true); // Allow start page to render
+          setHasCheckedAuth(true);
+          return;
+        }
+        
+        // If not authenticated and not first time, redirect to login
         if (!emailAuthenticated || emailAuthenticated !== 'true') {
-          console.log('❌ Not authenticated - blocking access and redirecting to login');
+          console.log('❌ Not authenticated - redirecting to login');
           setIsAuthenticated(false);
-          await setIsFirstTime(true);
           router.replace('/login');
           return;
         }
@@ -41,7 +48,7 @@ export default function HomeScreen() {
         setIsAuthenticated(true);
         
         // If authenticated but no EAs, redirect to license
-        if (eas.length === 0 && !isFirstTime) {
+        if (eas.length === 0) {
           console.log('Authenticated but no EA added, redirecting to license...');
           router.replace('/license');
         }
@@ -49,15 +56,18 @@ export default function HomeScreen() {
         setHasCheckedAuth(true);
       } catch (error) {
         console.error('Error checking authentication status:', error);
-        // On error, block access
-        setIsAuthenticated(false);
-        await setIsFirstTime(true);
-        router.replace('/login');
+        // On error, show start page if first time, otherwise redirect to login
+        if (isFirstTime) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+          router.replace('/login');
+        }
       }
     };
 
     checkAuthenticationStatus();
-  }, []); // Run only once on mount
+  }, [isFirstTime, eas.length]); // Re-run when isFirstTime or eas changes
 
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
     if (!ea || !ea.userData || !ea.userData.owner) return null;
