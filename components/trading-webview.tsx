@@ -9,7 +9,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import CustomWebView from './custom-webview';
 import WebWebView from './web-webview';
 import { X, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react-native';
 import { SignalLog } from '@/services/signals-monitor';
@@ -1147,7 +1146,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     // MT5 proxy will handle all authentication and trading automatically
     // No need to inject JavaScript - the proxy does everything
     console.log('MT5 proxy will handle authentication and trading for', tradeConfig?.platform);
-    console.log('Platform:', Platform.OS, 'WebView type:', Platform.OS === 'web' ? 'WebWebView' : 'CustomWebView');
+    console.log('Platform:', Platform.OS, 'WebView type:', Platform.OS === 'web' ? 'WebWebView' : 'WebView');
 
     // Start heartbeat to show progress while proxy works
     setTimeout(() => {
@@ -1319,11 +1318,20 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               style={styles.invisibleWebView}
             />
           ) : (
-            <CustomWebView
-              url={webViewUrl}
-              onMessage={handleWebViewMessage}
-              onLoadEnd={handleWebViewLoad}
+            <WebView
+              ref={webViewRef}
+              source={{ uri: webViewUrl }}
               style={styles.invisibleWebView}
+              onLoadEnd={handleWebViewLoad}
+              onMessage={handleWebViewMessage}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              startInLoadingState={true}
+              mixedContentMode="compatibility"
+              allowsInlineMediaPlayback={true}
+              mediaPlaybackRequiresUserAction={false}
+              allowsFullscreenVideo={true}
+              userAgent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             />
           )}
         </View>
