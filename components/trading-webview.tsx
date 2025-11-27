@@ -9,10 +9,12 @@ import {
   Dimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import CustomWebView from './custom-webview';
 import WebWebView from './web-webview';
 import { X, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react-native';
 import { SignalLog } from '@/services/signals-monitor';
 import { useApp } from '@/providers/app-provider';
+import Constants from 'expo-constants';
 
 
 
@@ -36,6 +38,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   const [error, setError] = useState<string | null>(null);
   const [tradeExecuted, setTradeExecuted] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
+  const [webViewKey, setWebViewKey] = useState<number>(0); // Key for forcing WebView remount
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heartbeatIndexRef = useRef<number>(0);
   const lastUpdateRef = useRef<number>(Date.now());
@@ -470,19 +473,25 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             console.log('Starting execution of ${numberOfOrders} orders for ${asset}');
             
             function executeOrderSequence(orderIndex) {
+              console.log('MT4 executeOrderSequence called with orderIndex:', orderIndex, 'total orders:', ${numberOfOrders});
+              
               if (orderIndex >= ${numberOfOrders}) {
                 // All orders completed
+                console.log('All MT4 orders completed, total executed:', orderIndex);
                 setTimeout(function() {
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'success',
                     message: 'All ${numberOfOrders} order(s) executed successfully for ${asset}'
                   }));
                   
-                  // Close execution window after 3 seconds
+                  console.log('Waiting 3 seconds before closing trading process...');
+                  
+                  // Wait 3 seconds then close and return to listening state
                   setTimeout(function() {
+                    console.log('3 seconds elapsed, closing trading process and returning to listening state');
                     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                       type: 'close',
-                      message: 'Execution completed - closing window'
+                      message: 'All trades completed - returning to listening state'
                     }));
                   }, 3000);
                 }, 2000);
@@ -538,6 +547,54 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     return `
       // MT5 Trading Script
       console.log('Starting MT5 trade execution for ${asset}');
+      
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+      
+      // Check for and remove existing connected account
+      const checkAndRemoveExistingAccount = async () => {
+        console.log('Checking for existing connected MT5 account...');
+        await sleep(5500); // Wait for page to load
+        
+        // Check for disclaimer and accept if present
+        const disclaimer = document.querySelector('#disclaimer');
+        if (disclaimer) {
+          const acceptButton = document.querySelector('.accept-button');
+          if (acceptButton) {
+            acceptButton.click();
+            console.log('Accepted disclaimer');
+            await sleep(5500);
+          }
+        }
+        
+        // Check if form is visible (means we need to login)
+        const form = document.querySelector('.form');
+        if (form && !form.classList.contains('hidden')) {
+          console.log('Login form is visible, checking for existing connection...');
+          
+          // Press remove button first to clear any existing connection
+          const removeButton = document.querySelector('.button.svelte-1wrky82.red');
+          if (removeButton) {
+            console.log('Found Remove button, clicking to clear existing connection...');
+            removeButton.click();
+            await sleep(5500);
+          } else {
+            // Fallback: look for Remove button by text
+            const buttons = document.getElementsByTagName('button');
+            for (let i = 0; i < buttons.length; i++) {
+              if (buttons[i].textContent.trim() === 'Remove') {
+                console.log('Found Remove button by text, clicking...');
+                buttons[i].click();
+                await sleep(5500);
+                break;
+              }
+            }
+          }
+          
+          console.log('Ready to login with fresh credentials');
+        } else {
+          console.log('Form is hidden or not found, may already be logged in');
+        }
+      };
       
       const loginScript = \`
         var x = document.querySelector('input[name="login"]');
@@ -759,11 +816,16 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       \`;
       
       // Execute trading sequence
-      setTimeout(() => {
+      (async () => {
+        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Checking for existing account...'}));
+        await checkAndRemoveExistingAccount();
+        
         window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Logging in...'}));
         eval(loginScript);
+        await sleep(500);
         eval(loginPress);
         
+        await sleep(8000);
         setTimeout(() => {
           window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Ensuring search bar is visible...'}));
           eval(revealAndVerifySearchBar);
@@ -782,9 +844,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                 console.log('Starting MT5 execution of ${numberOfOrders} orders for ${asset}');
                 
                 function executeMT5OrderSequence(orderIndex) {
+                  console.log('MT5 executeMT5OrderSequence called with orderIndex:', orderIndex, 'total orders:', ${numberOfOrders});
+                  
                   if (orderIndex >= ${numberOfOrders}) {
                     // All orders completed - verify all trades are actually executed
-                    console.log('All MT5 orders completed, verifying execution status...');
+                    console.log('All MT5 orders completed, total executed:', orderIndex, 'verifying execution status...');
                     window.ReactNativeWebView.postMessage(JSON.stringify({
                       type: 'step', 
                       message: 'All ${numberOfOrders} MT5 order(s) completed, verifying execution...'
@@ -818,14 +882,16 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                           message: 'All ${numberOfOrders} MT5 order(s) executed successfully for ${asset}'
                         }));
                         
-                        // Now safe to close - all trades are confirmed executed
+                        console.log('Waiting 3 seconds before closing trading process...');
+                        
+                        // Wait 3 seconds then close and return to listening state
                         setTimeout(() => {
-                          console.log('All MT5 trades confirmed executed - safe to close');
+                          console.log('3 seconds elapsed, closing trading process and returning to listening state');
                           window.ReactNativeWebView.postMessage(JSON.stringify({
                             type: 'close', 
-                            message: 'All trades executed - closing window'
+                            message: 'All trades completed - returning to listening state'
                           }));
-                        }, 2000);
+                        }, 3000);
                         return true;
                       }
                       
@@ -860,13 +926,15 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                           message: 'All ${numberOfOrders} MT5 order(s) processing completed for ${asset}'
                         }));
                         
+                        console.log('Waiting 3 seconds before closing trading process...');
+                        
                         setTimeout(() => {
-                          console.log('MT5 verification timeout - closing window');
+                          console.log('3 seconds elapsed, closing trading process and returning to listening state');
                           window.ReactNativeWebView.postMessage(JSON.stringify({
                             type: 'close', 
-                            message: 'Processing completed - closing window'
+                            message: 'All trades completed - returning to listening state'
                           }));
-                        }, 2000);
+                        }, 3000);
                       }
                     }
                     
@@ -914,8 +982,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               }, 3000);
             }, 4000); // Increased delay to allow search bar verification and search completion
           }, 4000); // Increased delay to allow search bar reveal verification
-        }, 8000);
-      }, 3000);
+        }, 0); // Immediate execution after login
+      })(); // Execute async function
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
@@ -925,20 +993,9 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal/',
   };
 
-  // Get WebView URL for trading based on platform
+  // Get WebView URL for trading based on platform - Load actual terminal, not proxy
   const getWebViewUrl = useCallback(() => {
     if (!tradeConfig || !credentials) return '';
-
-    // Determine the correct action based on trade config direction and signal
-    let action = signal?.action || '';
-
-    // If trade config has specific direction, use it instead of signal action
-    if (tradeConfig.direction === 'BUY') {
-      action = 'BUY';
-    } else if (tradeConfig.direction === 'SELL') {
-      action = 'SELL';
-    }
-    // If direction is 'BOTH', keep the signal action
 
     // Determine MT5 broker URL based on server name
     let mt5Url = 'https://webtrader.razormarkets.co.za/terminal/'; // Default
@@ -946,38 +1003,20 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       mt5Url = MT5_BROKER_URLS[credentials.server] || MT5_BROKER_URLS['RazorMarkets-Live'];
     }
 
-    const params = new URLSearchParams({
-      url: tradeConfig.platform === 'MT4'
-        ? 'https://metatraderweb.app/trade?version=4'
-        : mt5Url,
-      login: credentials.login,
-      password: credentials.password,
-      server: credentials.server,
-      asset: signal?.asset || '',
-      action: action,
-      price: signal?.price || '',
-      tp: signal?.tp || '',
-      sl: signal?.sl || '',
-      volume: tradeConfig.lotSize,
-      numberOfTrades: tradeConfig.numberOfTrades,
-      botname: eaName
-    });
-
-    // Use the correct proxy based on platform
-    const proxyEndpoint = tradeConfig.platform === 'MT4' ? '/api/mt4-proxy' : '/api/mt5-proxy';
-    const finalUrl = `${proxyEndpoint}?${params.toString()}`;
+    // Return the actual MT4/MT5 web terminal URL (not the proxy)
+    const terminalUrl = tradeConfig.platform === 'MT4'
+      ? 'https://metatraderweb.app/trade?version=4'
+      : mt5Url;
 
     console.log('🎯 Trading WebView URL:', {
       platform: tradeConfig.platform,
-      proxyEndpoint: proxyEndpoint,
-      finalUrl: finalUrl,
+      terminalUrl: terminalUrl,
       broker: tradeConfig.platform === 'MT5' ? credentials.server : 'N/A',
-      brokerUrl: tradeConfig.platform === 'MT5' ? mt5Url : 'N/A',
-      params: Object.fromEntries(params.entries())
+      willInjectScript: true
     });
 
-    return finalUrl;
-  }, [tradeConfig, credentials, signal, eaName]);
+    return terminalUrl;
+  }, [tradeConfig, credentials]);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
@@ -1024,21 +1063,21 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     `;
   }, []);
 
-  // Cleanup function for MT5 trading webview
-  const cleanupMT5WebView = useCallback(() => {
-    if (tradeConfig?.platform === 'MT5' && webViewRef.current) {
-      console.log('Cleaning up MT5 trading webview - clearing all stored data...');
+  // Cleanup function for trading webview - works for both MT4 and MT5
+  const cleanupTradingWebView = useCallback(() => {
+    console.log(`Cleaning up ${tradeConfig?.platform} trading webview - clearing all stored data...`);
 
+    if (webViewRef.current) {
       // Clear all storage before closing
       const clearScript = getStorageClearScript();
       webViewRef.current.injectJavaScript(clearScript);
-
-      // Small delay to allow cleanup to complete
-      setTimeout(() => {
-        console.log('MT5 trading webview cleanup completed - destroying webview');
-        // The webview will be destroyed when the modal closes
-      }, 500);
     }
+
+    // Increment key to force WebView remount and destroy cached instance
+    setTimeout(() => {
+      console.log('Trading webview cleanup completed - incrementing key to destroy instance');
+      setWebViewKey(prev => prev + 1);
+    }, 500);
   }, [tradeConfig, getStorageClearScript]);
 
   // Handle WebView messages
@@ -1091,6 +1130,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           setCurrentStep(data.message);
           setTradeExecuted(true);
           setLoading(false);
+          // Cleanup after successful trade
+          setTimeout(() => {
+            console.log('Trade successful - cleaning up WebView');
+            cleanupTradingWebView();
+          }, 2000);
           break;
         case 'close':
         case 'authentication_failed':
@@ -1101,19 +1145,12 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             setError(data.message);
             setLoading(false);
           } else {
-            // For MT5, cleanup webview before closing
-            if (tradeConfig?.platform === 'MT5') {
-              cleanupMT5WebView();
-              // Close after cleanup delay
-              setTimeout(() => {
-                onClose();
-              }, 600);
-            } else {
-              // For MT4, close immediately
-              setTimeout(() => {
-                onClose();
-              }, 100);
-            }
+            // Cleanup webview before closing (both MT4 and MT5)
+            cleanupTradingWebView();
+            // Close after cleanup delay
+            setTimeout(() => {
+              onClose();
+            }, 600);
           }
           break;
         case 'error':
@@ -1128,27 +1165,30 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           setCurrentStep(data.message);
           setTradeExecuted(true);
           setLoading(false);
+          // Cleanup after trade execution
+          setTimeout(() => {
+            console.log('Trade executed - cleaning up WebView');
+            cleanupTradingWebView();
+          }, 2000);
           break;
       }
     } catch (parseError) {
       console.error('Error parsing WebView message:', parseError);
     }
-  }, [tradeConfig, cleanupMT5WebView, onClose, stopHeartbeat, startHeartbeat]);
+  }, [tradeConfig, cleanupTradingWebView, onClose, stopHeartbeat, startHeartbeat]);
 
   // Handle WebView load events
   const handleWebViewLoad = useCallback(() => {
-    console.log('Trading WebView loaded, MT5 proxy will handle authentication and trading...');
+    console.log('Trading WebView loaded, injecting trading script...');
     setLoading(false);
     stopHeartbeat();
-    setCurrentStep('Terminal loaded, MT5 proxy handling authentication...');
+    setCurrentStep('Terminal loaded, starting authentication...');
     lastUpdateRef.current = Date.now();
 
-    // MT5 proxy will handle all authentication and trading automatically
-    // No need to inject JavaScript - the proxy does everything
-    console.log('MT5 proxy will handle authentication and trading for', tradeConfig?.platform);
-    console.log('Platform:', Platform.OS, 'WebView type:', Platform.OS === 'web' ? 'WebWebView' : 'WebView');
+    console.log('Trading script will handle authentication and trading for', tradeConfig?.platform);
+    console.log('Platform:', Platform.OS, 'WebView type:', Platform.OS === 'web' ? 'WebWebView' : 'CustomWebView');
 
-    // Start heartbeat to show progress while proxy works
+    // Start heartbeat to show progress while trading script works
     setTimeout(() => {
       if (Date.now() - lastUpdateRef.current > 2000) {
         startHeartbeat();
@@ -1172,12 +1212,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       startHeartbeat();
     } else {
       stopHeartbeat();
-      // Modal is closing - cleanup MT5 if needed
-      if (tradeConfig?.platform === 'MT5') {
-        cleanupMT5WebView();
-      }
+      // Modal is closing - cleanup trading webview
+      console.log('Trading modal closing - cleaning up WebView');
+      cleanupTradingWebView();
     }
-  }, [visible, tradeConfig, cleanupMT5WebView, startHeartbeat, stopHeartbeat]);
+  }, [visible, tradeConfig, cleanupTradingWebView, startHeartbeat, stopHeartbeat]);
 
   // Debug logging
   useEffect(() => {
@@ -1220,6 +1259,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   console.log('TradingWebView rendering with signal:', signal.asset, 'platform:', tradeConfig.platform);
 
   const webViewUrl = getWebViewUrl();
+  const tradingScript = tradeConfig.platform === 'MT4' ? generateMT4JavaScript() : generateMT5JavaScript();
 
   const { width: screenWidth } = Dimensions.get('window');
 
@@ -1282,15 +1322,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               <TouchableOpacity
                 style={styles.toastCloseButton}
                 onPress={() => {
-                  // For MT5, cleanup before closing
-                  if (tradeConfig?.platform === 'MT5') {
-                    cleanupMT5WebView();
-                    setTimeout(() => {
-                      onClose();
-                    }, 600);
-                  } else {
+                  // Cleanup before closing
+                  cleanupTradingWebView();
+                  setTimeout(() => {
                     onClose();
-                  }
+                  }, 600);
                 }}
               >
                 <X color="#FFFFFF" size={16} />
@@ -1307,31 +1343,26 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         </View>
       )}
 
-      {/* WebView for trading execution - Completely invisible, runs in background */}
+      {/* WebView for trading execution - Visible for debugging */}
       {visible && (
-        <View style={styles.invisibleWebViewContainer}>
+        <View key={`trading-webview-${webViewKey}`} style={styles.invisibleWebViewContainer}>
           {Platform.OS === 'web' ? (
             <WebWebView
+              key={`trading-web-${webViewKey}`}
               url={webViewUrl}
+              script={tradingScript}
               onMessage={handleWebViewMessage}
               onLoadEnd={handleWebViewLoad}
               style={styles.invisibleWebView}
             />
           ) : (
-            <WebView
-              ref={webViewRef}
-              source={{ uri: webViewUrl }}
-              style={styles.invisibleWebView}
-              onLoadEnd={handleWebViewLoad}
+            <CustomWebView
+              key={`trading-custom-${webViewKey}`}
+              url={webViewUrl}
+              script={tradingScript}
               onMessage={handleWebViewMessage}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              startInLoadingState={true}
-              mixedContentMode="compatibility"
-              allowsInlineMediaPlayback={true}
-              mediaPlaybackRequiresUserAction={false}
-              allowsFullscreenVideo={true}
-              userAgent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+              onLoadEnd={handleWebViewLoad}
+              style={styles.invisibleWebView}
             />
           )}
         </View>
@@ -1448,26 +1479,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
 
-  // Invisible WebView Styles - Completely invisible and non-interactive
+  // Visible WebView Styles - For debugging trade execution
   invisibleWebViewContainer: {
     position: 'absolute',
-    top: -10000, // Move completely off-screen
-    left: -10000,
-    width: 1, // Minimal size
-    height: 1,
-    opacity: 0, // Completely transparent
-    zIndex: -10000, // Far behind everything
-    overflow: 'hidden',
-    pointerEvents: 'none', // Disable all touch events
-    elevation: -10000, // Android: behind everything
+    top: 100, // Below the toast/status
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000000',
+    zIndex: 9999,
+    elevation: 9999,
   },
   invisibleWebView: {
-    width: 1,
-    height: 1,
-    opacity: 0,
-    backgroundColor: 'transparent',
-    pointerEvents: 'none', // Disable all touch events
-    elevation: -10000, // Android: behind everything
+    flex: 1,
+    backgroundColor: '#000000',
   },
   closeButton: {
     position: 'absolute',
