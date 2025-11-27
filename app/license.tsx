@@ -114,6 +114,11 @@ export default function LicenseScreen() {
         >
           <View style={styles.content}>
             <View style={styles.logoContainer}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={styles.appIcon}
+                resizeMode="contain"
+              />
               <Text style={styles.title}>Enter License Key</Text>
             </View>
 

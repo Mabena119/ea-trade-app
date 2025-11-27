@@ -116,6 +116,12 @@ export default function HomeScreen() {
       <View style={styles.splashContainer}>
         <View style={styles.splashContent}>
           <View style={styles.logoContainer}>
+            <Image
+              testID="splash-app-icon"
+              source={require('../../assets/images/icon.png')}
+              style={{ width: 120, height: 120, borderRadius: 24 }}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>EA TRADE</Text>
           </View>
 
@@ -150,6 +156,12 @@ export default function HomeScreen() {
               </ImageBackground>
             ) : (
               <View style={styles.heroFallback}>
+                <Image
+                  testID="fallback-app-icon"
+                  source={require('../../assets/images/icon.png')}
+                  style={styles.fallbackIcon}
+                  resizeMode="contain"
+                />
                 <View style={styles.gradientOverlay} />
               </View>
             )}
