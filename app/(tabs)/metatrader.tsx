@@ -543,10 +543,25 @@ export default function MetaTraderScreen() {
   useEffect(() => {
     const currentAccount = activeTab === 'MT4' ? mt4Account : mt5Account;
     if (currentAccount) {
-      setLogin(currentAccount.login || '');
-      setServer(currentAccount.server || '');
-      setPassword(currentAccount.password || '');
+      const accountLogin = currentAccount.login || '';
+      const accountServer = currentAccount.server || '';
+      const accountPassword = currentAccount.password || '';
+      
+      console.log('📥 Loading account data:', {
+        platform: activeTab,
+        login: accountLogin ? `${accountLogin.substring(0, 3)}***` : 'EMPTY',
+        server: accountServer || 'EMPTY',
+        password: accountPassword ? '***' : 'EMPTY',
+        hasLogin: !!accountLogin,
+        hasPassword: !!accountPassword,
+        hasServer: !!accountServer
+      });
+      
+      setLogin(accountLogin);
+      setServer(accountServer);
+      setPassword(accountPassword);
     } else {
+      console.log('📥 No account data found for platform:', activeTab);
       setLogin('');
       setServer('');
       setPassword('');
@@ -1444,15 +1459,28 @@ export default function MetaTraderScreen() {
 
   // Handle MT5 Web View
   const handleMT5WebView = () => {
-    console.log('Opening MT5 Web View with credentials:', {
-      login: login ? `${login.substring(0, 3)}***` : 'EMPTY',
-      password: password ? '***' : 'EMPTY',
-      server: server || 'EMPTY',
-      loginLength: login.length,
-      passwordLength: password.length,
-      serverLength: server.length,
-      scriptGenerated: !!getMT5Script
+    const currentLogin = (login || '').trim();
+    const currentPassword = (password || '').trim();
+    const currentServer = (server || '').trim();
+    
+    console.log('🚀 Opening MT5 Web View with credentials:', {
+      login: currentLogin ? `${currentLogin.substring(0, 3)}***` : 'EMPTY',
+      password: currentPassword ? '***' : 'EMPTY',
+      server: currentServer || 'EMPTY',
+      loginLength: currentLogin.length,
+      passwordLength: currentPassword.length,
+      serverLength: currentServer.length,
+      scriptGenerated: !!getMT5Script,
+      scriptLength: getMT5Script ? getMT5Script.length : 0,
+      scriptContainsLogin: getMT5Script ? getMT5Script.includes(currentLogin.substring(0, 3)) : false
     });
+    
+    // Validate credentials before opening WebView
+    if (!currentLogin || !currentPassword) {
+      Alert.alert('Missing Credentials', 'Please enter login and password before connecting.');
+      return;
+    }
+    
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -1509,9 +1537,17 @@ export default function MetaTraderScreen() {
     };
     
     // Capture current values at the time of script generation
-    const currentLogin = login.trim();
-    const currentPassword = password.trim();
-    const currentServer = server.trim();
+    const currentLogin = (login || '').trim();
+    const currentPassword = (password || '').trim();
+    const currentServer = (server || '').trim();
+    
+    console.log('🔧 Generating MT5 script with values:', {
+      login: currentLogin ? `${currentLogin.substring(0, 3)}***` : 'EMPTY',
+      password: currentPassword ? '***' : 'EMPTY',
+      server: currentServer || 'EMPTY',
+      loginLength: currentLogin.length,
+      passwordLength: currentPassword.length
+    });
     
     const loginValue = escapeValue(currentLogin);
     const passwordValue = escapeValue(currentPassword);
@@ -1519,15 +1555,18 @@ export default function MetaTraderScreen() {
     
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
+      console.warn('⚠️ MT5 script generation: Missing login or password');
       return `
         (function() {
           const sendMessage = (type, message) => {
             try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
           };
-          sendMessage('authentication_failed', 'Login and password are required. Login: ${currentLogin ? 'has value' : 'empty'}, Password: ${currentPassword ? 'has value' : 'empty'}');
+          sendMessage('authentication_failed', 'Login and password are required. Login: ${currentLogin ? 'has value (' + currentLogin.length + ' chars)' : 'empty'}, Password: ${currentPassword ? 'has value (' + currentPassword.length + ' chars)' : 'empty'}');
         })();
       `;
     }
+    
+    console.log('✅ MT5 script generated successfully with credentials');
     
     return `
       (function() {
@@ -1900,11 +1939,27 @@ export default function MetaTraderScreen() {
   }, [login, password, server]);
 
   const handleLinkAccount = async () => {
-    if (!login.trim() || !password.trim() || !server.trim()) {
-      Alert.alert('Missing Information', 'Please fill in all fields to continue.');
+    const trimmedLogin = (login || '').trim();
+    const trimmedPassword = (password || '').trim();
+    const trimmedServer = (server || '').trim();
+    
+    console.log('🔗 Link account clicked:', {
+      login: trimmedLogin ? `${trimmedLogin.substring(0, 3)}***` : 'EMPTY',
+      password: trimmedPassword ? '***' : 'EMPTY',
+      server: trimmedServer || 'EMPTY',
+      platform: activeTab,
+      hasLogin: !!trimmedLogin,
+      hasPassword: !!trimmedPassword,
+      hasServer: !!trimmedServer
+    });
+    
+    if (!trimmedLogin || !trimmedPassword || !trimmedServer) {
+      Alert.alert('Missing Information', 'Please fill in all fields (Login, Password, and Server) to continue.');
+      console.warn('❌ Cannot link account: Missing fields');
       return;
     }
 
+    console.log('✅ All fields filled, opening WebView for', activeTab);
     // Show web view based on active tab
     if (activeTab === 'MT5') {
       handleMT5WebView();
@@ -2042,7 +2097,10 @@ export default function MetaTraderScreen() {
                 placeholder="Login"
                 placeholderTextColor="#999999"
                 value={login}
-                onChangeText={setLogin}
+                onChangeText={(text) => {
+                  console.log('📝 Login input changed:', text ? `${text.substring(0, 3)}***` : 'EMPTY');
+                  setLogin(text);
+                }}
                 keyboardType="numeric"
                 editable={true}
               />
@@ -2062,7 +2120,10 @@ export default function MetaTraderScreen() {
                 placeholder="Password"
                 placeholderTextColor="#999999"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  console.log('📝 Password input changed:', text ? '***' : 'EMPTY', 'length:', text.length);
+                  setPassword(text);
+                }}
                 secureTextEntry={!showPassword}
                 editable={true}
               />
@@ -2099,6 +2160,7 @@ export default function MetaTraderScreen() {
                   placeholderTextColor="#999999"
                   value={server}
                   onChangeText={(text) => {
+                    console.log('📝 Server input changed:', text || 'EMPTY');
                     setServer(text);
                     setShowBrokerList(true);
                   }}
@@ -2326,9 +2388,16 @@ export default function MetaTraderScreen() {
             <CustomWebView
               key={`mt5-custom-${mt5WebViewKey}`}
               url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
-              script={getMT5Script}
+              script={getMT5Script || ''}
               onMessage={onMT5WebViewMessage}
-              onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
+              onLoadEnd={() => {
+                console.log('MT5 CustomWebView loaded');
+                console.log('📋 Script being used:', {
+                  hasScript: !!getMT5Script,
+                  scriptLength: getMT5Script ? getMT5Script.length : 0,
+                  loginInScript: getMT5Script && login ? getMT5Script.includes(login.substring(0, 3)) : false
+                });
+              }}
               style={styles.invisibleWebView}
             />
           )}
