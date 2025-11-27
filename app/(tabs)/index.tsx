@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackg
 import { LinearGradient } from 'expo-linear-gradient';
 import { Play, Square, TrendingUp, Trash2, Plus, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { RobotLogo } from '@/components/robot-logo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '@/providers/app-provider';
@@ -20,42 +19,45 @@ export default function HomeScreen() {
 
   const [logoError, setLogoError] = useState<boolean>(false);
   const [hasCheckedAuth, setHasCheckedAuth] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
-  // Check if user has completed email authentication
+  // STRICT authentication check - runs on every mount
   useEffect(() => {
-    // Only run the check once on mount, not on every EA length change
-    if (hasCheckedAuth) return;
-
     const checkAuthenticationStatus = async () => {
       try {
-        // Wait for initial state to load
-        await new Promise(resolve => setTimeout(resolve, 300));
+        const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
+        
+        // If not authenticated, block everything and redirect to login
+        if (!emailAuthenticated || emailAuthenticated !== 'true') {
+          console.log('❌ Not authenticated - blocking access and redirecting to login');
+          setIsAuthenticated(false);
+          await setIsFirstTime(true);
+          router.replace('/login');
+          return;
+        }
 
-        // If not first time but no EAs, check if email auth was completed
-        if (!isFirstTime && eas.length === 0) {
-          const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
-
-          // If email authentication was never completed, redirect to login
-          if (!emailAuthenticated || emailAuthenticated !== 'true') {
-            console.log('Email authentication not completed, redirecting to login...');
-            await setIsFirstTime(true);
-            router.replace('/login');
-          } else {
-            // Email authentication was completed, but no license added yet - go to license page
-            console.log('Email authenticated but no EA added, redirecting to license...');
-            router.replace('/license');
-          }
+        // Authenticated
+        console.log('✅ Authenticated - allowing access');
+        setIsAuthenticated(true);
+        
+        // If authenticated but no EAs, redirect to license
+        if (eas.length === 0 && !isFirstTime) {
+          console.log('Authenticated but no EA added, redirecting to license...');
+          router.replace('/license');
         }
 
         setHasCheckedAuth(true);
       } catch (error) {
         console.error('Error checking authentication status:', error);
-        setHasCheckedAuth(true);
+        // On error, block access
+        setIsAuthenticated(false);
+        await setIsFirstTime(true);
+        router.replace('/login');
       }
     };
 
     checkAuthenticationStatus();
-  }, [isFirstTime, eas.length, hasCheckedAuth]);
+  }, []); // Run only once on mount
 
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
     if (!ea || !ea.userData || !ea.userData.owner) return null;
@@ -109,6 +111,17 @@ export default function HomeScreen() {
   };
 
 
+
+  // Block rendering if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.splashContainer}>
+        <View style={styles.splashContent}>
+          <Text style={styles.title}>Checking authentication...</Text>
+        </View>
+      </View>
+    );
+  }
 
   // Show splash screen for first-time users
   if (isFirstTime) {
@@ -208,7 +221,6 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.mainEAContainer}>
-            <RobotLogo size={200} />
             <View style={styles.botInfoContainer}>
               <Text style={styles.botMainName}>NO EA CONNECTED</Text>
               <Text style={styles.botDescription}>ADD A LICENSE KEY TO GET STARTED</Text>
