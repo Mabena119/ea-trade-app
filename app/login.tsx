@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, Linking, Platform, KeyboardAvoidingView, ScrollView, BackHandler } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Networking disabled: avoid external browser/payment flows
 import { useApp } from '@/providers/app-provider';
 import { apiService } from '@/services/api';
+import colors from '@/constants/colors';
 
 export default function LoginScreen() {
   const [mentorId, setMentorId] = useState<string>('');
@@ -75,8 +78,8 @@ export default function LoginScreen() {
 
       // If already used: show iOS-safe in-app modal and block
       if (account.used) {
-        setModalTitle('Email Already Used');
-        setModalMessage('This email has already been used on a device. Please contact support if you need assistance.');
+        setModalTitle('Account Used');
+        setModalMessage('');
         setModalVisible(true);
         return;
       }
@@ -167,25 +170,50 @@ export default function LoginScreen() {
       </KeyboardAvoidingView>
       {modalVisible && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{modalTitle}</Text>
-            <Text style={styles.modalMessage}>{modalMessage}</Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity 
+            style={styles.modalOverlayTouchable}
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          >
+            <View style={styles.modalCard}>
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.modalTitle}>{modalTitle}</Text>
+              {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => setModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.modalButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         </View>
       )}
       {paymentVisible && (
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={styles.modalTitle}>Complete Payment</Text>
-              <TouchableOpacity onPress={() => setPaymentVisible(false)}>
-                <Text style={[styles.modalButtonText, { color: '#000000' }]}>Close</Text>
+              <Text style={styles.modalTitle}>Pay for App</Text>
+              <TouchableOpacity 
+                onPress={() => setPaymentVisible(false)}
+                style={styles.closeButton}
+                activeOpacity={0.8}
+              >
+                <X color="#FFFFFF" size={24} />
               </TouchableOpacity>
             </View>
             {Platform.OS === 'web' ? (
@@ -297,22 +325,30 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
+  modalOverlayTouchable: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
+    elevation: 20,
   },
   modalTitle: {
     fontSize: 18,
@@ -326,14 +362,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalButton: {
-    backgroundColor: '#000000',
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+    overflow: 'hidden',
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
   },
   modalButtonText: {
     color: '#FFFFFF',
     textAlign: 'center',
     fontSize: 16,
     fontWeight: '600',
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
   },
 });

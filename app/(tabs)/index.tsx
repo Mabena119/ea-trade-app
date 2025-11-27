@@ -452,14 +452,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 350,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     paddingTop: 40,
     paddingBottom: 30,
     zIndex: 10,
   },
   topSection: {
     alignItems: 'center',
-    marginTop: 120,
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 20,
   },
 
   titleBlock: {
@@ -467,18 +469,13 @@ const styles = StyleSheet.create({
   },
   botMainName: {
     color: '#FFFFFF',
-    fontSize: 48,
-    fontWeight: '900',
-    letterSpacing: 3,
+    fontSize: 32,
+    fontWeight: 'bold',
+    letterSpacing: 2,
     marginBottom: 4,
-    fontFamily: Platform.select({
-      ios: 'Courier', // Futuristic monospace font
-      android: 'monospace', // Futuristic monospace font
-      web: '"Courier New", "Lucida Console", Monaco, monospace' // Futuristic monospace fonts
-    }),
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
     textAlign: 'center',
     flexWrap: 'wrap',
   },

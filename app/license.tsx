@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 import { apiService } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import colors from '@/constants/colors';
 
 export default function LicenseScreen() {
   const [licenseKey, setLicenseKey] = useState<string>('');
@@ -71,8 +74,8 @@ export default function LicenseScreen() {
       }
 
       if (authResponse.message !== 'accept' || !authResponse.data) {
-        setModalTitle('Invalid Robot Key');
-        setModalMessage('The robot key does not exist or authentication failed.');
+        setModalTitle('Incorrect/Used Robot Copy');
+        setModalMessage('');
         setModalVisible(true);
         return;
       }
@@ -187,16 +190,37 @@ export default function LicenseScreen() {
       </KeyboardAvoidingView>
       {modalVisible && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{modalTitle}</Text>
-            <Text style={styles.modalMessage}>{modalMessage}</Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity 
+            style={styles.modalOverlayTouchable}
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          >
+            <View style={styles.modalCard}>
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.modalTitle}>{modalTitle}</Text>
+              {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => setModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.modalButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -302,22 +326,30 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
+  modalOverlayTouchable: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
+    elevation: 20,
   },
   modalTitle: {
     fontSize: 18,
@@ -331,9 +363,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalButton: {
-    backgroundColor: '#000000',
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+    overflow: 'hidden',
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
   },
   modalButtonText: {
     color: '#FFFFFF',
