@@ -1081,27 +1081,18 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 
   // Cleanup function for trading webview - works for both MT4 and MT5
   const cleanupTradingWebView = useCallback(() => {
-    console.log(`🧹 Cleaning up ${tradeConfig?.platform} trading webview - clearing all stored data...`);
+    console.log(`Cleaning up ${tradeConfig?.platform} trading webview - clearing all stored data...`);
 
     if (webViewRef.current) {
-      try {
-        // Clear all storage before destroying
-        const clearScript = getStorageClearScript();
-        webViewRef.current.injectJavaScript(clearScript);
-        console.log('✓ Storage cleared in WebView');
-      } catch (error) {
-        console.log('⚠️ Error clearing storage:', error);
-      }
+      // Clear all storage before closing
+      const clearScript = getStorageClearScript();
+      webViewRef.current.injectJavaScript(clearScript);
     }
 
     // Increment key to force WebView remount and destroy cached instance
     setTimeout(() => {
-      console.log('🔄 Incrementing WebView key to destroy instance');
-      setWebViewKey(prev => {
-        const newKey = prev + 1;
-        console.log(`✅ Trading WebView instance destroyed - key changed from ${prev} to ${newKey}`);
-        return newKey;
-      });
+      console.log('Trading webview cleanup completed - incrementing key to destroy instance');
+      setWebViewKey(prev => prev + 1);
     }, 500);
   }, [tradeConfig, getStorageClearScript]);
 
@@ -1170,15 +1161,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             setError(data.message);
             setLoading(false);
           } else {
-            // All trades completed - destroy WebView instance immediately
-            console.log('🗑️ All trades completed - destroying trading WebView instance');
-            
-            // Cleanup webview (clear storage and increment key to destroy instance)
+            // Cleanup webview before closing (both MT4 and MT5)
             cleanupTradingWebView();
-            
-            // Close modal and return to listening state
+            // Close after cleanup delay
             setTimeout(() => {
-              console.log('✅ Trading WebView destroyed - returning to listening state for new signals');
               onClose();
             }, 600);
           }
@@ -1235,7 +1221,6 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   // Reset state when modal opens and cleanup when closing
   useEffect(() => {
     if (visible) {
-      console.log('🚀 Trading modal opening - initializing fresh WebView instance');
       setLoading(true);
       setError(null);
       setTradeExecuted(false);
@@ -1243,8 +1228,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       startHeartbeat();
     } else {
       stopHeartbeat();
-      // Modal is closing - cleanup trading webview to ensure fresh instance next time
-      console.log('🔒 Trading modal closing - destroying WebView instance');
+      // Modal is closing - cleanup trading webview
+      console.log('Trading modal closing - cleaning up WebView');
       cleanupTradingWebView();
     }
   }, [visible, tradeConfig, cleanupTradingWebView, startHeartbeat, stopHeartbeat]);
@@ -1513,13 +1498,12 @@ const styles = StyleSheet.create({
   // Visible WebView Styles - For debugging trade execution
   invisibleWebViewContainer: {
     position: 'absolute',
-    top: 100, // Below the toast/status
+    top: 0,
     left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#000000',
-    zIndex: 9999,
-    elevation: 9999,
+    width: 1,
+    height: 1,
+    opacity: 0,
+    zIndex: -1,
   },
   invisibleWebView: {
     flex: 1,

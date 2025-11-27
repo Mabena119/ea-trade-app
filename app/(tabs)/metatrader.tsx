@@ -489,6 +489,19 @@ const DEFAULT_MT4_BROKERS = [
 const MT5_BROKER_URLS: Record<string, string> = {
   'RazorMarkets-Live': 'https://webtrader.razormarkets.co.za/terminal/',
   'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal/',
+  'RockWest-Server': 'https://webtrader.rock-west.com/terminal',
+  'MaonoGlobalMarkets-Live': 'https://web.maonoglobalmarkets.com/terminal',
+  'Deriv-Demo': 'https://mt5-demo-web.deriv.com/terminal',
+  'DerivSVG-Server': 'https://mt5-real01-web-svg.deriv.com/terminal',
+  'DerivSVG-Server-02': 'https://mt5-real02-web-svg.deriv.com/terminal',
+  'DerivSVG-Server-03': 'https://mt5-real03-web-svg.deriv.com/terminal',
+  'DerivBVI-Server': 'https://mt5-real01-web-bvi.deriv.com/terminal',
+  'DerivBVI-Server-02': 'https://mt5-real02-web-bvi.deriv.com/terminal',
+  'DerivBVI-Server-03': 'https://mt5-real03-web-bvi.deriv.com/terminal',
+  'DerivBVI-Server-VU': 'https://mt5-real01-web-vu.deriv.com/terminal',
+  'DerivBVI-Server-VU-02': 'https://mt5-real02-web-vu.deriv.com/terminal',
+  'DerivBVI-Server-VU-03': 'https://mt5-real03-web-vu.deriv.com/terminal',
+  'RocketX-Live': 'https://webtrader.rocketx.io:1950/terminal',
 };
 
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
@@ -924,7 +937,7 @@ export default function MetaTraderScreen() {
   };
 
   // Handle MT5 WebView messages
-  const onMT5WebViewMessage = (data: any) => {
+  const onMT5WebViewMessage = async (data: any) => {
     try {
       // Data is already parsed by CustomWebView component
       console.log('MT5 WebView message:', data);
@@ -935,38 +948,44 @@ export default function MetaTraderScreen() {
         console.log('MT5 step:', data.message);
       } else if (data.type === 'authentication_success') {
         console.log('MT5 authentication successful');
-        // Update account status to connected
-        setMT5Account({
+        // Update account status to connected - use await to ensure state is saved
+        await setMT5Account({
           login: login.trim(),
           password: password.trim(),
           server: server.trim(),
           connected: true,
         });
-        setMTAccount({
+        await setMTAccount({
           type: 'MT5',
           login: login.trim(),
           server: server.trim(),
           connected: true,
         });
-        Alert.alert('Success', 'MT5 account authenticated successfully!');
+        console.log('✅ MT5 account authenticated successfully!');
+        // Close WebView after 1 second (reduced from 2s)
+        setTimeout(() => {
         closeMT5WebView();
+        }, 1000);
       } else if (data.type === 'authentication_failed') {
         console.log('MT5 authentication failed:', data.message);
-        // Update account status to disconnected
-        setMT5Account({
+        // Update account status to disconnected - use await to ensure state is saved
+        await setMT5Account({
           login: login.trim(),
           password: password.trim(),
           server: server.trim(),
           connected: false,
         });
-        setMTAccount({
+        await setMTAccount({
           type: 'MT5',
           login: login.trim(),
           server: server.trim(),
           connected: false,
         });
-        Alert.alert('Authentication Failed', data.message || 'MT5 authentication failed');
+        console.log('❌ MT5 authentication failed:', data.message);
+        // Close WebView after 2 seconds (reduced from 3s)
+        setTimeout(() => {
         closeMT5WebView();
+        }, 2000);
       } else if (data.type === 'error') {
         console.error('MT5 WebView error:', data.message);
       } else if (data.type === 'injection_error') {
@@ -981,7 +1000,7 @@ export default function MetaTraderScreen() {
   };
 
   // Handle MT4 WebView messages
-  const onMT4WebViewMessage = (data: any) => {
+  const onMT4WebViewMessage = async (data: any) => {
     try {
       // Data is already parsed by CustomWebView component
       console.log('MT4 WebView message:', data);
@@ -992,38 +1011,44 @@ export default function MetaTraderScreen() {
         console.log('MT4 step:', data.message);
       } else if (data.type === 'authentication_success') {
         console.log('MT4 authentication successful');
-        // Update account status to connected
-        setMT4Account({
+        // Update account status to connected - use await to ensure state is saved
+        await setMT4Account({
           login: login.trim(),
           password: password.trim(),
           server: server.trim(),
           connected: true,
         });
-        setMTAccount({
+        await setMTAccount({
           type: 'MT4',
           login: login.trim(),
           server: server.trim(),
           connected: true,
         });
-        Alert.alert('Success', 'MT4 account authenticated successfully!');
+        console.log('✅ MT4 account authenticated successfully!');
+        // Close WebView after 1 second (reduced from 2s)
+        setTimeout(() => {
         closeMT4WebView();
+        }, 1000);
       } else if (data.type === 'authentication_failed') {
         console.log('MT4 authentication failed:', data.message);
-        // Update account status to disconnected
-        setMT4Account({
+        // Update account status to disconnected - use await to ensure state is saved
+        await setMT4Account({
           login: login.trim(),
           password: password.trim(),
           server: server.trim(),
           connected: false,
         });
-        setMTAccount({
+        await setMTAccount({
           type: 'MT4',
           login: login.trim(),
           server: server.trim(),
           connected: false,
         });
-        Alert.alert('Authentication Failed', data.message || 'MT4 authentication failed');
+        console.log('❌ MT4 authentication failed:', data.message);
+        // Close WebView after 2 seconds (reduced from 3s)
+        setTimeout(() => {
         closeMT4WebView();
+        }, 2000);
       } else if (data.type === 'error') {
         console.error('MT4 WebView error:', data.message);
       } else if (data.type === 'injection_error') {
@@ -1441,6 +1466,9 @@ export default function MetaTraderScreen() {
     if (mt5WebViewRef.current) {
       mt5WebViewRef.current = null;
     }
+    
+    // Force remount by incrementing key - this ensures fresh WebView instance
+    setMT5WebViewKey((k) => k + 1);
   };
 
   // Close MT4 Web View
@@ -1456,6 +1484,9 @@ export default function MetaTraderScreen() {
     if (mt4WebViewRef.current) {
       mt4WebViewRef.current = null;
     }
+    
+    // Force remount by incrementing key - this ensures fresh WebView instance
+    setMT4WebViewKey((k) => k + 1);
   };
 
   // Get MT5 JavaScript injection script
@@ -1537,36 +1568,27 @@ export default function MetaTraderScreen() {
               }
             }
             
-            // Search for XAUUSD symbol
+            // Check for search bar - this is the most reliable indicator of successful login
+            sendMessage('step_update', 'Verifying authentication...');
+            await sleep(2000);
+            
             const searchField = document.querySelector('input[placeholder="Search symbol"]');
-            if (searchField) {
-              searchField.value = asset;
-              searchField.dispatchEvent(new Event('input', { bubbles: true }));
-              searchField.focus();
-              sendMessage('step_update', 'Connecting to Server...');
-              await sleep(3000);
+            if (searchField && searchField.offsetParent !== null) {
+              // Search bar is present and visible - login successful!
+              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+              return;
             }
             
-            // Try to select XAUUSD symbol
-            const symbolSpan = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl');
-            if (symbolSpan) {
-              const text = symbolSpan.innerText.trim();
-              if (text === asset || text === asset + '.mic') {
-                symbolSpan.click();
-                sendMessage('authentication_success', 'MT5 Login Successful');
+            // Double check after a longer wait
+            await sleep(3000);
+            const searchFieldRetry = document.querySelector('input[placeholder="Search symbol"]');
+            if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
                 return;
               }
-            }
             
-            // Fallback: check for other success indicators
-            const currentUrl = window.location.href;
-            const pageText = document.body.innerText.toLowerCase();
-            
-            if (currentUrl.includes('terminal') || pageText.includes('balance') || pageText.includes('account')) {
-              sendMessage('authentication_success', 'MT5 Login Successful');
-            } else {
-              sendMessage('authentication_failed', 'Invalid Login or Password');
-            }
+            // No search bar found - authentication failed
+            sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
             
           } catch(e) {
             sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
@@ -1812,7 +1834,7 @@ export default function MetaTraderScreen() {
             (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
             (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
           ]}>
-            {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) ? `${activeTab} CONNECTED` : `${activeTab} DISCONNECTED`}
+            {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) ? `${activeTab} CONNECTED` : `${activeTab} NOT CONNECTED`}
           </Text>
         </View>
 
@@ -1993,11 +2015,7 @@ export default function MetaTraderScreen() {
                         }}
                       >
                         <View style={styles.brokerItemContent}>
-                          <View style={[styles.brokerStatusDot,
-                          item.includes('Live') || item.includes('Real')
-                            ? styles.liveBrokerDot
-                            : styles.demoBrokerDot
-                          ]} />
+                          <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
                           <Text style={styles.brokerItemText}>
                             {item}
                           </Text>
@@ -2086,9 +2104,10 @@ export default function MetaTraderScreen() {
 
       {/* MT5 WebView - Completely invisible, runs in background */}
       {showMT5WebView && (
-        <View style={styles.invisibleWebViewContainer}>
+        <View key={`mt5-webview-${mt5WebViewKey}`} style={styles.invisibleWebViewContainer}>
           {Platform.OS === 'web' ? (
             <WebWebView
+              key={`mt5-web-${mt5WebViewKey}`}
               url={`/api/mt5-proxy?url=${encodeURIComponent(MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live'])}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
@@ -2096,6 +2115,7 @@ export default function MetaTraderScreen() {
             />
           ) : (
             <CustomWebView
+              key={`mt5-custom-${mt5WebViewKey}`}
               url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
               script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
@@ -2133,9 +2153,10 @@ export default function MetaTraderScreen() {
 
       {/* MT4 WebView - Completely invisible, runs in background */}
       {showMT4WebView && (
-        <View style={styles.invisibleWebViewContainer}>
+        <View key={`mt4-webview-${mt4WebViewKey}`} style={styles.invisibleWebViewContainer}>
           {Platform.OS === 'web' ? (
             <WebWebView
+              key={`mt4-web-${mt4WebViewKey}`}
               url={`/api/mt4-proxy?url=${encodeURIComponent('https://metatraderweb.app/trade?version=4')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&server=${encodeURIComponent(server)}`}
               onMessage={onMT4WebViewMessage}
               onLoadEnd={() => console.log('MT4 Web WebView loaded')}
@@ -2143,6 +2164,7 @@ export default function MetaTraderScreen() {
             />
           ) : (
             <CustomWebView
+              key={`mt4-custom-${mt4WebViewKey}`}
               url="https://metatraderweb.app/trade?version=4"
               script={getMT4Script()}
               onMessage={onMT4WebViewMessage}
@@ -2706,25 +2728,18 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // Invisible WebView Styles - Completely invisible and non-interactive
+  // Visible WebView Styles - For debugging
   invisibleWebViewContainer: {
     position: 'absolute',
-    top: -10000, // Move completely off-screen
-    left: -10000,
-    width: 1, // Minimal size
-    height: 1,
-    opacity: 0, // Completely transparent
-    zIndex: -10000, // Far behind everything
-    overflow: 'hidden',
-    pointerEvents: 'none', // Disable all touch events
-    elevation: -10000, // Android: behind everything
-  },
-  invisibleWebView: {
+    top: 0,
+    left: 0,
     width: 1,
     height: 1,
     opacity: 0,
-    backgroundColor: 'transparent',
-    pointerEvents: 'none', // Disable all touch events
-    elevation: -10000, // Android: behind everything
+    zIndex: -1,
+  },
+  invisibleWebView: {
+    flex: 1,
+    backgroundColor: '#000000',
   },
 });
