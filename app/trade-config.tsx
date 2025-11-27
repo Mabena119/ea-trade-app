@@ -233,18 +233,18 @@ export default function TradeConfigScreen() {
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
             />
-            <TextInput
-              style={styles.input}
-              value={config.lotSize}
+          <TextInput
+            style={styles.input}
+            value={config.lotSize}
               onChangeText={(value) => {
                 console.log('Lot size input changed:', value);
                 updateConfig('lotSize', value);
               }}
-              keyboardType="decimal-pad"
-              placeholder="0.01"
-              placeholderTextColor="#666666"
+            keyboardType="decimal-pad"
+            placeholder="0.01"
+            placeholderTextColor="#666666"
               editable={true}
-            />
+          />
           </View>
         </View>
 
@@ -300,18 +300,18 @@ export default function TradeConfigScreen() {
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
             />
-            <TextInput
-              style={styles.input}
-              value={config.numberOfTrades}
+          <TextInput
+            style={styles.input}
+            value={config.numberOfTrades}
               onChangeText={(value) => {
                 console.log('Number of trades input changed:', value);
                 updateConfig('numberOfTrades', value);
               }}
-              keyboardType="number-pad"
-              placeholder="1"
-              placeholderTextColor="#666666"
+            keyboardType="number-pad"
+            placeholder="1"
+            placeholderTextColor="#666666"
               editable={true}
-            />
+          />
           </View>
         </View>
 

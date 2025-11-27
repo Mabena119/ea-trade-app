@@ -419,16 +419,16 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
           {!isExpanded && (
             <View style={styles.collapsedPill}>
               <View style={styles.collapsedIconContainer}>
-                {primaryEAImage && !logoError ? (
-                  <Image
-                    source={{ uri: primaryEAImage }}
-                    style={styles.collapsedLogo}
-                    onError={() => setLogoError(true)}
-                    resizeMode="cover"
-                  />
-                ) : (
+              {primaryEAImage && !logoError ? (
+                <Image
+                  source={{ uri: primaryEAImage }}
+                  style={styles.collapsedLogo}
+                  onError={() => setLogoError(true)}
+                  resizeMode="cover"
+                />
+              ) : (
                   <RobotLogo size={20} />
-                )}
+              )}
               </View>
               <View style={styles.collapsedStatusDot} />
             </View>
@@ -553,7 +553,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                   colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
                   style={StyleSheet.absoluteFill}
                 />
-                <View style={styles.latestSignalContainer}>
+                  <View style={styles.latestSignalContainer}>
                     {signalLogs
                       .filter(signal => isSignalForActiveSymbol(signal))
                       .slice(-1)

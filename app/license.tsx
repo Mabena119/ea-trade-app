@@ -43,15 +43,15 @@ export default function LicenseScreen() {
 
   const handleActivate = async () => {
     if (!licenseKey.trim()) {
-      Alert.alert('Error', 'Please enter a valid robot key');
+      Alert.alert('ERROR', 'PLEASE ENTER A VALID ROBOT KEY');
       return;
     }
 
     // Check if robot key already exists
     const existingEA = eas.find(ea => ea.licenseKey.toLowerCase().trim() === licenseKey.trim().toLowerCase());
     if (existingEA) {
-      setModalTitle('Robot Already Added');
-      setModalMessage('This robot key is already added on this device.');
+      setModalTitle('ROBOT ALREADY ADDED');
+      setModalMessage('THIS ROBOT KEY IS ALREADY ADDED ON THIS DEVICE.');
       setModalVisible(true);
       return;
     }
@@ -67,8 +67,8 @@ export default function LicenseScreen() {
       });
 
       if (authResponse.message === 'used') {
-        setModalTitle('Robot Already Used');
-        setModalMessage('This robot key is bound to another device. Please contact support if you need assistance.');
+        setModalTitle('ROBOT ALREADY USED');
+        setModalMessage('THIS ROBOT KEY IS BOUND TO ANOTHER DEVICE. PLEASE CONTACT SUPPORT IF YOU NEED ASSISTANCE.');
         setModalVisible(true);
         return;
       }
@@ -106,11 +106,11 @@ export default function LicenseScreen() {
         console.log('License added successfully, navigating to tabs...');
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Error', 'Failed to save this license locally.');
+        Alert.alert('ERROR', 'FAILED TO SAVE THIS LICENSE LOCALLY.');
       }
     } catch (error) {
       console.error('Critical error during license activation:', error);
-      Alert.alert('Network Error', 'Failed to reach the server. Please try again.');
+      Alert.alert('NETWORK ERROR', 'FAILED TO REACH THE SERVER. PLEASE TRY AGAIN.');
     } finally {
       setIsActivating(false);
     }
@@ -127,7 +127,7 @@ export default function LicenseScreen() {
       router.replace('/login');
     } else {
       // Authenticated, allow normal back navigation
-      router.back();
+    router.back();
     }
   };
 
@@ -157,13 +157,13 @@ export default function LicenseScreen() {
                 style={[styles.appIcon, { width: 140, height: 140 }]}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>Enter Robot Key</Text>
+              <Text style={styles.title}>ENTER ROBOT KEY</Text>
             </View>
 
             <View style={styles.form}>
               <TextInput
                 style={styles.input}
-                placeholder="Robot Key"
+                placeholder="ROBOT KEY"
                 placeholderTextColor="#999999"
                 value={licenseKey}
                 onChangeText={setLicenseKey}
@@ -178,10 +178,10 @@ export default function LicenseScreen() {
                 {isActivating ? (
                   <View style={styles.activatingContainer}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.activatingText}>Activating...</Text>
+                    <Text style={styles.activatingText}>ACTIVATING...</Text>
                   </View>
                 ) : (
-                  <Text style={styles.activateButtonText}>Activate</Text>
+                  <Text style={styles.activateButtonText}>ACTIVATE</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -195,7 +195,7 @@ export default function LicenseScreen() {
             activeOpacity={1}
             onPress={() => setModalVisible(false)}
           >
-            <View style={styles.modalCard}>
+          <View style={styles.modalCard}>
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
               )}
@@ -203,11 +203,11 @@ export default function LicenseScreen() {
                 colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.modalTitle}>{modalTitle}</Text>
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
               {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => setModalVisible(false)}
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setModalVisible(false)}
                 activeOpacity={0.8}
               >
                 {Platform.OS === 'ios' && (
@@ -217,9 +217,9 @@ export default function LicenseScreen() {
                   colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.modalButtonText}>OK</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
           </TouchableOpacity>
         </View>
       )}

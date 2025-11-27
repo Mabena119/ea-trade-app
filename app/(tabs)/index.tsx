@@ -27,8 +27,8 @@ export default function HomeScreen() {
   useEffect(() => {
     const checkAuthenticationStatus = async () => {
       try {
-        const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
-        
+          const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
+
         // If first time, show start page (don't redirect)
         if (isFirstTime) {
           console.log('First time user - showing start page');
@@ -38,10 +38,10 @@ export default function HomeScreen() {
         }
         
         // If not authenticated and not first time, redirect to login
-        if (!emailAuthenticated || emailAuthenticated !== 'true') {
+          if (!emailAuthenticated || emailAuthenticated !== 'true') {
           console.log('❌ Not authenticated - redirecting to login');
           setIsAuthenticated(false);
-          router.replace('/login');
+            router.replace('/login');
           return;
         }
 
@@ -53,7 +53,7 @@ export default function HomeScreen() {
         if (eas.length === 0) {
           console.log('Authenticated but no EA added, redirecting to license...');
           // Don't render home screen, go straight to license
-          router.replace('/license');
+            router.replace('/license');
           return; // Stop here, don't set hasCheckedAuth
         }
 
@@ -173,7 +173,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.mainEAContainer}>
+          <View style={styles.mainEAContainer}>
             {primaryEAImage && !logoError ? (
               <ImageBackground
                 testID="ea-hero-bg"
@@ -209,7 +209,7 @@ export default function HomeScreen() {
               <View style={styles.topSection}>
                 <View style={styles.titleBlock}>
                   <View style={styles.botNameContainer}>
-                    <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name}</Text>
+                  <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
                     <View style={[
                       styles.botStatusDot,
                       isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
@@ -244,10 +244,10 @@ export default function HomeScreen() {
                   <View style={styles.tradeButtonContent}>
                     {isBotActive ? (
                       <Square color="#000000" size={24} />
-                    ) : (
+                  ) : (
                       <Play color="#000000" size={24} />
-                    )}
-                    <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
+                  )}
+                  <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
                   </View>
                 </TouchableOpacity>
 
@@ -261,8 +261,8 @@ export default function HomeScreen() {
                     pointerEvents="none"
                   />
                   <View style={styles.secondaryButtonContent}>
-                    <TrendingUp color="#FFFFFF" size={20} />
-                    <Text style={styles.secondaryButtonText}>QUOTES</Text>
+                  <TrendingUp color="#FFFFFF" size={20} />
+                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
                   </View>
                 </TouchableOpacity>
 
@@ -276,8 +276,8 @@ export default function HomeScreen() {
                     pointerEvents="none"
                   />
                   <View style={styles.secondaryButtonContent}>
-                    <Trash2 color="#FFFFFF" size={20} />
-                    <Text style={styles.secondaryButtonText}>REMOVE</Text>
+                  <Trash2 color="#FFFFFF" size={20} />
+                  <Text style={styles.secondaryButtonText}>REMOVE</Text>
                   </View>
                 </TouchableOpacity>
               </View>
@@ -294,7 +294,7 @@ export default function HomeScreen() {
                   <Text style={styles.sectionBadgeText}>{eas.length}</Text>
                 </View>
               </View>
-                {otherEAs.map((ea, index) => (
+              {otherEAs.map((ea, index) => (
                 <TouchableOpacity
                   key={`${ea.id}-${index}`}
                   style={styles.botCard}
@@ -330,7 +330,7 @@ export default function HomeScreen() {
                         </View>
                       )}
                     </View>
-                    <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name}</Text>
+                    <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
                   </View>
                 </TouchableOpacity>
               ))}

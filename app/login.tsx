@@ -44,12 +44,12 @@ export default function LoginScreen() {
 
   const handleProceed = async () => {
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
+      Alert.alert('ERROR', 'PLEASE ENTER YOUR EMAIL');
       return;
     }
 
     if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert('ERROR', 'PLEASE ENTER A VALID EMAIL ADDRESS');
       return;
     }
 
@@ -70,8 +70,8 @@ export default function LoginScreen() {
 
       // If invalid mentor id is returned, block with message
       if ((account as any).invalidMentor === 1) {
-        setModalTitle('Invalid Mentor ID');
-        setModalMessage('The Mentor ID does not match our records for this email.');
+        setModalTitle('INVALID MENTOR ID');
+        setModalMessage('THE MENTOR ID DOES NOT MATCH OUR RECORDS FOR THIS EMAIL.');
         setModalVisible(true);
         return;
       }
@@ -93,7 +93,7 @@ export default function LoginScreen() {
       router.replace('/license');
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Error', error instanceof Error ? error.message : 'Login failed. Please try again.');
+      Alert.alert('ERROR', error instanceof Error ? error.message.toUpperCase() : 'LOGIN FAILED. PLEASE TRY AGAIN.');
     } finally {
       setIsLoading(false);
     }
@@ -131,13 +131,13 @@ export default function LoginScreen() {
                 style={[styles.appIcon, { width: 140, height: 140 }]}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>Login</Text>
+              <Text style={styles.title}>LOGIN</Text>
             </View>
 
             <View style={styles.form}>
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder="EMAIL"
                 placeholderTextColor="#999999"
                 value={email}
                 onChangeText={setEmail}
@@ -153,15 +153,15 @@ export default function LoginScreen() {
                 {isLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={styles.proceedButtonText}>Checking...</Text>
+                    <Text style={styles.proceedButtonText}>CHECKING...</Text>
                   </View>
                 ) : isPaymentProcessing ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={styles.proceedButtonText}>Processing Payment...</Text>
+                    <Text style={styles.proceedButtonText}>PROCESSING PAYMENT...</Text>
                   </View>
                 ) : (
-                  <Text style={styles.proceedButtonText}>Proceed</Text>
+                  <Text style={styles.proceedButtonText}>PROCEED</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -175,7 +175,7 @@ export default function LoginScreen() {
             activeOpacity={1}
             onPress={() => setModalVisible(false)}
           >
-            <View style={styles.modalCard}>
+          <View style={styles.modalCard}>
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
               )}
@@ -183,11 +183,11 @@ export default function LoginScreen() {
                 colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.modalTitle}>{modalTitle}</Text>
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
               {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => setModalVisible(false)}
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setModalVisible(false)}
                 activeOpacity={0.8}
               >
                 {Platform.OS === 'ios' && (
@@ -197,9 +197,9 @@ export default function LoginScreen() {
                   colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.modalButtonText}>OK</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
           </TouchableOpacity>
         </View>
       )}
