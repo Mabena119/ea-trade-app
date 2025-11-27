@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, Linking, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, Linking, Platform, KeyboardAvoidingView, ScrollView, BackHandler } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Networking disabled: avoid external browser/payment flows
 import { useApp } from '@/providers/app-provider';
@@ -18,7 +19,25 @@ export default function LoginScreen() {
   const [modalMessage, setModalMessage] = useState<string>('');
   const [paymentVisible, setPaymentVisible] = useState<boolean>(false);
   const [paymentUrl, setPaymentUrl] = useState<string>('');
-  const { setUser } = useApp();
+  const { setUser, setIsFirstTime } = useApp();
+
+  // Handle back button - go back to start page
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      console.log('Back pressed on login - going to start page');
+      handleBackToStart();
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, []);
+
+  const handleBackToStart = async () => {
+    // Clear authentication and go back to start
+    await AsyncStorage.removeItem('emailAuthenticated');
+    await setIsFirstTime(true);
+    router.replace('/(tabs)');
+  };
 
   const handleProceed = async () => {
     if (!mentorId.trim() || !email.trim()) {
@@ -83,6 +102,13 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBackToStart}>
+          <ArrowLeft size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -195,6 +221,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 10,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   keyboardAvoidingView: {
     flex: 1,

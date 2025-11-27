@@ -145,7 +145,6 @@ export default function HomeScreen() {
               style={{ width: 240, height: 240, borderRadius: 48 }}
               resizeMode="contain"
             />
-            <Text style={styles.title}>EA TRADE</Text>
           </View>
 
           <TouchableOpacity style={styles.splashStartButton} onPress={handleStartNow}>
