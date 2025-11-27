@@ -40,8 +40,8 @@ export default function LoginScreen() {
   };
 
   const handleProceed = async () => {
-    if (!mentorId.trim() || !email.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email');
       return;
     }
 
@@ -54,7 +54,7 @@ export default function LoginScreen() {
 
     try {
       const trimmedEmail = email.trim();
-      const trimmedMentor = mentorId.trim();
+      const trimmedMentor = ''; // No mentor ID required
       const account = await apiService.authenticate({ email: trimmedEmail, mentor: trimmedMentor });
 
       // If user doesn't exist or hasn't paid: redirect to payment/shop page
@@ -125,22 +125,13 @@ export default function LoginScreen() {
             <View style={styles.logoContainer}>
               <Image
                 source={require('@/assets/images/icon.png')}
-                style={[styles.appIcon, { width: 100, height: 100 }]}
+                style={[styles.appIcon, { width: 140, height: 140 }]}
                 resizeMode="contain"
               />
               <Text style={styles.title}>Login</Text>
             </View>
 
             <View style={styles.form}>
-              <TextInput
-                style={styles.input}
-                placeholder="Mentor ID"
-                placeholderTextColor="#999999"
-                value={mentorId}
-                onChangeText={setMentorId}
-                autoCapitalize="none"
-              />
-
               <TextInput
                 style={styles.input}
                 placeholder="Email"

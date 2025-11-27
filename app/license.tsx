@@ -40,15 +40,15 @@ export default function LicenseScreen() {
 
   const handleActivate = async () => {
     if (!licenseKey.trim()) {
-      Alert.alert('Error', 'Please enter a valid license key');
+      Alert.alert('Error', 'Please enter a valid robot key');
       return;
     }
 
-    // Check if license key already exists
+    // Check if robot key already exists
     const existingEA = eas.find(ea => ea.licenseKey.toLowerCase().trim() === licenseKey.trim().toLowerCase());
     if (existingEA) {
-      setModalTitle('License Already Added');
-      setModalMessage('This license key is already added on this device.');
+      setModalTitle('Robot Already Added');
+      setModalMessage('This robot key is already added on this device.');
       setModalVisible(true);
       return;
     }
@@ -64,15 +64,15 @@ export default function LicenseScreen() {
       });
 
       if (authResponse.message === 'used') {
-        setModalTitle('License Already Used');
-        setModalMessage('This license key is bound to another device. Please contact support if you need assistance.');
+        setModalTitle('Robot Already Used');
+        setModalMessage('This robot key is bound to another device. Please contact support if you need assistance.');
         setModalVisible(true);
         return;
       }
 
       if (authResponse.message !== 'accept' || !authResponse.data) {
-        setModalTitle('Invalid License');
-        setModalMessage('The license key does not exist or authentication failed.');
+        setModalTitle('Invalid Robot Key');
+        setModalMessage('The robot key does not exist or authentication failed.');
         setModalVisible(true);
         return;
       }
@@ -151,16 +151,16 @@ export default function LicenseScreen() {
             <View style={styles.logoContainer}>
               <Image
                 source={require('@/assets/images/icon.png')}
-                style={[styles.appIcon, { width: 100, height: 100 }]}
+                style={[styles.appIcon, { width: 140, height: 140 }]}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>Enter License Key</Text>
+              <Text style={styles.title}>Enter Robot Key</Text>
             </View>
 
             <View style={styles.form}>
               <TextInput
                 style={styles.input}
-                placeholder="License Key"
+                placeholder="Robot Key"
                 placeholderTextColor="#999999"
                 value={licenseKey}
                 onChangeText={setLicenseKey}
@@ -178,13 +178,9 @@ export default function LicenseScreen() {
                     <Text style={styles.activatingText}>Activating...</Text>
                   </View>
                 ) : (
-                  <Text style={styles.activateButtonText}>Activate EA</Text>
+                  <Text style={styles.activateButtonText}>Active</Text>
                 )}
               </TouchableOpacity>
-
-              <Text style={styles.hint}>
-                Enter your license key to activate EA
-              </Text>
             </View>
           </View>
         </ScrollView>
