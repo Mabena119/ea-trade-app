@@ -1,4 +1,12 @@
-const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
+import Constants from 'expo-constants';
+
+// For native builds, read from app.json extra config
+// For web/dev, read from process.env
+const BASE_URL = (
+  process.env.EXPO_PUBLIC_API_BASE_URL || 
+  Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL || 
+  ''
+).replace(/\/$/, '');
 
 export interface AuthBody {
   email: string;

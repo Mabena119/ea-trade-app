@@ -20,7 +20,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.ea-trade-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
+      "bundleIdentifier": "app.eatrade.automated.forex.trading.app",
       "statusBar": {
         "style": "light",
         "backgroundColor": "#000000",
@@ -58,7 +58,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "app.ea-trade-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
+      "package": "app.eatrade.automated.forex.trading.app",
       "statusBar": {
         "style": "light",
         "backgroundColor": "#000000",
@@ -115,7 +115,8 @@
     "extra": {
       "eas": {
         "projectId": "82a5b181-3fb0-4117-9f99-33d989cdf0a3"
-      }
+      },
+      "EXPO_PUBLIC_API_BASE_URL": "https://ea-trade-app.onrender.com"
     },
     "owner": "justvino"
   }
