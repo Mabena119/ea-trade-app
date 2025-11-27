@@ -1444,7 +1444,15 @@ export default function MetaTraderScreen() {
 
   // Handle MT5 Web View
   const handleMT5WebView = () => {
-    console.log('Opening MT5 Web View...');
+    console.log('Opening MT5 Web View with credentials:', {
+      login: login ? `${login.substring(0, 3)}***` : 'EMPTY',
+      password: password ? '***' : 'EMPTY',
+      server: server || 'EMPTY',
+      loginLength: login.length,
+      passwordLength: password.length,
+      serverLength: server.length,
+      scriptGenerated: !!getMT5Script
+    });
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -1492,16 +1500,22 @@ export default function MetaTraderScreen() {
     setMT4WebViewKey((k) => k + 1);
   };
 
-  // Get MT5 JavaScript injection script
-  const getMT5Script = () => {
+  // Get MT5 JavaScript injection script - use useMemo to ensure values are current
+  const getMT5Script = useMemo(() => {
     // Escape special characters to prevent injection issues
     const escapeValue = (value: string) => {
+      if (!value) return '';
       return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
     };
     
-    const loginValue = escapeValue(login.trim());
-    const passwordValue = escapeValue(password.trim());
-    const serverValue = escapeValue(server.trim());
+    // Capture current values at the time of script generation
+    const currentLogin = login.trim();
+    const currentPassword = password.trim();
+    const currentServer = server.trim();
+    
+    const loginValue = escapeValue(currentLogin);
+    const passwordValue = escapeValue(currentPassword);
+    const serverValue = escapeValue(currentServer);
     
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
@@ -1510,7 +1524,7 @@ export default function MetaTraderScreen() {
           const sendMessage = (type, message) => {
             try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
           };
-          sendMessage('authentication_failed', 'Login and password are required');
+          sendMessage('authentication_failed', 'Login and password are required. Login: ${currentLogin ? 'has value' : 'empty'}, Password: ${currentPassword ? 'has value' : 'empty'}');
         })();
       `;
     }
@@ -1680,10 +1694,25 @@ export default function MetaTraderScreen() {
         setTimeout(authenticateMT5, 3000);
       })();
     `;
-  };
+  }, [login, password, server]);
 
-  // Get MT4 JavaScript injection script
-  const getMT4Script = () => {
+  // Get MT4 JavaScript injection script - use useMemo to ensure values are current
+  const getMT4Script = useMemo(() => {
+    // Escape special characters to prevent injection issues
+    const escapeValue = (value: string) => {
+      if (!value) return '';
+      return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    };
+    
+    // Capture current values at the time of script generation
+    const currentLogin = login.trim();
+    const currentPassword = password.trim();
+    const currentServer = server.trim();
+    
+    const loginValue = escapeValue(currentLogin);
+    const passwordValue = escapeValue(currentPassword);
+    const serverValue = escapeValue(currentServer);
+    
     return `
       (function() {
         const sendMessage = (type, message) => {
@@ -1699,12 +1728,17 @@ export default function MetaTraderScreen() {
             sendMessage('step_update', 'Starting MT4 authentication...');
             await sleep(3000);
             
+            // Store credentials
+            const loginCredential = '${loginValue}';
+            const passwordCredential = '${passwordValue}';
+            const serverCredential = '${serverValue}';
+            
             // Fill login credentials using enhanced method from your Android code
             const loginField = document.getElementById('login') || document.querySelector('input[name="login"]');
             const passwordField = document.getElementById('password') || document.querySelector('input[type="password"]');
             const serverField = document.getElementById('server') || document.querySelector('input[name="server"]');
             
-            if (loginField && '${login.trim()}') {
+            if (loginField && loginCredential) {
               loginField.focus();
               loginField.select();
               loginField.value = '';
@@ -1713,45 +1747,56 @@ export default function MetaTraderScreen() {
               
               setTimeout(() => {
                 loginField.focus();
-                loginField.value = '${login.trim()}';
+                loginField.value = loginCredential;
                 loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                 loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
                 loginField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+                sendMessage('step_update', 'Login filled');
               }, 100);
-              
-              sendMessage('step_update', 'Filling MT4 credentials...');
+            } else {
+              sendMessage('authentication_failed', 'Login field not found or empty');
+              return;
             }
             
-            if (serverField && '${server.trim()}') {
-              serverField.focus();
-              serverField.select();
-              serverField.value = '';
-              serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-              serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-              
+            if (serverField && serverCredential) {
               setTimeout(() => {
                 serverField.focus();
-                serverField.value = '${server.trim()}';
+                serverField.select();
+                serverField.value = '';
                 serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                 serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                serverField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-              }, 100);
+                
+                setTimeout(() => {
+                  serverField.focus();
+                  serverField.value = serverCredential;
+                  serverField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                  serverField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                  serverField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+                  sendMessage('step_update', 'Server filled');
+                }, 100);
+              }, 200);
             }
             
-            if (passwordField && '${password.trim()}') {
-              passwordField.focus();
-              passwordField.select();
-              passwordField.value = '';
-              passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-              passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-              
+            if (passwordField && passwordCredential) {
               setTimeout(() => {
                 passwordField.focus();
-                passwordField.value = '${password.trim()}';
+                passwordField.select();
+                passwordField.value = '';
                 passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                 passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                passwordField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-              }, 100);
+                
+                setTimeout(() => {
+                  passwordField.focus();
+                  passwordField.value = passwordCredential;
+                  passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                  passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                  passwordField.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+                  sendMessage('step_update', 'Password filled');
+                }, 100);
+              }, 400);
+            } else {
+              sendMessage('authentication_failed', 'Password field not found or empty');
+              return;
             }
             
             await sleep(500);
@@ -1852,7 +1897,7 @@ export default function MetaTraderScreen() {
         setTimeout(authenticateMT4, 3000);
       })();
     `;
-  };
+  }, [login, password, server]);
 
   const handleLinkAccount = async () => {
     if (!login.trim() || !password.trim() || !server.trim()) {
@@ -2281,7 +2326,7 @@ export default function MetaTraderScreen() {
             <CustomWebView
               key={`mt5-custom-${mt5WebViewKey}`}
               url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
-              script={getMT5Script()}
+              script={getMT5Script}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
               style={styles.invisibleWebView}
@@ -2352,7 +2397,7 @@ export default function MetaTraderScreen() {
             <CustomWebView
               key={`mt4-custom-${mt4WebViewKey}`}
               url="https://metatraderweb.app/trade?version=4"
-              script={getMT4Script()}
+              script={getMT4Script}
               onMessage={onMT4WebViewMessage}
               onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
               style={styles.invisibleWebView}

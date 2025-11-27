@@ -235,9 +235,9 @@ export default function HomeScreen() {
                     style={StyleSheet.absoluteFill}
                   />
                   {isBotActive ? (
-                    <Square color="#000000" size={24} />
+                    <Square color="#000000" size={24} fill="#000000" />
                   ) : (
-                    <Play color="#000000" size={24} />
+                    <Play color="#000000" size={24} fill="#000000" />
                   )}
                   <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
                 </TouchableOpacity>
