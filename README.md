@@ -1,4 +1,4 @@
-# rork-ea-converter
+# rork-ea-trade
 Created by Rork
 
 ## 🚀 Database & CPU Optimization
@@ -66,16 +66,16 @@ This project builds a static web export of the Expo app and serves it via Bun in
 ### Build and run locally
 ```bash
 # Build the image
-docker build -t ea-converter:web .
+docker build -t ea-trade:web .
 
 # Run the container (serves on http://localhost:3000)
-docker run --rm -p 3000:3000 ea-converter:web
+docker run --rm -p 3000:3000 ea-trade:web
 ```
 
 ### Deploy to Render
 1. Push your repo to GitHub/GitLab.
 2. In Render, create a New Web Service and select your repo.
-3. Render detects `render.yaml` and configures a docker web service named `ea-converter-web`.
+3. Render detects `render.yaml` and configures a docker web service named `ea-trade-web`.
 4. Deploy. The service will:
    - Install dependencies with Bun
    - Build the web export to `dist/`

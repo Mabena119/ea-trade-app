@@ -122,7 +122,7 @@ export default function HomeScreen() {
               style={{ width: 120, height: 120, borderRadius: 24 }}
               resizeMode="contain"
             />
-            <Text style={styles.title}>EA CONVERTER</Text>
+            <Text style={styles.title}>EA TRADE</Text>
           </View>
 
           <Text style={styles.description}>

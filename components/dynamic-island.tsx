@@ -433,7 +433,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                   {primaryEA?.name}
                 </Text>
                 <Text style={styles.expandedSubtitle}>
-                  EA CONVERTER
+                  EA TRADE
                 </Text>
               </View>
             </View>

@@ -64,10 +64,10 @@ export default function LicenseScreen() {
 
       const newEA = {
         id: uniqueId,
-        name: data.ea_name || 'EA CONVERTER',
+        name: data.ea_name || 'EA TRADE',
         licenseKey: licenseKey.trim(),
         status: 'connected' as const,
-        description: (data.owner && data.owner.name) ? data.owner.name : 'EA CONVERTER',
+        description: (data.owner && data.owner.name) ? data.owner.name : 'EA TRADE',
         phoneSecretKey: data.phone_secret_key,
         userData: data,
       };

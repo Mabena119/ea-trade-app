@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "EA Converter",
-    "slug": "ea-converter-app-bf6qtmx7-6jkhyg7w",
+    "name": "EA Trade",
+    "slug": "ea-trade-app-bf6qtmx7-6jkhyg7w",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -20,7 +20,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
+      "bundleIdentifier": "app.ea-trade-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
       "statusBar": {
         "style": "light",
         "backgroundColor": "#000000",
@@ -58,7 +58,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "app.ea-converter-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
+      "package": "app.ea-trade-automated-forex-trading-app-bf6qtmx7-6jkhyg7w",
       "statusBar": {
         "style": "light",
         "backgroundColor": "#000000",
@@ -67,17 +67,21 @@
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
-      "name": "EA Converter",
-      "shortName": "EA Converter",
+      "name": "EA Trade",
+      "shortName": "EA Trade",
       "startUrl": "/",
       "display": "standalone",
       "orientation": "portrait",
       "themeColor": "#000000",
       "backgroundColor": "#000000",
-      "description": "Automated Forex Trading EA Converter App",
+      "description": "Automated Forex Trading EA Trade App",
       "scope": "/",
       "lang": "en",
-      "categories": ["finance", "business", "productivity"],
+      "categories": [
+        "finance",
+        "business",
+        "productivity"
+      ],
       "icons": [
         {
           "src": "./assets/images/icon.png",

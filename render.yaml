@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ea-converter-web
+    name: ea-trade-web
     env: docker
     plan: free
     autoDeploy: true
