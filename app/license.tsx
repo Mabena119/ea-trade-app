@@ -1,18 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 import { apiService } from '@/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LicenseScreen() {
   const [licenseKey, setLicenseKey] = useState<string>('');
   const [isActivating, setIsActivating] = useState<boolean>(false);
-  const { addEA, eas } = useApp();
+  const { addEA, eas, setIsFirstTime } = useApp();
   const hasActiveBots = eas.length > 0;
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [modalTitle, setModalTitle] = useState<string>('');
   const [modalMessage, setModalMessage] = useState<string>('');
+
+  // Check email authentication on mount
+  useEffect(() => {
+    const checkEmailAuth = async () => {
+      try {
+        const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
+        
+        // If email not authenticated, redirect to login
+        if (!emailAuthenticated || emailAuthenticated !== 'true') {
+          console.log('Email not authenticated, redirecting to login...');
+          await setIsFirstTime(true);
+          router.replace('/login');
+        }
+      } catch (error) {
+        console.error('Error checking email authentication:', error);
+        // On error, redirect to login to be safe
+        await setIsFirstTime(true);
+        router.replace('/login');
+      }
+    };
+
+    checkEmailAuth();
+  }, []);
 
   const handleActivate = async () => {
     if (!licenseKey.trim()) {
@@ -89,8 +113,19 @@ export default function LicenseScreen() {
     }
   };
 
-  const handleBack = () => {
-    router.back();
+  const handleBack = async () => {
+    // Check if email is authenticated before allowing back navigation
+    const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
+    
+    if (!emailAuthenticated || emailAuthenticated !== 'true') {
+      // Not authenticated, go back to login/start
+      console.log('Not authenticated, redirecting to login...');
+      await setIsFirstTime(true);
+      router.replace('/login');
+    } else {
+      // Authenticated, allow normal back navigation
+      router.back();
+    }
   };
 
   return (
@@ -114,11 +149,6 @@ export default function LicenseScreen() {
         >
           <View style={styles.content}>
             <View style={styles.logoContainer}>
-              <Image
-                source={require('@/assets/images/icon.png')}
-                style={styles.appIcon}
-                resizeMode="contain"
-              />
               <Text style={styles.title}>Enter License Key</Text>
             </View>
 
