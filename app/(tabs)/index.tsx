@@ -210,10 +210,6 @@ export default function HomeScreen() {
                 <View style={styles.titleBlock}>
                   <View style={styles.botNameContainer}>
                   <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
-                    <View style={[
-                      styles.botStatusDot,
-                      isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
-                    ]} />
                   </View>
                 </View>
               </View>
@@ -279,6 +275,10 @@ export default function HomeScreen() {
                   <Trash2 color="#FFFFFF" size={20} />
                   <Text style={styles.secondaryButtonText}>REMOVE</Text>
                   </View>
+                  <View style={[
+                    styles.botStatusDot,
+                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
+                  ]} />
                 </TouchableOpacity>
               </View>
 
@@ -508,8 +508,8 @@ const styles = StyleSheet.create({
   },
   botStatusDot: {
     position: 'absolute',
-    top: -4,
-    right: -8,
+    top: -6,
+    right: -6,
     width: 14,
     height: 14,
     borderRadius: 7,
@@ -520,6 +520,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 4,
     elevation: 4,
+    zIndex: 10,
   },
   botStatusDotActive: {
     backgroundColor: '#25D366',
@@ -593,6 +594,7 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     position: 'relative',
+    overflow: 'visible',
   },
   secondaryButtonContent: {
     flexDirection: 'row',

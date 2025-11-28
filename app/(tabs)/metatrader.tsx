@@ -2249,9 +2249,9 @@ export default function MetaTraderScreen() {
                 <ActivityIndicator size="small" color="#25D366" />
               </View>
               <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>MT5 Authentication</Text>
+                <Text style={styles.authToastTitle}>MT5 LOGIN</Text>
                 <Text style={styles.authToastStatus}>
-                  {authenticationStep || 'Connecting to RazorMarkets...'}
+                  {authenticationStep ? authenticationStep.toUpperCase() : 'ESTABLISHING CONNECTION...'}
                 </Text>
               </View>
             </View>
@@ -2320,9 +2320,9 @@ export default function MetaTraderScreen() {
                 <ActivityIndicator size="small" color="#25D366" />
               </View>
               <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>MT4 Authentication</Text>
+                <Text style={styles.authToastTitle}>MT4 LOGIN</Text>
                 <Text style={styles.authToastStatus}>
-                  {authenticationStep || 'Connecting to MetaTrader...'}
+                  {authenticationStep ? authenticationStep.toUpperCase() : 'ESTABLISHING CONNECTION...'}
                 </Text>
               </View>
             </View>
@@ -2915,17 +2915,17 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 50 : 30,
     left: 20,
     right: 20,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderRadius: 20,
-    borderWidth: 0.3,
-    borderColor: colors.glass.border,
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 4,
     },
-    shadowOpacity: 0.7,
-    shadowRadius: 24,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
     elevation: 10000,
     zIndex: 10000,
     overflow: 'hidden',
@@ -2959,14 +2959,16 @@ const styles = StyleSheet.create({
   },
   authToastTitle: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 3,
   },
   authToastStatus: {
-    color: '#CCCCCC',
-    fontSize: 12,
-    fontWeight: '500',
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   authToastCloseButton: {
     width: 28,

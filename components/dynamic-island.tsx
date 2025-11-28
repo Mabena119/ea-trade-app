@@ -11,6 +11,8 @@ import {
   AppState,
   PanResponder,
   Image,
+  Linking,
+  Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +24,7 @@ import { router } from 'expo-router';
 import { SignalLog } from '@/services/signals-monitor';
 import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
+import { overlayService } from '@/services/overlay-service';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -36,6 +39,8 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [appState, setAppState] = useState<string>(AppState.currentState);
   const [isOverlayMode, setIsOverlayMode] = useState<boolean>(false);
+  const [hasOverlayPermission, setHasOverlayPermission] = useState<boolean>(false);
+  const [isNativeOverlayActive, setIsNativeOverlayActive] = useState<boolean>(false);
 
   const animatedHeight = useRef(new Animated.Value(50)).current;
   const animatedWidth = useRef(new Animated.Value(160)).current;
@@ -125,31 +130,71 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
       const initialY = statusBarHeight + 50;
       panX.setValue(20);
       panY.setValue(initialY);
+      
+      // Check overlay permission on mount
+      overlayService.checkOverlayPermission().then(hasPermission => {
+        setHasOverlayPermission(hasPermission);
+        if (!hasPermission && visible && isBotActive) {
+          // Request permission when bot becomes active
+          overlayService.requestOverlayPermission().then(granted => {
+            setHasOverlayPermission(granted);
+          });
+        }
+      });
     }
     // Update width for circular collapsed state
     animatedWidth.setValue(collapsedSize);
-  }, [panX, panY, collapsedSize, animatedWidth]);
+  }, [panX, panY, collapsedSize, animatedWidth, visible, isBotActive]);
 
   // Handle app state changes for overlay mode
   useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
+    const handleAppStateChange = async (nextAppState: string) => {
       console.log('App state changed from', appState, 'to', nextAppState);
       setAppState(nextAppState);
 
       if (Platform.OS === 'android' && isBotActive && visible) {
         if (nextAppState === 'background' || nextAppState === 'inactive') {
-          // App is going to background - activate overlay mode
-          console.log('Activating overlay mode');
-          setIsOverlayMode(true);
-          // Make widget semi-transparent when in overlay mode
-          Animated.timing(overlayOpacity, {
-            toValue: 0.9,
-            duration: 300,
-            useNativeDriver: false,
-          }).start();
+          // App is going to background - activate native overlay
+          console.log('App going to background - activating native overlay');
+          
+          // Check permission first
+          const hasPermission = await overlayService.checkOverlayPermission();
+          if (hasPermission) {
+            const currentX = (panX as any)._value || 20;
+            const currentY = (panY as any)._value || 100;
+            const currentWidth = isExpanded ? screenWidth - 40 : collapsedSize;
+            const currentHeight = isExpanded ? 220 : collapsedSize;
+            
+            // Show native overlay
+            const success = await overlayService.showOverlay(
+              currentX,
+              currentY,
+              currentWidth,
+              currentHeight
+            );
+            
+            if (success) {
+              setIsNativeOverlayActive(true);
+              setIsOverlayMode(true);
+            }
+          } else {
+            // Fallback to React Native overlay mode
+            setIsOverlayMode(true);
+            Animated.timing(overlayOpacity, {
+              toValue: 0.9,
+              duration: 300,
+              useNativeDriver: false,
+            }).start();
+          }
         } else if (nextAppState === 'active') {
-          // App is coming to foreground - deactivate overlay mode
-          console.log('Deactivating overlay mode');
+          // App is coming to foreground - hide native overlay
+          console.log('App coming to foreground - hiding native overlay');
+          
+          if (isNativeOverlayActive) {
+            await overlayService.hideOverlay();
+            setIsNativeOverlayActive(false);
+          }
+          
           setIsOverlayMode(false);
           Animated.timing(overlayOpacity, {
             toValue: 1,
@@ -161,8 +206,14 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
-  }, [appState, isBotActive, visible, overlayOpacity]);
+    return () => {
+      subscription?.remove();
+      // Cleanup native overlay on unmount
+      if (isNativeOverlayActive && Platform.OS === 'android') {
+        overlayService.hideOverlay();
+      }
+    };
+  }, [appState, isBotActive, visible, overlayOpacity, isExpanded, isNativeOverlayActive]);
 
   const handleExpand = React.useCallback(() => {
     Animated.parallel([
@@ -205,8 +256,6 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
         id: newSignal.id,
         asset: newSignal.asset,
         action: newSignal.action,
-        type: newSignal.type,
-        source: newSignal.source
       });
 
       // Check if this signal is for an active symbol
@@ -247,7 +296,78 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
 
   // Only show when bot is active
   if (!visible || !isBotActive || !primaryEA) {
+    // Hide native overlay if component is hidden
+    if (isNativeOverlayActive && Platform.OS === 'android') {
+      overlayService.hideOverlay();
+      setIsNativeOverlayActive(false);
+    }
     return null;
+  }
+
+  // On iOS web (PWA), render as notification-style widget at top
+  if (Platform.OS === 'web') {
+    // Check if running on iOS device
+    const isIOSDevice = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    return (
+      <View style={styles.iosWebNotificationContainer}>
+        <View style={styles.iosWebNotificationContent}>
+          {isIOSDevice && (
+            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.iosWebNotificationLeft}>
+            <View style={styles.iosWebNotificationIcon}>
+              {primaryEAImage && !logoError ? (
+                <Image
+                  source={{ uri: primaryEAImage }}
+                  style={styles.iosWebNotificationLogo}
+                  onError={() => setLogoError(true)}
+                  resizeMode="cover"
+                />
+              ) : (
+                <RobotLogo size={24} />
+              )}
+            </View>
+            <View style={styles.iosWebNotificationInfo}>
+              <Text style={styles.iosWebNotificationTitle} numberOfLines={1}>
+                {primaryEA?.name.toUpperCase() || 'EA TRADE'}
+              </Text>
+              <View style={styles.iosWebNotificationStatusRow}>
+                <View style={styles.iosWebNotificationStatusDot} />
+                <Text style={styles.iosWebNotificationStatus}>ACTIVE</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.iosWebNotificationControls}>
+            <TouchableOpacity
+              style={styles.iosWebNotificationControlButton}
+              onPress={() => {
+                console.log('iOS Web: Start/Stop button pressed');
+                setBotActive(!isBotActive);
+              }}
+              activeOpacity={0.8}
+            >
+              {isBotActive ? (
+                <Square color="#DC2626" size={18} />
+              ) : (
+                <Play color="#25D366" size={18} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iosWebNotificationControlButton}
+              onPress={() => router.push('/(tabs)/quotes')}
+              activeOpacity={0.8}
+            >
+              <TrendingUp color="#FFFFFF" size={18} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
   }
 
   // In overlay mode, show a persistent floating widget
@@ -409,26 +529,26 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
             <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
           )}
           <LinearGradient
-            colors={isExpanded 
+            colors={isExpanded
               ? ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']
               : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
             style={StyleSheet.absoluteFill}
           />
-          
+
           {/* Collapsed State - Modern Glass Pill */}
           {!isExpanded && (
             <View style={styles.collapsedPill}>
               <View style={styles.collapsedIconContainer}>
-              {primaryEAImage && !logoError ? (
-                <Image
-                  source={{ uri: primaryEAImage }}
-                  style={styles.collapsedLogo}
-                  onError={() => setLogoError(true)}
-                  resizeMode="cover"
-                />
-              ) : (
+                {primaryEAImage && !logoError ? (
+                  <Image
+                    source={{ uri: primaryEAImage }}
+                    style={styles.collapsedLogo}
+                    onError={() => setLogoError(true)}
+                    resizeMode="contain"
+                  />
+                ) : (
                   <RobotLogo size={20} />
-              )}
+                )}
               </View>
               <View style={styles.collapsedStatusDot} />
             </View>
@@ -495,7 +615,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                   <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                 )}
                 <LinearGradient
-                  colors={isBotActive 
+                  colors={isBotActive
                     ? ['rgba(220, 38, 38, 0.25)', 'rgba(220, 38, 38, 0.15)']
                     : ['rgba(37, 211, 102, 0.25)', 'rgba(37, 211, 102, 0.15)']}
                   style={StyleSheet.absoluteFill}
@@ -510,8 +630,8 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.controlButton} 
+              <TouchableOpacity
+                style={styles.controlButton}
                 onPress={handleQuotes}
                 activeOpacity={0.8}
               >
@@ -526,8 +646,8 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                 <Text style={styles.controlButtonText}>QUOTES</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.controlButton} 
+              <TouchableOpacity
+                style={styles.controlButton}
                 onPress={handleRemoveBot}
                 activeOpacity={0.8}
               >
@@ -553,57 +673,56 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                   colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
                   style={StyleSheet.absoluteFill}
                 />
-                  <View style={styles.latestSignalContainer}>
-                    {signalLogs
-                      .filter(signal => isSignalForActiveSymbol(signal))
-                      .slice(-1)
-                      .map((signal, index) => {
-                        // Use signal ID and timestamp for unique key to force re-render
-                        const uniqueKey = `${signal.id}-${signal.latestupdate}-${index}`;
-                        return (
-                          <View key={uniqueKey} style={styles.latestSignalDetails}>
-                            {Platform.OS === 'ios' && (
-                              <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-                            )}
-                            <LinearGradient
-                              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-                              style={StyleSheet.absoluteFill}
-                            />
-                            <View style={styles.latestSignalHeader}>
-                              <Text style={styles.latestSignalAsset}>{signal.asset}</Text>
-                              <View style={[
-                                styles.latestSignalBadge,
-                                signal.action === 'BUY' ? styles.latestBuyBadge : styles.latestSellBadge
-                              ]}>
-                                <Text style={styles.latestSignalAction}>{signal.action}</Text>
-                              </View>
-                            </View>
-                            <View style={styles.latestSignalPrices}>
-                              <View style={styles.latestPriceItem}>
-                                <Text style={styles.latestPriceLabel}>Entry:</Text>
-                                <Text style={styles.latestPriceValue}>{signal.price}</Text>
-                              </View>
-                              <View style={styles.latestPriceItem}>
-                                <Text style={styles.latestPriceLabel}>TP:</Text>
-                                <Text style={[styles.latestPriceValue, styles.latestTpValue]}>{signal.tp}</Text>
-                              </View>
-                              <View style={styles.latestPriceItem}>
-                                <Text style={styles.latestPriceLabel}>SL:</Text>
-                                <Text style={[styles.latestPriceValue, styles.latestSlValue]}>{signal.sl}</Text>
-                              </View>
-                            </View>
-                            <View style={styles.latestSignalFooter}>
-                              <Text style={styles.latestSignalTime}>
-                                {formatTime(signal.time)}
-                              </Text>
-                              <Text style={styles.latestSignalId}>ID: {signal.id}</Text>
+                <View style={styles.latestSignalContainer}>
+                  {signalLogs
+                    .filter(signal => isSignalForActiveSymbol(signal))
+                    .slice(-1)
+                    .map((signal, index) => {
+                      // Use signal ID and timestamp for unique key to force re-render
+                      const uniqueKey = `${signal.id}-${signal.latestupdate}-${index}`;
+                      return (
+                        <View key={uniqueKey} style={styles.latestSignalDetails}>
+                          {Platform.OS === 'ios' && (
+                            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+                          )}
+                          <LinearGradient
+                            colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                            style={StyleSheet.absoluteFill}
+                          />
+                          <View style={styles.latestSignalHeader}>
+                            <Text style={styles.latestSignalAsset}>{signal.asset}</Text>
+                            <View style={[
+                              styles.latestSignalBadge,
+                              signal.action === 'BUY' ? styles.latestBuyBadge : styles.latestSellBadge
+                            ]}>
+                              <Text style={styles.latestSignalAction}>{signal.action}</Text>
                             </View>
                           </View>
-                        );
-                      })
-                    }
-                  </View>
-                )}
+                          <View style={styles.latestSignalPrices}>
+                            <View style={styles.latestPriceItem}>
+                              <Text style={styles.latestPriceLabel}>Entry:</Text>
+                              <Text style={styles.latestPriceValue}>{signal.price}</Text>
+                            </View>
+                            <View style={styles.latestPriceItem}>
+                              <Text style={styles.latestPriceLabel}>TP:</Text>
+                              <Text style={[styles.latestPriceValue, styles.latestTpValue]}>{signal.tp}</Text>
+                            </View>
+                            <View style={styles.latestPriceItem}>
+                              <Text style={styles.latestPriceLabel}>SL:</Text>
+                              <Text style={[styles.latestPriceValue, styles.latestSlValue]}>{signal.sl}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.latestSignalFooter}>
+                            <Text style={styles.latestSignalTime}>
+                              {formatTime(signal.time)}
+                            </Text>
+                            <Text style={styles.latestSignalId}>ID: {signal.id}</Text>
+                          </View>
+                        </View>
+                      );
+                    })
+                  }
+                </View>
               </View>
             )}
 
@@ -725,7 +844,6 @@ const styles = StyleSheet.create({
   collapsedLogo: {
     width: 32,
     height: 32,
-    borderRadius: 16,
   },
   collapsedStatusDot: {
     width: 8,
@@ -768,7 +886,6 @@ const styles = StyleSheet.create({
   expandedLogo: {
     width: 48,
     height: 48,
-    borderRadius: 24,
   },
   expandedInfo: {
     flex: 1,
@@ -1076,5 +1193,97 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: '#999999',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  // iOS Web Notification Styles
+  iosWebNotificationContainer: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9999,
+    paddingTop: Platform.OS === 'ios' ? 44 : 0, // Account for iOS notch
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+  },
+  iosWebNotificationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderBottomWidth: 0.3,
+    borderBottomColor: colors.glass.border,
+    overflow: 'hidden',
+  },
+  iosWebNotificationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iosWebNotificationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 0.3,
+    borderColor: colors.glass.borderMedium,
+    overflow: 'hidden',
+  },
+  iosWebNotificationLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  iosWebNotificationInfo: {
+    flex: 1,
+  },
+  iosWebNotificationTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  iosWebNotificationStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iosWebNotificationStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#25D366',
+    marginRight: 6,
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  iosWebNotificationStatus: {
+    color: '#25D366',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  iosWebNotificationControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iosWebNotificationControlButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
   },
 });

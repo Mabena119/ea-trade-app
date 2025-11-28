@@ -1325,12 +1325,15 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               </View>
               <View style={styles.toastInfo}>
                 <Text style={styles.toastTitle}>
-                  {signal.asset} • {signal.action} • {tradeConfig.platform}
+                  {signal.asset} {signal.action} ORDER
                 </Text>
                 <Text style={[styles.toastStatus, {
                   color: error ? '#FF4444' : tradeExecuted ? '#00FF88' : '#CCCCCC'
                 }]}>
-                  {error || (tradeExecuted ? 'Execution Complete' : currentStep)}
+                  {error || (tradeExecuted ? 'TRADE EXECUTED' : currentStep.toUpperCase())}
+                </Text>
+                <Text style={styles.toastPlatform}>
+                  {tradeConfig.platform.toUpperCase()}
                 </Text>
               </View>
             </View>
@@ -1361,7 +1364,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                     colors={['rgba(37, 211, 102, 0.15)', 'rgba(37, 211, 102, 0.08)']}
                     style={StyleSheet.absoluteFill}
                   />
-                  <Text style={styles.toastRetryText}>Retry</Text>
+                  <Text style={styles.toastRetryText}>RETRY</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -1430,19 +1433,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 20,
     right: 20,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderRadius: 20,
-    borderWidth: 0.3,
-    borderColor: colors.glass.border,
+    backgroundColor: '#1F1F1F',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 4,
     },
-    shadowOpacity: 0.7,
-    shadowRadius: 24,
-    elevation: 10000, // Very high elevation to stay on top
-    zIndex: 10000, // Highest z-index to appear above everything
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 10000,
+    zIndex: 10000,
     overflow: 'hidden',
   },
   toastContent: {
@@ -1480,7 +1483,16 @@ const styles = StyleSheet.create({
   },
   toastStatus: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  toastPlatform: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#999999',
+    letterSpacing: 1,
+    marginTop: 2,
   },
   toastRight: {
     flexDirection: 'row',
