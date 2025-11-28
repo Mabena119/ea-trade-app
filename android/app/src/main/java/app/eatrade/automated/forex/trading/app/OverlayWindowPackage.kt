@@ -11,7 +11,7 @@ class OverlayWindowPackage : ReactPackage {
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
-        return emptyList()
+        return listOf(OverlayViewManager())
     }
 }
 

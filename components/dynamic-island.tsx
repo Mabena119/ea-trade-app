@@ -131,7 +131,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
       panX.setValue(20);
       panY.setValue(initialY);
       
-      // Check overlay permission on mount
+      // Check overlay permission on mount and request if needed
       overlayService.checkOverlayPermission().then(hasPermission => {
         setHasOverlayPermission(hasPermission);
         if (!hasPermission && visible && isBotActive) {
@@ -146,74 +146,70 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     animatedWidth.setValue(collapsedSize);
   }, [panX, panY, collapsedSize, animatedWidth, visible, isBotActive]);
 
+  // On Android, always show as overlay widget - request permission and show overlay when bot is active
+  useEffect(() => {
+    if (Platform.OS === 'android' && isBotActive && visible && !isNativeOverlayActive) {
+      const setupAndroidOverlay = async () => {
+        const hasPermission = await overlayService.checkOverlayPermission();
+        if (!hasPermission) {
+          await overlayService.requestOverlayPermission();
+          return;
+        }
+        
+        // Show native overlay immediately when bot is active
+        const currentX = (panX as any)._value || 20;
+        const currentY = (panY as any)._value || 100;
+        const currentWidth = isExpanded ? screenWidth - 40 : collapsedSize;
+        const currentHeight = isExpanded ? 220 : collapsedSize;
+        
+        const success = await overlayService.showOverlay(
+          currentX,
+          currentY,
+          currentWidth,
+          currentHeight
+        );
+        
+        if (success) {
+          setIsNativeOverlayActive(true);
+        }
+      };
+      
+      setupAndroidOverlay();
+    }
+    
+    // Cleanup when component unmounts or bot becomes inactive
+    return () => {
+      if (isNativeOverlayActive && Platform.OS === 'android') {
+        overlayService.hideOverlay();
+        setIsNativeOverlayActive(false);
+      }
+    };
+  }, [isBotActive, visible, isExpanded, isNativeOverlayActive]);
+
   // Handle app state changes for overlay mode
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: string) => {
       console.log('App state changed from', appState, 'to', nextAppState);
       setAppState(nextAppState);
 
-      if (Platform.OS === 'android' && isBotActive && visible) {
+      if (Platform.OS === 'android' && isBotActive && visible && isNativeOverlayActive) {
+        // Update overlay position/size when app state changes
         if (nextAppState === 'background' || nextAppState === 'inactive') {
-          // App is going to background - activate native overlay
-          console.log('App going to background - activating native overlay');
+          // Keep overlay visible when app goes to background
+          const currentX = (panX as any)._value || 20;
+          const currentY = (panY as any)._value || 100;
+          const currentWidth = isExpanded ? screenWidth - 40 : collapsedSize;
+          const currentHeight = isExpanded ? 220 : collapsedSize;
           
-          // Check permission first
-          const hasPermission = await overlayService.checkOverlayPermission();
-          if (hasPermission) {
-            const currentX = (panX as any)._value || 20;
-            const currentY = (panY as any)._value || 100;
-            const currentWidth = isExpanded ? screenWidth - 40 : collapsedSize;
-            const currentHeight = isExpanded ? 220 : collapsedSize;
-            
-            // Show native overlay
-            const success = await overlayService.showOverlay(
-              currentX,
-              currentY,
-              currentWidth,
-              currentHeight
-            );
-            
-            if (success) {
-              setIsNativeOverlayActive(true);
-              setIsOverlayMode(true);
-            }
-          } else {
-            // Fallback to React Native overlay mode
-            setIsOverlayMode(true);
-            Animated.timing(overlayOpacity, {
-              toValue: 0.9,
-              duration: 300,
-              useNativeDriver: false,
-            }).start();
-          }
-        } else if (nextAppState === 'active') {
-          // App is coming to foreground - hide native overlay
-          console.log('App coming to foreground - hiding native overlay');
-          
-          if (isNativeOverlayActive) {
-            await overlayService.hideOverlay();
-            setIsNativeOverlayActive(false);
-          }
-          
-          setIsOverlayMode(false);
-          Animated.timing(overlayOpacity, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: false,
-          }).start();
+          await overlayService.updateOverlayPosition(currentX, currentY);
+          await overlayService.updateOverlaySize(currentWidth, currentHeight);
         }
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => {
-      subscription?.remove();
-      // Cleanup native overlay on unmount
-      if (isNativeOverlayActive && Platform.OS === 'android') {
-        overlayService.hideOverlay();
-      }
-    };
-  }, [appState, isBotActive, visible, overlayOpacity, isExpanded, isNativeOverlayActive]);
+    return () => subscription?.remove();
+  }, [appState, isBotActive, visible, isExpanded, isNativeOverlayActive]);
 
   const handleExpand = React.useCallback(() => {
     Animated.parallel([
@@ -304,71 +300,77 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return null;
   }
 
-  // On iOS web (PWA), render as notification-style widget at top
-  if (Platform.OS === 'web') {
-    // Check if running on iOS device
-    const isIOSDevice = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  // On iOS (native or web), render as notification-style widget at top (like lock screen music player)
+  if (Platform.OS === 'ios' || Platform.OS === 'web') {
+    // Check if running on iOS device for web
+    const isIOSDevice = Platform.OS === 'web' && typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
     
-    return (
-      <View style={styles.iosWebNotificationContainer}>
-        <View style={styles.iosWebNotificationContent}>
-          {isIOSDevice && (
-            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-          )}
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.iosWebNotificationLeft}>
-            <View style={styles.iosWebNotificationIcon}>
-              {primaryEAImage && !logoError ? (
-                <Image
-                  source={{ uri: primaryEAImage }}
-                  style={styles.iosWebNotificationLogo}
-                  onError={() => setLogoError(true)}
-                  resizeMode="cover"
-                />
-              ) : (
-                <RobotLogo size={24} />
-              )}
-            </View>
-            <View style={styles.iosWebNotificationInfo}>
-              <Text style={styles.iosWebNotificationTitle} numberOfLines={1}>
-                {primaryEA?.name.toUpperCase() || 'EA TRADE'}
-              </Text>
-              <View style={styles.iosWebNotificationStatusRow}>
-                <View style={styles.iosWebNotificationStatusDot} />
-                <Text style={styles.iosWebNotificationStatus}>ACTIVE</Text>
+    if (Platform.OS === 'ios' || isIOSDevice) {
+      return (
+        <View style={styles.iosNotificationWidgetContainer}>
+          <View style={styles.iosNotificationWidgetContent}>
+            {Platform.OS === 'ios' && (
+              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+            )}
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.iosNotificationWidgetLeft}>
+              <View style={styles.iosNotificationWidgetIcon}>
+                {primaryEAImage && !logoError ? (
+                  <Image
+                    source={{ uri: primaryEAImage }}
+                    style={styles.iosNotificationWidgetLogo}
+                    onError={() => setLogoError(true)}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <RobotLogo size={40} />
+                )}
+              </View>
+              <View style={styles.iosNotificationWidgetInfo}>
+                <Text style={styles.iosNotificationWidgetTitle} numberOfLines={1}>
+                  {primaryEA?.name.toUpperCase() || 'EA TRADE'}
+                </Text>
+                <View style={styles.iosNotificationWidgetStatusRow}>
+                  <View style={styles.iosNotificationWidgetStatusDot} />
+                  <Text style={styles.iosNotificationWidgetStatus}>ACTIVE</Text>
+                </View>
               </View>
             </View>
-          </View>
-          <View style={styles.iosWebNotificationControls}>
-            <TouchableOpacity
-              style={styles.iosWebNotificationControlButton}
-              onPress={() => {
-                console.log('iOS Web: Start/Stop button pressed');
-                setBotActive(!isBotActive);
-              }}
-              activeOpacity={0.8}
-            >
-              {isBotActive ? (
-                <Square color="#DC2626" size={18} />
-              ) : (
-                <Play color="#25D366" size={18} />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iosWebNotificationControlButton}
-              onPress={() => router.push('/(tabs)/quotes')}
-              activeOpacity={0.8}
-            >
-              <TrendingUp color="#FFFFFF" size={18} />
-            </TouchableOpacity>
+            <View style={styles.iosNotificationWidgetControls}>
+              <TouchableOpacity
+                style={styles.iosNotificationWidgetControlButton}
+                onPress={() => {
+                  console.log('iOS Notification: Start/Stop button pressed');
+                  setBotActive(!isBotActive);
+                }}
+                activeOpacity={0.8}
+              >
+                {isBotActive ? (
+                  <Square color="#DC2626" size={20} />
+                ) : (
+                  <Play color="#25D366" size={20} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iosNotificationWidgetControlButton}
+                onPress={() => router.push('/(tabs)/quotes')}
+                activeOpacity={0.8}
+              >
+                <TrendingUp color="#FFFFFF" size={20} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
-    );
+      );
+    }
   }
+
+
+  // On Android, always render as overlay widget (React Native component with absolute positioning)
+  // The native overlay infrastructure is available but React Native component will be the primary display
 
   // In overlay mode, show a persistent floating widget
   if (isOverlayMode) {
@@ -1194,38 +1196,41 @@ const styles = StyleSheet.create({
     color: '#999999',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  // iOS Web Notification Styles
-  iosWebNotificationContainer: {
-    position: 'fixed',
-    top: 0,
+  // iOS Notification Widget Styles (like lock screen music player)
+  iosNotificationWidgetContainer: {
+    position: Platform.OS === 'ios' ? 'absolute' : 'fixed',
+    top: Platform.OS === 'ios' ? 0 : 0,
     left: 0,
     right: 0,
     zIndex: 9999,
     paddingTop: Platform.OS === 'ios' ? 44 : 0, // Account for iOS notch
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    ...(Platform.OS === 'web' && {
+      backdropFilter: 'blur(30px)',
+      WebkitBackdropFilter: 'blur(30px)',
+    }),
   },
-  iosWebNotificationContent: {
+  iosNotificationWidgetContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     borderBottomWidth: 0.3,
     borderBottomColor: colors.glass.border,
     overflow: 'hidden',
+    minHeight: 70,
   },
-  iosWebNotificationLeft: {
+  iosNotificationWidgetLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  iosWebNotificationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  iosNotificationWidgetIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1233,52 +1238,56 @@ const styles = StyleSheet.create({
     borderWidth: 0.3,
     borderColor: colors.glass.borderMedium,
     overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  iosWebNotificationLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  iosNotificationWidgetLogo: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
   },
-  iosWebNotificationInfo: {
+  iosNotificationWidgetInfo: {
     flex: 1,
   },
-  iosWebNotificationTitle: {
+  iosNotificationWidgetTitle: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  iosWebNotificationStatusRow: {
+  iosNotificationWidgetStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  iosWebNotificationStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  iosNotificationWidgetStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#25D366',
-    marginRight: 6,
+    marginRight: 8,
     shadowColor: '#25D366',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,
   },
-  iosWebNotificationStatus: {
+  iosNotificationWidgetStatus: {
     color: '#25D366',
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.5,
   },
-  iosWebNotificationControls: {
+  iosNotificationWidgetControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
-  iosWebNotificationControlButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  iosNotificationWidgetControlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     alignItems: 'center',
     justifyContent: 'center',

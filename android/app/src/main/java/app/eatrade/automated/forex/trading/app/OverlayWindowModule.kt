@@ -12,9 +12,11 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.facebook.react.ReactRootView
+import com.facebook.react.ReactApplication
 
 class OverlayWindowModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
-    private var overlayView: View? = null
+    private var overlayView: FrameLayout? = null
     private var windowManager: WindowManager? = null
     private var params: WindowManager.LayoutParams? = null
 
@@ -94,8 +96,13 @@ class OverlayWindowModule(reactContext: ReactApplicationContext) : ReactContextB
                 this.y = y
             }
 
+            // Create overlay container
+            // Note: To render React Native views, we'd need a ViewManager or separate ReactRootView entry point
+            // For now, create an empty container that can be used as a bridge
             overlayView = FrameLayout(context).apply {
                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                // The React Native component will be rendered separately
+                // This overlay window can be used to position and contain the widget
             }
 
             windowManager?.addView(overlayView, params)
