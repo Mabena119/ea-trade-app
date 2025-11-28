@@ -300,20 +300,20 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return null;
   }
 
-  // On iOS (native or web), render as notification-style widget at top (like lock screen music player)
+  // On iOS (native or web), render as notification center widget (like lock screen music player)
   if (Platform.OS === 'ios' || Platform.OS === 'web') {
     // Check if running on iOS device for web
     const isIOSDevice = Platform.OS === 'web' && typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
     
     if (Platform.OS === 'ios' || isIOSDevice) {
       return (
-        <View style={styles.iosNotificationWidgetContainer}>
-          <View style={styles.iosNotificationWidgetContent}>
+        <View style={styles.iosNotificationWidgetContainer} pointerEvents="box-none">
+          <View style={styles.iosNotificationWidgetContent} pointerEvents="auto">
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
             )}
             <LinearGradient
-              colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+              colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
               style={StyleSheet.absoluteFill}
             />
             <View style={styles.iosNotificationWidgetLeft}>
@@ -326,7 +326,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                     resizeMode="cover"
                   />
                 ) : (
-                  <RobotLogo size={40} />
+                  <RobotLogo size={44} />
                 )}
               </View>
               <View style={styles.iosNotificationWidgetInfo}>
@@ -343,23 +343,23 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
               <TouchableOpacity
                 style={styles.iosNotificationWidgetControlButton}
                 onPress={() => {
-                  console.log('iOS Notification: Start/Stop button pressed');
+                  console.log('iOS Notification Center: Start/Stop button pressed');
                   setBotActive(!isBotActive);
                 }}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 {isBotActive ? (
-                  <Square color="#DC2626" size={20} />
+                  <Square color="#DC2626" size={22} fill="#DC2626" />
                 ) : (
-                  <Play color="#25D366" size={20} />
+                  <Play color="#25D366" size={22} fill="#25D366" />
                 )}
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iosNotificationWidgetControlButton}
                 onPress={() => router.push('/(tabs)/quotes')}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
-                <TrendingUp color="#FFFFFF" size={20} />
+                <TrendingUp color="#FFFFFF" size={22} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1199,15 +1199,16 @@ const styles = StyleSheet.create({
   // iOS Notification Widget Styles (like lock screen music player)
   iosNotificationWidgetContainer: {
     position: Platform.OS === 'ios' ? 'absolute' : 'fixed',
-    top: Platform.OS === 'ios' ? 0 : 0,
+    top: 0,
     left: 0,
     right: 0,
-    zIndex: 9999,
-    paddingTop: Platform.OS === 'ios' ? 44 : 0, // Account for iOS notch
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    zIndex: 10000,
+    elevation: 10000,
+    paddingTop: Platform.OS === 'ios' ? (StatusBar.currentHeight || 44) : 0, // Account for iOS status bar/notch
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.4)',
     ...(Platform.OS === 'web' && {
-      backdropFilter: 'blur(30px)',
-      WebkitBackdropFilter: 'blur(30px)',
+      backdropFilter: 'blur(40px)',
+      WebkitBackdropFilter: 'blur(40px)',
     }),
   },
   iosNotificationWidgetContent: {
@@ -1215,12 +1216,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderBottomWidth: 0.3,
-    borderBottomColor: colors.glass.border,
+    borderBottomWidth: Platform.OS === 'ios' ? 0.5 : 0.3,
+    borderBottomColor: Platform.OS === 'ios' ? 'rgba(255, 255, 255, 0.1)' : colors.glass.border,
     overflow: 'hidden',
-    minHeight: 70,
+    minHeight: 80,
   },
   iosNotificationWidgetLeft: {
     flexDirection: 'row',

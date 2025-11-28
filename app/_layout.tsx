@@ -182,11 +182,14 @@ function RootLayoutNav() {
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
       {/* Always render DynamicIsland when conditions are met, regardless of app state */}
-      <DynamicIsland
-        visible={!isFirstTime && eas.length > 0 && isBotActive}
-        newSignal={newSignal}
-        onSignalDismiss={dismissNewSignal}
-      />
+      {/* Render outside Stack to ensure it appears on top */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'box-none', zIndex: 10000 }}>
+        <DynamicIsland
+          visible={!isFirstTime && eas.length > 0 && isBotActive}
+          newSignal={newSignal}
+          onSignalDismiss={dismissNewSignal}
+        />
+      </View>
 
       {/* Trading WebView Modal */}
       <TradingWebView

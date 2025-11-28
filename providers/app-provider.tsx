@@ -680,6 +680,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
 
+      // Update iOS widget if on iOS
+      if (Platform.OS === 'ios') {
+        try {
+          const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+          if (primaryEA) {
+            const { widgetService } = await import('@/services/widget-service');
+            const logoUrl = primaryEA.userData?.owner?.logo 
+              ? `https://ea-converter.com/admin/uploads/${primaryEA.userData.owner.logo.toString().replace(/^\/+/, '')}`
+              : undefined;
+            await widgetService.updateWidgetData(
+              primaryEA.name.toUpperCase(),
+              active,
+              logoUrl
+            );
+          }
+        } catch (error) {
+          console.error('Error updating iOS widget:', error);
+        }
+      }
+
       if (active) {
         // Start database signals polling when bot is activated
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
