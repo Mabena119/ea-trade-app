@@ -1,201 +1,159 @@
 import WidgetKit
 import SwiftUI
 
-struct Provider: TimelineProvider {
-    func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), botName: "EA TRADE", isActive: true, logoUrl: nil)
-    }
-
-    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        let entry = loadWidgetData()
-        completion(entry)
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
-        let entry = loadWidgetData()
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-        completion(timeline)
-    }
-    
-    private func loadWidgetData() -> SimpleEntry {
-        let sharedDefaults = UserDefaults(suiteName: "group.app.eatrade.automated.forex.trading.app")
-        let botName = sharedDefaults?.string(forKey: "widget_bot_name") ?? "EA TRADE"
-        let isActive = sharedDefaults?.bool(forKey: "widget_bot_active") ?? false
-        let logoUrl = sharedDefaults?.string(forKey: "widget_logo_url")
-        
-        return SimpleEntry(
-            date: Date(),
-            botName: botName,
-            isActive: isActive,
-            logoUrl: logoUrl
-        )
-    }
-}
-
-struct SimpleEntry: TimelineEntry {
-    let date: Date
-    let botName: String
-    let isActive: Bool
-    let logoUrl: String?
-}
-
-struct EATradeWidgetEntryView: View {
-    var entry: Provider.Entry
-    @Environment(\.widgetFamily) var family
-
-    var body: some View {
-        switch family {
-        case .systemSmall:
-            SmallWidgetView(entry: entry)
-        case .systemMedium:
-            MediumWidgetView(entry: entry)
-        default:
-            MediumWidgetView(entry: entry)
-        }
-    }
-}
-
-struct SmallWidgetView: View {
-    var entry: SimpleEntry
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                if let logoUrl = entry.logoUrl, let url = URL(string: logoUrl) {
-                    AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Image(systemName: "chart.line.uptrend.xyaxis")
-                            .foregroundColor(.white)
-                    }
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                } else {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .foregroundColor(.white)
-                        .font(.system(size: 24))
-                }
-                
-                Spacer()
-                
-                Circle()
-                    .fill(entry.isActive ? Color.green : Color.red)
-                    .frame(width: 8, height: 8)
-            }
-            
-            Text(entry.botName)
-                .font(.headline)
-                .foregroundColor(.white)
-                .lineLimit(1)
-            
-            Text(entry.isActive ? "ACTIVE" : "INACTIVE")
-                .font(.caption)
-                .foregroundColor(entry.isActive ? .green : .red)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.8), Color.black.opacity(0.6)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-    }
-}
-
-struct MediumWidgetView: View {
-    var entry: SimpleEntry
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // Logo
-            if let logoUrl = entry.logoUrl, let url = URL(string: logoUrl) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .foregroundColor(.white)
-                }
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .foregroundColor(.white)
-                    .font(.system(size: 32))
-                    .frame(width: 56, height: 56)
-            }
-            
-            // Info
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.botName)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(entry.isActive ? Color.green : Color.red)
-                        .frame(width: 8, height: 8)
-                    
-                    Text(entry.isActive ? "ACTIVE" : "INACTIVE")
-                        .font(.caption)
-                        .foregroundColor(entry.isActive ? .green : .red)
-                }
-            }
-            
-            Spacer()
-            
-            // Controls
-            HStack(spacing: 12) {
-                Button(intent: ToggleBotIntent()) {
-                    Image(systemName: entry.isActive ? "stop.fill" : "play.fill")
-                        .foregroundColor(entry.isActive ? .red : .green)
-                        .font(.system(size: 20))
-                }
-                .buttonStyle(.plain)
-                
-                Button(intent: OpenQuotesIntent()) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .foregroundColor(.white)
-                        .font(.system(size: 20))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.8), Color.black.opacity(0.6)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-    }
-}
-
 struct EATradeWidget: Widget {
     let kind: String = "EATradeWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+        StaticConfiguration(kind: kind, provider: EATradeWidgetProvider()) { entry in
             EATradeWidgetEntryView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("EA Trade Bot")
+        .configurationDisplayName("EA Trade Control")
         .description("Control your trading bot from the notification center")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemMedium])
     }
 }
 
-#Preview(as: .systemSmall) {
-    EATradeWidget()
-} timeline: {
-    SimpleEntry(date: .now, botName: "HOSTED EA V1.1", isActive: true, logoUrl: nil)
-    SimpleEntry(date: .now, botName: "HOSTED EA V1.1", isActive: false, logoUrl: nil)
+struct EATradeWidgetProvider: TimelineProvider {
+    typealias Entry = EATradeWidgetEntry
+    
+    func placeholder(in context: Context) -> EATradeWidgetEntry {
+        EATradeWidgetEntry(
+            date: Date(),
+            botName: "EA TRADE",
+            isActive: true,
+            botImage: nil
+        )
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (EATradeWidgetEntry) -> ()) {
+        let entry = EATradeWidgetEntry(
+            date: Date(),
+            botName: getBotName(),
+            isActive: getBotActiveState(),
+            botImage: nil
+        )
+        completion(entry)
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
+        let entry = EATradeWidgetEntry(
+            date: Date(),
+            botName: getBotName(),
+            isActive: getBotActiveState(),
+            botImage: nil
+        )
+        
+        // Update every 5 minutes
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: Date())!
+        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+        completion(timeline)
+    }
+    
+    private func getBotName() -> String {
+        if let sharedDefaults = UserDefaults(suiteName: "group.app.eatrade.automated.forex.trading.app") {
+            return sharedDefaults.string(forKey: "botName") ?? "EA TRADE"
+        }
+        return "EA TRADE"
+    }
+    
+    private func getBotActiveState() -> Bool {
+        if let sharedDefaults = UserDefaults(suiteName: "group.app.eatrade.automated.forex.trading.app") {
+            return sharedDefaults.bool(forKey: "isBotActive")
+        }
+        return false
+    }
 }
 
+struct EATradeWidgetEntry: TimelineEntry {
+    let date: Date
+    let botName: String
+    let isActive: Bool
+    let botImage: String?
+}
+
+struct EATradeWidgetEntryView: View {
+    var entry: EATradeWidgetProvider.Entry
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color.black.opacity(0.8)
+            
+            HStack(spacing: 16) {
+                // Bot Icon
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.1))
+                        .frame(width: 56, height: 56)
+                    
+                    if entry.isActive {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 12, height: 12)
+                            .offset(x: 20, y: -20)
+                    }
+                    
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white)
+                }
+                
+                // Bot Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(entry.botName)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(entry.isActive ? Color.green : Color.red)
+                            .frame(width: 8, height: 8)
+                        
+                        Text(entry.isActive ? "ACTIVE" : "INACTIVE")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(entry.isActive ? Color.green : Color.red)
+                    }
+                }
+                
+                Spacer()
+                
+                // Control Buttons
+                HStack(spacing: 12) {
+                    // Start/Stop Button
+                    Button(intent: ToggleBotIntent()) {
+                        Image(systemName: entry.isActive ? "stop.fill" : "play.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(entry.isActive ? .red : .green)
+                            .frame(width: 44, height: 44)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    
+                    // Quotes Button
+                    Button(intent: OpenQuotesIntent()) {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+#Preview(as: .systemMedium) {
+    EATradeWidget()
+} timeline: {
+    EATradeWidgetEntry(
+        date: Date(),
+        botName: "EA TRADE",
+        isActive: true,
+        botImage: nil
+    )
+}

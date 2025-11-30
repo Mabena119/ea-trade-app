@@ -3,4 +3,5 @@
 //
 
 #import <React/RCTBridgeModule.h>
-#import <WidgetKit/WidgetKit.h>
+#import <React/RCTBridge.h>
+#import <React/RCTEventDispatcher.h>

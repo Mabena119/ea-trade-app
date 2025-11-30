@@ -1,31 +1,53 @@
-import { Platform } from 'react-native';
-import { NativeModules } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 
-interface WidgetServiceInterface {
-  updateWidgetData(botName: string, isActive: boolean, logoUrl?: string): Promise<void>;
+interface WidgetDataManagerInterface {
+  updateWidgetData(botName: string, isActive: boolean, isPaused: boolean, botImageURL?: string | null): Promise<boolean>;
+  syncWidgetPollingState(): Promise<{ isPaused: boolean; wasToggled: boolean }>;
 }
 
-class WidgetService implements WidgetServiceInterface {
-  async updateWidgetData(botName: string, isActive: boolean, logoUrl?: string): Promise<void> {
+const { WidgetDataManager } = NativeModules as {
+  WidgetDataManager?: WidgetDataManagerInterface;
+};
+
+interface WidgetService {
+  updateWidget(botName: string, isActive: boolean, isPaused: boolean, botImageURL?: string | null): Promise<void>;
+}
+
+class WidgetService implements WidgetService {
+  async updateWidget(botName: string, isActive: boolean, isPaused: boolean, botImageURL?: string | null): Promise<void> {
     if (Platform.OS !== 'ios') {
       return;
     }
 
-    try {
-      // Use UserDefaults with App Group to share data with widget
-      const { WidgetDataManager } = NativeModules as {
-        WidgetDataManager?: {
-          updateWidgetData(botName: string, isActive: boolean, logoUrl?: string): Promise<void>;
-        };
-      };
+    if (!WidgetDataManager) {
+      console.warn('WidgetDataManager native module not available');
+      return;
+    }
 
-      if (WidgetDataManager) {
-        await WidgetDataManager.updateWidgetData(botName, isActive, logoUrl);
-      } else {
-        console.warn('WidgetDataManager native module not available');
-      }
+    try {
+      await WidgetDataManager.updateWidgetData(botName, isActive, isPaused, botImageURL || null);
+      console.log('Widget data updated:', { botName, isActive, isPaused, botImageURL });
     } catch (error) {
-      console.error('Error updating widget data:', error);
+      console.error('Error updating widget:', error);
+    }
+  }
+
+  async syncWidgetPollingState(): Promise<{ isPaused: boolean; wasToggled: boolean } | null> {
+    if (Platform.OS !== 'ios') {
+      return null;
+    }
+
+    if (!WidgetDataManager) {
+      console.warn('WidgetDataManager native module not available');
+      return null;
+    }
+
+    try {
+      const result = await WidgetDataManager.syncWidgetPollingState();
+      return result as { isPaused: boolean; wasToggled: boolean };
+    } catch (error) {
+      console.error('Error syncing widget polling state:', error);
+      return null;
     }
   }
 }

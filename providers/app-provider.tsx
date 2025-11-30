@@ -85,6 +85,9 @@ interface AppState {
   showTradingWebView: boolean;
   databaseSignal: DatabaseSignal | null;
   isDatabaseSignalsPolling: boolean;
+  isPollingPaused: boolean;
+  pausePolling: () => void;
+  resumePolling: () => void;
   setUser: (user: User) => void;
   addEA: (ea: EA) => Promise<boolean>;
   removeEA: (id: string) => Promise<boolean>;
@@ -127,10 +130,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [showTradingWebView, setShowTradingWebView] = useState<boolean>(false);
   const [databaseSignal, setDatabaseSignal] = useState<DatabaseSignal | null>(null);
   const [isDatabaseSignalsPolling, setIsDatabaseSignalsPolling] = useState<boolean>(false);
+  const [isPollingPaused, setIsPollingPaused] = useState<boolean>(false);
 
   // Load persisted data on mount
   useEffect(() => {
     loadPersistedData();
+  }, []);
+
+  // Shared helper function to get EA image URL (same as home page)
+  const getEAImageUrl = useCallback((ea: EA | null): string | null => {
+    if (!ea || !ea.userData || !ea.userData.owner) return null;
+    const raw = (ea.userData.owner.logo || '').toString().trim();
+    if (!raw) return null;
+    // If already an absolute URL, return as-is
+    if (/^https?:\/\//i.test(raw)) return raw;
+    // Otherwise, treat as filename and prefix uploads base URL
+    const filename = raw.replace(/^\/+/, '');
+    const base = 'https://ea-converter.com/admin/uploads';
+    return `${base}/${filename}`;
   }, []);
 
   const loadPersistedData = async () => {
@@ -682,19 +699,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       // Update iOS widget if on iOS
       if (Platform.OS === 'ios') {
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+        
+        // Get bot image URL using the same logic as home page
+        const botImageURL = getEAImageUrl(primaryEA);
+        console.log('Updating widget with image URL:', { botName, active, botImageURL, eaLogo: primaryEA?.userData?.owner?.logo, hasUserData: !!primaryEA?.userData, hasOwner: !!primaryEA?.userData?.owner });
+        
         try {
-          const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
-          if (primaryEA) {
-            const { widgetService } = await import('@/services/widget-service');
-            const logoUrl = primaryEA.userData?.owner?.logo 
-              ? `https://ea-converter.com/admin/uploads/${primaryEA.userData.owner.logo.toString().replace(/^\/+/, '')}`
-              : undefined;
-            await widgetService.updateWidgetData(
-              primaryEA.name.toUpperCase(),
-              active,
-              logoUrl
-            );
-          }
+          const { widgetService } = await import('@/services/widget-service');
+          await widgetService.updateWidget(botName, active, isPollingPaused, botImageURL);
         } catch (error) {
           console.error('Error updating iOS widget:', error);
         }
@@ -759,13 +773,63 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         setNewSignal(null);
         setDatabaseSignal(null);
         setIsDatabaseSignalsPolling(false);
+        setIsPollingPaused(false);
       }
     } catch (error) {
       console.error('Error saving bot active state:', error);
       // Revert state on error
       setIsBotActive(!active);
     }
-  }, [requestOverlayPermission, eas]);
+  }, [requestOverlayPermission, eas, isPollingPaused]);
+
+  // Pause polling (keeps bot active but stops signal checking)
+  const pausePolling = useCallback(async () => {
+    console.log('Pausing database signals polling');
+    databaseSignalsPollingService.pausePolling();
+    setIsPollingPaused(true);
+    setIsDatabaseSignalsPolling(false);
+
+    // Update iOS widget
+    if (Platform.OS === 'ios') {
+      const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+      const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+      const botImageURL = getEAImageUrl(primaryEA);
+      
+      try {
+        const { widgetService } = await import('@/services/widget-service');
+        await widgetService.updateWidget(botName, isBotActive, true, botImageURL);
+      } catch (error) {
+        console.error('Error updating iOS widget:', error);
+      }
+    }
+  }, [eas, isBotActive]);
+
+  // Resume polling (restarts signal checking)
+  const resumePolling = useCallback(async () => {
+    console.log('Resuming database signals polling');
+    
+    const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+    if (primaryEA && primaryEA.licenseKey) {
+      databaseSignalsPollingService.resumePolling();
+      setIsPollingPaused(false);
+      setIsDatabaseSignalsPolling(true);
+
+      // Update iOS widget
+      if (Platform.OS === 'ios') {
+        const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+        const botImageURL = getEAImageUrl(primaryEA);
+        
+        try {
+          const { widgetService } = await import('@/services/widget-service');
+          await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
+        } catch (error) {
+          console.error('Error updating iOS widget:', error);
+        }
+      }
+    } else {
+      console.log('No primary EA with license key found to resume polling');
+    }
+  }, [eas, isBotActive]);
 
   const startSignalsMonitoring = useCallback((phoneSecret: string) => {
     console.log('Starting signals monitoring with phone secret:', phoneSecret);
@@ -851,6 +915,29 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setSignalLogs(signalsMonitor.getSignalLogs());
   }, []);
 
+  // Update iOS widget whenever EAs or bot state changes
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      const updateWidget = async () => {
+        try {
+          const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+          const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+          
+          // Get bot image URL using the same logic as home page
+          const botImageURL = getEAImageUrl(primaryEA);
+          console.log('Updating widget with image URL:', { botName, isBotActive, botImageURL, eaLogo: primaryEA?.userData?.owner?.logo, hasUserData: !!primaryEA?.userData, hasOwner: !!primaryEA?.userData?.owner });
+          
+          const { widgetService } = await import('@/services/widget-service');
+          await widgetService.updateWidget(botName, isBotActive, isPollingPaused, botImageURL);
+          console.log('iOS widget updated:', { botName, isBotActive, botImageURL });
+        } catch (error) {
+          console.error('Error updating iOS widget:', error);
+        }
+      };
+      updateWidget();
+    }
+  }, [eas, isBotActive]);
+
   // Auto-start/stop signals monitoring based on EA status and bot active state
   useEffect(() => {
     const connectedEAWithSecret = eas.find(ea =>
@@ -901,6 +988,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     showTradingWebView,
     databaseSignal,
     isDatabaseSignalsPolling,
+    isPollingPaused,
+    pausePolling,
+    resumePolling,
     setUser,
     addEA,
     removeEA,
@@ -923,5 +1013,5 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     dismissNewSignal,
     setTradingSignal: setTradingSignalCallback,
     setShowTradingWebView: setShowTradingWebViewCallback,
-  }), [user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, isBotActive, signalLogs, isSignalsMonitoring, newSignal, tradingSignal, showTradingWebView, databaseSignal, isDatabaseSignalsPolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, setTradingSignalCallback, setShowTradingWebViewCallback]);
+  }), [user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, isBotActive, signalLogs, isSignalsMonitoring, newSignal, tradingSignal, showTradingWebView, databaseSignal, isDatabaseSignalsPolling, isPollingPaused, pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, setTradingSignalCallback, setShowTradingWebViewCallback]);
 });

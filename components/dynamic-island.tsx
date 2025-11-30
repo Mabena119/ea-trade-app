@@ -300,72 +300,10 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return null;
   }
 
-  // On iOS (native or web), render as notification center widget (like lock screen music player)
-  if (Platform.OS === 'ios' || Platform.OS === 'web') {
-    // Check if running on iOS device for web
-    const isIOSDevice = Platform.OS === 'web' && typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-    
-    if (Platform.OS === 'ios' || isIOSDevice) {
-      return (
-        <View style={styles.iosNotificationWidgetContainer} pointerEvents="box-none">
-          <View style={styles.iosNotificationWidgetContent} pointerEvents="auto">
-            {Platform.OS === 'ios' && (
-              <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-            )}
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.iosNotificationWidgetLeft}>
-              <View style={styles.iosNotificationWidgetIcon}>
-                {primaryEAImage && !logoError ? (
-                  <Image
-                    source={{ uri: primaryEAImage }}
-                    style={styles.iosNotificationWidgetLogo}
-                    onError={() => setLogoError(true)}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <RobotLogo size={44} />
-                )}
-              </View>
-              <View style={styles.iosNotificationWidgetInfo}>
-                <Text style={styles.iosNotificationWidgetTitle} numberOfLines={1}>
-                  {primaryEA?.name.toUpperCase() || 'EA TRADE'}
-                </Text>
-                <View style={styles.iosNotificationWidgetStatusRow}>
-                  <View style={styles.iosNotificationWidgetStatusDot} />
-                  <Text style={styles.iosNotificationWidgetStatus}>ACTIVE</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.iosNotificationWidgetControls}>
-              <TouchableOpacity
-                style={styles.iosNotificationWidgetControlButton}
-                onPress={() => {
-                  console.log('iOS Notification Center: Start/Stop button pressed');
-                  setBotActive(!isBotActive);
-                }}
-                activeOpacity={0.7}
-              >
-                {isBotActive ? (
-                  <Square color="#DC2626" size={22} fill="#DC2626" />
-                ) : (
-                  <Play color="#25D366" size={22} fill="#25D366" />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iosNotificationWidgetControlButton}
-                onPress={() => router.push('/(tabs)/quotes')}
-                activeOpacity={0.7}
-              >
-                <TrendingUp color="#FFFFFF" size={22} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      );
-    }
+  // On iOS, don't render React Native overlay - use WidgetKit widget instead
+  // The WidgetKit widget appears in Notification Center and must be manually added by user
+  if (Platform.OS === 'ios') {
+    return null; // WidgetKit widget handles iOS display
   }
 
 
@@ -541,16 +479,16 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
           {!isExpanded && (
             <View style={styles.collapsedPill}>
               <View style={styles.collapsedIconContainer}>
-                {primaryEAImage && !logoError ? (
-                  <Image
-                    source={{ uri: primaryEAImage }}
-                    style={styles.collapsedLogo}
-                    onError={() => setLogoError(true)}
+              {primaryEAImage && !logoError ? (
+                <Image
+                  source={{ uri: primaryEAImage }}
+                  style={styles.collapsedLogo}
+                  onError={() => setLogoError(true)}
                     resizeMode="contain"
-                  />
-                ) : (
+                />
+              ) : (
                   <RobotLogo size={20} />
-                )}
+              )}
               </View>
               <View style={styles.collapsedStatusDot} />
             </View>
@@ -675,15 +613,15 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                   colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
                   style={StyleSheet.absoluteFill}
                 />
-                <View style={styles.latestSignalContainer}>
-                  {signalLogs
-                    .filter(signal => isSignalForActiveSymbol(signal))
-                    .slice(-1)
-                    .map((signal, index) => {
-                      // Use signal ID and timestamp for unique key to force re-render
-                      const uniqueKey = `${signal.id}-${signal.latestupdate}-${index}`;
-                      return (
-                        <View key={uniqueKey} style={styles.latestSignalDetails}>
+                  <View style={styles.latestSignalContainer}>
+                    {signalLogs
+                      .filter(signal => isSignalForActiveSymbol(signal))
+                      .slice(-1)
+                      .map((signal, index) => {
+                        // Use signal ID and timestamp for unique key to force re-render
+                        const uniqueKey = `${signal.id}-${signal.latestupdate}-${index}`;
+                        return (
+                          <View key={uniqueKey} style={styles.latestSignalDetails}>
                           {Platform.OS === 'ios' && (
                             <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
                           )}
@@ -691,40 +629,40 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
                             colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
                             style={StyleSheet.absoluteFill}
                           />
-                          <View style={styles.latestSignalHeader}>
-                            <Text style={styles.latestSignalAsset}>{signal.asset}</Text>
-                            <View style={[
-                              styles.latestSignalBadge,
-                              signal.action === 'BUY' ? styles.latestBuyBadge : styles.latestSellBadge
-                            ]}>
-                              <Text style={styles.latestSignalAction}>{signal.action}</Text>
+                            <View style={styles.latestSignalHeader}>
+                              <Text style={styles.latestSignalAsset}>{signal.asset}</Text>
+                              <View style={[
+                                styles.latestSignalBadge,
+                                signal.action === 'BUY' ? styles.latestBuyBadge : styles.latestSellBadge
+                              ]}>
+                                <Text style={styles.latestSignalAction}>{signal.action}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.latestSignalPrices}>
+                              <View style={styles.latestPriceItem}>
+                                <Text style={styles.latestPriceLabel}>Entry:</Text>
+                                <Text style={styles.latestPriceValue}>{signal.price}</Text>
+                              </View>
+                              <View style={styles.latestPriceItem}>
+                                <Text style={styles.latestPriceLabel}>TP:</Text>
+                                <Text style={[styles.latestPriceValue, styles.latestTpValue]}>{signal.tp}</Text>
+                              </View>
+                              <View style={styles.latestPriceItem}>
+                                <Text style={styles.latestPriceLabel}>SL:</Text>
+                                <Text style={[styles.latestPriceValue, styles.latestSlValue]}>{signal.sl}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.latestSignalFooter}>
+                              <Text style={styles.latestSignalTime}>
+                                {formatTime(signal.time)}
+                              </Text>
+                              <Text style={styles.latestSignalId}>ID: {signal.id}</Text>
                             </View>
                           </View>
-                          <View style={styles.latestSignalPrices}>
-                            <View style={styles.latestPriceItem}>
-                              <Text style={styles.latestPriceLabel}>Entry:</Text>
-                              <Text style={styles.latestPriceValue}>{signal.price}</Text>
-                            </View>
-                            <View style={styles.latestPriceItem}>
-                              <Text style={styles.latestPriceLabel}>TP:</Text>
-                              <Text style={[styles.latestPriceValue, styles.latestTpValue]}>{signal.tp}</Text>
-                            </View>
-                            <View style={styles.latestPriceItem}>
-                              <Text style={styles.latestPriceLabel}>SL:</Text>
-                              <Text style={[styles.latestPriceValue, styles.latestSlValue]}>{signal.sl}</Text>
-                            </View>
-                          </View>
-                          <View style={styles.latestSignalFooter}>
-                            <Text style={styles.latestSignalTime}>
-                              {formatTime(signal.time)}
-                            </Text>
-                            <Text style={styles.latestSignalId}>ID: {signal.id}</Text>
-                          </View>
-                        </View>
-                      );
-                    })
-                  }
-                </View>
+                        );
+                      })
+                    }
+                  </View>
               </View>
             )}
 

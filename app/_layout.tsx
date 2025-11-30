@@ -4,12 +4,13 @@ import React, { useEffect, useState, Component, ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
-import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState } from "react-native";
+import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, NativeEventEmitter, NativeModules } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
 import { TradingWebView } from "@/components/trading-webview";
 import colors from "@/constants/colors";
+import * as Linking from "expo-linking";
 
 // Early console suppression - must be at the very top
 if (typeof window !== 'undefined' && Platform.OS === 'web') {
@@ -142,7 +143,9 @@ function RootLayoutNav() {
     dismissNewSignal,
     tradingSignal,
     showTradingWebView,
-    setShowTradingWebView
+    setShowTradingWebView,
+    pausePolling,
+    resumePolling
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
 
@@ -156,16 +159,33 @@ function RootLayoutNav() {
     });
   }, [showTradingWebView, tradingSignal]);
 
-  // Handle app state changes for overlay persistence
+  // Listen for widget button clicks via native events (immediate, no polling needed)
   useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      console.log('Root Layout: App state changed from', appState, 'to', nextAppState);
-      setAppState(nextAppState);
-    };
+    if (Platform.OS !== 'ios') return;
 
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
-  }, [appState]);
+    // Create event emitter for WidgetDataManager
+    const { WidgetDataManager } = NativeModules;
+    if (!WidgetDataManager) {
+      console.warn('WidgetDataManager native module not available');
+      return;
+    }
+
+    const eventEmitter = new NativeEventEmitter(WidgetDataManager);
+
+    // Listen for widget polling toggle events
+    const subscription = eventEmitter.addListener('WidgetPollingToggled', (event: { isPaused: boolean }) => {
+      console.log('Widget button clicked via native event, syncing polling state:', event.isPaused);
+      if (event.isPaused) {
+        pausePolling();
+      } else {
+        resumePolling();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [pausePolling, resumePolling]);
 
   return (
     <View style={{ flex: 1 }}>

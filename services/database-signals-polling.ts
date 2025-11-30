@@ -62,6 +62,7 @@ class DatabaseSignalsPollingService {
   private currentLicenseKey: string | null = null;
   private currentEA: string | null = null;
   private lastPollTime: string | null = null;
+  private isPaused: boolean = false;
 
   // Enable database connections
   enableDatabaseConnections() {
@@ -113,7 +114,53 @@ class DatabaseSignalsPollingService {
     this.currentLicenseKey = null;
     this.currentEA = null;
     this.lastPollTime = null;
+    this.isPaused = false;
     console.log('Database signals polling stopped');
+  }
+
+  // Pause polling (keeps state but stops checking)
+  pausePolling() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.isPaused = true;
+    console.log('Database signals polling paused');
+  }
+
+  // Resume polling (restarts checking with existing state)
+  resumePolling() {
+    if (!this.isPaused) {
+      console.log('Polling is not paused, cannot resume');
+      return;
+    }
+
+    if (this.intervalId) {
+      console.log('Polling already running');
+      return;
+    }
+
+    if (!this.currentLicenseKey) {
+      console.log('No license key available to resume polling');
+      return;
+    }
+
+    this.isPaused = false;
+    console.log('Resuming database signals polling for license:', this.currentLicenseKey);
+
+    if (!this.isEnabled) {
+      console.log('Database connections disabled - using mock data for testing');
+      this.startMockPolling(this.currentLicenseKey);
+      return;
+    }
+
+    // Resume real database polling
+    this.startRealPolling(this.currentLicenseKey);
+  }
+
+  // Check if polling is paused
+  getIsPaused(): boolean {
+    return this.isPaused;
   }
 
   // Mock polling for testing (when database is disabled)
@@ -245,6 +292,7 @@ class DatabaseSignalsPollingService {
   getStatus() {
     return {
       isRunning: this.isRunning(),
+      isPaused: this.isPaused,
       licenseKey: this.currentLicenseKey,
       ea: this.currentEA,
       lastPollTime: this.lastPollTime,
