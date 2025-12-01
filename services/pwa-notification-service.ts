@@ -59,9 +59,62 @@ class PWANotificationService {
    */
   hasPermission(): boolean {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window)) {
+      console.log('[Notifications] Notification API not available:', {
+        platform: Platform.OS,
+        hasWindow: typeof window !== 'undefined',
+        hasNotification: 'Notification' in (window || {}),
+      });
       return false;
     }
-    return Notification.permission === 'granted';
+    const permission = Notification.permission;
+    console.log('[Notifications] Permission status:', permission);
+    return permission === 'granted';
+  }
+
+  /**
+   * Test notification - shows a simple test notification
+   * Useful for debugging notification issues
+   */
+  async testNotification(): Promise<boolean> {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window)) {
+      console.error('[Notifications] Test failed: Notification API not available');
+      return false;
+    }
+
+    if (!this.hasPermission()) {
+      console.log('[Notifications] Test: Requesting permission...');
+      const granted = await this.requestPermission();
+      if (!granted) {
+        console.error('[Notifications] Test failed: Permission denied');
+        return false;
+      }
+    }
+
+    try {
+      console.log('[Notifications] Test: Creating test notification...');
+      const notification = new Notification('Test Notification', {
+        body: 'If you see this, notifications are working!',
+        tag: 'test-notification',
+        silent: false,
+      });
+
+      notification.onshow = () => {
+        console.log('[Notifications] ✅ Test notification displayed');
+      };
+
+      notification.onerror = (error) => {
+        console.error('[Notifications] ❌ Test notification error:', error);
+      };
+
+      setTimeout(() => {
+        notification.close();
+      }, 3000);
+
+      return true;
+    } catch (error) {
+      console.error('[Notifications] Test failed:', error);
+      return false;
+    }
   }
 
   /**
@@ -187,43 +240,109 @@ class PWANotificationService {
         ? (isPaused ? '⏸️' : '🟢')
         : '🔴';
 
-      const options: NotificationOptions = {
-        title: `${statusEmoji} ${botName}`,
-        body: `Status: ${status}${isActive && !isPaused ? ' • Monitoring signals' : ''}`,
+      const title = `${statusEmoji} ${botName}`;
+      const body = `Status: ${status}${isActive && !isPaused ? ' • Monitoring signals' : ''}`;
+
+      console.log('[Notifications] Creating notification with options:', {
+        title,
+        body,
+        tag: this.notificationTag,
+        hasIcon: !!botImageURL,
+        permission: Notification.permission,
+      });
+
+      // iOS Safari has limited support - use minimal options
+      const notificationOptions: any = {
+        body: body,
         tag: this.notificationTag,
         requireInteraction: false,
-        badge: isActive ? '1' : '0',
+        silent: false,
       };
 
+      // iOS Safari may not support icon from remote URL, but try it
+      // If it fails, the notification will still show without icon
       if (botImageURL) {
-        options.icon = botImageURL;
+        try {
+          notificationOptions.icon = botImageURL;
+        } catch (e) {
+          console.log('[Notifications] Could not set icon:', e);
+        }
       }
 
-      // Create notification (will replace previous one with same tag)
-      const notification = new Notification(options.title, {
-        body: options.body,
-        icon: options.icon,
-        tag: options.tag,
-        badge: options.badge,
-        requireInteraction: false,
-        silent: false,
+      // badge might not be supported on iOS Safari
+      try {
+        if (isActive) {
+          notificationOptions.badge = '1';
+        }
+      } catch (e) {
+        console.log('[Notifications] Badge not supported:', e);
+      }
+
+      // Create notification
+      const notification = new Notification(title, notificationOptions);
+
+      console.log('[Notifications] ✅ Notification created:', {
+        title,
+        body,
+        tag: notificationOptions.tag,
+        notification: notification ? 'created' : 'failed',
+        permission: Notification.permission,
       });
 
-      console.log('[Notifications] ✅ Persistent notification shown:', {
-        title: options.title,
-        body: options.body,
-      });
+      // Verify notification was created
+      if (!notification) {
+        console.error('[Notifications] ❌ Notification object is null');
+        console.error('[Notifications] Check: Notification API available?', 'Notification' in window);
+        console.error('[Notifications] Check: Permission status?', Notification.permission);
+        return;
+      }
 
-      // Don't auto-close persistent notifications
-      // They'll stay in Notification Center until user dismisses or app updates them
+      // Important: iOS Safari may not show notification banner when app is in foreground
+      // Notification will appear in Notification Center (swipe down from top)
+      console.log('[Notifications] ℹ️ Note: On iOS, notifications may only appear in Notification Center when app is in foreground.');
+      console.log('[Notifications] ℹ️ Swipe down from top of screen to see Notification Center.');
 
+      // Handle notification events
       notification.onclick = (event) => {
+        console.log('[Notifications] Notification clicked');
         event.preventDefault();
         window.focus();
       };
 
+      notification.onshow = () => {
+        console.log('[Notifications] ✅ Notification displayed (onshow event fired)');
+      };
+
+      notification.onerror = (error) => {
+        console.error('[Notifications] ❌ Notification error:', error);
+      };
+
+      notification.onclose = () => {
+        console.log('[Notifications] Notification closed');
+      };
+
+      // Also update app badge (more reliable on iOS)
+      try {
+        if ('setAppBadge' in navigator && typeof (navigator as any).setAppBadge === 'function') {
+          await (navigator as any).setAppBadge(isActive ? 1 : 0);
+          console.log('[Notifications] ✅ App badge updated:', isActive ? 1 : 0);
+        }
+      } catch (badgeError) {
+        console.log('[Notifications] Badge API not available:', badgeError);
+      }
+
+      // Note: iOS Safari may not show notification banner when app is in foreground
+      // But notification should still appear in Notification Center
+      // User can swipe down to see it
+
     } catch (error) {
-      console.error('[Notifications] Error showing persistent notification:', error);
+      console.error('[Notifications] ❌ Error showing persistent notification:', error);
+      console.error('[Notifications] Error details:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        Notification: typeof Notification !== 'undefined' ? 'available' : 'not available',
+        permission: typeof Notification !== 'undefined' ? Notification.permission : 'N/A',
+      });
     }
   }
 
