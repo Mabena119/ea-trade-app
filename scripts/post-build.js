@@ -146,12 +146,23 @@ if (fs.existsSync(indexPath)) {
       overflow-x: hidden !important;
       /* Ensure events can propagate */
       touch-action: manipulation;
+      user-select: auto !important;
+      -webkit-user-select: auto !important;
     }
     #root, [data-reactroot] {
       max-width: 100vw;
       overflow-x: hidden;
       /* Ensure root doesn't block events */
       touch-action: manipulation;
+      user-select: auto !important;
+      -webkit-user-select: auto !important;
+    }
+    /* CRITICAL: Ensure text inputs work */
+    input, textarea, [contenteditable] {
+      pointer-events: auto !important;
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      touch-action: manipulation !important;
     }
     /* Prevent horizontal scroll on mobile */
     @media screen and (max-width: 768px) {
