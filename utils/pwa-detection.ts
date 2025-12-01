@@ -59,6 +59,7 @@ export function checkNativeAppAvailable(): boolean {
 
 /**
  * Attempts to communicate with native iOS app via URL scheme
+ * Uses multiple methods to avoid Safari errors when app isn't installed
  */
 export async function triggerNativeApp(action: string, data?: Record<string, any>): Promise<boolean> {
   if (Platform.OS !== 'web' || typeof window === 'undefined') {
@@ -74,11 +75,52 @@ export async function triggerNativeApp(action: string, data?: Record<string, any
     });
     const url = `${scheme}widget?${params.toString()}`;
     
-    // Try to open native app
-    window.location.href = url;
+    console.log('Attempting to trigger native app via URL scheme:', url);
     
-    // If native app opens, this will work
-    // If not, user stays on web page
+    // Method 1: Try iframe first (silent, no error popup)
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      iframe.style.position = 'absolute';
+      iframe.style.left = '-9999px';
+      iframe.src = url;
+      
+      document.body.appendChild(iframe);
+      
+      // Remove iframe after attempt
+      setTimeout(() => {
+        try {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
+        } catch (e) {
+          // Ignore if already removed
+        }
+      }, 500);
+    } catch (iframeError) {
+      console.log('Iframe method failed, trying window.open:', iframeError);
+      
+      // Method 2: Try window.open as fallback
+      try {
+        const opened = window.open(url, '_blank');
+        if (!opened) {
+          // If window.open was blocked, try location.replace
+          setTimeout(() => {
+            try {
+              window.location.replace(url);
+            } catch (e) {
+              console.log('All URL scheme methods failed - native app may not be installed');
+            }
+          }, 100);
+        }
+      } catch (openError) {
+        console.log('Window.open failed:', openError);
+      }
+    }
+    
     return true;
   } catch (error) {
     console.error('Error triggering native app:', error);
