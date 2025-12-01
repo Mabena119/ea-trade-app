@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 /**
  * Detects if the app is running as a PWA (Progressive Web App) on iOS
+ * This detects when the app is installed via "Add to Home Screen" on iOS
  */
 export function isIOSPWA(): boolean {
   if (Platform.OS !== 'web') {
@@ -12,16 +13,22 @@ export function isIOSPWA(): boolean {
     return false;
   }
 
-  // Check if running in standalone mode (PWA)
+  // Check if running in standalone mode (PWA installed via "Add to Home Screen")
+  // iOS Safari sets window.navigator.standalone to true when added to home screen
   const isStandalone = (window.navigator as any).standalone === true ||
-    (window.matchMedia('(display-mode: standalone)').matches) ||
-    document.referrer.includes('android-app://');
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 
   // Check if on iOS
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  return isStandalone && isIOS;
+  const result = isStandalone && isIOS;
+  
+  if (result) {
+    console.log('[PWA Detection] iOS PWA detected - app installed via "Add to Home Screen"');
+  }
+  
+  return result;
 }
 
 /**
@@ -59,7 +66,10 @@ export function checkNativeAppAvailable(): boolean {
 
 /**
  * Attempts to communicate with native iOS app via URL scheme
- * Uses multiple methods to avoid Safari errors when app isn't installed
+ * Uses iframe method to avoid Safari errors when app isn't installed
+ * 
+ * Note: For widgets to appear, the native iOS app must be installed.
+ * This function triggers the native app to create/update widgets.
  */
 export async function triggerNativeApp(action: string, data?: Record<string, any>): Promise<boolean> {
   if (Platform.OS !== 'web' || typeof window === 'undefined') {
@@ -75,55 +85,51 @@ export async function triggerNativeApp(action: string, data?: Record<string, any
     });
     const url = `${scheme}widget?${params.toString()}`;
     
-    console.log('Attempting to trigger native app via URL scheme:', url);
+    console.log('[PWA] Attempting to trigger native app for widget update:', url);
     
-    // Method 1: Try iframe first (silent, no error popup)
-    try {
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.style.width = '0px';
-      iframe.style.height = '0px';
-      iframe.style.border = 'none';
-      iframe.style.position = 'absolute';
-      iframe.style.left = '-9999px';
-      iframe.src = url;
-      
-      document.body.appendChild(iframe);
-      
-      // Remove iframe after attempt
-      setTimeout(() => {
-        try {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
-          }
-        } catch (e) {
-          // Ignore if already removed
-        }
-      }, 500);
-    } catch (iframeError) {
-      console.log('Iframe method failed, trying window.open:', iframeError);
-      
-      // Method 2: Try window.open as fallback
+    // Store widget data in localStorage as backup (native app can read this)
+    if (data && typeof window !== 'undefined' && window.localStorage) {
       try {
-        const opened = window.open(url, '_blank');
-        if (!opened) {
-          // If window.open was blocked, try location.replace
-          setTimeout(() => {
-            try {
-              window.location.replace(url);
-            } catch (e) {
-              console.log('All URL scheme methods failed - native app may not be installed');
-            }
-          }, 100);
-        }
-      } catch (openError) {
-        console.log('Window.open failed:', openError);
+        localStorage.setItem('pendingWidgetUpdate', JSON.stringify({
+          action,
+          ...data,
+          timestamp: Date.now(),
+        }));
+        console.log('[PWA] Widget data stored in localStorage as backup');
+      } catch (e) {
+        console.log('[PWA] Could not store widget data in localStorage:', e);
       }
     }
     
+    // Use iframe method (silent, no error popup if app isn't installed)
+    // This is the recommended method for iOS PWAs
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    iframe.style.position = 'absolute';
+    iframe.style.left = '-9999px';
+    iframe.style.visibility = 'hidden';
+    iframe.src = url;
+    
+    document.body.appendChild(iframe);
+    
+    // Remove iframe after attempt
+    setTimeout(() => {
+      try {
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe);
+        }
+      } catch (e) {
+        // Ignore if already removed
+      }
+    }, 1000);
+    
+    console.log('[PWA] URL scheme triggered via iframe - native app should receive deep link');
     return true;
   } catch (error) {
-    console.error('Error triggering native app:', error);
+    console.error('[PWA] Error triggering native app:', error);
     return false;
   }
 }
