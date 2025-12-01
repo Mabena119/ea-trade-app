@@ -73,12 +73,26 @@ const indexPath = path.join(distPath, 'index.html');
 if (fs.existsSync(indexPath)) {
   let html = fs.readFileSync(indexPath, 'utf8');
   
-  // Add manifest link
+  // Ensure viewport meta tag is present and correct (critical for responsive design)
+  const viewportRegex = /<meta\s+name=["']viewport["'][^>]*>/i;
+  const correctViewport = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">';
+  
+  if (viewportRegex.test(html)) {
+    // Replace existing viewport tag with correct one
+    html = html.replace(viewportRegex, correctViewport);
+  } else {
+    // Add viewport tag right after <head>
+    html = html.replace('<head>', `<head>\n  ${correctViewport}`);
+  }
+  
+  // Add manifest link if not present
   if (!html.includes('manifest.json')) {
-    html = html.replace(
-      '<head>',
-      `<head>
-  <link rel="manifest" href="/manifest.json">
+    html = html.replace('<head>', `<head>\n  <link rel="manifest" href="/manifest.json">`);
+  }
+  
+  // Add Apple meta tags if not present
+  if (!html.includes('apple-mobile-web-app-capable')) {
+    const appleMetaTags = `
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="EA Trade">
@@ -91,29 +105,61 @@ if (fs.existsSync(indexPath)) {
   <link rel="apple-touch-icon" sizes="120x120" href="/assets/images/icon.png">
   <link rel="apple-touch-icon" sizes="144x144" href="/assets/images/icon.png">
   <link rel="apple-touch-icon" sizes="152x152" href="/assets/images/icon.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/icon.png">`;
+    html = html.replace('</head>', `${appleMetaTags}\n</head>`);
+  }
+  
+  // Add theme color and other meta tags if not present
+  if (!html.includes('theme-color')) {
+    const themeMetaTags = `
   <meta name="msapplication-TileColor" content="#000000">
   <meta name="msapplication-TileImage" content="/assets/images/icon.png">
-  <meta name="theme-color" content="#000000">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">`;
+    html = html.replace('</head>', `${themeMetaTags}\n</head>`);
+  }
+  
+  // Add responsive CSS if not present
+  if (!html.includes('safe-area-inset-top')) {
+    const responsiveStyle = `
   <style>
-    body {
-      background-color: #000000 !important;
+    * {
+      box-sizing: border-box;
     }
-    /* Ensure status bar area is black */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      background-color: #000000 !important;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #root, [data-reactroot] {
+      width: 100%;
+      min-height: 100vh;
+    }
+    /* Ensure status bar area is black and responsive */
     @media screen and (max-width: 768px) {
       body {
         padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
         background-color: #000000 !important;
       }
     }
-  </style>`
-    );
+    /* Prevent horizontal scroll */
+    @media screen and (max-width: 1024px) {
+      body {
+        overflow-x: hidden;
+        position: relative;
+      }
+    }
+  </style>`;
+    html = html.replace('</head>', `${responsiveStyle}\n</head>`);
   }
   
   fs.writeFileSync(indexPath, html);
-  console.log('Updated index.html with PWA meta tags');
+  console.log('Updated index.html with responsive viewport and PWA meta tags');
 }
 
 console.log('PWA setup completed successfully!');
