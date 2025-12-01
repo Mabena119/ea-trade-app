@@ -216,23 +216,42 @@ async function serveStatic(request: Request): Promise<Response> {
         htmlContent = htmlContent.replace('<head>', `<head>\n  ${correctViewport}`);
       }
       
-      // Add responsive CSS if not present - simplified to avoid breaking functionality
+      // Add responsive CSS if not present - ensure interactions work
       if (!htmlContent.includes('safe-area-inset-top')) {
         const responsiveStyle = `
   <style>
     html, body {
       overflow-x: hidden;
       max-width: 100vw;
+      pointer-events: auto !important;
+      touch-action: manipulation;
+    }
+    /* Override expo-reset overflow hidden to allow interactions */
+    body {
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
     }
     #root, [data-reactroot] {
       max-width: 100vw;
       overflow-x: hidden;
+      pointer-events: auto !important;
+      position: relative !important;
+      z-index: 1 !important;
+    }
+    /* Ensure all interactive elements are clickable */
+    button, a, input, textarea, select, [role="button"], [role="tab"], [role="tab"] > * {
+      pointer-events: auto !important;
+      touch-action: manipulation;
+      cursor: pointer;
+      z-index: 10 !important;
+      position: relative;
     }
     /* Prevent horizontal scroll on mobile */
     @media screen and (max-width: 768px) {
       body {
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
+        overflow-y: auto !important;
       }
       #root, [data-reactroot] {
         width: 100vw;
