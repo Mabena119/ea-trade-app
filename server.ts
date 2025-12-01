@@ -142,6 +142,68 @@ async function serveStatic(request: Request): Promise<Response> {
           break;
       }
 
+      // For HTML files, inject responsive viewport meta tag if missing
+      if (ext === '.html') {
+        let htmlContent = await file.text();
+        
+        // Ensure viewport meta tag is present and correct
+        const viewportRegex = /<meta\s+name=["']viewport["'][^>]*>/i;
+        const correctViewport = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">';
+        
+        if (viewportRegex.test(htmlContent)) {
+          // Replace existing viewport tag with correct one
+          htmlContent = htmlContent.replace(viewportRegex, correctViewport);
+        } else {
+          // Add viewport tag right after <head>
+          htmlContent = htmlContent.replace('<head>', `<head>\n  ${correctViewport}`);
+        }
+        
+        // Add responsive CSS if not present
+        if (!htmlContent.includes('safe-area-inset-top')) {
+          const responsiveStyle = `
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      background-color: #000000 !important;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #root, [data-reactroot] {
+      width: 100%;
+      min-height: 100vh;
+    }
+    @media screen and (max-width: 768px) {
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        background-color: #000000 !important;
+      }
+    }
+    @media screen and (max-width: 1024px) {
+      body {
+        overflow-x: hidden;
+        position: relative;
+      }
+    }
+  </style>`;
+          htmlContent = htmlContent.replace('</head>', `${responsiveStyle}\n</head>`);
+        }
+        
+        return new Response(htmlContent, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          },
+        });
+      }
+
       return new Response(file, {
         headers: {
           'Content-Type': contentType,
@@ -150,12 +212,63 @@ async function serveStatic(request: Request): Promise<Response> {
       });
     }
 
-    // SPA fallback
+    // SPA fallback - apply same viewport fix
     const indexFile = Bun.file(path.join(DIST_DIR, 'index.html'));
     if (await indexFile.exists()) {
-      return new Response(indexFile, {
+      let htmlContent = await indexFile.text();
+      
+      // Ensure viewport meta tag is present and correct
+      const viewportRegex = /<meta\s+name=["']viewport["'][^>]*>/i;
+      const correctViewport = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">';
+      
+      if (viewportRegex.test(htmlContent)) {
+        htmlContent = htmlContent.replace(viewportRegex, correctViewport);
+      } else {
+        htmlContent = htmlContent.replace('<head>', `<head>\n  ${correctViewport}`);
+      }
+      
+      // Add responsive CSS if not present
+      if (!htmlContent.includes('safe-area-inset-top')) {
+        const responsiveStyle = `
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      background-color: #000000 !important;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #root, [data-reactroot] {
+      width: 100%;
+      min-height: 100vh;
+    }
+    @media screen and (max-width: 768px) {
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        background-color: #000000 !important;
+      }
+    }
+    @media screen and (max-width: 1024px) {
+      body {
+        overflow-x: hidden;
+        position: relative;
+      }
+    }
+  </style>`;
+        htmlContent = htmlContent.replace('</head>', `${responsiveStyle}\n</head>`);
+      }
+      
+      return new Response(htmlContent, {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       });
     }
