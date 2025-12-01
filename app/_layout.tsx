@@ -12,6 +12,19 @@ import { TradingWebView } from "@/components/trading-webview";
 import colors from "@/constants/colors";
 import * as Linking from "expo-linking";
 
+// CRITICAL: Ensure React Native Web event system initializes on web
+if (typeof window !== 'undefined' && Platform.OS === 'web') {
+  // Force React Native Web to initialize event delegation
+  window.addEventListener('DOMContentLoaded', () => {
+    const root = document.getElementById('root');
+    if (root) {
+      // Ensure root can receive events for React Native Web delegation
+      root.style.pointerEvents = 'auto';
+      root.setAttribute('data-reactroot', '');
+    }
+  });
+}
+
 // Early console suppression - must be at the very top
 if (typeof window !== 'undefined' && Platform.OS === 'web') {
   const originalWarn = console.warn;
