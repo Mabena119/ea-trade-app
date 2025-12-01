@@ -11,6 +11,7 @@ import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 import colors from '@/constants/colors';
+import { WebButton } from '@/components/web-button';
 
 // Default MT4 Brokers (will be updated from web terminal)
 const DEFAULT_MT4_BROKERS = [
@@ -1884,7 +1885,7 @@ export default function MetaTraderScreen() {
         >
         {/* Account Type Tabs */}
         <View style={styles.tabContainer}>
-          <TouchableOpacity
+          <WebButton
               style={[styles.tab, activeTab === 'MT5' && styles.activeTab, styles.centeredTab]}
             onPress={() => setActiveTab('MT5')}
               activeOpacity={0.8}
@@ -1901,7 +1902,7 @@ export default function MetaTraderScreen() {
             <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
               MT5 ACCOUNT
             </Text>
-          </TouchableOpacity>
+          </WebButton>
         </View>
 
         {/* Connection Status */}
@@ -2027,7 +2028,7 @@ export default function MetaTraderScreen() {
               secureTextEntry={!showPassword}
                 editable={true}
             />
-            <TouchableOpacity
+            <WebButton
               style={styles.eyeButton}
               onPress={() => setShowPassword(!showPassword)}
                 activeOpacity={0.8}
@@ -2040,7 +2041,7 @@ export default function MetaTraderScreen() {
               ) : (
                   <Eye color="#999999" size={18} />
               )}
-            </TouchableOpacity>
+            </WebButton>
           </View>
 
           <View style={styles.serverContainer}>
@@ -2071,7 +2072,7 @@ export default function MetaTraderScreen() {
                   editable={true}
               />
               {server.length > 0 && (
-                <TouchableOpacity
+                <WebButton
                   style={styles.clearButton}
                   onPress={() => {
                     setServer('');
@@ -2083,7 +2084,7 @@ export default function MetaTraderScreen() {
                       <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                     )}
                   <Text style={styles.clearButtonText}>×</Text>
-                </TouchableOpacity>
+                </WebButton>
               )}
             </View>
 
@@ -2100,7 +2101,7 @@ export default function MetaTraderScreen() {
                   <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
                   <View style={styles.brokerListActions}>
                     {activeTab === 'MT4' && (
-                      <TouchableOpacity
+                      <WebButton
                         onPress={() => {
                           console.log('Manual broker refresh requested');
                           fetchMT4Brokers();
@@ -2117,9 +2118,9 @@ export default function MetaTraderScreen() {
                           size={16}
                           style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
                         />
-                      </TouchableOpacity>
+                      </WebButton>
                     )}
-                    <TouchableOpacity
+                    <WebButton
                       onPress={() => setShowBrokerList(false)}
                       style={styles.closeBrokerList}
                         activeOpacity={0.8}
@@ -2128,7 +2129,7 @@ export default function MetaTraderScreen() {
                           <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                         )}
                       <Text style={styles.closeBrokerListText}>×</Text>
-                    </TouchableOpacity>
+                    </WebButton>
                   </View>
                 </View>
                 {brokerFetchError && (
@@ -2145,7 +2146,7 @@ export default function MetaTraderScreen() {
                 <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
                   {filteredBrokers.map((item, index) => {
                     return (
-                      <TouchableOpacity
+                      <WebButton
                         key={`${item}-${index}`}
                         style={styles.brokerItem}
                         onPress={() => {
@@ -2163,7 +2164,7 @@ export default function MetaTraderScreen() {
                             {item.includes('Demo') ? 'DEMO' : 'LIVE'}
                           </Text>
                         </View>
-                      </TouchableOpacity>
+                      </WebButton>
                     );
                   })}
                 </ScrollView>
@@ -2178,7 +2179,7 @@ export default function MetaTraderScreen() {
             )}
           </View>
 
-          <TouchableOpacity
+          <WebButton
             style={[
               styles.linkButton,
               isAuthenticating && styles.linkButtonDisabled,
@@ -2221,7 +2222,7 @@ export default function MetaTraderScreen() {
                 </Text>
               </View>
             )}
-          </TouchableOpacity>
+          </WebButton>
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
@@ -2255,7 +2256,7 @@ export default function MetaTraderScreen() {
                 </Text>
               </View>
             </View>
-            <TouchableOpacity
+            <WebButton
               style={styles.authToastCloseButton}
               onPress={closeMT5WebView}
               activeOpacity={0.8}
@@ -2268,7 +2269,7 @@ export default function MetaTraderScreen() {
                 style={StyleSheet.absoluteFill}
               />
               <X color="#FFFFFF" size={16} />
-            </TouchableOpacity>
+            </WebButton>
           </View>
         </View>
       )}
@@ -2326,7 +2327,7 @@ export default function MetaTraderScreen() {
                 </Text>
               </View>
             </View>
-            <TouchableOpacity
+            <WebButton
               style={styles.authToastCloseButton}
               onPress={closeMT4WebView}
               activeOpacity={0.8}
@@ -2339,7 +2340,7 @@ export default function MetaTraderScreen() {
                 style={StyleSheet.absoluteFill}
               />
               <X color="#FFFFFF" size={16} />
-            </TouchableOpacity>
+            </WebButton>
           </View>
         </View>
       )}

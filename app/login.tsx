@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/providers/app-provider';
 import { apiService } from '@/services/api';
 import colors from '@/constants/colors';
+import { WebButton } from '@/components/web-button';
 
 export default function LoginScreen() {
   const [mentorId, setMentorId] = useState<string>('');
@@ -109,9 +110,9 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       {/* Back Button */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackToStart}>
+        <WebButton style={styles.backButton} onPress={handleBackToStart}>
           <ArrowLeft size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+        </WebButton>
       </View>
 
       <KeyboardAvoidingView
@@ -145,7 +146,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
               />
 
-              <TouchableOpacity
+              <WebButton
                 style={[styles.proceedButton, (isLoading || isPaymentProcessing) && styles.proceedButtonDisabled]}
                 onPress={handleProceed}
                 disabled={isLoading || isPaymentProcessing}
@@ -163,16 +164,15 @@ export default function LoginScreen() {
                 ) : (
                   <Text style={styles.proceedButtonText}>PROCEED</Text>
                 )}
-              </TouchableOpacity>
+              </WebButton>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
       {modalVisible && (
         <View style={styles.modalOverlay}>
-          <TouchableOpacity 
+          <WebButton 
             style={styles.modalOverlayTouchable}
-            activeOpacity={1}
             onPress={() => setModalVisible(false)}
           >
           <View style={styles.modalCard}>
@@ -185,10 +185,9 @@ export default function LoginScreen() {
               />
             <Text style={styles.modalTitle}>{modalTitle}</Text>
               {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
-            <TouchableOpacity
+            <WebButton
               style={styles.modalButton}
               onPress={() => setModalVisible(false)}
-                activeOpacity={0.8}
               >
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
@@ -198,9 +197,9 @@ export default function LoginScreen() {
                   style={StyleSheet.absoluteFill}
                 />
               <Text style={styles.modalButtonText}>OK</Text>
-            </TouchableOpacity>
+            </WebButton>
           </View>
-          </TouchableOpacity>
+          </WebButton>
         </View>
       )}
       {paymentVisible && (
@@ -208,13 +207,12 @@ export default function LoginScreen() {
           <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={styles.modalTitle}>Pay for App</Text>
-              <TouchableOpacity 
+              <WebButton 
                 onPress={() => setPaymentVisible(false)}
                 style={styles.closeButton}
-                activeOpacity={0.8}
               >
                 <X color="#FFFFFF" size={24} />
-              </TouchableOpacity>
+              </WebButton>
             </View>
             {Platform.OS === 'web' ? (
               <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>

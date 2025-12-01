@@ -6,6 +6,7 @@ import { ArrowLeft, ChevronDown, Trash2 } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/providers/app-provider';
 import colors from '@/constants/colors';
+import { WebButton } from '@/components/web-button';
 
 interface TradeConfig {
   lotSize: string;
@@ -194,7 +195,7 @@ export default function TradeConfigScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.8}>
+        <WebButton style={styles.backButton} onPress={handleBack} activeOpacity={0.8}>
           {Platform.OS === 'ios' && (
             <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
           )}
@@ -203,7 +204,7 @@ export default function TradeConfigScreen() {
             style={StyleSheet.absoluteFill}
           />
           <ArrowLeft color="#FFFFFF" size={20} />
-        </TouchableOpacity>
+        </WebButton>
         
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>TRADE CONFIG</Text>
@@ -251,7 +252,7 @@ export default function TradeConfigScreen() {
         {/* Direction */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>DIRECTION</Text>
-          <TouchableOpacity 
+          <WebButton 
             style={styles.picker}
             onPress={() => setShowDirectionModal(true)}
             activeOpacity={0.8}
@@ -265,13 +266,13 @@ export default function TradeConfigScreen() {
             />
             <Text style={styles.pickerText}>{config.direction}</Text>
             <ChevronDown color="#FFFFFF" size={18} />
-          </TouchableOpacity>
+          </WebButton>
         </View>
 
         {/* Platform */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>PLATFORM</Text>
-          <TouchableOpacity 
+          <WebButton 
             style={styles.picker}
             onPress={() => setShowPlatformModal(true)}
             activeOpacity={0.8}
@@ -285,7 +286,7 @@ export default function TradeConfigScreen() {
             />
             <Text style={styles.pickerText}>{config.platform}</Text>
             <ChevronDown color="#FFFFFF" size={18} />
-          </TouchableOpacity>
+          </WebButton>
         </View>
 
         {/* Number of Trades */}
@@ -317,7 +318,7 @@ export default function TradeConfigScreen() {
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.executeButton} onPress={handleSetSymbol} activeOpacity={0.8}>
+          <WebButton style={styles.executeButton} onPress={handleSetSymbol} activeOpacity={0.8}>
             {Platform.OS === 'ios' && (
               <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
             )}
@@ -328,10 +329,10 @@ export default function TradeConfigScreen() {
             <Text style={styles.executeButtonText}>
               {(isSymbolActive || legacySymbolActive) ? 'UPDATE SYMBOL' : 'SET SYMBOL'}
             </Text>
-          </TouchableOpacity>
+          </WebButton>
           
           {(isSymbolActive || legacySymbolActive) && (
-            <TouchableOpacity style={styles.removeButton} onPress={handleRemoveSymbol} activeOpacity={0.8}>
+            <WebButton style={styles.removeButton} onPress={handleRemoveSymbol} activeOpacity={0.8}>
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
               )}
@@ -341,7 +342,7 @@ export default function TradeConfigScreen() {
               />
               <Trash2 color="rgba(220, 38, 38, 0.9)" size={18} />
               <Text style={styles.removeButtonText}>REMOVE</Text>
-            </TouchableOpacity>
+            </WebButton>
           )}
         </View>
       </ScrollView>
@@ -368,7 +369,7 @@ export default function TradeConfigScreen() {
             />
             <Text style={styles.modalTitle}>Select Direction</Text>
             {['BUY', 'SELL', 'BOTH'].map((direction) => (
-              <TouchableOpacity
+              <WebButton
                 key={direction}
                 style={[
                   styles.modalOption,
@@ -389,7 +390,7 @@ export default function TradeConfigScreen() {
                 ]}>
                   {direction}
                 </Text>
-              </TouchableOpacity>
+              </WebButton>
             ))}
           </View>
         </Pressable>
@@ -416,7 +417,7 @@ export default function TradeConfigScreen() {
             />
             <Text style={styles.modalTitle}>Select Platform</Text>
             {['MT4', 'MT5'].map((platform) => (
-              <TouchableOpacity
+              <WebButton
                 key={platform}
                 style={[
                   styles.modalOption,
@@ -437,7 +438,7 @@ export default function TradeConfigScreen() {
                 ]}>
                   {platform}
                 </Text>
-              </TouchableOpacity>
+              </WebButton>
             ))}
           </View>
         </Pressable>
