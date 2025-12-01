@@ -698,16 +698,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
 
-      // Update iOS widget only for native iOS app (not PWA)
-      // Note: Native widgets are NOT possible from PWAs - PWAs cannot access WidgetKit/ActivityKit
-      // For PWA, we use React-based DynamicIsland overlay instead
-      if (Platform.OS === 'ios') {
+      // Update iOS widget if on iOS (native app or PWA)
+      const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+      if (isIOS) {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
         const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
         
         // Get bot image URL using the same logic as home page
         const botImageURL = getEAImageUrl(primaryEA);
-        console.log('[Widget] Updating native iOS widget:', { 
+        console.log('[Widget] Updating widget:', { 
+          platform: Platform.OS, 
+          isPWA: Platform.OS === 'web' && isIOSPWA(),
           botName, 
           active, 
           botImageURL 
@@ -716,9 +717,29 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         try {
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, active, isPollingPaused, botImageURL);
-          console.log('[Widget] Native widget update triggered successfully');
+          console.log('[Widget] Widget update triggered successfully');
         } catch (error) {
-          console.error('[Widget] Error updating native iOS widget:', error);
+          console.error('[Widget] Error updating iOS widget:', error);
+        }
+      }
+
+      // Show PWA notification for iOS PWA
+      if (Platform.OS === 'web' && isIOSPWA()) {
+        try {
+          const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+          const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+          const botImageURL = getEAImageUrl(primaryEA);
+          
+          const { pwaNotificationService } = await import('@/services/pwa-notification-service');
+          await pwaNotificationService.showPersistentBotNotification(
+            botName,
+            active,
+            isPollingPaused,
+            botImageURL
+          );
+          console.log('[Notifications] PWA notification shown');
+        } catch (error) {
+          console.error('[Notifications] Error showing PWA notification:', error);
         }
       }
 
@@ -797,8 +818,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setIsPollingPaused(true);
     setIsDatabaseSignalsPolling(false);
 
-    // Update iOS widget only for native iOS app (not PWA)
-    if (Platform.OS === 'ios') {
+    // Update iOS widget (native app or PWA)
+    const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+    if (isIOS) {
       const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
       const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
       const botImageURL = getEAImageUrl(primaryEA);
@@ -807,7 +829,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         const { widgetService } = await import('@/services/widget-service');
         await widgetService.updateWidget(botName, isBotActive, true, botImageURL);
       } catch (error) {
-        console.error('Error updating native iOS widget:', error);
+        console.error('Error updating iOS widget:', error);
+      }
+    }
+
+    // Update PWA notification
+    if (Platform.OS === 'web' && isIOSPWA()) {
+      try {
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+        const botImageURL = getEAImageUrl(primaryEA);
+        
+        const { pwaNotificationService } = await import('@/services/pwa-notification-service');
+        await pwaNotificationService.showPersistentBotNotification(
+          botName,
+          isBotActive,
+          true, // isPaused
+          botImageURL
+        );
+      } catch (error) {
+        console.error('Error updating PWA notification:', error);
       }
     }
   }, [eas, isBotActive]);
@@ -822,8 +863,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setIsPollingPaused(false);
       setIsDatabaseSignalsPolling(true);
 
-      // Update iOS widget only for native iOS app (not PWA)
-      if (Platform.OS === 'ios') {
+      // Update iOS widget (native app or PWA)
+      const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+      if (isIOS) {
         const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
         const botImageURL = getEAImageUrl(primaryEA);
         
@@ -831,7 +873,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
         } catch (error) {
-          console.error('Error updating native iOS widget:', error);
+          console.error('Error updating iOS widget:', error);
+        }
+      }
+
+      // Update PWA notification
+      if (Platform.OS === 'web' && isIOSPWA()) {
+        try {
+          const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+          const botImageURL = getEAImageUrl(primaryEA);
+          
+          const { pwaNotificationService } = await import('@/services/pwa-notification-service');
+          await pwaNotificationService.showPersistentBotNotification(
+            botName,
+            isBotActive,
+            false, // isPaused
+            botImageURL
+          );
+        } catch (error) {
+          console.error('Error updating PWA notification:', error);
         }
       }
     } else {
@@ -923,10 +983,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setSignalLogs(signalsMonitor.getSignalLogs());
   }, []);
 
-  // Update iOS widget whenever EAs or bot state changes (native iOS app only)
-  // Note: For PWA, React DynamicIsland overlay handles UI updates automatically
+  // Update iOS widget whenever EAs or bot state changes (native app or PWA)
   useEffect(() => {
-    if (Platform.OS === 'ios') {
+    const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+    if (isIOS) {
       const updateWidget = async () => {
         try {
           const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -934,7 +994,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           
           // Get bot image URL using the same logic as home page
           const botImageURL = getEAImageUrl(primaryEA);
-          console.log('[Widget] Updating native iOS widget:', { 
+          console.log('[Widget] Updating widget:', { 
+            platform: Platform.OS, 
+            isPWA: Platform.OS === 'web' && isIOSPWA(),
             botName, 
             isBotActive, 
             botImageURL 
@@ -942,7 +1004,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isBotActive, isPollingPaused, botImageURL);
-          console.log('[Widget] Native widget updated successfully:', { botName, isBotActive, botImageURL });
+          console.log('[Widget] Widget updated successfully:', { botName, isBotActive, botImageURL });
         } catch (error) {
           console.error('Error updating iOS widget:', error);
         }
