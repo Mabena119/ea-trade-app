@@ -10,6 +10,7 @@ import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
 import { TradingWebView } from "@/components/trading-webview";
 import colors from "@/constants/colors";
+import { isIOSPWA } from "@/utils/pwa-detection";
 
 // Early console suppression - must be at the very top
 if (typeof window !== 'undefined' && Platform.OS === 'web') {
@@ -145,6 +146,41 @@ function RootLayoutNav() {
     setShowTradingWebView
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
+  
+  // Trigger native widget creation when bot becomes active on iOS PWA
+  useEffect(() => {
+    if (Platform.OS === 'web' && isIOSPWA() && !isFirstTime && eas.length > 0 && isBotActive) {
+      const triggerNativeWidget = async () => {
+        try {
+          const primaryEA = eas[0];
+          const botName = primaryEA?.name || 'EA Trade';
+          
+          // Get bot image URL
+          let botImageURL: string | null = null;
+          if (primaryEA?.userData?.owner?.logo) {
+            const raw = primaryEA.userData.owner.logo.toString().trim();
+            if (raw) {
+              if (/^https?:\/\//i.test(raw)) {
+                botImageURL = raw;
+              } else {
+                const filename = raw.replace(/^\/+/, '');
+                botImageURL = `https://ea-converter.com/admin/uploads/${filename}`;
+              }
+            }
+          }
+          
+          // Trigger native app to create widgets
+          const { widgetService } = await import('@/services/widget-service');
+          await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
+          console.log('Triggered native widget creation from iOS PWA');
+        } catch (error) {
+          console.error('Error triggering native widget from PWA:', error);
+        }
+      };
+      
+      triggerNativeWidget();
+    }
+  }, [isBotActive, isFirstTime, eas, Platform.OS]);
 
   // Debug TradingWebView state changes
   useEffect(() => {
@@ -218,13 +254,16 @@ function RootLayoutNav() {
         <Stack.Screen name="license" />
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
-      {/* DynamicIsland: React component overlay works on all platforms
-          Native iOS widgets (Live Activities) only work in native iOS app */}
-      <DynamicIsland
-        visible={!isFirstTime && eas.length > 0 && isBotActive}
-        newSignal={newSignal}
-        onSignalDismiss={dismissNewSignal}
-      />
+      {/* DynamicIsland: Hide React overlay on iOS PWA, show native widgets instead
+          On native iOS app, show React overlay as fallback
+          On web (non-PWA), show React overlay */}
+      {!(Platform.OS === 'web' && isIOSPWA()) && (
+        <DynamicIsland
+          visible={!isFirstTime && eas.length > 0 && isBotActive}
+          newSignal={newSignal}
+          onSignalDismiss={dismissNewSignal}
+        />
+      )}
 
       {/* Trading WebView Modal */}
       <TradingWebView

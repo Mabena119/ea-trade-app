@@ -49,9 +49,14 @@ class WidgetService implements WidgetService {
         }
 
         // Try to trigger native app via URL scheme
+        // This will open the native app if it's installed
         const triggered = await triggerNativeApp('updateWidget', widgetData);
         if (triggered) {
-          console.log('Attempted to trigger native app for widget update');
+          console.log('Triggered native app for widget update via URL scheme');
+          
+          // Also try to write to App Group UserDefaults if possible
+          // Note: PWAs can't directly access App Groups, but we can try
+          // The native app should read from localStorage or URL params
         }
       } catch (error) {
         console.error('Error communicating with native app from PWA:', error);
