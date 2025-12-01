@@ -209,18 +209,62 @@ function RootLayoutNav() {
 
     const handleDeepLink = async (url: string) => {
       try {
-        const parsedUrl = new URL(url);
-        if (parsedUrl.hostname === 'widget' && parsedUrl.searchParams.get('action') === 'updateWidget') {
-          const botName = parsedUrl.searchParams.get('botName') || '';
-          const isActive = parsedUrl.searchParams.get('isActive') === 'true';
-          const isPaused = parsedUrl.searchParams.get('isPaused') === 'true';
-          const botImageURL = parsedUrl.searchParams.get('botImageURL');
+        console.log('Received deep link:', url);
+        
+        // Parse URL manually (works on both web and native)
+        // Format: myapp://widget?action=updateWidget&botName=...&isActive=true&...
+        if (!url.includes('widget')) return;
+        
+        // Extract query parameters
+        const urlParts = url.split('?');
+        if (urlParts.length < 2) return;
+        
+        const queryString = urlParts[1];
+        const params = new Map<string, string>();
+        queryString.split('&').forEach(param => {
+          const [key, value] = param.split('=');
+          if (key && value) {
+            params.set(key, decodeURIComponent(value));
+          }
+        });
+        
+        const action = params.get('action');
+        if (action === 'updateWidget') {
+          let botName = params.get('botName') || '';
+          let isActive = params.get('isActive') === 'true';
+          let isPaused = params.get('isPaused') === 'true';
+          let botImageURL = params.get('botImageURL') || null;
+
+          // If botName is missing, try to get it from app state
+          if (!botName && eas.length > 0) {
+            const primaryEA = eas[0];
+            botName = primaryEA?.name || 'EA Trade';
+            
+            // Get bot image URL from EA data
+            if (!botImageURL && primaryEA?.userData?.owner?.logo) {
+              const raw = primaryEA.userData.owner.logo.toString().trim();
+              if (raw) {
+                if (/^https?:\/\//i.test(raw)) {
+                  botImageURL = raw;
+                } else {
+                  const filename = raw.replace(/^\/+/, '');
+                  botImageURL = `https://ea-converter.com/admin/uploads/${filename}`;
+                }
+              }
+            }
+            
+            // Use current bot active state if not provided
+            if (params.get('isActive') === null) {
+              isActive = isBotActive;
+            }
+          }
 
           console.log('Received widget update from PWA:', { botName, isActive, isPaused, botImageURL });
 
           // Update widget via native module
           const { widgetService } = await import('@/services/widget-service');
-          await widgetService.updateWidget(botName, isActive, isPaused, botImageURL || null);
+          await widgetService.updateWidget(botName, isActive, isPaused, botImageURL);
+          console.log('Widget updated successfully from deep link');
         }
       } catch (error) {
         console.error('Error handling deep link for widget update:', error);
@@ -229,16 +273,22 @@ function RootLayoutNav() {
 
     // Handle initial URL (if app was opened via deep link)
     Linking.getInitialURL().then((url) => {
-      if (url) handleDeepLink(url);
+      if (url) {
+        console.log('App opened with initial URL:', url);
+        handleDeepLink(url);
+      }
+    }).catch(err => {
+      console.error('Error getting initial URL:', err);
     });
 
     // Listen for deep links while app is running
     const subscription = Linking.addEventListener('url', (event) => {
+      console.log('Deep link received while app running:', event.url);
       handleDeepLink(event.url);
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [eas, isBotActive]);
 
   return (
     <View style={{ flex: 1 }}>
