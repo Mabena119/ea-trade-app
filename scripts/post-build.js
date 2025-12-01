@@ -118,7 +118,13 @@ if (fs.existsSync(indexPath)) {
     html = html.replace('</head>', `${themeMetaTags}\n</head>`);
   }
   
-  // Add responsive CSS if not present - minimal to avoid breaking React Native Web events
+  // CRITICAL: Override expo-reset overflow:hidden which blocks ALL interactions
+  html = html.replace(
+    /body\s*\{[^}]*overflow:\s*hidden[^}]*\}/g,
+    'body { overflow-y: auto !important; overflow-x: hidden !important; }'
+  );
+  
+  // Add responsive CSS if not present
   if (!html.includes('safe-area-inset-top')) {
     const responsiveStyle = `
   <style>
@@ -126,9 +132,10 @@ if (fs.existsSync(indexPath)) {
       overflow-x: hidden;
       max-width: 100vw;
     }
-    /* Only override overflow-y, don't touch pointer-events (breaks React Native Web) */
+    /* Ensure body allows interactions */
     body {
       overflow-y: auto !important;
+      overflow-x: hidden !important;
     }
     #root, [data-reactroot] {
       max-width: 100vw;

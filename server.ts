@@ -216,7 +216,7 @@ async function serveStatic(request: Request): Promise<Response> {
         htmlContent = htmlContent.replace('<head>', `<head>\n  ${correctViewport}`);
       }
       
-      // Add responsive CSS if not present - minimal to avoid breaking React Native Web events
+      // Add responsive CSS - override expo-reset overflow:hidden which blocks all interactions
       if (!htmlContent.includes('safe-area-inset-top')) {
         const responsiveStyle = `
   <style>
@@ -224,19 +224,23 @@ async function serveStatic(request: Request): Promise<Response> {
       overflow-x: hidden;
       max-width: 100vw;
     }
-    /* Only override overflow-y, don't touch pointer-events (breaks React Native Web) */
+    /* CRITICAL: Override expo-reset overflow:hidden - this blocks ALL interactions */
     body {
       overflow-y: auto !important;
+      overflow-x: hidden !important;
+      pointer-events: auto;
     }
     #root, [data-reactroot] {
       max-width: 100vw;
       overflow-x: hidden;
+      pointer-events: auto;
     }
     /* Prevent horizontal scroll on mobile */
     @media screen and (max-width: 768px) {
       body {
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
+        overflow-y: auto !important;
       }
       #root, [data-reactroot] {
         width: 100vw;
@@ -245,6 +249,16 @@ async function serveStatic(request: Request): Promise<Response> {
     }
   </style>`;
         htmlContent = htmlContent.replace('</head>', `${responsiveStyle}\n</head>`);
+      }
+      
+      // CRITICAL FIX: Remove or override expo-reset overflow:hidden that blocks interactions
+      const expoResetRegex = /<style id="expo-reset">(.*?)<\/style>/s;
+      if (expoResetRegex.test(htmlContent)) {
+        // Replace expo-reset overflow:hidden with overflow-y:auto
+        htmlContent = htmlContent.replace(
+          /body\s*\{[^}]*overflow:\s*hidden[^}]*\}/g,
+          'body { overflow-y: auto !important; overflow-x: hidden !important; }'
+        );
       }
       
       return new Response(htmlContent, {
