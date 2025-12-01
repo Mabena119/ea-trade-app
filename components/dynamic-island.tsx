@@ -124,7 +124,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
   ).current;
 
   useEffect(() => {
-    // Initialize position for Android draw-over widget
+    // Initialize position for Android and iOS (including PWA)
     if (Platform.OS === 'android') {
       const statusBarHeight = StatusBar.currentHeight || 0;
       const initialY = statusBarHeight + 50;
@@ -141,10 +141,16 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
           });
         }
       });
+    } else if (Platform.OS === 'ios' || Platform.OS === 'web') {
+      // For iOS (including PWA) and web, position at top center (like Dynamic Island)
+      const statusBarHeight = Platform.OS === 'ios' ? (StatusBar.currentHeight || 44) : 0;
+      const initialY = statusBarHeight + 20; // Position below status bar
+      panX.setValue((screenWidth - collapsedSize) / 2); // Center horizontally
+      panY.setValue(initialY);
     }
     // Update width for circular collapsed state
     animatedWidth.setValue(collapsedSize);
-  }, [panX, panY, collapsedSize, animatedWidth, visible, isBotActive]);
+  }, [panX, panY, collapsedSize, animatedWidth, visible, isBotActive, screenWidth]);
 
   // On Android, always show as overlay widget - request permission and show overlay when bot is active
   useEffect(() => {
@@ -300,11 +306,9 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return null;
   }
 
-  // On iOS, don't render React Native overlay - use WidgetKit widget instead
-  // The WidgetKit widget appears in Notification Center and must be manually added by user
-  if (Platform.OS === 'ios') {
-    return null; // WidgetKit widget handles iOS display
-  }
+  // Note: For iOS PWA, we use React-based overlay since native widgets are not possible
+  // Native iOS widgets (Live Activities/Dynamic Island) require WidgetKit/ActivityKit APIs
+  // which are NOT available to PWAs running in Safari's WebView
 
 
   // On Android, always render as overlay widget (React Native component with absolute positioning)
