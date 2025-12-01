@@ -4,35 +4,12 @@ import React, { useEffect, useState, Component, ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
-import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, NativeEventEmitter, NativeModules, Dimensions } from "react-native";
+import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
 import { TradingWebView } from "@/components/trading-webview";
 import colors from "@/constants/colors";
-import * as Linking from "expo-linking";
-
-// CRITICAL: Ensure React Native Web event system initializes on web
-if (typeof window !== 'undefined' && Platform.OS === 'web') {
-  // Initialize React Native Web event system immediately
-  (function initRNW() {
-    const root = document.getElementById('root');
-    if (root) {
-      root.setAttribute('data-reactroot', '');
-      root.style.pointerEvents = 'auto';
-      root.style.touchAction = 'manipulation';
-    }
-    
-    // Also initialize when DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initRNW);
-    }
-    
-    // Initialize after React might have mounted
-    setTimeout(initRNW, 100);
-    setTimeout(initRNW, 500);
-  })();
-}
 
 // Early console suppression - must be at the very top
 if (typeof window !== 'undefined' && Platform.OS === 'web') {
@@ -165,9 +142,7 @@ function RootLayoutNav() {
     dismissNewSignal,
     tradingSignal,
     showTradingWebView,
-    setShowTradingWebView,
-    pausePolling,
-    resumePolling
+    setShowTradingWebView
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
 
@@ -181,33 +156,16 @@ function RootLayoutNav() {
     });
   }, [showTradingWebView, tradingSignal]);
 
-  // Listen for widget button clicks via native events (immediate, no polling needed)
+  // Handle app state changes for overlay persistence
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-
-    // Create event emitter for WidgetDataManager
-    const { WidgetDataManager } = NativeModules;
-    if (!WidgetDataManager) {
-      console.warn('WidgetDataManager native module not available');
-      return;
-    }
-
-    const eventEmitter = new NativeEventEmitter(WidgetDataManager);
-
-    // Listen for widget polling toggle events
-    const subscription = eventEmitter.addListener('WidgetPollingToggled', (event: { isPaused: boolean }) => {
-      console.log('Widget button clicked via native event, syncing polling state:', event.isPaused);
-      if (event.isPaused) {
-        pausePolling();
-      } else {
-        resumePolling();
-      }
-    });
-
-    return () => {
-      subscription.remove();
+    const handleAppStateChange = (nextAppState: string) => {
+      console.log('Root Layout: App state changed from', appState, 'to', nextAppState);
+      setAppState(nextAppState);
     };
-  }, [pausePolling, resumePolling]);
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [appState]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -224,14 +182,11 @@ function RootLayoutNav() {
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
       {/* Always render DynamicIsland when conditions are met, regardless of app state */}
-      {/* Render outside Stack to ensure it appears on top */}
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'box-none', zIndex: 10000 }}>
-        <DynamicIsland
-          visible={!isFirstTime && eas.length > 0 && isBotActive}
-          newSignal={newSignal}
-          onSignalDismiss={dismissNewSignal}
-        />
-      </View>
+      <DynamicIsland
+        visible={!isFirstTime && eas.length > 0 && isBotActive}
+        newSignal={newSignal}
+        onSignalDismiss={dismissNewSignal}
+      />
 
       {/* Trading WebView Modal */}
       <TradingWebView
@@ -248,27 +203,6 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState<boolean>(false);
-
-  // Force React Native Web to update dimensions on window resize
-  useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const updateDimensions = () => {
-        // Trigger a Dimensions update by accessing it
-        const { width, height } = Dimensions.get('window');
-        // Force a re-render by updating a state if needed
-        // This ensures React Native Web components respond to window resize
-        window.dispatchEvent(new Event('resize'));
-      };
-
-      window.addEventListener('resize', updateDimensions);
-      window.addEventListener('orientationchange', updateDimensions);
-      
-      return () => {
-        window.removeEventListener('resize', updateDimensions);
-        window.removeEventListener('orientationchange', updateDimensions);
-      };
-    }
-  }, []);
 
   useEffect(() => {
     // Set up comprehensive console warning filter for external warnings

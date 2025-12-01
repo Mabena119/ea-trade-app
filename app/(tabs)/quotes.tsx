@@ -8,7 +8,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
-import { WebButton } from '@/components/web-button';
 
 interface Quote {
   symbol: string;
@@ -235,7 +234,7 @@ export default function QuotesScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <WebButton style={styles.backButton} onPress={handleBack} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.8}>
           {Platform.OS === 'ios' && (
             <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
           )}
@@ -244,7 +243,7 @@ export default function QuotesScreen() {
             style={StyleSheet.absoluteFill}
           />
           <ArrowLeft color="#FFFFFF" size={20} />
-        </WebButton>
+        </TouchableOpacity>
 
         <View style={styles.headerContent}>
           <View style={styles.titleContainer}>
@@ -263,7 +262,7 @@ export default function QuotesScreen() {
         </View>
 
         {hasConnectedEA && (
-          <WebButton
+          <TouchableOpacity
             style={[styles.refreshButton, refreshing && styles.refreshButtonDisabled]}
             onPress={handleRefresh}
             disabled={refreshing}
@@ -291,7 +290,7 @@ export default function QuotesScreen() {
                 size={18}
               />
             </Animated.View>
-          </WebButton>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -306,7 +305,7 @@ export default function QuotesScreen() {
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
             {hasConnectedEA ? (
-              <WebButton style={styles.retryButton} onPress={handleRetry} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.8}>
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
                 )}
@@ -315,9 +314,9 @@ export default function QuotesScreen() {
                   style={StyleSheet.absoluteFill}
                 />
                 <Text style={styles.retryButtonText}>Retry</Text>
-              </WebButton>
+              </TouchableOpacity>
             ) : (
-              <WebButton style={styles.retryButton} onPress={() => router.push('/license')} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/license')} activeOpacity={0.8}>
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
                 )}
@@ -326,7 +325,7 @@ export default function QuotesScreen() {
                   style={StyleSheet.absoluteFill}
                 />
                 <Text style={styles.retryButtonText}>Connect EA</Text>
-              </WebButton>
+              </TouchableOpacity>
             )}
           </View>
         ) : (
@@ -338,7 +337,7 @@ export default function QuotesScreen() {
               </View>
             ) : (
               quotesWithActiveStatus.map((quote, index) => (
-                <WebButton
+                <TouchableOpacity
                   testID={`quote-item-${quote.symbol}`}
                   key={quote.symbol}
                   style={[
@@ -390,7 +389,7 @@ export default function QuotesScreen() {
                     </View>
                   </View>
 
-                </WebButton>
+                </TouchableOpacity>
               ))
             )}
           </ScrollView>

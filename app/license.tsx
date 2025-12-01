@@ -8,7 +8,6 @@ import { useApp } from '@/providers/app-provider';
 import { apiService } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '@/constants/colors';
-import { WebButton } from '@/components/web-button';
 
 export default function LicenseScreen() {
   const [licenseKey, setLicenseKey] = useState<string>('');
@@ -136,9 +135,9 @@ export default function LicenseScreen() {
     <SafeAreaView style={styles.container}>
       {hasActiveBots && (
         <View style={styles.header}>
-          <WebButton style={styles.backButton} onPress={handleBack}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <ArrowLeft size={24} color="#FFFFFF" />
-          </WebButton>
+          </TouchableOpacity>
         </View>
       )}
       <KeyboardAvoidingView
@@ -171,7 +170,7 @@ export default function LicenseScreen() {
                 autoCapitalize="characters"
               />
 
-              <WebButton
+              <TouchableOpacity
                 style={[styles.activateButton, isActivating && styles.activateButtonDisabled]}
                 onPress={handleActivate}
                 disabled={isActivating}
@@ -184,15 +183,16 @@ export default function LicenseScreen() {
                 ) : (
                   <Text style={styles.activateButtonText}>ACTIVATE</Text>
                 )}
-              </WebButton>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
       {modalVisible && (
         <View style={styles.modalOverlay}>
-          <WebButton 
+          <TouchableOpacity 
             style={styles.modalOverlayTouchable}
+            activeOpacity={1}
             onPress={() => setModalVisible(false)}
           >
           <View style={styles.modalCard}>
@@ -205,9 +205,10 @@ export default function LicenseScreen() {
               />
             <Text style={styles.modalTitle}>{modalTitle}</Text>
               {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
-            <WebButton
+            <TouchableOpacity
               style={styles.modalButton}
               onPress={() => setModalVisible(false)}
+                activeOpacity={0.8}
               >
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
@@ -217,9 +218,9 @@ export default function LicenseScreen() {
                   style={StyleSheet.absoluteFill}
                 />
               <Text style={styles.modalButtonText}>OK</Text>
-            </WebButton>
+            </TouchableOpacity>
           </View>
-          </WebButton>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>

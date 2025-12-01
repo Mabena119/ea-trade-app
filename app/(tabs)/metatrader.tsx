@@ -11,7 +11,6 @@ import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 import colors from '@/constants/colors';
-import { WebButton } from '@/components/web-button';
 
 // Default MT4 Brokers (will be updated from web terminal)
 const DEFAULT_MT4_BROKERS = [
@@ -1885,7 +1884,7 @@ export default function MetaTraderScreen() {
         >
         {/* Account Type Tabs */}
         <View style={styles.tabContainer}>
-          <WebButton
+          <TouchableOpacity
               style={[styles.tab, activeTab === 'MT5' && styles.activeTab, styles.centeredTab]}
             onPress={() => setActiveTab('MT5')}
               activeOpacity={0.8}
@@ -1902,7 +1901,7 @@ export default function MetaTraderScreen() {
             <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
               MT5 ACCOUNT
             </Text>
-          </WebButton>
+          </TouchableOpacity>
         </View>
 
         {/* Connection Status */}
@@ -2028,7 +2027,7 @@ export default function MetaTraderScreen() {
               secureTextEntry={!showPassword}
                 editable={true}
             />
-            <WebButton
+            <TouchableOpacity
               style={styles.eyeButton}
               onPress={() => setShowPassword(!showPassword)}
                 activeOpacity={0.8}
@@ -2041,7 +2040,7 @@ export default function MetaTraderScreen() {
               ) : (
                   <Eye color="#999999" size={18} />
               )}
-            </WebButton>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.serverContainer}>
@@ -2072,7 +2071,7 @@ export default function MetaTraderScreen() {
                   editable={true}
               />
               {server.length > 0 && (
-                <WebButton
+                <TouchableOpacity
                   style={styles.clearButton}
                   onPress={() => {
                     setServer('');
@@ -2084,7 +2083,7 @@ export default function MetaTraderScreen() {
                       <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                     )}
                   <Text style={styles.clearButtonText}>×</Text>
-                </WebButton>
+                </TouchableOpacity>
               )}
             </View>
 
@@ -2101,7 +2100,7 @@ export default function MetaTraderScreen() {
                   <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
                   <View style={styles.brokerListActions}>
                     {activeTab === 'MT4' && (
-                      <WebButton
+                      <TouchableOpacity
                         onPress={() => {
                           console.log('Manual broker refresh requested');
                           fetchMT4Brokers();
@@ -2118,9 +2117,9 @@ export default function MetaTraderScreen() {
                           size={16}
                           style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
                         />
-                      </WebButton>
+                      </TouchableOpacity>
                     )}
-                    <WebButton
+                    <TouchableOpacity
                       onPress={() => setShowBrokerList(false)}
                       style={styles.closeBrokerList}
                         activeOpacity={0.8}
@@ -2129,7 +2128,7 @@ export default function MetaTraderScreen() {
                           <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                         )}
                       <Text style={styles.closeBrokerListText}>×</Text>
-                    </WebButton>
+                    </TouchableOpacity>
                   </View>
                 </View>
                 {brokerFetchError && (
@@ -2146,7 +2145,7 @@ export default function MetaTraderScreen() {
                 <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
                   {filteredBrokers.map((item, index) => {
                     return (
-                      <WebButton
+                      <TouchableOpacity
                         key={`${item}-${index}`}
                         style={styles.brokerItem}
                         onPress={() => {
@@ -2164,7 +2163,7 @@ export default function MetaTraderScreen() {
                             {item.includes('Demo') ? 'DEMO' : 'LIVE'}
                           </Text>
                         </View>
-                      </WebButton>
+                      </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
@@ -2179,7 +2178,7 @@ export default function MetaTraderScreen() {
             )}
           </View>
 
-          <WebButton
+          <TouchableOpacity
             style={[
               styles.linkButton,
               isAuthenticating && styles.linkButtonDisabled,
@@ -2222,7 +2221,7 @@ export default function MetaTraderScreen() {
                 </Text>
               </View>
             )}
-          </WebButton>
+          </TouchableOpacity>
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
@@ -2250,13 +2249,13 @@ export default function MetaTraderScreen() {
                 <ActivityIndicator size="small" color="#25D366" />
               </View>
               <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>MT5 LOGIN</Text>
+                <Text style={styles.authToastTitle}>MT5 Authentication</Text>
                 <Text style={styles.authToastStatus}>
-                  {authenticationStep ? authenticationStep.toUpperCase() : 'ESTABLISHING CONNECTION...'}
+                  {authenticationStep || 'Connecting to RazorMarkets...'}
                 </Text>
               </View>
             </View>
-            <WebButton
+            <TouchableOpacity
               style={styles.authToastCloseButton}
               onPress={closeMT5WebView}
               activeOpacity={0.8}
@@ -2269,7 +2268,7 @@ export default function MetaTraderScreen() {
                 style={StyleSheet.absoluteFill}
               />
               <X color="#FFFFFF" size={16} />
-            </WebButton>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -2321,13 +2320,13 @@ export default function MetaTraderScreen() {
                 <ActivityIndicator size="small" color="#25D366" />
               </View>
               <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>MT4 LOGIN</Text>
+                <Text style={styles.authToastTitle}>MT4 Authentication</Text>
                 <Text style={styles.authToastStatus}>
-                  {authenticationStep ? authenticationStep.toUpperCase() : 'ESTABLISHING CONNECTION...'}
+                  {authenticationStep || 'Connecting to MetaTrader...'}
                 </Text>
               </View>
             </View>
-            <WebButton
+            <TouchableOpacity
               style={styles.authToastCloseButton}
               onPress={closeMT4WebView}
               activeOpacity={0.8}
@@ -2340,7 +2339,7 @@ export default function MetaTraderScreen() {
                 style={StyleSheet.absoluteFill}
               />
               <X color="#FFFFFF" size={16} />
-            </WebButton>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -2916,17 +2915,17 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 50 : 30,
     left: 20,
     right: 20,
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1E293B',
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    borderRadius: 20,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
     elevation: 10000,
     zIndex: 10000,
     overflow: 'hidden',
@@ -2960,16 +2959,14 @@ const styles = StyleSheet.create({
   },
   authToastTitle: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 3,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   authToastStatus: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    color: '#CCCCCC',
+    fontSize: 12,
+    fontWeight: '500',
   },
   authToastCloseButton: {
     width: 28,

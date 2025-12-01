@@ -77,7 +77,6 @@
       "description": "Automated Forex Trading EA Trade App",
       "scope": "/",
       "lang": "en",
-      "bundler": "metro",
       "categories": [
         "finance",
         "business",

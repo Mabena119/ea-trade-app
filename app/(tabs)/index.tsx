@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Play, Square, TrendingUp, Trash2, Plus } from 'lucide-react-native';
@@ -9,7 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/providers/app-provider';
 import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
-import { WebButton } from '@/components/web-button';
 
 export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA } = useApp();
@@ -88,17 +87,17 @@ export default function HomeScreen() {
 
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
 
-  const handleStartNow = useCallback(async () => {
-    console.log('[START BUTTON] Start Now pressed, navigating to login...');
+  const handleStartNow = async () => {
+    console.log('Start Now pressed, navigating to login...');
     try {
       // Clear email authentication flag when starting fresh
       await AsyncStorage.removeItem('emailAuthenticated');
       // Use replace to avoid showing tabs, and don't set isFirstTime to false yet
       router.replace('/login');
     } catch (error) {
-      console.error('[START BUTTON] Error navigating to login:', error);
+      console.error('Error navigating to login:', error);
     }
-  }, []);
+  };
 
   const handleAddNewEA = () => {
     router.push('/license');
@@ -152,13 +151,9 @@ export default function HomeScreen() {
             />
           </View>
 
-          <WebButton 
-            style={styles.splashStartButton} 
-            onPress={handleStartNow}
-            accessibilityLabel="Start using EA Trade"
-          >
+          <TouchableOpacity style={styles.splashStartButton} onPress={handleStartNow}>
             <Text style={styles.startButtonText}>START</Text>
-          </WebButton>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -215,12 +210,16 @@ export default function HomeScreen() {
                 <View style={styles.titleBlock}>
                   <View style={styles.botNameContainer}>
                   <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
+                    <View style={[
+                      styles.botStatusDot,
+                      isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
+                    ]} />
                   </View>
                 </View>
               </View>
 
               <View style={styles.bottomActions}>
-                <WebButton
+                <TouchableOpacity
                   testID="action-start"
                   style={[styles.actionButton, styles.tradeButton]}
                   onPress={() => {
@@ -232,6 +231,7 @@ export default function HomeScreen() {
                       console.error('Error changing bot state:', error);
                     }
                   }}
+                  activeOpacity={0.8}
                 >
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={120} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -242,16 +242,16 @@ export default function HomeScreen() {
                     pointerEvents="none"
                   />
                   <View style={styles.tradeButtonContent}>
-                  {isBotActive ? (
+                    {isBotActive ? (
                       <Square color="#000000" size={24} />
                   ) : (
                       <Play color="#000000" size={24} />
                   )}
                   <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
                   </View>
-                </WebButton>
+                </TouchableOpacity>
 
-                <WebButton testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes}>
+                <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.8}>
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
@@ -264,9 +264,9 @@ export default function HomeScreen() {
                   <TrendingUp color="#FFFFFF" size={20} />
                   <Text style={styles.secondaryButtonText}>QUOTES</Text>
                   </View>
-                </WebButton>
+                </TouchableOpacity>
 
-                <WebButton testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot}>
+                <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.8}>
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
@@ -279,11 +279,7 @@ export default function HomeScreen() {
                   <Trash2 color="#FFFFFF" size={20} />
                   <Text style={styles.secondaryButtonText}>REMOVE</Text>
                   </View>
-                  <View style={[
-                    styles.botStatusDot,
-                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
-                  ]} />
-                </WebButton>
+                </TouchableOpacity>
               </View>
 
             </View>
@@ -299,7 +295,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               {otherEAs.map((ea, index) => (
-                <WebButton
+                <TouchableOpacity
                   key={`${ea.id}-${index}`}
                   style={styles.botCard}
                   onPress={async () => {
@@ -310,6 +306,7 @@ export default function HomeScreen() {
                       console.error('Failed to switch active EA:', error);
                     }
                   }}
+                  activeOpacity={0.8}
                 >
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
@@ -335,7 +332,7 @@ export default function HomeScreen() {
                     </View>
                     <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
                   </View>
-                </WebButton>
+                </TouchableOpacity>
               ))}
             </>
           )}
@@ -343,7 +340,7 @@ export default function HomeScreen() {
 
 
 
-          <WebButton style={styles.addEAButton} onPress={handleAddNewEA}>
+          <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.8}>
             {Platform.OS === 'ios' && (
               <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
             )}
@@ -356,21 +353,13 @@ export default function HomeScreen() {
               <Text style={styles.addEATitle}>ADD ROBOT</Text>
               <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
             </View>
-          </WebButton>
+          </TouchableOpacity>
         </View>
 
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-// Use state to track window width for responsive design
-const getWindowWidth = () => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return window.innerWidth;
-  }
-  return Dimensions.get('window').width;
-};
 
 const { width } = Dimensions.get('window');
 
@@ -519,8 +508,8 @@ const styles = StyleSheet.create({
   },
   botStatusDot: {
     position: 'absolute',
-    top: -6,
-    right: -6,
+    top: -4,
+    right: -8,
     width: 14,
     height: 14,
     borderRadius: 7,
@@ -531,7 +520,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 4,
     elevation: 4,
-    zIndex: 10,
   },
   botStatusDotActive: {
     backgroundColor: '#25D366',
@@ -605,7 +593,6 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     position: 'relative',
-    overflow: 'visible',
   },
   secondaryButtonContent: {
     flexDirection: 'row',
