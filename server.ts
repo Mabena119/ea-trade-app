@@ -262,30 +262,83 @@ async function serveStatic(request: Request): Promise<Response> {
     }
   </style>
   <script>
-    // CRITICAL: Initialize React Native Web event system BEFORE React loads
+    // DEBUG: Comprehensive event debugging for React Native Web
     (function() {
       if (typeof window !== 'undefined') {
-        // Store original addEventListener to intercept and ensure events work
-        const originalAddEventListener = EventTarget.prototype.addEventListener;
+        console.log('[DEBUG] Event debugging script loaded');
         
-        // Ensure React Native Web can attach events
-        EventTarget.prototype.addEventListener = function(type, listener, options) {
-          // Ensure element can receive events
-          if (this.style) {
-            this.style.pointerEvents = 'auto';
+        // Track all click events at document level
+        document.addEventListener('click', function(e) {
+          console.log('[DEBUG] Click detected on document:', {
+            target: e.target.tagName,
+            className: e.target.className,
+            id: e.target.id,
+            role: e.target.getAttribute('role'),
+            pointerEvents: getComputedStyle(e.target).pointerEvents,
+            x: e.clientX,
+            y: e.clientY
+          });
+        }, true); // Capture phase
+        
+        // Track touchstart events
+        document.addEventListener('touchstart', function(e) {
+          console.log('[DEBUG] Touchstart detected:', {
+            target: e.target.tagName,
+            className: e.target.className,
+            touches: e.touches.length
+          });
+        }, true);
+        
+        // Check for elements blocking clicks
+        function checkElementAtPoint(x, y) {
+          const el = document.elementFromPoint(x, y);
+          if (el) {
+            const styles = getComputedStyle(el);
+            console.log('[DEBUG] Element at point:', {
+              tag: el.tagName,
+              className: el.className,
+              id: el.id,
+              pointerEvents: styles.pointerEvents,
+              zIndex: styles.zIndex,
+              position: styles.position
+            });
           }
-          return originalAddEventListener.call(this, type, listener, options);
+          return el;
+        }
+        
+        // Expose debug function globally
+        window.debugClick = function(x, y) {
+          x = x || window.innerWidth / 2;
+          y = y || window.innerHeight / 2;
+          checkElementAtPoint(x, y);
         };
         
         function initReactNativeWeb() {
           const root = document.getElementById('root');
+          console.log('[DEBUG] initReactNativeWeb called, root exists:', !!root);
+          
           if (root) {
-            // CRITICAL: React Native Web needs these attributes and styles
             root.setAttribute('data-reactroot', '');
             root.style.pointerEvents = 'auto';
             root.style.touchAction = 'manipulation';
             root.style.userSelect = 'auto';
             root.style.webkitUserSelect = 'auto';
+            
+            // Log root children count
+            console.log('[DEBUG] Root children count:', root.children.length);
+            
+            // Check for any pointer-events: none in the tree
+            const allElements = root.querySelectorAll('*');
+            let blockedCount = 0;
+            allElements.forEach(el => {
+              const pe = getComputedStyle(el).pointerEvents;
+              if (pe === 'none') {
+                blockedCount++;
+                // Fix it
+                el.style.pointerEvents = 'auto';
+              }
+            });
+            console.log('[DEBUG] Fixed elements with pointer-events:none:', blockedCount);
             
             // Ensure body allows events
             if (document.body) {
@@ -293,7 +346,7 @@ async function serveStatic(request: Request): Promise<Response> {
               document.body.style.touchAction = 'manipulation';
             }
             
-            console.log('React Native Web event system initialized');
+            console.log('[DEBUG] React Native Web event system initialized');
           }
         }
         
@@ -302,17 +355,28 @@ async function serveStatic(request: Request): Promise<Response> {
         
         // Initialize when DOM is ready
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initReactNativeWeb);
+          document.addEventListener('DOMContentLoaded', function() {
+            console.log('[DEBUG] DOMContentLoaded fired');
+            initReactNativeWeb();
+          });
         }
         
         // Initialize multiple times to catch React mounting
-        [50, 100, 200, 500, 1000, 2000].forEach(delay => {
-          setTimeout(initReactNativeWeb, delay);
+        [50, 100, 200, 500, 1000, 2000, 3000, 5000].forEach(delay => {
+          setTimeout(function() {
+            console.log('[DEBUG] Delayed init at ' + delay + 'ms');
+            initReactNativeWeb();
+          }, delay);
         });
         
         // Watch for React mounting
-        const observer = new MutationObserver(function() {
-          initReactNativeWeb();
+        let mutationCount = 0;
+        const observer = new MutationObserver(function(mutations) {
+          mutationCount++;
+          if (mutationCount <= 10) {
+            console.log('[DEBUG] Mutation #' + mutationCount + ':', mutations.length + ' changes');
+            initReactNativeWeb();
+          }
         });
         
         if (document.body) {
@@ -321,6 +385,13 @@ async function serveStatic(request: Request): Promise<Response> {
             subtree: true
           });
         }
+        
+        // Log when window loads
+        window.addEventListener('load', function() {
+          console.log('[DEBUG] Window load event fired');
+          console.log('[DEBUG] Final root children:', document.getElementById('root')?.children.length);
+          initReactNativeWeb();
+        });
       }
     })();
   </script>`;
