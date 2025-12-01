@@ -4,7 +4,7 @@ import React, { useEffect, useState, Component, ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
-import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, NativeEventEmitter, NativeModules } from "react-native";
+import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, NativeEventEmitter, NativeModules, Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
@@ -226,6 +226,27 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState<boolean>(false);
+
+  // Force React Native Web to update dimensions on window resize
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const updateDimensions = () => {
+        // Trigger a Dimensions update by accessing it
+        const { width, height } = Dimensions.get('window');
+        // Force a re-render by updating a state if needed
+        // This ensures React Native Web components respond to window resize
+        window.dispatchEvent(new Event('resize'));
+      };
+
+      window.addEventListener('resize', updateDimensions);
+      window.addEventListener('orientationchange', updateDimensions);
+      
+      return () => {
+        window.removeEventListener('resize', updateDimensions);
+        window.removeEventListener('orientationchange', updateDimensions);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     // Set up comprehensive console warning filter for external warnings

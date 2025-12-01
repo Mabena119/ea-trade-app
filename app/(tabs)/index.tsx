@@ -361,6 +361,14 @@ export default function HomeScreen() {
   );
 }
 
+// Use state to track window width for responsive design
+const getWindowWidth = () => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return window.innerWidth;
+  }
+  return Dimensions.get('window').width;
+};
+
 const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({

@@ -118,40 +118,27 @@ if (fs.existsSync(indexPath)) {
     html = html.replace('</head>', `${themeMetaTags}\n</head>`);
   }
   
-  // Add responsive CSS if not present
+  // Add responsive CSS if not present - simplified to avoid breaking functionality
   if (!html.includes('safe-area-inset-top')) {
     const responsiveStyle = `
   <style>
-    * {
-      box-sizing: border-box;
-    }
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
       overflow-x: hidden;
-      background-color: #000000 !important;
-      -webkit-text-size-adjust: 100%;
-      -webkit-tap-highlight-color: transparent;
+      max-width: 100vw;
     }
     #root, [data-reactroot] {
-      width: 100%;
-      min-height: 100vh;
+      max-width: 100vw;
+      overflow-x: hidden;
     }
-    /* Ensure status bar area is black and responsive */
+    /* Prevent horizontal scroll on mobile */
     @media screen and (max-width: 768px) {
       body {
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
-        background-color: #000000 !important;
       }
-    }
-    /* Prevent horizontal scroll */
-    @media screen and (max-width: 1024px) {
-      body {
-        overflow-x: hidden;
-        position: relative;
+      #root, [data-reactroot] {
+        width: 100vw;
+        max-width: 100vw;
       }
     }
   </style>`;
