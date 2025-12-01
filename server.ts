@@ -262,64 +262,54 @@ async function serveStatic(request: Request): Promise<Response> {
     }
   </style>
   <script>
-    // CRITICAL: Initialize React Native Web event handling BEFORE React loads
+    // CRITICAL: Ensure React Native Web event delegation works
+    // React Native Web uses event delegation on the root element
     (function() {
       if (typeof window !== 'undefined') {
-        function initEventHandling() {
-          try {
-            // Ensure body allows all interactions
-            if (document.body) {
-              document.body.style.touchAction = 'manipulation';
-              document.body.style.pointerEvents = 'auto';
-              document.body.style.userSelect = 'auto';
-            }
+        // Force enable events on root immediately
+        function ensureRootEvents() {
+          const root = document.getElementById('root');
+          if (root) {
+            // CRITICAL: React Native Web delegates events to root
+            root.style.pointerEvents = 'auto';
+            root.style.touchAction = 'manipulation';
+            root.style.userSelect = 'auto';
+            root.setAttribute('data-reactroot', '');
             
-            // Ensure root element allows events
-            const root = document.getElementById('root');
-            if (root) {
-              root.style.touchAction = 'manipulation';
-              root.style.pointerEvents = 'auto';
-              root.style.userSelect = 'auto';
-            }
+            // Ensure root can receive all event types
+            root.addEventListener('click', function(e) {
+              // Let React Native Web handle it
+            }, true);
+            root.addEventListener('touchstart', function(e) {
+              // Let React Native Web handle it
+            }, true);
             
-            // Remove any overlays that might block clicks
-            const overlays = document.querySelectorAll('[style*="pointer-events: none"]');
-            overlays.forEach(el => {
-              if (el !== document.body && el !== root) {
-                el.style.pointerEvents = 'auto';
-              }
-            });
-            
-            console.log('React Native Web event handling initialized');
-          } catch (e) {
-            console.error('Event handling init error:', e);
+            console.log('Root element event handling ensured');
           }
         }
         
-        // Initialize immediately
+        // Run immediately
+        ensureRootEvents();
+        
+        // Run when DOM is ready
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initEventHandling);
-        } else {
-          initEventHandling();
+          document.addEventListener('DOMContentLoaded', ensureRootEvents);
         }
         
-        // Initialize multiple times to catch React mounting
-        setTimeout(initEventHandling, 50);
-        setTimeout(initEventHandling, 100);
-        setTimeout(initEventHandling, 300);
-        setTimeout(initEventHandling, 500);
-        setTimeout(initEventHandling, 1000);
-        setTimeout(initEventHandling, 2000);
+        // Run after React might have mounted
+        setTimeout(ensureRootEvents, 100);
+        setTimeout(ensureRootEvents, 500);
+        setTimeout(ensureRootEvents, 1000);
         
-        // Watch for React mounting
-        const observer = new MutationObserver(function(mutations) {
-          initEventHandling();
+        // Watch for root changes
+        const observer = new MutationObserver(function() {
+          ensureRootEvents();
         });
         
         if (document.body) {
           observer.observe(document.body, {
             childList: true,
-            subtree: true
+            subtree: false
           });
         }
       }
