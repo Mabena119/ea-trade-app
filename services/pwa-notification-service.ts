@@ -251,11 +251,12 @@ class PWANotificationService {
         permission: Notification.permission,
       });
 
-      // iOS Safari has limited support - use minimal options
+      // iOS Safari has limited support - use options that force display
+      // requireInteraction: true forces notification to stay visible even when app is in foreground
       const notificationOptions: any = {
         body: body,
         tag: this.notificationTag,
-        requireInteraction: false,
+        requireInteraction: true, // Force notification to stay visible - user must interact to dismiss
         silent: false,
       };
 
@@ -331,9 +332,10 @@ class PWANotificationService {
         console.log('[Notifications] Badge API not available:', badgeError);
       }
 
-      // Note: iOS Safari may not show notification banner when app is in foreground
-      // But notification should still appear in Notification Center
-      // User can swipe down to see it
+      // Show in-app visual notification banner as fallback
+      // This ensures user sees notification even if system notification is suppressed when app is in foreground
+      this.showInAppNotification(botName, isActive, isPaused);
+      console.log('[Notifications] ✅ In-app notification banner displayed');
 
     } catch (error) {
       console.error('[Notifications] ❌ Error showing persistent notification:', error);
@@ -357,6 +359,146 @@ class PWANotificationService {
     // Note: We can't directly close notifications by tag in the Web Notifications API
     // The notification will be replaced when we show a new one with the same tag
     console.log('[Notifications] Notification will be replaced on next update');
+  }
+
+  /**
+   * Show an in-app visual notification banner as fallback
+   * This appears even when system notifications are suppressed
+   */
+  showInAppNotification(
+    botName: string,
+    isActive: boolean,
+    isPaused: boolean
+  ): void {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    // Remove any existing notification banner
+    const existingBanner = document.getElementById('pwa-notification-banner');
+    if (existingBanner) {
+      existingBanner.remove();
+    }
+
+    const status = isActive 
+      ? (isPaused ? 'PAUSED' : 'ACTIVE')
+      : 'INACTIVE';
+    
+    const statusEmoji = isActive 
+      ? (isPaused ? '⏸️' : '🟢')
+      : '🔴';
+
+    const statusColor = isActive 
+      ? (isPaused ? '#ff9500' : '#34c759')
+      : '#ff3b30';
+
+    // Create notification banner
+    const banner = document.createElement('div');
+    banner.id = 'pwa-notification-banner';
+    banner.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
+      color: white;
+      padding: 16px 20px;
+      padding-top: max(16px, env(safe-area-inset-top));
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border-bottom: 3px solid ${statusColor};
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      animation: slideDown 0.3s ease-out;
+    `;
+
+    // Add animation keyframes
+    if (!document.getElementById('pwa-notification-styles')) {
+      const style = document.createElement('style');
+      style.id = 'pwa-notification-styles';
+      style.textContent = `
+        @keyframes slideDown {
+          from {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        @keyframes slideUp {
+          from {
+            transform: translateY(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Status indicator
+    const statusDot = document.createElement('div');
+    statusDot.style.cssText = `
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: ${statusColor};
+      box-shadow: 0 0 8px ${statusColor}80;
+      flex-shrink: 0;
+    `;
+
+    // Content
+    const content = document.createElement('div');
+    content.style.cssText = 'flex: 1;';
+    
+    const title = document.createElement('div');
+    title.textContent = `${statusEmoji} ${botName}`;
+    title.style.cssText = 'font-weight: 600; font-size: 16px; margin-bottom: 2px;';
+    
+    const body = document.createElement('div');
+    body.textContent = `Status: ${status}${isActive && !isPaused ? ' • Monitoring signals' : ''}`;
+    body.style.cssText = 'font-size: 13px; opacity: 0.9; color: ' + statusColor + ';';
+
+    content.appendChild(title);
+    content.appendChild(body);
+
+    banner.appendChild(statusDot);
+    banner.appendChild(content);
+
+    document.body.appendChild(banner);
+
+    console.log('[Notifications] ✅ In-app notification banner shown');
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      if (banner.parentNode) {
+        banner.style.animation = 'slideUp 0.3s ease-out';
+        setTimeout(() => {
+          if (banner.parentNode) {
+            banner.remove();
+          }
+        }, 300);
+      }
+    }, 5000);
+
+    // Allow manual dismiss on tap
+    banner.addEventListener('click', () => {
+      if (banner.parentNode) {
+        banner.style.animation = 'slideUp 0.3s ease-out';
+        setTimeout(() => {
+          if (banner.parentNode) {
+            banner.remove();
+          }
+        }, 300);
+      }
+    });
   }
 }
 
