@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Play, Square, TrendingUp, Trash2, Plus } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/providers/app-provider';
 import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
+import { WebButton } from '@/components/web-button';
 
 export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA } = useApp();
@@ -87,17 +88,17 @@ export default function HomeScreen() {
 
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
 
-  const handleStartNow = async () => {
-    console.log('Start Now pressed, navigating to login...');
+  const handleStartNow = useCallback(async () => {
+    console.log('[START BUTTON] Start Now pressed, navigating to login...');
     try {
       // Clear email authentication flag when starting fresh
       await AsyncStorage.removeItem('emailAuthenticated');
       // Use replace to avoid showing tabs, and don't set isFirstTime to false yet
       router.replace('/login');
     } catch (error) {
-      console.error('Error navigating to login:', error);
+      console.error('[START BUTTON] Error navigating to login:', error);
     }
-  };
+  }, []);
 
   const handleAddNewEA = () => {
     router.push('/license');
@@ -151,9 +152,13 @@ export default function HomeScreen() {
             />
           </View>
 
-          <TouchableOpacity style={styles.splashStartButton} onPress={handleStartNow}>
+          <WebButton 
+            style={styles.splashStartButton} 
+            onPress={handleStartNow}
+            accessibilityLabel="Start using EA Trade"
+          >
             <Text style={styles.startButtonText}>START</Text>
-          </TouchableOpacity>
+          </WebButton>
         </View>
       </View>
     );
@@ -215,7 +220,7 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.bottomActions}>
-                <TouchableOpacity
+                <WebButton
                   testID="action-start"
                   style={[styles.actionButton, styles.tradeButton]}
                   onPress={() => {
@@ -227,7 +232,6 @@ export default function HomeScreen() {
                       console.error('Error changing bot state:', error);
                     }
                   }}
-                  activeOpacity={0.8}
                 >
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={120} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -245,9 +249,9 @@ export default function HomeScreen() {
                   )}
                   <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
                   </View>
-                </TouchableOpacity>
+                </WebButton>
 
-                <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.8}>
+                <WebButton testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes}>
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
@@ -260,9 +264,9 @@ export default function HomeScreen() {
                   <TrendingUp color="#FFFFFF" size={20} />
                   <Text style={styles.secondaryButtonText}>QUOTES</Text>
                   </View>
-                </TouchableOpacity>
+                </WebButton>
 
-                <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.8}>
+                <WebButton testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot}>
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
@@ -279,7 +283,7 @@ export default function HomeScreen() {
                     styles.botStatusDot,
                     isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
                   ]} />
-                </TouchableOpacity>
+                </WebButton>
               </View>
 
             </View>
@@ -295,7 +299,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               {otherEAs.map((ea, index) => (
-                <TouchableOpacity
+                <WebButton
                   key={`${ea.id}-${index}`}
                   style={styles.botCard}
                   onPress={async () => {
@@ -306,7 +310,6 @@ export default function HomeScreen() {
                       console.error('Failed to switch active EA:', error);
                     }
                   }}
-                  activeOpacity={0.8}
                 >
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
@@ -332,7 +335,7 @@ export default function HomeScreen() {
                     </View>
                     <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
                   </View>
-                </TouchableOpacity>
+                </WebButton>
               ))}
             </>
           )}
@@ -340,7 +343,7 @@ export default function HomeScreen() {
 
 
 
-          <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.8}>
+          <WebButton style={styles.addEAButton} onPress={handleAddNewEA}>
             {Platform.OS === 'ios' && (
               <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
             )}
@@ -353,7 +356,7 @@ export default function HomeScreen() {
               <Text style={styles.addEATitle}>ADD ROBOT</Text>
               <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
             </View>
-          </TouchableOpacity>
+          </WebButton>
         </View>
 
       </ScrollView>
