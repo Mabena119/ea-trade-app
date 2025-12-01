@@ -5,9 +5,13 @@ services:
     plan: free
     autoDeploy: true
     healthCheckPath: /
+    buildCommand: ""
+    startCommand: ""
     envVars:
       - key: EXPO_NO_TELEMETRY
         value: "1"
       - key: NODE_ENV
         value: "production"
+      - key: PORT
+        value: "3000"
 

@@ -19,9 +19,10 @@ RUN NODE_ENV=development bun install --frozen-lockfile
 COPY . .
 
 # Build static web export to dist/ using Node (avoids Bun sideEffects warning)
-RUN node ./node_modules/.bin/expo export --platform web
+# Use production mode for optimized React build
+RUN NODE_ENV=production node ./node_modules/.bin/expo export --platform web --output-dir dist
 
-# Run post-build script to set up PWA manifest and icons
+# Run post-build script to set up PWA manifest, icons, and event system
 RUN node scripts/post-build.js
 
 # Remove build tools and Node to slim image (keep nodejs for post-build script)
