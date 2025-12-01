@@ -14,15 +14,24 @@ import * as Linking from "expo-linking";
 
 // CRITICAL: Ensure React Native Web event system initializes on web
 if (typeof window !== 'undefined' && Platform.OS === 'web') {
-  // Force React Native Web to initialize event delegation
-  window.addEventListener('DOMContentLoaded', () => {
+  // Initialize React Native Web event system immediately
+  (function initRNW() {
     const root = document.getElementById('root');
     if (root) {
-      // Ensure root can receive events for React Native Web delegation
-      root.style.pointerEvents = 'auto';
       root.setAttribute('data-reactroot', '');
+      root.style.pointerEvents = 'auto';
+      root.style.touchAction = 'manipulation';
     }
-  });
+    
+    // Also initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initRNW);
+    }
+    
+    // Initialize after React might have mounted
+    setTimeout(initRNW, 100);
+    setTimeout(initRNW, 500);
+  })();
 }
 
 // Early console suppression - must be at the very top
