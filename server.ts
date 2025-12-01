@@ -297,6 +297,12 @@ async function serveStatic(request: Request): Promise<Response> {
         htmlContent = htmlContent.replace('</head>', `${responsiveStyle}\n</head>`);
       }
       
+      // CRITICAL: Remove defer from script tag to ensure React Native Web events work
+      htmlContent = htmlContent.replace(
+        /<script src="([^"]+)" defer><\/script>/g,
+        '<script src="$1"></script>'
+      );
+      
       return new Response(htmlContent, {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',

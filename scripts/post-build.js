@@ -201,6 +201,13 @@ if (fs.existsSync(indexPath)) {
     html = html.replace('</head>', `${responsiveStyle}\n</head>`);
   }
   
+  // CRITICAL: Remove defer from script tag to ensure React Native Web events work
+  // defer can cause timing issues with React Native Web's event system
+  html = html.replace(
+    /<script src="([^"]+)" defer><\/script>/g,
+    '<script src="$1"></script>'
+  );
+  
   fs.writeFileSync(indexPath, html);
   console.log('Updated index.html with responsive viewport and PWA meta tags');
 }
