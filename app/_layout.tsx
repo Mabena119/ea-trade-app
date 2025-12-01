@@ -181,14 +181,13 @@ function RootLayoutNav() {
         <Stack.Screen name="license" />
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
-      {/* DynamicIsland only works on iOS native app, not on web */}
-      {Platform.OS === 'ios' && (
-        <DynamicIsland
-          visible={!isFirstTime && eas.length > 0 && isBotActive}
-          newSignal={newSignal}
-          onSignalDismiss={dismissNewSignal}
-        />
-      )}
+      {/* DynamicIsland: React component overlay works on all platforms
+          Native iOS widgets (Live Activities) only work in native iOS app */}
+      <DynamicIsland
+        visible={!isFirstTime && eas.length > 0 && isBotActive}
+        newSignal={newSignal}
+        onSignalDismiss={dismissNewSignal}
+      />
 
       {/* Trading WebView Modal */}
       <TradingWebView
