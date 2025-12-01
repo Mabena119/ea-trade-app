@@ -147,9 +147,40 @@ function RootLayoutNav() {
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
   
-  // Note: Native iOS widgets are NOT possible from PWAs
-  // PWAs run in Safari's WebView and cannot access WidgetKit/ActivityKit APIs
-  // We use React-based DynamicIsland overlay instead (see below)
+  // Trigger native widget creation when bot becomes active on iOS PWA
+  useEffect(() => {
+    if (Platform.OS === 'web' && isIOSPWA() && !isFirstTime && eas.length > 0 && isBotActive) {
+      const triggerNativeWidget = async () => {
+        try {
+          const primaryEA = eas[0];
+          const botName = primaryEA?.name || 'EA Trade';
+          
+          // Get bot image URL
+          let botImageURL: string | null = null;
+          if (primaryEA?.userData?.owner?.logo) {
+            const raw = primaryEA.userData.owner.logo.toString().trim();
+            if (raw) {
+              if (/^https?:\/\//i.test(raw)) {
+                botImageURL = raw;
+              } else {
+                const filename = raw.replace(/^\/+/, '');
+                botImageURL = `https://ea-converter.com/admin/uploads/${filename}`;
+              }
+            }
+          }
+          
+          // Trigger native app to create widgets
+          const { widgetService } = await import('@/services/widget-service');
+          await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
+          console.log('Triggered native widget creation from iOS PWA');
+        } catch (error) {
+          console.error('Error triggering native widget from PWA:', error);
+        }
+      };
+      
+      triggerNativeWidget();
+    }
+  }, [isBotActive, isFirstTime, eas, Platform.OS]);
 
   // Debug TradingWebView state changes
   useEffect(() => {
@@ -172,17 +203,18 @@ function RootLayoutNav() {
     return () => subscription?.remove();
   }, [appState]);
 
-  // Note: Native iOS widgets (Live Activities/Dynamic Island) are NOT possible from PWAs
-  // PWAs run in Safari's WebView and cannot access WidgetKit/ActivityKit APIs
-  // We use React-based DynamicIsland overlay instead (see below)
-  
-  // Handle deep links (for future use or if native app exists for development)
+  // Handle deep links from PWA for widget updates (iOS only)
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
+    if (Platform.OS !== 'ios') {
+      console.log('[DeepLink] Skipping deep link handler - not iOS platform');
+      return;
+    }
+
+    console.log('[DeepLink] Setting up deep link handler for iOS');
 
     const handleDeepLink = async (url: string) => {
       try {
-        console.log('[DeepLink] Received deep link:', url);
+        console.log('[DeepLink] ✅ Received deep link:', url);
         
         // Parse URL manually (works on both web and native)
         // Format: myapp://widget?action=updateWidget&botName=...&isActive=true&...
@@ -194,7 +226,7 @@ function RootLayoutNav() {
         // Extract query parameters
         const urlParts = url.split('?');
         if (urlParts.length < 2) {
-          console.log('[DeepLink] URL has no query parameters');
+          console.log('[DeepLink] URL has no query parameters, ignoring');
           return;
         }
         
@@ -216,12 +248,13 @@ function RootLayoutNav() {
           let isPaused = params.get('isPaused') === 'true';
           let botImageURL = params.get('botImageURL') || null;
 
-          console.log('[DeepLink] Parsed widget params:', { botName, isActive, isPaused, botImageURL });
+          console.log('[DeepLink] Parsed widget params:', { botName, isActive, isPaused, hasImageURL: !!botImageURL });
 
           // If botName is missing, try to get it from app state
           if (!botName && eas.length > 0) {
             const primaryEA = eas[0];
             botName = primaryEA?.name || 'EA Trade';
+            console.log('[DeepLink] Using botName from app state:', botName);
             
             // Get bot image URL from EA data
             if (!botImageURL && primaryEA?.userData?.owner?.logo) {
@@ -239,10 +272,11 @@ function RootLayoutNav() {
             // Use current bot active state if not provided
             if (params.get('isActive') === null) {
               isActive = isBotActive;
+              console.log('[DeepLink] Using isActive from app state:', isActive);
             }
           }
 
-          console.log('[DeepLink] Final widget update params:', { botName, isActive, isPaused, botImageURL });
+          console.log('[DeepLink] 📱 Updating widget from deep link:', { botName, isActive, isPaused, botImageURL });
 
           // Update widget via native module
           const { widgetService } = await import('@/services/widget-service');
@@ -262,19 +296,24 @@ function RootLayoutNav() {
         console.log('[DeepLink] App opened with initial URL:', url);
         handleDeepLink(url);
       } else {
-        console.log('[DeepLink] No initial URL - app opened normally');
+        console.log('[DeepLink] No initial URL found');
       }
     }).catch(err => {
-      console.error('[DeepLink] ❌ Error getting initial URL:', err);
+      console.error('[DeepLink] Error getting initial URL:', err);
     });
 
     // Listen for deep links while app is running
     const subscription = Linking.addEventListener('url', (event) => {
-      console.log('[DeepLink] Deep link received while app running:', event.url);
+      console.log('[DeepLink] 🔔 Deep link received while app running:', event.url);
       handleDeepLink(event.url);
     });
 
-    return () => subscription.remove();
+    console.log('[DeepLink] Deep link listener registered');
+
+    return () => {
+      console.log('[DeepLink] Removing deep link listener');
+      subscription.remove();
+    };
   }, [eas, isBotActive]);
 
   return (
@@ -291,14 +330,16 @@ function RootLayoutNav() {
         <Stack.Screen name="license" />
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
-      {/* DynamicIsland: React-based overlay works on all platforms including iOS PWA
-          Note: Native iOS widgets (Live Activities) are NOT possible from PWAs
-          PWAs cannot access WidgetKit/ActivityKit APIs, so we use React overlay */}
-      <DynamicIsland
-        visible={!isFirstTime && eas.length > 0 && isBotActive}
-        newSignal={newSignal}
-        onSignalDismiss={dismissNewSignal}
-      />
+      {/* DynamicIsland: Hide React overlay on iOS PWA, show native widgets instead
+          On native iOS app, show React overlay as fallback
+          On web (non-PWA), show React overlay */}
+      {!(Platform.OS === 'web' && isIOSPWA()) && (
+        <DynamicIsland
+          visible={!isFirstTime && eas.length > 0 && isBotActive}
+          newSignal={newSignal}
+          onSignalDismiss={dismissNewSignal}
+        />
+      )}
 
       {/* Trading WebView Modal */}
       <TradingWebView
