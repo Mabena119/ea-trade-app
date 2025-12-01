@@ -169,14 +169,32 @@ if (fs.existsSync(indexPath)) {
     // Ensure React Native Web event handling works
     (function() {
       if (typeof window !== 'undefined') {
-        // Wait for React to mount
-        window.addEventListener('DOMContentLoaded', function() {
+        function initEventHandling() {
           // Ensure touch events work
           document.body.style.touchAction = 'manipulation';
-          // Force enable pointer events
           document.body.style.pointerEvents = 'auto';
+          
+          // Ensure root element allows events
+          const root = document.getElementById('root');
+          if (root) {
+            root.style.touchAction = 'manipulation';
+            root.style.pointerEvents = 'auto';
+          }
+          
           console.log('React Native Web event handling initialized');
-        });
+        }
+        
+        // Initialize immediately
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initEventHandling);
+        } else {
+          initEventHandling();
+        }
+        
+        // Also initialize after a delay to catch React mounting
+        setTimeout(initEventHandling, 100);
+        setTimeout(initEventHandling, 500);
+        setTimeout(initEventHandling, 1000);
       }
     })();
   </script>`;
