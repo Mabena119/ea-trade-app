@@ -5,6 +5,7 @@ import { Platform, Alert } from 'react-native';
 import { LicenseData } from '@/services/api';
 import signalsMonitor, { SignalLog } from '@/services/signals-monitor';
 import databaseSignalsPollingService, { DatabaseSignal } from '@/services/database-signals-polling';
+import { isIOSPWA } from '@/utils/pwa-detection';
 
 export interface User {
   mentorId: string;
@@ -697,20 +698,28 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
 
-      // Update iOS widget if on iOS
-      if (Platform.OS === 'ios') {
+      // Update iOS widget if on iOS (native app or PWA)
+      const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+      if (isIOS) {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
         const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
         
         // Get bot image URL using the same logic as home page
         const botImageURL = getEAImageUrl(primaryEA);
-        console.log('Updating widget with image URL:', { botName, active, botImageURL, eaLogo: primaryEA?.userData?.owner?.logo, hasUserData: !!primaryEA?.userData, hasOwner: !!primaryEA?.userData?.owner });
+        console.log('[Widget] Updating widget:', { 
+          platform: Platform.OS, 
+          isPWA: Platform.OS === 'web' && isIOSPWA(),
+          botName, 
+          active, 
+          botImageURL 
+        });
         
         try {
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, active, isPollingPaused, botImageURL);
+          console.log('[Widget] Widget update triggered successfully');
         } catch (error) {
-          console.error('Error updating iOS widget:', error);
+          console.error('[Widget] Error updating iOS widget:', error);
         }
       }
 
@@ -789,8 +798,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setIsPollingPaused(true);
     setIsDatabaseSignalsPolling(false);
 
-    // Update iOS widget
-    if (Platform.OS === 'ios') {
+    // Update iOS widget (native app or PWA)
+    const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+    if (isIOS) {
       const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
       const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
       const botImageURL = getEAImageUrl(primaryEA);
@@ -814,8 +824,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setIsPollingPaused(false);
       setIsDatabaseSignalsPolling(true);
 
-      // Update iOS widget
-      if (Platform.OS === 'ios') {
+      // Update iOS widget (native app or PWA)
+      const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+      if (isIOS) {
         const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
         const botImageURL = getEAImageUrl(primaryEA);
         
@@ -915,9 +926,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setSignalLogs(signalsMonitor.getSignalLogs());
   }, []);
 
-  // Update iOS widget whenever EAs or bot state changes
+  // Update iOS widget whenever EAs or bot state changes (native app or PWA)
   useEffect(() => {
-    if (Platform.OS === 'ios') {
+    const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
+    if (isIOS) {
       const updateWidget = async () => {
         try {
           const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -925,11 +937,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           
           // Get bot image URL using the same logic as home page
           const botImageURL = getEAImageUrl(primaryEA);
-          console.log('Updating widget with image URL:', { botName, isBotActive, botImageURL, eaLogo: primaryEA?.userData?.owner?.logo, hasUserData: !!primaryEA?.userData, hasOwner: !!primaryEA?.userData?.owner });
+          console.log('[Widget] Updating widget:', { 
+            platform: Platform.OS, 
+            isPWA: Platform.OS === 'web' && isIOSPWA(),
+            botName, 
+            isBotActive, 
+            botImageURL 
+          });
           
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isBotActive, isPollingPaused, botImageURL);
-          console.log('iOS widget updated:', { botName, isBotActive, botImageURL });
+          console.log('[Widget] Widget updated successfully:', { botName, isBotActive, botImageURL });
         } catch (error) {
           console.error('Error updating iOS widget:', error);
         }
