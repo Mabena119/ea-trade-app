@@ -203,21 +203,65 @@ function RootLayoutNav() {
     return () => subscription?.remove();
   }, [appState]);
 
+  // On iOS native app open, check if widgets should be created (even without deep link)
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    
+    // Wait a bit for app state to initialize
+    const timer = setTimeout(async () => {
+      if (!isFirstTime && eas.length > 0 && isBotActive) {
+        try {
+          console.log('[Widget] Native app opened - checking if widgets should be created');
+          const primaryEA = eas[0];
+          const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+          
+          // Get bot image URL
+          let botImageURL: string | null = null;
+          if (primaryEA?.userData?.owner?.logo) {
+            const raw = primaryEA.userData.owner.logo.toString().trim();
+            if (raw) {
+              if (/^https?:\/\//i.test(raw)) {
+                botImageURL = raw;
+              } else {
+                const filename = raw.replace(/^\/+/, '');
+                botImageURL = `https://ea-converter.com/admin/uploads/${filename}`;
+              }
+            }
+          }
+          
+          const { widgetService } = await import('@/services/widget-service');
+          await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
+          console.log('[Widget] ✅ Widgets created/updated on app open');
+        } catch (error) {
+          console.error('[Widget] ❌ Error creating widgets on app open:', error);
+        }
+      }
+    }, 2000); // Wait 2 seconds for app state to initialize
+    
+    return () => clearTimeout(timer);
+  }, [isFirstTime, eas, isBotActive, Platform.OS]);
+
   // Handle deep links from PWA for widget updates (iOS only)
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
 
     const handleDeepLink = async (url: string) => {
       try {
-        console.log('Received deep link:', url);
+        console.log('[DeepLink] Received deep link:', url);
         
         // Parse URL manually (works on both web and native)
         // Format: myapp://widget?action=updateWidget&botName=...&isActive=true&...
-        if (!url.includes('widget')) return;
+        if (!url.includes('widget')) {
+          console.log('[DeepLink] URL does not contain "widget", ignoring');
+          return;
+        }
         
         // Extract query parameters
         const urlParts = url.split('?');
-        if (urlParts.length < 2) return;
+        if (urlParts.length < 2) {
+          console.log('[DeepLink] URL has no query parameters');
+          return;
+        }
         
         const queryString = urlParts[1];
         const params = new Map<string, string>();
@@ -229,11 +273,15 @@ function RootLayoutNav() {
         });
         
         const action = params.get('action');
+        console.log('[DeepLink] Parsed action:', action);
+        
         if (action === 'updateWidget') {
           let botName = params.get('botName') || '';
           let isActive = params.get('isActive') === 'true';
           let isPaused = params.get('isPaused') === 'true';
           let botImageURL = params.get('botImageURL') || null;
+
+          console.log('[DeepLink] Parsed widget params:', { botName, isActive, isPaused, botImageURL });
 
           // If botName is missing, try to get it from app state
           if (!botName && eas.length > 0) {
@@ -259,31 +307,35 @@ function RootLayoutNav() {
             }
           }
 
-          console.log('Received widget update from PWA:', { botName, isActive, isPaused, botImageURL });
+          console.log('[DeepLink] Final widget update params:', { botName, isActive, isPaused, botImageURL });
 
           // Update widget via native module
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isActive, isPaused, botImageURL);
-          console.log('Widget updated successfully from deep link');
+          console.log('[DeepLink] ✅ Widget updated successfully from deep link');
+        } else {
+          console.log('[DeepLink] Unknown action:', action);
         }
       } catch (error) {
-        console.error('Error handling deep link for widget update:', error);
+        console.error('[DeepLink] ❌ Error handling deep link for widget update:', error);
       }
     };
 
     // Handle initial URL (if app was opened via deep link)
     Linking.getInitialURL().then((url) => {
       if (url) {
-        console.log('App opened with initial URL:', url);
+        console.log('[DeepLink] App opened with initial URL:', url);
         handleDeepLink(url);
+      } else {
+        console.log('[DeepLink] No initial URL - app opened normally');
       }
     }).catch(err => {
-      console.error('Error getting initial URL:', err);
+      console.error('[DeepLink] ❌ Error getting initial URL:', err);
     });
 
     // Listen for deep links while app is running
     const subscription = Linking.addEventListener('url', (event) => {
-      console.log('Deep link received while app running:', event.url);
+      console.log('[DeepLink] Deep link received while app running:', event.url);
       handleDeepLink(event.url);
     });
 
