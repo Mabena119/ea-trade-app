@@ -217,14 +217,23 @@ class WidgetDataManager: RCTEventEmitter {
             let contentState = EATradeWidgetAttributes.ContentState(botName: botName, isActive: isActive, isPaused: isPaused, botImageLocalPath: botImageLocalPath)
             
             if isActive {
-                // Start or update Live Activity
-                if let activity = currentActivity as? Activity<EATradeWidgetAttributes> {
+                // Check for existing activities first (in case app restarted and lost reference)
+                let existingActivities = Activity<EATradeWidgetAttributes>.activities
+                if let existingActivity = existingActivities.first {
                     // Update existing activity
+                    print("📱 Updating existing Live Activity")
+                    Task {
+                        await existingActivity.update(using: contentState)
+                    }
+                    currentActivity = existingActivity
+                } else if let activity = currentActivity as? Activity<EATradeWidgetAttributes> {
+                    // Update stored activity reference
                     Task {
                         await activity.update(using: contentState)
                     }
                 } else {
                     // Start new activity
+                    print("📱 Starting new Live Activity")
                     if ActivityAuthorizationInfo().areActivitiesEnabled {
                         do {
                             let activity = try Activity<EATradeWidgetAttributes>.request(
@@ -233,22 +242,23 @@ class WidgetDataManager: RCTEventEmitter {
                                 pushType: nil
                             )
                             currentActivity = activity
-                            print("Live Activity started: \(botName)")
+                            print("✅ Live Activity started: \(botName)")
                         } catch {
-                            print("Failed to start Live Activity: \(error)")
+                            print("❌ Failed to start Live Activity: \(error)")
                         }
                     } else {
-                        print("Live Activities are not enabled")
+                        print("⚠️ Live Activities are not enabled")
                     }
                 }
             } else {
-                // End Live Activity
-                if let activity = currentActivity as? Activity<EATradeWidgetAttributes> {
+                // End Live Activity - check both stored reference and existing activities
+                let existingActivities = Activity<EATradeWidgetAttributes>.activities
+                if let activity = existingActivities.first ?? (currentActivity as? Activity<EATradeWidgetAttributes>) {
                     Task {
                         await activity.end(dismissalPolicy: .immediate)
                     }
                     currentActivity = nil
-                    print("Live Activity ended")
+                    print("✅ Live Activity ended")
                 }
             }
         } else {

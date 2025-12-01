@@ -18,15 +18,6 @@ struct EATradeWidgetLiveActivity: Widget {
             // Debug: Log the image local path
             let _ = print("🎨 Live Activity rendering - botName: \(context.state.botName), isActive: \(context.state.isActive), imageLocalPath: \(context.state.botImageLocalPath ?? "nil")")
             
-            // Create a unique button ID that changes on every render to force recreation
-            // This ensures buttons remain interactive even after moving away and coming back
-            let timestamp = Date().timeIntervalSince1970
-            let buttonID = "\(context.state.botName)_\(context.state.isPaused)_\(context.state.isActive)_\(Int(timestamp * 1000) % 10000)"
-            
-            // Create a fresh intent instance on every render to ensure it's always valid
-            // This is critical for maintaining functionality when app is backgrounded
-            let toggleIntent = ToggleBotIntent()
-            
             // Notification Center UI (like music app)
             HStack(spacing: 12) {
                     // Bot Icon
@@ -110,9 +101,7 @@ struct EATradeWidgetLiveActivity: Widget {
                 
                 // Control Buttons
                 HStack(spacing: 8) {
-                    // Use the fresh intent instance created at the top level
-                    // This ensures the intent is always valid and not stale
-                    Button(intent: toggleIntent) {
+                    Button(intent: ToggleBotIntent()) {
                         Image(systemName: context.state.isPaused ? "play.fill" : "stop.fill")
                             .font(.system(size: 16))
                             .foregroundColor(.white)
@@ -121,12 +110,8 @@ struct EATradeWidgetLiveActivity: Widget {
                                 Circle()
                                     .fill(context.state.isPaused ? Color.green : Color.red)
                             )
-                            .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .id("toggleButton_nc_\(buttonID)")
-                    .allowsHitTesting(true)
-                    .disabled(false)
                     
                     Button(intent: OpenQuotesIntent()) {
                         Image(systemName: "chart.bar.fill")
@@ -145,16 +130,7 @@ struct EATradeWidgetLiveActivity: Widget {
             .activitySystemActionForegroundColor(Color.white)
 
         } dynamicIsland: { context in
-            // Create a unique button ID that changes on every render to force recreation
-            // This ensures buttons remain interactive even after moving away and coming back
-            let timestamp = Date().timeIntervalSince1970
-            let buttonID = "\(context.state.botName)_\(context.state.isPaused)_\(context.state.isActive)_\(Int(timestamp * 1000) % 10000)"
-            
-            // Create a fresh intent instance on every render to ensure it's always valid
-            // This is critical for maintaining functionality when app is backgrounded
-            let toggleIntent = ToggleBotIntent()
-            
-            return DynamicIsland {
+            DynamicIsland {
                 // Expanded UI - Leading region with bot icon only
                 DynamicIslandExpandedRegion(.leading) {
                     // Bot Icon with status indicator
@@ -224,9 +200,9 @@ struct EATradeWidgetLiveActivity: Widget {
                 // Expanded UI - Trailing region with controls
                 DynamicIslandExpandedRegion(.trailing) {
                     HStack(spacing: 12) {
-                        // Use the fresh intent instance created at the top level
-                        // This ensures the intent is always valid and not stale
-                        Button(intent: toggleIntent) {
+                        // Start/Stop button with improved styling
+                        // Use .id() to force button recreation when state changes, ensuring it works after collapse/expand
+                        Button(intent: ToggleBotIntent()) {
                             Image(systemName: context.state.isPaused ? "play.fill" : "stop.fill")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
@@ -255,9 +231,8 @@ struct EATradeWidgetLiveActivity: Widget {
                                 .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .id("toggleButton_di_\(buttonID)")
                         .allowsHitTesting(true)
-                        .disabled(false)
+                        .id("toggle-\(context.state.isPaused)-\(context.state.botName)")
                         
                         // Quotes button with improved styling
                         Button(intent: OpenQuotesIntent()) {
