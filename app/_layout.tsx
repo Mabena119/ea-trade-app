@@ -181,12 +181,14 @@ function RootLayoutNav() {
         <Stack.Screen name="license" />
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
-      {/* Always render DynamicIsland when conditions are met, regardless of app state */}
-      <DynamicIsland
-        visible={!isFirstTime && eas.length > 0 && isBotActive}
-        newSignal={newSignal}
-        onSignalDismiss={dismissNewSignal}
-      />
+      {/* DynamicIsland only works on iOS native app, not on web */}
+      {Platform.OS === 'ios' && (
+        <DynamicIsland
+          visible={!isFirstTime && eas.length > 0 && isBotActive}
+          newSignal={newSignal}
+          onSignalDismiss={dismissNewSignal}
+        />
+      )}
 
       {/* Trading WebView Modal */}
       <TradingWebView
