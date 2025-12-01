@@ -98,31 +98,6 @@ struct EATradeWidgetLiveActivity: Widget {
                 }
                 
                 Spacer()
-                
-                // Control Buttons
-                HStack(spacing: 8) {
-                    Button(intent: ToggleBotIntent()) {
-                        Image(systemName: context.state.isPaused ? "play.fill" : "stop.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                Circle()
-                                    .fill(context.state.isPaused ? Color.green : Color.red)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button(intent: OpenQuotesIntent()) {
-                        Image(systemName: "chart.bar.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -197,75 +172,9 @@ struct EATradeWidgetLiveActivity: Widget {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
-                // Expanded UI - Trailing region with controls
+                // Expanded UI - Trailing region (empty - no buttons)
                 DynamicIslandExpandedRegion(.trailing) {
-                    HStack(spacing: 12) {
-                        // Start/Stop button with improved styling
-                        // Use .id() to force button recreation when state changes, ensuring it works after collapse/expand
-                        Button(intent: ToggleBotIntent()) {
-                            Image(systemName: context.state.isPaused ? "play.fill" : "stop.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 52, height: 52)
-                                .background(
-                                    Circle()
-                                        .fill(
-                                            LinearGradient(
-                                                gradient: Gradient(colors: context.state.isPaused ? [
-                                                    Color.green.opacity(0.95),
-                                                    Color.green.opacity(0.85)
-                                                ] : [
-                                                    Color.red.opacity(0.95),
-                                                    Color.red.opacity(0.85)
-                                                ]),
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.25), lineWidth: 1.5)
-                                )
-                                .shadow(color: (context.state.isPaused ? Color.green : Color.red).opacity(0.4), radius: 6, x: 0, y: 2)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .allowsHitTesting(true)
-                        .id("toggle-\(context.state.isPaused)-\(context.state.botName)")
-                        
-                        // Quotes button with improved styling
-                        Button(intent: OpenQuotesIntent()) {
-                            Image(systemName: "chart.bar.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 52, height: 52)
-                                .background(
-                                    Circle()
-                                        .fill(
-                                            LinearGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.white.opacity(0.2),
-                                                    Color.white.opacity(0.1)
-                                                ]),
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.25), lineWidth: 1.5)
-                                )
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .allowsHitTesting(true)
-                    }
-                    .padding(.trailing, 22)
-                    .padding(.vertical, 4)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .allowsHitTesting(true)
+                    Spacer()
                 }
                 
                 // Expanded UI - Bottom region with bot name and status
