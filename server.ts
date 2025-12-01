@@ -216,7 +216,21 @@ async function serveStatic(request: Request): Promise<Response> {
         htmlContent = htmlContent.replace('<head>', `<head>\n  ${correctViewport}`);
       }
       
-      // Add responsive CSS - override expo-reset overflow:hidden which blocks all interactions
+      // CRITICAL: Override expo-reset overflow:hidden which blocks ALL interactions
+      // Replace the entire expo-reset style block to fix overflow
+      htmlContent = htmlContent.replace(
+        /<style id="expo-reset">([\s\S]*?)<\/style>/,
+        (match, content) => {
+          // Replace body overflow:hidden with overflow-y:auto
+          const fixedContent = content.replace(
+            /body\s*\{[^}]*overflow:\s*hidden[^}]*\}/,
+            'body { overflow-y: auto !important; overflow-x: hidden !important; }'
+          );
+          return `<style id="expo-reset">${fixedContent}</style>`;
+        }
+      );
+      
+      // Add responsive CSS and ensure React Native Web events work
       if (!htmlContent.includes('safe-area-inset-top')) {
         const responsiveStyle = `
   <style>
@@ -224,41 +238,42 @@ async function serveStatic(request: Request): Promise<Response> {
       overflow-x: hidden;
       max-width: 100vw;
     }
-    /* CRITICAL: Override expo-reset overflow:hidden - this blocks ALL interactions */
+    /* Ensure body allows interactions - CRITICAL for React Native Web */
     body {
       overflow-y: auto !important;
       overflow-x: hidden !important;
-      pointer-events: auto;
+      touch-action: manipulation;
     }
     #root, [data-reactroot] {
       max-width: 100vw;
       overflow-x: hidden;
-      pointer-events: auto;
+      touch-action: manipulation;
     }
     /* Prevent horizontal scroll on mobile */
     @media screen and (max-width: 768px) {
       body {
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
-        overflow-y: auto !important;
       }
       #root, [data-reactroot] {
         width: 100vw;
         max-width: 100vw;
       }
     }
-  </style>`;
-        htmlContent = htmlContent.replace('</head>', `${responsiveStyle}\n</head>`);
+  </style>
+  <script>
+    // Ensure React Native Web event handling works
+    (function() {
+      if (typeof window !== 'undefined') {
+        window.addEventListener('DOMContentLoaded', function() {
+          document.body.style.touchAction = 'manipulation';
+          document.body.style.pointerEvents = 'auto';
+          console.log('React Native Web event handling initialized');
+        });
       }
-      
-      // CRITICAL FIX: Remove or override expo-reset overflow:hidden that blocks interactions
-      const expoResetRegex = /<style id="expo-reset">(.*?)<\/style>/s;
-      if (expoResetRegex.test(htmlContent)) {
-        // Replace expo-reset overflow:hidden with overflow-y:auto
-        htmlContent = htmlContent.replace(
-          /body\s*\{[^}]*overflow:\s*hidden[^}]*\}/g,
-          'body { overflow-y: auto !important; overflow-x: hidden !important; }'
-        );
+    })();
+  </script>`;
+        htmlContent = htmlContent.replace('</head>', `${responsiveStyle}\n</head>`);
       }
       
       return new Response(htmlContent, {

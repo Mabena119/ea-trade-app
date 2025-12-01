@@ -119,12 +119,20 @@ if (fs.existsSync(indexPath)) {
   }
   
   // CRITICAL: Override expo-reset overflow:hidden which blocks ALL interactions
+  // Replace the entire expo-reset style block to fix overflow
   html = html.replace(
-    /body\s*\{[^}]*overflow:\s*hidden[^}]*\}/g,
-    'body { overflow-y: auto !important; overflow-x: hidden !important; }'
+    /<style id="expo-reset">([\s\S]*?)<\/style>/,
+    (match, content) => {
+      // Replace body overflow:hidden with overflow-y:auto
+      const fixedContent = content.replace(
+        /body\s*\{[^}]*overflow:\s*hidden[^}]*\}/,
+        'body { overflow-y: auto !important; overflow-x: hidden !important; }'
+      );
+      return `<style id="expo-reset">${fixedContent}</style>`;
+    }
   );
   
-  // Add responsive CSS if not present
+  // Add responsive CSS and ensure React Native Web events work
   if (!html.includes('safe-area-inset-top')) {
     const responsiveStyle = `
   <style>
@@ -132,14 +140,18 @@ if (fs.existsSync(indexPath)) {
       overflow-x: hidden;
       max-width: 100vw;
     }
-    /* Ensure body allows interactions */
+    /* Ensure body allows interactions - CRITICAL for React Native Web */
     body {
       overflow-y: auto !important;
       overflow-x: hidden !important;
+      /* Ensure events can propagate */
+      touch-action: manipulation;
     }
     #root, [data-reactroot] {
       max-width: 100vw;
       overflow-x: hidden;
+      /* Ensure root doesn't block events */
+      touch-action: manipulation;
     }
     /* Prevent horizontal scroll on mobile */
     @media screen and (max-width: 768px) {
@@ -152,7 +164,22 @@ if (fs.existsSync(indexPath)) {
         max-width: 100vw;
       }
     }
-  </style>`;
+  </style>
+  <script>
+    // Ensure React Native Web event handling works
+    (function() {
+      if (typeof window !== 'undefined') {
+        // Wait for React to mount
+        window.addEventListener('DOMContentLoaded', function() {
+          // Ensure touch events work
+          document.body.style.touchAction = 'manipulation';
+          // Force enable pointer events
+          document.body.style.pointerEvents = 'auto';
+          console.log('React Native Web event handling initialized');
+        });
+      }
+    })();
+  </script>`;
     html = html.replace('</head>', `${responsiveStyle}\n</head>`);
   }
   
