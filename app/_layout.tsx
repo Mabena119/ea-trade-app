@@ -4,7 +4,7 @@ import React, { useEffect, useState, Component, ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
-import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState } from "react-native";
+import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
@@ -166,6 +166,43 @@ function RootLayoutNav() {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
   }, [appState]);
+
+  // Handle deep links from PWA for widget updates (iOS only)
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+
+    const handleDeepLink = async (url: string) => {
+      try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.hostname === 'widget' && parsedUrl.searchParams.get('action') === 'updateWidget') {
+          const botName = parsedUrl.searchParams.get('botName') || '';
+          const isActive = parsedUrl.searchParams.get('isActive') === 'true';
+          const isPaused = parsedUrl.searchParams.get('isPaused') === 'true';
+          const botImageURL = parsedUrl.searchParams.get('botImageURL');
+
+          console.log('Received widget update from PWA:', { botName, isActive, isPaused, botImageURL });
+
+          // Update widget via native module
+          const { widgetService } = await import('@/services/widget-service');
+          await widgetService.updateWidget(botName, isActive, isPaused, botImageURL || null);
+        }
+      } catch (error) {
+        console.error('Error handling deep link for widget update:', error);
+      }
+    };
+
+    // Handle initial URL (if app was opened via deep link)
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url);
+    });
+
+    // Listen for deep links while app is running
+    const subscription = Linking.addEventListener('url', (event) => {
+      handleDeepLink(event.url);
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
