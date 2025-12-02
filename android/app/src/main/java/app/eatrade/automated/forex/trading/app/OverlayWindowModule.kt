@@ -86,14 +86,19 @@ class OverlayWindowModule(reactContext: ReactApplicationContext) : ReactContextB
                 width,
                 height,
                 layoutParamsType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
                 this.x = x
                 this.y = y
+                // Ensure overlay appears above all other windows
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                }
             }
 
             // Create overlay container
