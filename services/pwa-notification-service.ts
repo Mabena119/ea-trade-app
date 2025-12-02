@@ -66,6 +66,7 @@ class PWANotificationService {
 
   /**
    * Initialize app state tracking for iOS PWA
+   * Uses Page Visibility API for web (more reliable than AppState on web)
    * Call this once when the service is first used
    */
   initializeAppStateTracking(): void {
@@ -73,24 +74,53 @@ class PWANotificationService {
       return;
     }
 
-    // Get current app state
-    this.currentAppState = AppState.currentState;
-    console.log('[Notifications] Initial app state:', this.currentAppState);
+    if (typeof document === 'undefined') {
+      return;
+    }
 
-    // Listen for app state changes
+    // Use Page Visibility API for web (more reliable than AppState)
+    const isVisible = !document.hidden;
+    this.currentAppState = isVisible ? 'active' : 'background';
+    console.log('[Notifications] Initial app state (Page Visibility):', this.currentAppState, 'hidden:', document.hidden);
+
+    // Listen for visibility changes (when user switches apps or backgrounds the page)
     if (!this.appStateListener) {
-      this.appStateListener = AppState.addEventListener('change', (nextAppState) => {
+      const handleVisibilityChange = () => {
+        const isNowVisible = !document.hidden;
+        const previousState = this.currentAppState;
+        this.currentAppState = isNowVisible ? 'active' : 'background';
+        
+        console.log('[Notifications] Page visibility changed:', previousState, '->', this.currentAppState, 'hidden:', document.hidden);
+
+        // When page becomes hidden (app goes to background), show pending notification if bot is active
+        if (previousState === 'active' && !isNowVisible) {
+          console.log('[Notifications] Page hidden (app backgrounded) - checking for pending notification');
+          this.showPendingNotificationIfActive();
+        }
+      };
+
+      // Also listen to AppState as fallback
+      const handleAppStateChange = (nextAppState: string) => {
         const previousState = this.currentAppState;
         this.currentAppState = nextAppState;
         
-        console.log('[Notifications] App state changed:', previousState, '->', nextAppState);
+        console.log('[Notifications] AppState changed:', previousState, '->', nextAppState);
 
         // When app goes to background, show pending notification if bot is active
         if (previousState === 'active' && nextAppState.match(/inactive|background/)) {
-          console.log('[Notifications] App moved to background - checking for pending notification');
+          console.log('[Notifications] AppState backgrounded - checking for pending notification');
           this.showPendingNotificationIfActive();
         }
-      });
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+      
+      // Store both listeners for cleanup
+      this.appStateListener = {
+        visibility: handleVisibilityChange,
+        appState: appStateSubscription,
+      };
     }
   }
 
@@ -401,16 +431,23 @@ class PWANotificationService {
       botImageURL,
     };
 
-    // Check current app state
-    const isInBackground = this.currentAppState.match(/inactive|background/);
+    // Check if page is hidden (using Page Visibility API for web)
+    const isPageHidden = typeof document !== 'undefined' && document.hidden;
+    const isInBackground = isPageHidden || this.currentAppState.match(/inactive|background/);
+    
+    console.log('[Notifications] Visibility check:', {
+      documentHidden: isPageHidden,
+      appState: this.currentAppState,
+      isInBackground,
+    });
     
     if (isInBackground) {
-      // App is in background - show notification immediately
-      console.log('[Notifications] App is in background - showing notification now');
+      // App/page is in background - show notification immediately
+      console.log('[Notifications] App/page is in background - showing notification now');
       await this.createNotification(botName, isActive, isPaused, botImageURL);
     } else {
-      // App is in foreground - store as pending, will show when app goes to background
-      console.log('[Notifications] App is in foreground - notification will show when app goes to background');
+      // App/page is in foreground - store as pending, will show when app goes to background
+      console.log('[Notifications] App/page is in foreground - notification will show when app goes to background');
       console.log('[Notifications] Pending notification stored:', { botName, isActive, isPaused });
     }
   }

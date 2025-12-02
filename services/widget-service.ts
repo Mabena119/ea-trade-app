@@ -29,7 +29,15 @@ class WidgetService implements WidgetService {
     const isPWA = Platform.OS === 'web' && isIOSPWA();
     console.log('[WidgetService] PWA check:', { isPWA, platform: Platform.OS });
     
-    // Try native modules first (works in native iOS app)
+    // Widgets don't work in PWAs - skip widget updates for PWA
+    // Use notifications instead (handled by pwa-notification-service)
+    if (isPWA) {
+      console.log('[WidgetService] Running as iOS PWA - widgets not supported, skipping widget update');
+      console.log('[WidgetService] Use notifications instead for PWA (handled by notification service)');
+      return;
+    }
+    
+    // Try native modules (works in native iOS app only)
     if (Platform.OS === 'ios' && WidgetDataManager) {
       try {
         await WidgetDataManager.updateWidgetData(botName, isActive, isPaused, botImageURL || null);
@@ -37,41 +45,9 @@ class WidgetService implements WidgetService {
         return;
       } catch (error) {
         console.error('[WidgetService] ❌ Error updating widget via native module:', error);
-        // Fall through to PWA communication
-      }
-    }
-
-    // If PWA on iOS, try to communicate with native app
-    if (isPWA) {
-      console.log('[WidgetService] Running as iOS PWA - triggering native app...');
-      try {
-        // Store widget data in localStorage for native app to read
-        const widgetData = {
-          botName,
-          isActive,
-          isPaused,
-          botImageURL: botImageURL || null,
-          timestamp: Date.now(),
-        };
-        
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.setItem('widgetData', JSON.stringify(widgetData));
-          console.log('[WidgetService] ✅ Widget data stored in localStorage:', widgetData);
-        }
-
-        // Try to trigger native app via URL scheme
-        // This will open the native app if it's installed
-        const triggered = await triggerNativeApp('updateWidget', widgetData);
-        if (triggered) {
-          console.log('[WidgetService] ✅ Triggered native app for widget update via URL scheme');
-        } else {
-          console.warn('[WidgetService] ⚠️ Failed to trigger native app - native app may not be installed');
-        }
-      } catch (error) {
-        console.error('[WidgetService] ❌ Error communicating with native app from PWA:', error);
       }
     } else {
-      console.log('[WidgetService] Not iOS PWA - skipping widget update');
+      console.log('[WidgetService] Not native iOS app - skipping widget update');
     }
   }
 
