@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
 
 interface NotificationOptions {
@@ -10,9 +10,19 @@ interface NotificationOptions {
   requireInteraction?: boolean;
 }
 
+interface PendingNotification {
+  botName: string;
+  isActive: boolean;
+  isPaused: boolean;
+  botImageURL?: string | null;
+}
+
 class PWANotificationService {
   private permissionGranted: boolean | null = null;
   private notificationTag = 'ea-trade-bot-status';
+  private pendingNotification: PendingNotification | null = null;
+  private appStateListener: any = null;
+  private currentAppState: string = 'active';
 
   /**
    * Request notification permission from the user
@@ -51,6 +61,57 @@ class PWANotificationService {
       console.error('[Notifications] Error requesting permission:', error);
       this.permissionGranted = false;
       return false;
+    }
+  }
+
+  /**
+   * Initialize app state tracking for iOS PWA
+   * Call this once when the service is first used
+   */
+  initializeAppStateTracking(): void {
+    if (Platform.OS !== 'web' || !isIOSPWA()) {
+      return;
+    }
+
+    // Get current app state
+    this.currentAppState = AppState.currentState;
+    console.log('[Notifications] Initial app state:', this.currentAppState);
+
+    // Listen for app state changes
+    if (!this.appStateListener) {
+      this.appStateListener = AppState.addEventListener('change', (nextAppState) => {
+        const previousState = this.currentAppState;
+        this.currentAppState = nextAppState;
+        
+        console.log('[Notifications] App state changed:', previousState, '->', nextAppState);
+
+        // When app goes to background, show pending notification if bot is active
+        if (previousState === 'active' && nextAppState.match(/inactive|background/)) {
+          console.log('[Notifications] App moved to background - checking for pending notification');
+          this.showPendingNotificationIfActive();
+        }
+      });
+    }
+  }
+
+  /**
+   * Show pending notification if bot is active
+   * Called when app moves to background
+   */
+  private async showPendingNotificationIfActive(): Promise<void> {
+    if (!this.pendingNotification) {
+      console.log('[Notifications] No pending notification to show');
+      return;
+    }
+
+    const { botName, isActive, isPaused, botImageURL } = this.pendingNotification;
+
+    // Only show notification if bot is active
+    if (isActive) {
+      console.log('[Notifications] Bot is active - showing notification in background');
+      await this.createNotification(botName, isActive, isPaused, botImageURL);
+    } else {
+      console.log('[Notifications] Bot is inactive - not showing notification');
     }
   }
 
@@ -206,29 +267,18 @@ class PWANotificationService {
   }
 
   /**
-   * Show a persistent notification that stays in Notification Center
-   * This replaces the previous notification with the same tag
+   * Create and show the actual notification
+   * This is called when app is in background
    */
-  async showPersistentBotNotification(
+  private async createNotification(
     botName: string,
     isActive: boolean,
     isPaused: boolean,
     botImageURL?: string | null
   ): Promise<void> {
-    if (Platform.OS !== 'web') {
-      return;
-    }
-
-    // Only show notifications for iOS PWA
-    if (!isIOSPWA()) {
-      return;
-    }
-
     if (!this.hasPermission()) {
-      const granted = await this.requestPermission();
-      if (!granted) {
-        return;
-      }
+      console.log('[Notifications] No permission - cannot create notification');
+      return;
     }
 
     try {
@@ -243,12 +293,11 @@ class PWANotificationService {
       const title = `${statusEmoji} ${botName}`;
       const body = `Status: ${status}${isActive && !isPaused ? ' • Monitoring signals' : ''}`;
 
-      console.log('[Notifications] Creating notification with options:', {
+      console.log('[Notifications] Creating notification:', {
         title,
         body,
         tag: this.notificationTag,
-        hasIcon: !!botImageURL,
-        permission: Notification.permission,
+        appState: this.currentAppState,
       });
 
       // iOS Safari notification options - notification will appear in Notification Center
@@ -260,7 +309,6 @@ class PWANotificationService {
       };
 
       // iOS Safari may not support icon from remote URL, but try it
-      // If it fails, the notification will still show without icon
       if (botImageURL) {
         try {
           notificationOptions.icon = botImageURL;
@@ -281,26 +329,7 @@ class PWANotificationService {
       // Create notification
       const notification = new Notification(title, notificationOptions);
 
-      console.log('[Notifications] ✅ Notification created:', {
-        title,
-        body,
-        tag: notificationOptions.tag,
-        notification: notification ? 'created' : 'failed',
-        permission: Notification.permission,
-      });
-
-      // Verify notification was created
-      if (!notification) {
-        console.error('[Notifications] ❌ Notification object is null');
-        console.error('[Notifications] Check: Notification API available?', 'Notification' in window);
-        console.error('[Notifications] Check: Permission status?', Notification.permission);
-        return;
-      }
-
-      // Important: iOS Safari may not show notification banner when app is in foreground
-      // Notification will appear in Notification Center (swipe down from top)
-      console.log('[Notifications] ℹ️ Note: On iOS, notifications may only appear in Notification Center when app is in foreground.');
-      console.log('[Notifications] ℹ️ Swipe down from top of screen to see Notification Center.');
+      console.log('[Notifications] ✅ Notification created and sent to Notification Center');
 
       // Handle notification events
       notification.onclick = (event) => {
@@ -310,18 +339,14 @@ class PWANotificationService {
       };
 
       notification.onshow = () => {
-        console.log('[Notifications] ✅ Notification displayed (onshow event fired)');
+        console.log('[Notifications] ✅ Notification displayed');
       };
 
       notification.onerror = (error) => {
         console.error('[Notifications] ❌ Notification error:', error);
       };
 
-      notification.onclose = () => {
-        console.log('[Notifications] Notification closed');
-      };
-
-      // Also update app badge (more reliable on iOS)
+      // Also update app badge
       try {
         if ('setAppBadge' in navigator && typeof (navigator as any).setAppBadge === 'function') {
           await (navigator as any).setAppBadge(isActive ? 1 : 0);
@@ -331,17 +356,62 @@ class PWANotificationService {
         console.log('[Notifications] Badge API not available:', badgeError);
       }
 
-      // Notification sent to iOS Notification Center
-      // User can view it by swiping down from the top of the screen
-
     } catch (error) {
-      console.error('[Notifications] ❌ Error showing persistent notification:', error);
-      console.error('[Notifications] Error details:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        Notification: typeof Notification !== 'undefined' ? 'available' : 'not available',
-        permission: typeof Notification !== 'undefined' ? Notification.permission : 'N/A',
-      });
+      console.error('[Notifications] ❌ Error creating notification:', error);
+    }
+  }
+
+  /**
+   * Show a persistent notification that stays in Notification Center
+   * If app is in foreground, stores notification as pending to show when app goes to background
+   * If app is in background, shows notification immediately
+   */
+  async showPersistentBotNotification(
+    botName: string,
+    isActive: boolean,
+    isPaused: boolean,
+    botImageURL?: string | null
+  ): Promise<void> {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    // Only show notifications for iOS PWA
+    if (!isIOSPWA()) {
+      return;
+    }
+
+    // Initialize app state tracking if not already done
+    if (!this.appStateListener) {
+      this.initializeAppStateTracking();
+    }
+
+    if (!this.hasPermission()) {
+      const granted = await this.requestPermission();
+      if (!granted) {
+        return;
+      }
+    }
+
+    // Store notification data (always update pending notification)
+    this.pendingNotification = {
+      botName,
+      isActive,
+      isPaused,
+      botImageURL,
+    };
+
+    // Check current app state
+    const isInBackground = this.currentAppState.match(/inactive|background/);
+    
+    if (isInBackground) {
+      // App is in background - show notification immediately
+      console.log('[Notifications] App is in background - showing notification now');
+      await this.createNotification(botName, isActive, isPaused, botImageURL);
+    } else {
+      // App is in foreground - store as pending, will show when app goes to background
+      console.log('[Notifications] App is in foreground - notification will show when app goes to background');
+      console.log('[Notifications] Pending notification stored:', { botName, isActive, isPaused });
     }
   }
 
