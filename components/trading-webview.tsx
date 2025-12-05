@@ -1024,7 +1024,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 
     // Return the actual MT4/MT5 web terminal URL (not the proxy)
     const terminalUrl = tradeConfig.platform === 'MT4'
-      ? 'https://metatraderweb.app/trade?version=4'
+        ? 'https://metatraderweb.app/trade?version=4'
       : mt5Url;
 
     console.log('🎯 Trading WebView URL:', {
@@ -1093,10 +1093,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     }
 
     // Increment key to force WebView remount and destroy cached instance
-    setTimeout(() => {
+      setTimeout(() => {
       console.log('Trading webview cleanup completed - incrementing key to destroy instance');
       setWebViewKey(prev => prev + 1);
-    }, 500);
+      }, 500);
   }, [tradeConfig, getStorageClearScript]);
 
   // Handle WebView messages
@@ -1166,10 +1166,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           } else {
             // Cleanup webview before closing (both MT4 and MT5)
             cleanupTradingWebView();
-            // Close after cleanup delay
-            setTimeout(() => {
-              onClose();
-            }, 600);
+              // Close after cleanup delay
+              setTimeout(() => {
+                onClose();
+              }, 600);
           }
           break;
         case 'error':
@@ -1372,9 +1372,9 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                 onPress={() => {
                   // Cleanup before closing
                   cleanupTradingWebView();
-                  setTimeout(() => {
-                    onClose();
-                  }, 600);
+                    setTimeout(() => {
+                      onClose();
+                    }, 600);
                 }}
                 activeOpacity={0.8}
               >

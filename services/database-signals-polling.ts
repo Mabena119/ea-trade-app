@@ -10,10 +10,10 @@ const API_BASE_URL = (
 
 // Database configuration
 const dbConfig = {
-  host: '172.203.148.37.host.secureserver.net',
-  user: 'eauser',
-  password: 'snVO2i%fZSG%',
-  database: 'eaconverter',
+  host: '18.235.43.127',
+  user: 'eatradeadmin',
+  password: 'eatrade@2026',
+  database: 'eatrade',
   port: 3306,
   connectTimeout: 60000,
   acquireTimeout: 60000,

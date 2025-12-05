@@ -124,7 +124,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
   ).current;
 
   useEffect(() => {
-    // Initialize position for Android and iOS (including PWA)
+    // Initialize position for Android draw-over widget
     if (Platform.OS === 'android') {
       const statusBarHeight = StatusBar.currentHeight || 0;
       const initialY = statusBarHeight + 50;
@@ -141,42 +141,46 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
           });
         }
       });
-    } else if (Platform.OS === 'ios' || Platform.OS === 'web') {
-      // For iOS (including PWA) and web, position at top center (like Dynamic Island)
-      const statusBarHeight = Platform.OS === 'ios' ? (StatusBar.currentHeight || 44) : 0;
-      const initialY = statusBarHeight + 20; // Position below status bar
-      panX.setValue((screenWidth - collapsedSize) / 2); // Center horizontally
-      panY.setValue(initialY);
     }
     // Update width for circular collapsed state
     animatedWidth.setValue(collapsedSize);
-  }, [panX, panY, collapsedSize, animatedWidth, visible, isBotActive, screenWidth]);
+  }, [panX, panY, collapsedSize, animatedWidth, visible, isBotActive]);
 
-  // On Android, always show as overlay widget - request permission and show overlay when bot is active
+  // On Android, always show as overlay widget - show overlay when bot is active
   useEffect(() => {
     if (Platform.OS === 'android' && isBotActive && visible && !isNativeOverlayActive) {
       const setupAndroidOverlay = async () => {
-        const hasPermission = await overlayService.checkOverlayPermission();
-        if (!hasPermission) {
-          await overlayService.requestOverlayPermission();
-          return;
-        }
+        console.log('[Overlay] Setting up Android overlay widget...');
         
-        // Show native overlay immediately when bot is active
+        // Always try to show overlay - showOverlay will handle permission check internally
+        // Use fixed size for native overlay widget
+        // Collapsed: Just robot image (circular, compact)
+        // Expanded: Full bot details (larger)
+        const overlayWidth = 140; // Compact size for collapsed (just circular image)
+        const overlayHeight = 140; // Square for circular image
         const currentX = (panX as any)._value || 20;
         const currentY = (panY as any)._value || 100;
-        const currentWidth = isExpanded ? screenWidth - 40 : collapsedSize;
-        const currentHeight = isExpanded ? 220 : collapsedSize;
+        
+        console.log('[Overlay] Attempting to show overlay at:', { currentX, currentY, overlayWidth, overlayHeight });
         
         const success = await overlayService.showOverlay(
           currentX,
           currentY,
-          currentWidth,
-          currentHeight
+          overlayWidth,
+          overlayHeight
         );
+        
+        console.log('[Overlay] Overlay show result:', success);
         
         if (success) {
           setIsNativeOverlayActive(true);
+          // Update overlay data immediately after showing
+          const botName = primaryEA?.name || 'EA Trade';
+          const botImageURL = primaryEAImage;
+          console.log('[Overlay] Updating overlay data:', { botName, isBotActive, botImageURL });
+          await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL);
+        } else {
+          console.log('[Overlay] Failed to show overlay - permission may be required');
         }
       };
       
@@ -186,11 +190,24 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     // Cleanup when component unmounts or bot becomes inactive
     return () => {
       if (isNativeOverlayActive && Platform.OS === 'android') {
+        console.log('[Overlay] Hiding overlay widget');
         overlayService.hideOverlay();
         setIsNativeOverlayActive(false);
       }
     };
-  }, [isBotActive, visible, isExpanded, isNativeOverlayActive]);
+  }, [isBotActive, visible, isExpanded, isNativeOverlayActive, primaryEA, primaryEAImage]);
+
+  // Update overlay data when bot info changes
+  useEffect(() => {
+    if (Platform.OS === 'android' && isNativeOverlayActive && primaryEA) {
+      const updateData = async () => {
+        const botName = primaryEA.name || 'EA Trade';
+        const botImageURL = primaryEAImage;
+        await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL);
+      };
+      updateData();
+    }
+  }, [isNativeOverlayActive, primaryEA, primaryEAImage, isBotActive]);
 
   // Handle app state changes for overlay mode
   useEffect(() => {
@@ -199,16 +216,13 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
       setAppState(nextAppState);
 
       if (Platform.OS === 'android' && isBotActive && visible && isNativeOverlayActive) {
-        // Update overlay position/size when app state changes
+        // Don't update overlay position when app goes to background
+        // The overlay maintains its own position and should not be reset
+        // Just ensure overlay stays visible - don't change its position
         if (nextAppState === 'background' || nextAppState === 'inactive') {
-          // Keep overlay visible when app goes to background
-          const currentX = (panX as any)._value || 20;
-          const currentY = (panY as any)._value || 100;
-          const currentWidth = isExpanded ? screenWidth - 40 : collapsedSize;
-          const currentHeight = isExpanded ? 220 : collapsedSize;
-          
-          await overlayService.updateOverlayPosition(currentX, currentY);
-          await overlayService.updateOverlaySize(currentWidth, currentHeight);
+          // Overlay position is managed by native code and persists automatically
+          // Do not reset position - let overlay maintain its current position
+          console.log('[Overlay] App going to background - preserving overlay position');
         }
       }
     };
@@ -306,16 +320,24 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return null;
   }
 
-  // Note: For iOS PWA, we use React-based overlay since native widgets are not possible
-  // Native iOS widgets (Live Activities/Dynamic Island) require WidgetKit/ActivityKit APIs
-  // which are NOT available to PWAs running in Safari's WebView
+  // On Android: Only use native overlay widget (no React UI)
+  if (Platform.OS === 'android') {
+    // Native overlay is handled by useEffect hooks above
+    // Return null to hide React UI completely
+    return null;
+  }
 
+  // On iOS, don't render React Native overlay - use WidgetKit widget instead
+  // The WidgetKit widget appears in Notification Center and must be manually added by user
+  if (Platform.OS === 'ios') {
+    return null; // WidgetKit widget handles iOS display
+  }
 
-  // On Android, always render as overlay widget (React Native component with absolute positioning)
-  // The native overlay infrastructure is available but React Native component will be the primary display
-
+  // On web (non-PWA), show React overlay
   // In overlay mode, show a persistent floating widget
-  if (isOverlayMode) {
+  const mode = isOverlayMode ?? false; // Default to false if undefined
+
+  if (mode) {
     return (
       <Animated.View
         {...panResponder.panHandlers}

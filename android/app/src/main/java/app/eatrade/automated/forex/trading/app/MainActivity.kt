@@ -1,8 +1,11 @@
 package app.eatrade.automated.forex.trading.app
 import expo.modules.splashscreen.SplashScreenManager
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -12,6 +15,10 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+  companion object {
+    private const val OVERLAY_PERMISSION_REQUEST_CODE = 1001
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
@@ -21,6 +28,42 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
     super.onCreate(null)
+    
+    // Request overlay permission on app start - this allows the app to draw over other apps
+    // Required for the floating overlay widget feature
+    requestOverlayPermissionIfNeeded()
+  }
+
+  /**
+   * Request "Display over other apps" permission on app startup.
+   * This permission is required for the floating overlay widget to work.
+   * The permission dialog will appear automatically when the app starts.
+   */
+  private fun requestOverlayPermissionIfNeeded() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      if (!Settings.canDrawOverlays(this)) {
+        // Open system settings to request overlay permission
+        val intent = Intent(
+          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+          Uri.parse("package:$packageName")
+        )
+        startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
+      }
+    }
+  }
+
+  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    super.onActivityResult(requestCode, resultCode, data)
+    if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (Settings.canDrawOverlays(this)) {
+          // Permission granted
+          // The overlay service can now be used
+        } else {
+          // Permission denied - user can grant it later from settings
+        }
+      }
+    }
   }
 
   /**

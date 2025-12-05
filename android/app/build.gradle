@@ -174,4 +174,7 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Overlay widget dependencies
+    implementation("androidx.cardview:cardview:1.0.0")
 }

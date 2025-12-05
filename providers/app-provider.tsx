@@ -1,11 +1,13 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, Alert } from 'react-native';
+import { Platform, Alert, AppState } from 'react-native';
 import { LicenseData } from '@/services/api';
 import signalsMonitor, { SignalLog } from '@/services/signals-monitor';
 import databaseSignalsPollingService, { DatabaseSignal } from '@/services/database-signals-polling';
+import signalMonitoringService from '@/services/signal-monitoring-service';
 import { isIOSPWA } from '@/utils/pwa-detection';
+import { NativeModules } from 'react-native';
 
 export interface User {
   mentorId: string;
@@ -646,37 +648,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      console.log('Requesting overlay permission for Android...');
-
-      return new Promise((resolve) => {
-        Alert.alert(
-          'Permission Required',
-          'This app needs permission to draw over other apps to show trading notifications. Please enable "Display over other apps" in the next screen.',
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => {
-                console.log('Overlay permission cancelled');
-                resolve(false);
-              }
-            },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                console.log('Opening overlay permission settings...');
-                // Mock permission granted for demo
-                setTimeout(() => {
-                  console.log('Overlay permission granted (mock)');
-                  resolve(true);
-                }, 1000);
-              }
-            }
-          ]
-        );
-      });
+      console.log('Checking overlay permission for Android...');
+      // Permission is already requested at app startup in MainActivity
+      // Just check if we have permission, don't show dialog
+      const { overlayService } = await import('@/services/overlay-service');
+      const hasPermission = await overlayService.checkOverlayPermission();
+      if (!hasPermission) {
+        console.log('Overlay permission not granted, opening settings silently');
+        // Silently open settings if needed, but don't block bot activation
+        overlayService.requestOverlayPermission();
+      }
+      return hasPermission;
     } catch (error) {
-      console.error('Error requesting overlay permission:', error);
+      console.error('Error checking overlay permission:', error);
       return false;
     }
   }, []);
@@ -684,13 +668,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const setBotActive = useCallback(async (active: boolean) => {
     console.log('setBotActive called with:', active);
 
-    // If activating on Android, request overlay permission
+    // Check overlay permission on Android (but don't block activation)
     if (active && Platform.OS === 'android') {
-      const hasPermission = await requestOverlayPermission();
-      if (!hasPermission) {
-        console.log('Overlay permission denied, not activating bot');
-        return;
-      }
+      // Silently check permission, but don't block bot activation
+      requestOverlayPermission().catch(err => {
+        console.error('Error checking overlay permission:', err);
+      });
     }
 
     try {
@@ -698,14 +681,31 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
 
+      // Get primary EA and bot image URL for both iOS and Android
+      const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+      const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
+      const botImageURL = getEAImageUrl(primaryEA);
+
+      // Update Android overlay widget
+      if (Platform.OS === 'android') {
+        try {
+          console.log('[Android Overlay] Updating overlay:', { botName, active, botImageURL });
+          NativeModules.OverlayWindowModule.updateOverlayData(
+            botName,
+            active,
+            isPollingPaused,
+            botImageURL || ''
+          );
+          console.log('[Android Overlay] Overlay update triggered successfully');
+        } catch (error) {
+          console.error('[Android Overlay] Error updating overlay:', error);
+        }
+      }
+
       // Update iOS widget if on iOS (native app or PWA)
       const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
       if (isIOS) {
-        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
-        const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
-        
-        // Get bot image URL using the same logic as home page
-        const botImageURL = getEAImageUrl(primaryEA);
+
         console.log('[Widget] Updating widget:', { 
           platform: Platform.OS, 
           isPWA: Platform.OS === 'web' && isIOSPWA(),
@@ -784,20 +784,51 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             console.error('Database signals polling error:', error);
           };
 
-          databaseSignalsPollingService.startPolling(
-            primaryEA.licenseKey,
-            onDatabaseSignalFound,
-            onDatabaseError
-          );
-          setIsDatabaseSignalsPolling(true);
+          // Always start monitoring when bot is activated
+          if (Platform.OS === 'android') {
+            // Start native foreground service for background monitoring (works in background)
+            signalMonitoringService.startMonitoring(primaryEA.licenseKey).then(success => {
+              if (success) {
+                console.log('✅ Native background signal monitoring started - will work in background');
+              } else {
+                console.error('❌ Failed to start native background monitoring');
+              }
+            });
+            
+            // Also start JS polling for foreground (both can run simultaneously)
+            // This provides faster updates when app is in foreground
+            databaseSignalsPollingService.startPolling(
+              primaryEA.licenseKey,
+              onDatabaseSignalFound,
+              onDatabaseError
+            );
+            setIsDatabaseSignalsPolling(true);
+            console.log('✅ JS polling started for foreground monitoring');
+          } else {
+            // For iOS/web, use JS polling (works when app is active)
+            databaseSignalsPollingService.startPolling(
+              primaryEA.licenseKey,
+              onDatabaseSignalFound,
+              onDatabaseError
+            );
+            setIsDatabaseSignalsPolling(true);
+            console.log('✅ JS polling started for signal monitoring');
+          }
         } else {
           console.log('No primary EA with license key found for database signals polling');
         }
       } else {
         // Clear signal logs and stop database signals polling when stopping the bot
-        console.log('Bot stopped - clearing signal logs and stopping database signals polling');
+        console.log('Bot stopped - clearing signal logs and stopping all monitoring');
         signalsMonitor.clearSignalLogs();
         databaseSignalsPollingService.stopPolling();
+        if (Platform.OS === 'android') {
+          signalMonitoringService.stopMonitoring().then(success => {
+            if (success) {
+              console.log('✅ Native background monitoring stopped');
+            }
+          });
+        }
         setSignalLogs([]);
         setNewSignal(null);
         setDatabaseSignal(null);
@@ -815,6 +846,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const pausePolling = useCallback(async () => {
     console.log('Pausing database signals polling');
     databaseSignalsPollingService.pausePolling();
+    if (Platform.OS === 'android') {
+      // Stop native service when pausing
+      signalMonitoringService.stopMonitoring();
+    }
     setIsPollingPaused(true);
     setIsDatabaseSignalsPolling(false);
 
@@ -860,6 +895,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     if (primaryEA && primaryEA.licenseKey) {
       databaseSignalsPollingService.resumePolling();
+      if (Platform.OS === 'android') {
+        // Restart native service when resuming
+        signalMonitoringService.startMonitoring(primaryEA.licenseKey);
+      }
       setIsPollingPaused(false);
       setIsDatabaseSignalsPolling(true);
 
@@ -982,6 +1021,94 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setIsSignalsMonitoring(signalsMonitor.isRunning());
     setSignalLogs(signalsMonitor.getSignalLogs());
   }, []);
+
+  // Listen for background signals from native service (Android)
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const listener = signalMonitoringService.addListener((signal: any) => {
+      console.log('🎯 Background signal received from native service:', signal);
+      
+      const signalLog: SignalLog = {
+        id: signal.id,
+        asset: signal.asset,
+        action: signal.action,
+        price: signal.price,
+        tp: signal.tp,
+        sl: signal.sl,
+        time: signal.time,
+        type: signal.type || 'DATABASE_SIGNAL',
+        source: signal.source || 'database',
+        latestupdate: signal.latestupdate
+      };
+
+      setDatabaseSignal(signal);
+      setSignalLogs(prev => [...prev, signalLog]);
+      setNewSignal(signalLog);
+    });
+
+    return () => {
+      signalMonitoringService.removeListener(listener);
+    };
+  }, []);
+
+  // Ensure signal monitoring continues when app is in background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      console.log('App state changed - ensuring signal monitoring continues:', nextAppState);
+      
+      // Ensure database signals polling continues in background
+      if (isBotActive && isDatabaseSignalsPolling && !isPollingPaused) {
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        if (primaryEA && primaryEA.licenseKey) {
+          // Check if polling is still running, restart if needed
+          if (!databaseSignalsPollingService.isRunning()) {
+            console.log('Polling stopped - restarting for background monitoring');
+            const onDatabaseSignalFound = (signal: DatabaseSignal) => {
+              console.log('🎯 Database signal found (background):', signal);
+              setDatabaseSignal(signal);
+              const signalLog: SignalLog = {
+                id: signal.id,
+                asset: signal.asset,
+                action: signal.action,
+                price: signal.price,
+                tp: signal.tp,
+                sl: signal.sl,
+                time: signal.time,
+                type: 'DATABASE_SIGNAL',
+                source: 'database',
+                latestupdate: signal.latestupdate
+              };
+              setSignalLogs(prev => [...prev, signalLog]);
+              setNewSignal(signalLog);
+            };
+            const onDatabaseError = (error: string) => {
+              console.error('Database signals polling error (background):', error);
+            };
+            databaseSignalsPollingService.startPolling(
+              primaryEA.licenseKey,
+              onDatabaseSignalFound,
+              onDatabaseError
+            );
+          }
+        }
+      }
+      
+      // Ensure signals monitoring continues
+      if (isBotActive && isSignalsMonitoring) {
+        const connectedEAWithSecret = eas.find(ea => ea.phoneSecretKey);
+        if (connectedEAWithSecret && connectedEAWithSecret.phoneSecretKey) {
+          if (!signalsMonitor.isRunning()) {
+            console.log('Signals monitoring stopped - restarting for background monitoring');
+            startSignalsMonitoring(connectedEAWithSecret.phoneSecretKey);
+          }
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring]);
 
   // Update iOS widget whenever EAs or bot state changes (native app or PWA)
   useEffect(() => {

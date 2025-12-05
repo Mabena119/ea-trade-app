@@ -62,7 +62,7 @@ export default function LoginScreen() {
 
       // If user doesn't exist or hasn't paid: redirect to payment/shop page
       if (account.status === 'not_found' || !account.paid) {
-        const url = `https://ea-converter.com/shop/indexIOS.php?email=${encodeURIComponent(trimmedEmail)}&mentor=${encodeURIComponent(trimmedMentor)}`;
+        const url = `https://www.eatrade.io/shop/?email=${encodeURIComponent(trimmedEmail)}`;
         setPaymentUrl(url);
         setPaymentVisible(true);
         return;

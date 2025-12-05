@@ -329,16 +329,15 @@ function RootLayoutNav() {
         <Stack.Screen name="license" />
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
-      {/* DynamicIsland: Hide React overlay on iOS PWA, show native widgets instead
-          On native iOS app, show React overlay as fallback
-          On web (non-PWA), show React overlay */}
-      {!(Platform.OS === 'web' && isIOSPWA()) && (
-        <DynamicIsland
-          visible={!isFirstTime && eas.length > 0 && isBotActive}
-          newSignal={newSignal}
-          onSignalDismiss={dismissNewSignal}
-        />
-      )}
+      {/* DynamicIsland: 
+          - On Android: Only native overlay widget (no React UI) - component handles native overlay setup
+          - On iOS: Native widgets (no React UI) - component handles widget setup
+          - On web (non-PWA): React overlay */}
+      <DynamicIsland
+        visible={!isFirstTime && eas.length > 0 && isBotActive}
+        newSignal={newSignal}
+        onSignalDismiss={dismissNewSignal}
+      />
 
       {/* Trading WebView Modal */}
       <TradingWebView

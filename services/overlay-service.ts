@@ -8,6 +8,7 @@ interface OverlayWindowModuleInterface {
   updateOverlaySize(width: number, height: number): Promise<boolean>;
   hideOverlay(): Promise<boolean>;
   getOverlayViewTag(): Promise<number>;
+  updateOverlayData(botName: string, isActive: boolean, isPaused: boolean, botImageURL: string | null): Promise<boolean>;
 }
 
 const { OverlayWindowModule } = NativeModules as {
@@ -22,6 +23,7 @@ interface OverlayService {
   updateOverlaySize(width: number, height: number): Promise<boolean>;
   hideOverlay(): Promise<boolean>;
   getOverlayViewTag(): Promise<number>;
+  updateOverlayData(botName: string, isActive: boolean, isPaused: boolean, botImageURL: string | null): Promise<boolean>;
 }
 
 class OverlayService implements OverlayService {
@@ -48,32 +50,15 @@ class OverlayService implements OverlayService {
     }
 
     try {
-      Alert.alert(
-        'Permission Required',
-        'This app needs permission to draw over other apps to show trading controls. Please enable "Display over other apps" in settings.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Open Settings',
-            onPress: async () => {
-              try {
-                await OverlayWindowModule.requestOverlayPermission();
-                // Open settings manually if needed
-                Linking.openSettings();
-              } catch (error) {
-                console.error('Error requesting overlay permission:', error);
-                Linking.openSettings();
-              }
-            },
-          },
-        ]
-      );
+      // Permission is already requested at app startup, so just open settings directly
+      await OverlayWindowModule.requestOverlayPermission();
+      // Also open settings as fallback
+      Linking.openSettings();
       return false;
     } catch (error) {
       console.error('Error requesting overlay permission:', error);
+      // Fallback: open settings directly
+      Linking.openSettings();
       return false;
     }
   }
@@ -85,14 +70,21 @@ class OverlayService implements OverlayService {
 
     const hasPermission = await this.checkOverlayPermission();
     if (!hasPermission) {
-      await this.requestOverlayPermission();
-      return false;
+      console.log('[OverlayService] Permission not granted, attempting to request...');
+      // Silently request permission (opens settings) but don't block
+      this.requestOverlayPermission().catch(err => {
+        console.error('[OverlayService] Error requesting permission:', err);
+      });
+      // Still try to show overlay - it might work if user just granted permission
     }
 
     try {
-      return await OverlayWindowModule.showOverlay(x, y, width, height);
+      console.log('[OverlayService] Calling native showOverlay with:', { x, y, width, height });
+      const result = await OverlayWindowModule.showOverlay(x, y, width, height);
+      console.log('[OverlayService] Native showOverlay result:', result);
+      return result;
     } catch (error) {
-      console.error('Error showing overlay:', error);
+      console.error('[OverlayService] Error showing overlay:', error);
       return false;
     }
   }
@@ -142,6 +134,18 @@ class OverlayService implements OverlayService {
     } catch (error) {
       console.error('Error getting overlay view tag:', error);
       return -1;
+    }
+  }
+
+  async updateOverlayData(botName: string, isActive: boolean, isPaused: boolean, botImageURL: string | null): Promise<boolean> {
+    if (Platform.OS !== 'android' || !OverlayWindowModule) {
+      return false;
+    }
+    try {
+      return await OverlayWindowModule.updateOverlayData(botName, isActive, isPaused, botImageURL);
+    } catch (error) {
+      console.error('Error updating overlay data:', error);
+      return false;
     }
   }
 }

@@ -7,11 +7,14 @@ import com.facebook.react.uimanager.ViewManager
 
 class OverlayWindowPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(OverlayWindowModule(reactContext))
+        return listOf(
+            OverlayWindowModule(reactContext),
+            SignalMonitoringModule(reactContext)
+        )
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
-        return listOf(OverlayViewManager())
+        return emptyList()
     }
 }
 
