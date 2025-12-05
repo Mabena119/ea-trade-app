@@ -517,55 +517,42 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                 }
               };
               
-              // Execute trades sequentially
+              // Execute trades sequentially - EXACTLY numberOfTrades times
+              console.log('MT4 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
               for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
-                // Safety check
-                if (completedTrades >= numberOfTrades) {
-                  console.log('MT4 Trading: SAFETY BREAK - Target reached');
-                  break;
-                }
+                const currentTradeNumber = tradeIndex + 1;
+                console.log('MT4 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
                 
+                // Execute this trade
                 const success = await executeSingleTrade(tradeIndex);
                 
                 if (success) {
                   completedTrades++;
-                  console.log('MT4 Trading: SUCCESS - Trade', (tradeIndex + 1), 'completed! Progress:', completedTrades, 'of', numberOfTrades);
+                  console.log('MT4 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'step',
-                    message: 'SUCCESS - MT4 trade ' + (tradeIndex + 1) + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
+                    message: 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
                   }));
-                  
-                  // Check if target reached
-                  if (completedTrades >= numberOfTrades) {
-                    console.log('MT4 Trading: TARGET REACHED - All', numberOfTrades, 'trades completed!');
-                    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'step',
-                      message: 'TARGET REACHED - All ' + numberOfTrades + ' MT4 trades completed!'
-                    }));
-                    break;
-                  }
-                  
-                  // Wait between trades
-                  if (completedTrades < numberOfTrades) {
-                    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'step',
-                      message: 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
-                    }));
-                    await new Promise(r => setTimeout(r, 3000)); // 3 second delay between MT4 orders
-                  }
                 } else {
                   failedTrades++;
-                  console.log('MT4 Trading: FAILED - Trade', (tradeIndex + 1), 'failed. Continuing...');
+                  console.log('MT4 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'step',
-                    message: 'FAILED - MT4 trade ' + (tradeIndex + 1) + ' failed. Continuing to next trade...'
+                    message: 'FAILED - MT4 trade ' + currentTradeNumber + ' failed. Continuing to next trade...'
                   }));
-                  
-                  if (tradeIndex < numberOfTrades - 1) {
-                    await new Promise(r => setTimeout(r, 2000));
-                  }
+                }
+                
+                // Wait between trades (except after the last trade)
+                if (tradeIndex < numberOfTrades - 1) {
+                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'step',
+                    message: 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
+                  }));
+                  await new Promise(r => setTimeout(r, 3000)); // 3 second delay between MT4 orders
                 }
               }
+              
+              console.log('MT4 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
               
               // Final summary
               console.log('MT4 Trading: EXECUTION COMPLETED - Completed:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);
@@ -1015,55 +1002,42 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                     }
                   };
                   
-                  // Execute trades sequentially
+                  // Execute trades sequentially - EXACTLY numberOfTrades times
+                  console.log('MT5 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
                   for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
-                    // Safety check
-                    if (completedTrades >= numberOfTrades) {
-                      console.log('MT5 Trading: SAFETY BREAK - Target reached');
-                      break;
-                    }
+                    const currentTradeNumber = tradeIndex + 1;
+                    console.log('MT5 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
                     
+                    // Execute this trade
                     const success = await executeSingleTrade(tradeIndex);
                     
                     if (success) {
                       completedTrades++;
-                      console.log('MT5 Trading: SUCCESS - Trade', (tradeIndex + 1), 'completed! Progress:', completedTrades, 'of', numberOfTrades);
+                      console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                       window.ReactNativeWebView.postMessage(JSON.stringify({
                         type: 'step',
-                        message: 'SUCCESS - Trade ' + (tradeIndex + 1) + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
+                        message: 'SUCCESS - Trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
                       }));
-                      
-                      // Check if target reached
-                      if (completedTrades >= numberOfTrades) {
-                        console.log('MT5 Trading: TARGET REACHED - All', numberOfTrades, 'trades completed!');
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                          type: 'step',
-                          message: 'TARGET REACHED - All ' + numberOfTrades + ' trades completed!'
-                        }));
-                        break;
-                      }
-                      
-                      // Wait between trades
-                      if (completedTrades < numberOfTrades) {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                          type: 'step',
-                          message: 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
-                        }));
-                        await new Promise(r => setTimeout(r, 2000));
-                      }
                     } else {
                       failedTrades++;
-                      console.log('MT5 Trading: FAILED - Trade', (tradeIndex + 1), 'failed. Continuing...');
+                      console.log('MT5 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
                       window.ReactNativeWebView.postMessage(JSON.stringify({
                         type: 'step',
-                        message: 'FAILED - Trade ' + (tradeIndex + 1) + ' failed. Continuing to next trade...'
+                        message: 'FAILED - Trade ' + currentTradeNumber + ' failed. Continuing to next trade...'
                       }));
-                      
-                      if (tradeIndex < numberOfTrades - 1) {
-                        await new Promise(r => setTimeout(r, 2000));
-                      }
+                    }
+                    
+                    // Wait between trades (except after the last trade)
+                    if (tradeIndex < numberOfTrades - 1) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'step',
+                        message: 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
+                      }));
+                      await new Promise(r => setTimeout(r, 2000));
                     }
                   }
+                  
+                  console.log('MT5 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
                   
                   // Final summary
                   console.log('MT5 Trading: EXECUTION COMPLETED - Completed:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);

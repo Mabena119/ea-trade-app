@@ -242,7 +242,7 @@ export default function HomeScreen() {
                     pointerEvents="none"
                   />
                   <View style={styles.tradeButtonContent}>
-                    {isBotActive ? (
+                  {isBotActive ? (
                       <Square color="#000000" size={24} />
                   ) : (
                       <Play color="#000000" size={24} />

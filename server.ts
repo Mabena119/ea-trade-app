@@ -617,18 +617,12 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        }
                      };
                      
-                     // STRICT SEQUENTIAL EXECUTION - Execute trades one by one, no retries
-                     console.log('MT5 Trading: STRICT SEQUENTIAL EXECUTION - Target: EXACTLY', numberOfTrades, 'trades');
+                     // STRICT SEQUENTIAL EXECUTION - Execute trades one by one, EXACTLY numberOfTrades times
+                     console.log('MT5 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
                      
                      for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
-                       // CRITICAL SAFETY CHECK: Prevent over-execution
-                       if (completedTrades >= numberOfTrades) {
-                         console.log('MT5 Trading: SAFETY BREAK - Target already reached, stopping execution');
-                         break;
-                       }
-                       
                        const currentTradeNumber = tradeIndex + 1;
-                       console.log('MT5 Trading: EXECUTING TRADE', currentTradeNumber, 'of', numberOfTrades);
+                       console.log('MT5 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
                        sendMessage('step', 'Executing trade ' + currentTradeNumber + ' of ' + numberOfTrades + ' for ${asset}...');
                        
                        const success = await executeSingleTrade(tradeIndex);
@@ -637,33 +631,20 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          completedTrades++;
                          console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                          sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
-                         
-                         // CRITICAL: Check if we've reached the target
-                         if (completedTrades >= numberOfTrades) {
-                           console.log('MT5 Trading: TARGET REACHED - All', numberOfTrades, 'trades completed!');
-                           sendMessage('step', 'TARGET REACHED - All ' + numberOfTrades + ' trades completed!');
-                           break;
-                         }
-                         
-                         // Wait between trades (only if we haven't reached the target)
-                         if (completedTrades < numberOfTrades) {
-                           sendMessage('step', 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
-                           await new Promise(r => setTimeout(r, 2000));
-                         }
                        } else {
                          failedTrades++;
                          console.log('MT5 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
                          sendMessage('step', 'FAILED - Trade ' + currentTradeNumber + ' failed. Continuing to next trade...');
-                         
-                         // Wait before next trade even if this one failed
-                         if (tradeIndex < numberOfTrades - 1) {
-                           await new Promise(r => setTimeout(r, 2000));
-                         }
                        }
                        
-                       // Log current status after each trade
-                       console.log('MT5 Trading: STATUS - Completed:', completedTrades, 'Target:', numberOfTrades, 'Current:', currentTradeNumber);
+                       // Wait between trades (except after the last trade)
+                       if (tradeIndex < numberOfTrades - 1) {
+                         sendMessage('step', 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                         await new Promise(r => setTimeout(r, 2000));
+                       }
                      }
+                     
+                     console.log('MT5 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
                      
                      // Final verification
                      console.log('MT5 Trading: EXECUTION COMPLETED - Final count:', completedTrades, 'trades completed out of', numberOfTrades, 'target');
@@ -1110,18 +1091,12 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      }
                    };
                    
-                   // STRICT SEQUENTIAL EXECUTION - Execute trades one by one, no retries
-                   console.log('MT4 Trading: STRICT SEQUENTIAL EXECUTION - Target: EXACTLY', numberOfTrades, 'trades');
+                   // STRICT SEQUENTIAL EXECUTION - Execute trades one by one, EXACTLY numberOfTrades times
+                   console.log('MT4 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
                    
                    for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
-                     // CRITICAL SAFETY CHECK: Prevent over-execution
-                     if (completedTrades >= numberOfTrades) {
-                       console.log('MT4 Trading: SAFETY BREAK - Target already reached, stopping execution');
-                       break;
-                     }
-                     
                      const currentTradeNumber = tradeIndex + 1;
-                     console.log('MT4 Trading: EXECUTING TRADE', currentTradeNumber, 'of', numberOfTrades);
+                     console.log('MT4 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
                      sendMessage('step', 'Executing MT4 trade ' + currentTradeNumber + ' of ' + numberOfTrades + ' for ${asset}...');
                      
                      const success = await executeSingleTrade(tradeIndex);
@@ -1130,33 +1105,20 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        completedTrades++;
                        console.log('MT4 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                        sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
-                       
-                       // CRITICAL: Check if we've reached the target
-                       if (completedTrades >= numberOfTrades) {
-                         console.log('MT4 Trading: TARGET REACHED - All', numberOfTrades, 'trades completed!');
-                         sendMessage('step', 'TARGET REACHED - All ' + numberOfTrades + ' MT4 trades completed!');
-                         break;
-                       }
-                       
-                       // Wait between trades (only if we haven't reached the target)
-                       if (completedTrades < numberOfTrades) {
-                         sendMessage('step', 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
-                         await new Promise(r => setTimeout(r, 2000));
-                       }
                      } else {
                        failedTrades++;
                        console.log('MT4 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
                        sendMessage('step', 'FAILED - MT4 trade ' + currentTradeNumber + ' failed. Continuing to next trade...');
-                       
-                       // Wait before next trade even if this one failed
-                       if (tradeIndex < numberOfTrades - 1) {
-                         await new Promise(r => setTimeout(r, 2000));
-                       }
                      }
                      
-                     // Log current status after each trade
-                     console.log('MT4 Trading: STATUS - Completed:', completedTrades, 'Target:', numberOfTrades, 'Current:', currentTradeNumber);
+                     // Wait between trades (except after the last trade)
+                     if (tradeIndex < numberOfTrades - 1) {
+                       sendMessage('step', 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                       await new Promise(r => setTimeout(r, 3000)); // 3 second delay between MT4 orders
+                     }
                    }
+                   
+                   console.log('MT4 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
                    
                    // Final verification
                    console.log('MT4 Trading: EXECUTION COMPLETED - Final count:', completedTrades, 'trades completed out of', numberOfTrades, 'target');
