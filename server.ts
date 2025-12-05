@@ -411,7 +411,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                   // Check for search bar - this is the most reliable indicator of successful login (matching Android)
                   sendMessage('step_update', 'Verifying authentication...');
                   await new Promise(r => setTimeout(r, 3000)); // Match Android timing
-                    
+                  
                   const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
                                      document.querySelector('input[placeholder*="Search" i]') ||
                                      document.querySelector('input[type="search"]');
@@ -419,7 +419,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                   if (searchField && searchField.offsetParent !== null) {
                     // Search bar is present and visible - login successful!
                     sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
-                      
+                    
                     // If this is a trading request, proceed with trading
                     ${isTradingRequest ? `
                     setTimeout(() => {
@@ -434,18 +434,18 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                   const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
                                           document.querySelector('input[placeholder*="Search" i]') ||
                                           document.querySelector('input[type="search"]');
-                          
+                  
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
                     sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
-                              
-                              // If this is a trading request, proceed with trading
-                              ${isTradingRequest ? `
-                              setTimeout(() => {
-                                executeTrading();
-                              }, 2000);
-                              ` : ''}
-                              return;
-                            }
+                    
+                    // If this is a trading request, proceed with trading
+                    ${isTradingRequest ? `
+                    setTimeout(() => {
+                      executeTrading();
+                    }, 2000);
+                    ` : ''}
+                    return;
+                  }
                   
                   // No search bar found - authentication failed
                   sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
@@ -453,7 +453,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
-                };
+              };
                
                  // Trading execution function with STRICT trade count control
                  const executeTrading = async () => {
@@ -476,35 +476,31 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                      const searchField = document.querySelector('input[placeholder="Search symbol"]') ||
                                        document.querySelector('input[placeholder*="Search" i]') ||
                                        document.querySelector('input[type="search"]');
-                         if (searchField) {
+                     if (searchField) {
                        searchField.focus();
-                           searchField.value = '${asset}';
-                           searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                           searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                       searchField.value = '${asset}';
+                       searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                       searchField.dispatchEvent(new Event('change', { bubbles: true }));
                        searchField.dispatchEvent(new Event('keyup', { bubbles: true }));
-                       await sleep(3000); // Increased wait for search results
+                       await new Promise(r => setTimeout(r, 2000)); // Wait for search results
                        sendMessage('step', 'Symbol ${asset} found');
                      } else {
                        sendMessage('error', 'Search field not found - cannot proceed with trading');
                        return;
-                         }
-                         
-                    // Select the asset ONCE before trade loop - PREVENT NAVIGATION
-                    sendMessage('step', 'Selecting symbol ${asset}...');
-                         const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                       document.querySelector('[class*="symbol"][class*="svelte"]') ||
-                                       document.querySelector('.symbol');
-                         if (assetElement) {
-                      // Click without navigation - just select for trading
-                      assetElement.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                      sendMessage('step', 'Asset ${asset} selected for trading');
-                      await sleep(2500); // Wait for selection to register
-                    } else {
-                      sendMessage('error', 'Asset ${asset} not found - cannot proceed with trading');
-                      return;
-                    }
-                    
-                    sendMessage('step', 'Ready to start trading - all setup complete');
+                     }
+                     
+                     // Select the asset ONCE before trade loop
+                     const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
+                                        document.querySelector('[class*="symbol"][class*="svelte"]') ||
+                                        document.querySelector('.symbol');
+                     if (assetElement) {
+                       assetElement.click();
+                       sendMessage('step', 'Asset ${asset} selected');
+                       await new Promise(r => setTimeout(r, 1500));
+                     } else {
+                       sendMessage('error', 'Asset ${asset} not found - cannot proceed with trading');
+                       return;
+                     }
                      
                      // Function to execute a single trade with enhanced tracking (NO symbol search - already done)
                      const executeSingleTrade = async (tradeIndex) => {
@@ -583,50 +579,30 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                                                 document.querySelector('.modal button:not(.red):not(.cancel)') ||
                                                 document.querySelector('.dialog button:not(.red):not(.cancel)');
                            
-                          // CRITICAL: Wait longer for confirmation dialog to appear
-                          await new Promise(r => setTimeout(r, 1000));
-                          
-                          // Try multiple times to find confirm button
-                          let confirmBtn = null;
-                          let attempts = 0;
-                          while (!confirmBtn && attempts < 3) {
-                            confirmBtn = document.querySelector('.trade-button.svelte-16cwwe0') ||
-                                        document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
-                                        document.querySelector('.button[class*="trade"]:not(.red)') ||
-                                        document.querySelector('.modal button:not(.red):not(.cancel)') ||
-                                        document.querySelector('.dialog button:not(.red):not(.cancel)');
-                            if (!confirmBtn) {
-                              await new Promise(r => setTimeout(r, 500));
-                              attempts++;
-                            }
-                          }
-                          
-                          if (confirmBtn) {
-                            confirmBtn.click();
-                            console.log('MT5 Trading: Confirm button clicked for trade', (tradeIndex + 1));
+                           if (confirmButton) {
+                             confirmButton.click();
                              sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                            await new Promise(r => setTimeout(r, 2500));
+                             await new Promise(r => setTimeout(r, 2000));
                              console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed successfully');
                              return true;
                            } else {
-                            // Try alternative method - any button in modal
-                            console.log('MT5 Trading: Primary confirm not found, trying alternatives...');
-                            const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button, [class*="dialog"] button');
-                            for (let i = 0; i < modalButtons.length; i++) {
-                              const btnText = (modalButtons[i].textContent || '').toLowerCase();
-                              if (!modalButtons[i].classList.contains('red') && 
-                                  !modalButtons[i].classList.contains('cancel') &&
-                                  !btnText.includes('cancel') &&
-                                  !btnText.includes('close')) {
-                                modalButtons[i].click();
-                                console.log('MT5 Trading: Alternative confirm clicked:', btnText);
-                                sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                                await new Promise(r => setTimeout(r, 2500));
-                                console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed (alternative confirm)');
-                                return true;
-                              }
-                            }
-                            console.log('MT5 Trading: ERROR - No confirm button found for trade', (tradeIndex + 1));
+                             console.log('MT5 Trading: Confirm button not found for trade', (tradeIndex + 1), '- trying alternative methods...');
+                             // Try alternative method - look for any button in modal/dialog
+                             const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
+                             if (modalButtons.length > 0) {
+                               // Click the first non-red button (usually confirm)
+                               for (let i = 0; i < modalButtons.length; i++) {
+                                 if (!modalButtons[i].classList.contains('red') && 
+                                     !modalButtons[i].classList.contains('cancel')) {
+                                   modalButtons[i].click();
+                                   console.log('MT5 Trading: Alternative confirm button clicked');
+                                   sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
+                                   await new Promise(r => setTimeout(r, 2000));
+                                   return true;
+                                 }
+                               }
+                             }
+                             console.log('MT5 Trading: No confirm button found for trade', (tradeIndex + 1));
                              return false;
                            }
                          } else {
@@ -641,12 +617,12 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        }
                      };
                      
-                     // STRICT SEQUENTIAL EXECUTION - Execute trades one by one, EXACTLY numberOfTrades times
+                     // Execute trades sequentially - loop runs EXACTLY numberOfTrades times
                      console.log('MT5 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
                      
                      for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
                        const currentTradeNumber = tradeIndex + 1;
-                       console.log('MT5 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
+                       console.log('MT5 Trading: EXECUTING TRADE', currentTradeNumber, 'of', numberOfTrades);
                        sendMessage('step', 'Executing trade ' + currentTradeNumber + ' of ' + numberOfTrades + ' for ${asset}...');
                        
                        const success = await executeSingleTrade(tradeIndex);
@@ -655,20 +631,26 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                          completedTrades++;
                          console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                          sendMessage('step', 'SUCCESS - Trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
+                         
+                         // Wait between trades (but not after the last one)
+                         if (tradeIndex < numberOfTrades - 1) {
+                           sendMessage('step', 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                           await new Promise(r => setTimeout(r, 2000));
+                         }
                        } else {
                          failedTrades++;
                          console.log('MT5 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
                          sendMessage('step', 'FAILED - Trade ' + currentTradeNumber + ' failed. Continuing to next trade...');
-                       }
                          
-                       // Wait between trades (except after the last trade)
+                         // Wait before next trade even if this one failed (but not after the last one)
                          if (tradeIndex < numberOfTrades - 1) {
-                         sendMessage('step', 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
                            await new Promise(r => setTimeout(r, 2000));
                          }
                        }
-                       
-                     console.log('MT5 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
+                     }
+                     
+                     // Log completion
+                     console.log('MT5 Trading: Loop completed - executed', numberOfTrades, 'iterations, completed:', completedTrades, 'failed:', failedTrades);
                      
                      // Final verification
                      console.log('MT5 Trading: EXECUTION COMPLETED - Final count:', completedTrades, 'trades completed out of', numberOfTrades, 'target');
@@ -1012,20 +994,20 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                    
                    // CRITICAL: Find and store asset element ONCE before trade loop (prevents page reset)
                    sendMessage('step', 'Locating asset ${asset} in Market Watch...');
-                       const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+                   const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
                    let assetElement = null;
                    
-                       if (marketWatchTable) {
-                         const allTRs = marketWatchTable.querySelectorAll('tr');
-                         for (let i = 0; i < allTRs.length; i++) {
-                           const a = allTRs[i].getElementsByTagName('td')[0];
-                           if (a && a.textContent && a.textContent.trim() === '${asset}') {
+                   if (marketWatchTable) {
+                     const allTRs = marketWatchTable.querySelectorAll('tr');
+                     for (let i = 0; i < allTRs.length; i++) {
+                       const a = allTRs[i].getElementsByTagName('td')[0];
+                       if (a && a.textContent && a.textContent.trim() === '${asset}') {
                          assetElement = a;
                          sendMessage('step', 'Asset ${asset} found in Market Watch');
-                             break;
-                           }
-                         }
-                         
+                         break;
+                       }
+                     }
+                     
                      if (!assetElement) {
                        console.log('MT4 Trading: Asset ${asset} not found in Market Watch');
                        sendMessage('error', 'Asset ${asset} not found in Market Watch - cannot proceed with trading');
@@ -1050,7 +1032,7 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                          sendMessage('step', 'Order dialog opened for MT4 trade ' + (tradeIndex + 1) + '...');
                        } else {
                          console.log('MT4 Trading: Asset element not available for trade', (tradeIndex + 1));
-                           return false;
+                         return false;
                        }
                        
                        // Wait for order dialog to open
@@ -1115,12 +1097,12 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                      }
                    };
                    
-                   // STRICT SEQUENTIAL EXECUTION - Execute trades one by one, EXACTLY numberOfTrades times
+                   // Execute trades sequentially - loop runs EXACTLY numberOfTrades times
                    console.log('MT4 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
                    
                    for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
                      const currentTradeNumber = tradeIndex + 1;
-                     console.log('MT4 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
+                     console.log('MT4 Trading: EXECUTING TRADE', currentTradeNumber, 'of', numberOfTrades);
                      sendMessage('step', 'Executing MT4 trade ' + currentTradeNumber + ' of ' + numberOfTrades + ' for ${asset}...');
                      
                      const success = await executeSingleTrade(tradeIndex);
@@ -1129,20 +1111,26 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                        completedTrades++;
                        console.log('MT4 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                        sendMessage('step', 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades);
+                       
+                       // Wait between trades (but not after the last one)
+                       if (tradeIndex < numberOfTrades - 1) {
+                         sendMessage('step', 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
+                         await new Promise(r => setTimeout(r, 2000));
+                       }
                      } else {
                        failedTrades++;
                        console.log('MT4 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
                        sendMessage('step', 'FAILED - MT4 trade ' + currentTradeNumber + ' failed. Continuing to next trade...');
-                     }
                        
-                     // Wait between trades (except after the last trade)
+                       // Wait before next trade even if this one failed (but not after the last one)
                        if (tradeIndex < numberOfTrades - 1) {
-                       sendMessage('step', 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)');
-                       await new Promise(r => setTimeout(r, 3000)); // 3 second delay between MT4 orders
+                         await new Promise(r => setTimeout(r, 2000));
                        }
                      }
-                     
-                   console.log('MT4 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
+                   }
+                   
+                   // Log completion
+                   console.log('MT4 Trading: Loop completed - executed', numberOfTrades, 'iterations, completed:', completedTrades, 'failed:', failedTrades);
                    
                    // Final verification
                    console.log('MT4 Trading: EXECUTION COMPLETED - Final count:', completedTrades, 'trades completed out of', numberOfTrades, 'target');

@@ -517,42 +517,43 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                 }
               };
               
-              // Execute trades sequentially - EXACTLY numberOfTrades times
-              console.log('MT4 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
+              // Execute trades sequentially - loop runs EXACTLY numberOfTrades times
               for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
-                const currentTradeNumber = tradeIndex + 1;
-                console.log('MT4 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
-                
-                // Execute this trade
                 const success = await executeSingleTrade(tradeIndex);
                 
                 if (success) {
                   completedTrades++;
-                  console.log('MT4 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
+                  console.log('MT4 Trading: SUCCESS - Trade', (tradeIndex + 1), 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'step',
-                    message: 'SUCCESS - MT4 trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
+                    message: 'SUCCESS - MT4 trade ' + (tradeIndex + 1) + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
                   }));
+                  
+                  // Wait between trades (but not after the last one)
+                  if (tradeIndex < numberOfTrades - 1) {
+                    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'step',
+                      message: 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
+                    }));
+                    await new Promise(r => setTimeout(r, 3000)); // 3 second delay between MT4 orders
+                  }
                 } else {
                   failedTrades++;
-                  console.log('MT4 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
+                  console.log('MT4 Trading: FAILED - Trade', (tradeIndex + 1), 'failed. Continuing...');
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'step',
-                    message: 'FAILED - MT4 trade ' + currentTradeNumber + ' failed. Continuing to next trade...'
+                    message: 'FAILED - MT4 trade ' + (tradeIndex + 1) + ' failed. Continuing to next trade...'
                   }));
-                }
-                
-                // Wait between trades (except after the last trade)
-                if (tradeIndex < numberOfTrades - 1) {
-                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'step',
-                    message: 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
-                  }));
-                  await new Promise(r => setTimeout(r, 3000)); // 3 second delay between MT4 orders
+                  
+                  // Wait before next trade even if this one failed (but not after the last one)
+                  if (tradeIndex < numberOfTrades - 1) {
+                    await new Promise(r => setTimeout(r, 2000));
+                  }
                 }
               }
               
-              console.log('MT4 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
+              // Log completion
+              console.log('MT4 Trading: Loop completed - executed', numberOfTrades, 'iterations, completed:', completedTrades, 'failed:', failedTrades);
               
               // Final summary
               console.log('MT4 Trading: EXECUTION COMPLETED - Completed:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);
@@ -849,55 +850,28 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           }
         }
         
-        // IMMEDIATE SYNCHRONOUS SETTING - NO DELAYS
-        console.log('MT5: Setting parameters NOW - Volume: ${volume}, SL: ${sl}, TP: ${tp}');
-        
         // Set Volume
-        var volumeField = document.querySelector('.trade-input input[type="text"]');
-        if (volumeField) {
-          volumeField.focus();
-          volumeField.value = '${volume}';
-          volumeField.dispatchEvent(new Event('input', { bubbles: true }));
-          volumeField.dispatchEvent(new Event('change', { bubbles: true }));
-          volumeField.blur();
-          console.log('MT5: Volume set to:', volumeField.value);
-        }
+        setMT5FieldValue('.trade-input input[type="text"]', '${volume}', 'Volume');
         
-        // Set Stop Loss
-        var slField = document.querySelector('.sl input[type="text"]');
-        if (slField) {
-          slField.focus();
-          slField.value = '${sl}';
-          slField.dispatchEvent(new Event('input', { bubbles: true }));
-          slField.dispatchEvent(new Event('change', { bubbles: true }));
-          slField.blur();
-          console.log('MT5: SL set to:', slField.value);
-        }
+        // Set Stop Loss with enhanced validation
+        setTimeout(function() {
+          setMT5FieldValue('.sl input[type="text"]', '${sl}', 'SL');
+        }, 300);
         
-        // Set Take Profit
-        var tpField = document.querySelector('.tp input[type="text"]');
-        if (tpField) {
-          tpField.focus();
-          tpField.value = '${tp}';
-          tpField.dispatchEvent(new Event('input', { bubbles: true }));
-          tpField.dispatchEvent(new Event('change', { bubbles: true }));
-          tpField.blur();
-          console.log('MT5: TP set to:', tpField.value);
-        }
+        // Set Take Profit with enhanced validation  
+        setTimeout(function() {
+          setMT5FieldValue('.tp input[type="text"]', '${tp}', 'TP');
+        }, 600);
         
         // Set Comment
-        var commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') ||
-                         document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
-        if (commentField) {
-          commentField.focus();
-          commentField.value = '${botname}';
-          commentField.dispatchEvent(new Event('input', { bubbles: true }));
-          commentField.dispatchEvent(new Event('change', { bubbles: true }));
-          commentField.blur();
-          console.log('MT5: Comment set');
-        }
-        
-        console.log('MT5: All parameters set immediately');
+        setTimeout(function() {
+          var commentSelector = '.input.svelte-mtorg2 input[type="text"]';
+          var commentField = document.querySelector(commentSelector);
+          if (!commentField) {
+            commentSelector = '.input.svelte-1d8k9kk input[type="text"]';
+          }
+          setMT5FieldValue(commentSelector, '${botname}', 'Comment');
+        }, 900);
       \`;
       
       const executeOrder = \`
@@ -924,47 +898,23 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         await sleep(500);
         eval(loginPress);
         
-        // CRITICAL: Wait and VERIFY login succeeded before ANY trading
-        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Waiting for login to complete...'}));
-        
-        // Check for login success (search bar appears when logged in)
-        let loginSuccess = false;
-        let loginAttempts = 0;
-        while (!loginSuccess && loginAttempts < 20) {
-          await sleep(1000);
-          const searchBar = document.querySelector('input[placeholder="Search symbol"]') ||
-                          document.querySelector('input[placeholder*="Search" i]') ||
-                          document.querySelector('input[type="search"]');
-          if (searchBar) {
-            loginSuccess = true;
-            window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Login verified - search bar detected!'}));
-          } else {
-            loginAttempts++;
-            console.log('MT5: Waiting for login... attempt', loginAttempts);
-          }
-        }
-        
-        if (!loginSuccess) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'error', message: 'Login failed - search bar not found after 20 seconds'}));
-          return;
-        }
-        
-        eval(revealAndVerifySearchBar);
-        await sleep(2000); // Brief wait for UI stabilization
-        
-        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
-        eval(searchSymbol);
-        await sleep(3000); // Wait for search results
-        
-        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Selecting symbol ${asset}...'}));
-        eval(selectSymbol);
-        await sleep(2500); // Wait for symbol selection
-        
-        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
+        await sleep(8000);
+        setTimeout(() => {
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Ensuring search bar is visible...'}));
+          eval(revealAndVerifySearchBar);
+          
+          setTimeout(() => {
+            window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
+            eval(searchSymbol);
+            
+            setTimeout(() => {
+              eval(selectSymbol);
+              
+              setTimeout(() => {
+                window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
                 
-        // SEQUENTIAL MT5 trading - ALL async/await, NO nested timeouts
-        (async () => {
-          try {
+                // Clean sequential MT5 order execution - matching web script exactly
+                (async () => {
                   const numberOfTrades = ${numberOfOrders};
                   let completedTrades = 0;
                   let failedTrades = 0;
@@ -1004,7 +954,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         message: 'Setting parameters for trade ' + currentTradeNumber + '...'
                       }));
                       eval(setOrderParams);
-                      await new Promise(r => setTimeout(r, 3000)); // Increased wait for fields to update
+                      await new Promise(r => setTimeout(r, 2000));
                       
                       // Execute order
                       console.log('MT5 Trading: Executing trade', currentTradeNumber, '- ${action}');
@@ -1021,48 +971,30 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         message: 'Trade ' + currentTradeNumber + ' executed, confirming...'
                       }));
                       
-                      // CRITICAL: Wait longer for confirmation dialog to appear
-                      await new Promise(r => setTimeout(r, 1000));
-                      
-                      // Try multiple times to find confirm button
-                      let confirmButton = null;
-                      let attempts = 0;
-                      while (!confirmButton && attempts < 3) {
-                        confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
-                                       document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
-                                       document.querySelector('.button[class*="trade"]:not(.red)') ||
-                                       document.querySelector('.modal button:not(.red):not(.cancel)') ||
-                                       document.querySelector('.dialog button:not(.red):not(.cancel)');
-                        if (!confirmButton) {
-                          await new Promise(r => setTimeout(r, 500));
-                          attempts++;
-                        }
-                      }
+                      const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
+                                          document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
+                                          document.querySelector('.button[class*="trade"]:not(.red)') ||
+                                          document.querySelector('.modal button:not(.red):not(.cancel)') ||
+                                          document.querySelector('.dialog button:not(.red):not(.cancel)');
                       
                       if (confirmButton) {
                         confirmButton.click();
-                        console.log('MT5 Trading: Confirm button clicked for trade', currentTradeNumber);
-                        await new Promise(r => setTimeout(r, 2500));
+                        await new Promise(r => setTimeout(r, 2000));
                         console.log('MT5 Trading: Trade', currentTradeNumber, 'completed successfully');
                         return true;
                       } else {
-                        // Try alternative method - any button in modal
-                        console.log('MT5 Trading: Primary confirm not found, trying alternatives...');
-                        const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button, [class*="dialog"] button');
+                        // Try alternative method
+                        const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
                         for (let i = 0; i < modalButtons.length; i++) {
-                          const btnText = (modalButtons[i].textContent || '').toLowerCase();
                           if (!modalButtons[i].classList.contains('red') && 
-                              !modalButtons[i].classList.contains('cancel') &&
-                              !btnText.includes('cancel') &&
-                              !btnText.includes('close')) {
+                              !modalButtons[i].classList.contains('cancel')) {
                             modalButtons[i].click();
-                            console.log('MT5 Trading: Alternative confirm clicked:', btnText);
-                            await new Promise(r => setTimeout(r, 2500));
+                            await new Promise(r => setTimeout(r, 2000));
                             console.log('MT5 Trading: Trade', currentTradeNumber, 'completed (alternative confirm)');
                             return true;
                           }
                         }
-                        console.log('MT5 Trading: ERROR - No confirm button found for trade', currentTradeNumber);
+                        console.log('MT5 Trading: Confirm button not found for trade', currentTradeNumber);
                         return false;
                       }
                     } catch (error) {
@@ -1071,42 +1003,43 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                     }
                   };
                   
-                  // Execute trades sequentially - EXACTLY numberOfTrades times
-                  console.log('MT5 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');
+                  // Execute trades sequentially - loop runs EXACTLY numberOfTrades times
                   for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
-                    const currentTradeNumber = tradeIndex + 1;
-                    console.log('MT5 Trading: LOOP ITERATION', currentTradeNumber, 'of', numberOfTrades, '- completedTrades:', completedTrades);
-                    
-                    // Execute this trade
                     const success = await executeSingleTrade(tradeIndex);
                     
                     if (success) {
                       completedTrades++;
-                      console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', completedTrades, 'of', numberOfTrades);
+                      console.log('MT5 Trading: SUCCESS - Trade', (tradeIndex + 1), 'completed! Progress:', completedTrades, 'of', numberOfTrades);
                       window.ReactNativeWebView.postMessage(JSON.stringify({
                         type: 'step',
-                        message: 'SUCCESS - Trade ' + currentTradeNumber + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
+                        message: 'SUCCESS - Trade ' + (tradeIndex + 1) + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
                       }));
+                      
+                      // Wait between trades (but not after the last one)
+                      if (tradeIndex < numberOfTrades - 1) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                          type: 'step',
+                          message: 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
+                        }));
+                        await new Promise(r => setTimeout(r, 2000));
+                      }
                     } else {
                       failedTrades++;
-                      console.log('MT5 Trading: FAILED - Trade', currentTradeNumber, 'failed. Continuing to next trade...');
+                      console.log('MT5 Trading: FAILED - Trade', (tradeIndex + 1), 'failed. Continuing...');
                       window.ReactNativeWebView.postMessage(JSON.stringify({
                         type: 'step',
-                        message: 'FAILED - Trade ' + currentTradeNumber + ' failed. Continuing to next trade...'
+                        message: 'FAILED - Trade ' + (tradeIndex + 1) + ' failed. Continuing to next trade...'
                       }));
-                    }
-                    
-                    // Wait between trades (except after the last trade)
-                    if (tradeIndex < numberOfTrades - 1) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'step',
-                        message: 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
-                      }));
-                      await new Promise(r => setTimeout(r, 2000));
+                      
+                      // Wait before next trade even if this one failed (but not after the last one)
+                      if (tradeIndex < numberOfTrades - 1) {
+                        await new Promise(r => setTimeout(r, 2000));
+                      }
                     }
                   }
                   
-                  console.log('MT5 Trading: LOOP COMPLETED - Executed', numberOfTrades, 'iterations, completedTrades:', completedTrades, 'failedTrades:', failedTrades);
+                  // Log completion
+                  console.log('MT5 Trading: Loop completed - executed', numberOfTrades, 'iterations, completed:', completedTrades, 'failed:', failedTrades);
                   
                   // Final summary
                   console.log('MT5 Trading: EXECUTION COMPLETED - Completed:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);
