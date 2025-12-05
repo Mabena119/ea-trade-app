@@ -472,96 +472,140 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             }));
             eval(selectSymbol);
             
-            // Execute multiple orders with proper delays and enhanced tracking
-            console.log('🎯 Starting execution of ${numberOfOrders} orders for ${asset}');
-            
-            var ordersExecuted = 0; // Track actual executed orders
-            var targetOrders = ${numberOfOrders};
-            
-            function executeOrderSequence(orderIndex) {
-              console.log('📊 MT4 executeOrderSequence - orderIndex:', orderIndex, 'ordersExecuted:', ordersExecuted, 'targetOrders:', targetOrders);
+            // Clean sequential MT4 order execution - matching web script exactly
+            (async () => {
+              const numberOfTrades = ${numberOfOrders};
+              let completedTrades = 0;
+              let failedTrades = 0;
               
-              // Check if we've executed all required orders
-              if (ordersExecuted >= targetOrders) {
-                console.log('✅ All MT4 orders completed! Total executed:', ordersExecuted, 'Target:', targetOrders);
-                
-                setTimeout(function() {
-                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'success',
-                    message: 'All ' + targetOrders + ' order(s) executed successfully for ${asset}'
-                  }));
-                  
-                  console.log('⏳ Waiting 3 seconds before closing trading process...');
-                  
-                  // Wait 3 seconds then close and return to listening state
-                  setTimeout(function() {
-                    console.log('🔄 3 seconds elapsed, closing trading process and returning to listening state');
-                    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'close',
-                      message: 'All trades completed - returning to listening state'
-                    }));
-                  }, 3000);
-                }, 2000);
-                return;
-              }
-              
-              console.log('🔨 Executing MT4 order ' + (ordersExecuted + 1) + ' of ' + targetOrders);
+              console.log('🎯 MT4 Trading: Starting STRICT execution of EXACTLY', numberOfTrades, 'trade(s) for ${asset}');
               window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'step',
-                message: 'Executing MT4 order ' + (ordersExecuted + 1) + ' of ' + targetOrders + ' for ${asset}...'
+                message: 'Starting execution of ' + numberOfTrades + ' MT4 trade(s) for ${asset}...'
               }));
               
-              // Set parameters for this order
-              eval(setTradeParams);
-              
-              // Execute order after parameters are set
-              setTimeout(function() {
-                console.log('💰 Placing MT4 order ' + (ordersExecuted + 1) + ' - ${action}');
-                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'step',
-                  message: 'Executing MT4 order ' + (ordersExecuted + 1) + ' of ' + targetOrders + ' - ${action}...'
-                }));
-                
-                // Click execute button
-                eval(executeOrder);
-                
-                // MT4 doesn't have a separate confirmation dialog, so wait for order to process
-                setTimeout(function() {
-                  // Increment the counter AFTER executing
-                  ordersExecuted++;
-                  console.log('✓ MT4 Order executed, ordersExecuted now:', ordersExecuted);
+              // Function to execute a single MT4 trade
+              const executeSingleTrade = async (tradeIndex) => {
+                try {
+                  const currentTradeNumber = tradeIndex + 1;
+                  console.log('MT4 Trading: Starting trade', currentTradeNumber, 'of', numberOfTrades);
                   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'step',
-                    message: 'MT4 order ' + ordersExecuted + ' of ' + targetOrders + ' completed successfully'
+                    message: 'Executing MT4 trade ' + currentTradeNumber + ' of ' + numberOfTrades + ' for ${asset}...'
                   }));
                   
-                  // CRITICAL: Check if we've reached the target
-                  if (ordersExecuted >= targetOrders) {
-                    console.log('MT4 Trading: TARGET REACHED - All', targetOrders, 'trades completed!');
+                  // Set parameters for this order
+                  eval(setTradeParams);
+                  await new Promise(r => setTimeout(r, 1500));
+                  
+                  // Execute order
+                  console.log('MT4 Trading: Executing trade', currentTradeNumber, '- ${action}');
+                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'step',
+                    message: 'Executing MT4 trade ' + currentTradeNumber + ' - ${action}...'
+                  }));
+                  eval(executeOrder);
+                  
+                  // MT4 doesn't have a separate confirmation dialog, wait for order to process
+                  await new Promise(r => setTimeout(r, 2000));
+                  
+                  console.log('MT4 Trading: Trade', currentTradeNumber, 'completed successfully');
+                  return true;
+                } catch (error) {
+                  console.log('MT4 Trading: Trade', (tradeIndex + 1), 'failed:', error.message);
+                  return false;
+                }
+              };
+              
+              // Execute trades sequentially
+              for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
+                // Safety check
+                if (completedTrades >= numberOfTrades) {
+                  console.log('MT4 Trading: SAFETY BREAK - Target reached');
+                  break;
+                }
+                
+                const success = await executeSingleTrade(tradeIndex);
+                
+                if (success) {
+                  completedTrades++;
+                  console.log('MT4 Trading: SUCCESS - Trade', (tradeIndex + 1), 'completed! Progress:', completedTrades, 'of', numberOfTrades);
+                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'step',
+                    message: 'SUCCESS - MT4 trade ' + (tradeIndex + 1) + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
+                  }));
+                  
+                  // Check if target reached
+                  if (completedTrades >= numberOfTrades) {
+                    console.log('MT4 Trading: TARGET REACHED - All', numberOfTrades, 'trades completed!');
                     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'success',
-                      message: 'All ' + targetOrders + ' MT4 order(s) executed successfully for ${asset}'
+                      type: 'step',
+                      message: 'TARGET REACHED - All ' + numberOfTrades + ' MT4 trades completed!'
                     }));
-                    
-                    setTimeout(function() {
-                      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'close',
-                        message: 'All trades completed - returning to listening state'
-                      }));
-                    }, 3000);
-                    return;
+                    break;
                   }
                   
-                  // Wait before next order to ensure current order is fully processed
-                setTimeout(function() {
-                  executeOrderSequence(orderIndex + 1);
-                  }, 5000); // 5 second delay between MT4 orders
-                }, 2000); // Wait 2 seconds for MT4 order to process
-              }, 4500); // Delay to allow field setting to complete
-            }
-            
-            // Start the sequence
-            executeOrderSequence(0);
+                  // Wait between trades
+                  if (completedTrades < numberOfTrades) {
+                    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'step',
+                      message: 'Waiting before next MT4 trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
+                    }));
+                    await new Promise(r => setTimeout(r, 3000)); // 3 second delay between MT4 orders
+                  }
+                } else {
+                  failedTrades++;
+                  console.log('MT4 Trading: FAILED - Trade', (tradeIndex + 1), 'failed. Continuing...');
+                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'step',
+                    message: 'FAILED - MT4 trade ' + (tradeIndex + 1) + ' failed. Continuing to next trade...'
+                  }));
+                  
+                  if (tradeIndex < numberOfTrades - 1) {
+                    await new Promise(r => setTimeout(r, 2000));
+                  }
+                }
+              }
+              
+              // Final summary
+              console.log('MT4 Trading: EXECUTION COMPLETED - Completed:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'trade_executed',
+                message: 'All MT4 trades completed: ' + completedTrades + ' of ' + numberOfTrades + ' successful for ${asset}'
+              }));
+              
+              // Close after completion
+              if (completedTrades === numberOfTrades) {
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'success',
+                  message: 'All ' + numberOfTrades + ' MT4 trade(s) executed successfully for ${asset}'
+                }));
+                
+                setTimeout(() => {
+                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'close',
+                    message: 'All trades completed - returning to listening state'
+                  }));
+                }, 3000);
+              } else if (completedTrades > 0) {
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'success',
+                  message: 'Partial completion: ' + completedTrades + ' of ' + numberOfTrades + ' MT4 trades executed'
+                }));
+                
+                setTimeout(() => {
+                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'close',
+                    message: 'Trading completed - returning to listening state'
+                  }));
+                }, 3000);
+              } else {
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'error',
+                  message: 'No MT4 trades executed successfully'
+                }));
+              }
+            })();
           }, 2000);
         }
         
@@ -879,234 +923,187 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               eval(selectSymbol);
               
               setTimeout(() => {
-                window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Opening order dialog...'}));
+                window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
                 
-                // Enhanced MT5 order execution sequence
-                console.log('🎯 Starting MT5 execution of ${numberOfOrders} orders for ${asset}');
-                
-                var ordersExecuted = 0; // Track actual executed orders
-                var targetOrders = ${numberOfOrders};
-                
-                function executeMT5OrderSequence(orderIndex) {
-                  console.log('📊 MT5 executeMT5OrderSequence - orderIndex:', orderIndex, 'ordersExecuted:', ordersExecuted, 'targetOrders:', targetOrders);
+                // Clean sequential MT5 order execution - matching web script exactly
+                (async () => {
+                  const numberOfTrades = ${numberOfOrders};
+                  let completedTrades = 0;
+                  let failedTrades = 0;
                   
-                  // CRITICAL SAFETY CHECK: Prevent over-execution
-                  if (ordersExecuted >= targetOrders) {
-                    // All orders completed - verify all trades are actually executed
-                    console.log('✅ All MT5 orders completed! Total executed:', ordersExecuted, 'Target:', targetOrders, '- verifying execution status...');
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'step', 
-                      message: 'All ' + targetOrders + ' MT5 order(s) completed, verifying execution...'
-                    }));
-                    
-                    // Function to check if all trades are actually executed
-                    function verifyAllTradesExecuted() {
-                      console.log('Verifying all MT5 trades are executed...');
-                      
-                      // Check for any remaining order dialogs or pending states
-                      var orderDialog = document.querySelector('.trade-dialog, .order-dialog, .modal');
-                      var loadingIndicators = document.querySelectorAll('.loading, .spinner, [class*="loading"]');
-                      var pendingOrders = document.querySelectorAll('.pending, [class*="pending"]');
-                      
-                      var hasOpenDialog = orderDialog && orderDialog.offsetParent !== null;
-                      var hasLoading = Array.from(loadingIndicators).some(el => el.offsetParent !== null);
-                      var hasPending = Array.from(pendingOrders).some(el => el.offsetParent !== null);
-                      
-                      console.log('MT5 Execution verification:', {
-                        hasOpenDialog: hasOpenDialog,
-                        hasLoading: hasLoading,
-                        hasPending: hasPending,
-                        ordersExecuted: ordersExecuted,
-                        targetOrders: targetOrders
-                      });
-                      
-                      // If no pending operations, all trades are complete
-                      if (!hasOpenDialog && !hasLoading && !hasPending) {
-                        console.log('All MT5 trades verified as completed');
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                          type: 'success', 
-                          message: 'All ' + targetOrders + ' MT5 order(s) executed successfully for ${asset}'
-                        }));
-                        
-                        console.log('Waiting 3 seconds before closing trading process...');
-                        
-                        // Wait 3 seconds then close and return to listening state
-                        setTimeout(() => {
-                          console.log('3 seconds elapsed, closing trading process and returning to listening state');
-                          window.ReactNativeWebView.postMessage(JSON.stringify({
-                            type: 'close', 
-                            message: 'All trades completed - returning to listening state'
-                          }));
-                        }, 3000);
-                        return true;
-                      }
-                      
-                      return false;
-                    }
-                    
-                    // Start verification process with retries
-                    var verificationAttempts = 0;
-                    var maxVerificationAttempts = 20; // 20 attempts = up to 40 seconds
-                    
-                    function attemptVerification() {
-                      verificationAttempts++;
-                      console.log('MT5 verification attempt:', verificationAttempts, 'of', maxVerificationAttempts);
-                      
-                      if (verifyAllTradesExecuted()) {
-                        // All trades confirmed executed
-                        return;
-                      }
-                      
-                      if (verificationAttempts < maxVerificationAttempts) {
-                        // Continue checking
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                          type: 'step', 
-                          message: \`Verifying execution... (\${verificationAttempts}/\${maxVerificationAttempts})\`
-                        }));
-                        setTimeout(attemptVerification, 2000);
-                      } else {
-                        // Max attempts reached - assume completion
-                        console.log('MT5 verification timeout - assuming all trades completed');
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                          type: 'success', 
-                          message: 'All ' + targetOrders + ' MT5 order(s) processing completed for ${asset}'
-                        }));
-                        
-                        console.log('Waiting 3 seconds before closing trading process...');
-                        
-                        setTimeout(() => {
-                          console.log('3 seconds elapsed, closing trading process and returning to listening state');
-                          window.ReactNativeWebView.postMessage(JSON.stringify({
-                            type: 'close', 
-                            message: 'All trades completed - returning to listening state'
-                          }));
-                        }, 3000);
-                      }
-                    }
-                    
-                    // Start verification after a brief delay
-                    setTimeout(attemptVerification, 3000);
-                    return;
-                  }
-                  
-                  // CRITICAL SAFETY CHECK: Prevent over-execution before starting
-                  if (ordersExecuted >= targetOrders) {
-                    console.log('MT5 Trading: SAFETY BREAK - Target already reached before starting trade', (ordersExecuted + 1));
-                    return;
-                  }
-                  
-                  const currentTradeNumber = ordersExecuted + 1;
-                  console.log('🔨 Executing MT5 order ' + currentTradeNumber + ' of ' + targetOrders);
+                  console.log('🎯 MT5 Trading: Starting STRICT execution of EXACTLY', numberOfTrades, 'trade(s) for ${asset}');
                   window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'step', 
-                    message: 'Opening order dialog for MT5 trade ' + currentTradeNumber + ' of ' + targetOrders + '...'
+                    type: 'step',
+                    message: 'Starting execution of ' + numberOfTrades + ' trade(s) for ${asset}...'
                   }));
                   
-                  eval(openOrderDialog);
-                  
-                  setTimeout(() => {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: 'step', 
-                      message: 'Setting parameters for MT5 order ' + currentTradeNumber + ' of ' + targetOrders + '...'
-                    }));
-                    eval(setOrderParams);
-                    
-                    setTimeout(() => {
-                      console.log('💰 Placing MT5 order ' + (ordersExecuted + 1) + ' - ${action}');
+                  // Function to execute a single trade
+                  const executeSingleTrade = async (tradeIndex) => {
+                    try {
+                      const currentTradeNumber = tradeIndex + 1;
+                      console.log('MT5 Trading: Starting trade', currentTradeNumber, 'of', numberOfTrades);
                       window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'step', 
-                        message: 'Executing MT5 order ' + (ordersExecuted + 1) + ' of ' + targetOrders + ' - ${action}...'
+                        type: 'step',
+                        message: 'Executing trade ' + currentTradeNumber + ' of ' + numberOfTrades + ' for ${asset}...'
                       }));
                       
-                      // Click execute button
-                      eval(executeOrder);
+                      // Open order dialog
+                      const orderButton = document.querySelector('.icon-button.withText span.button-text');
+                      if (!orderButton) {
+                        console.log('MT5 Trading: Order button not found for trade', currentTradeNumber);
+                        return false;
+                      }
+                      orderButton.click();
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'step',
+                        message: 'Order dialog opened for trade ' + currentTradeNumber + '...'
+                      }));
+                      await new Promise(r => setTimeout(r, 1500));
                       
-                      // Wait for confirmation dialog to appear, then click confirm
-                      setTimeout(() => {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                          type: 'step', 
-                          message: 'Trade ' + (ordersExecuted + 1) + ' executed, confirming...'
-                        }));
-                        
-                        // Try to find and click confirm button with multiple selectors
-                        var confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
+                      // Set parameters
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'step',
+                        message: 'Setting parameters for trade ' + currentTradeNumber + '...'
+                      }));
+                      eval(setOrderParams);
+                      await new Promise(r => setTimeout(r, 2000));
+                      
+                      // Execute order
+                      console.log('MT5 Trading: Executing trade', currentTradeNumber, '- ${action}');
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'step',
+                        message: 'Executing trade ' + currentTradeNumber + ' - ${action}...'
+                      }));
+                      eval(executeOrder);
+                      await new Promise(r => setTimeout(r, 2000));
+                      
+                      // Confirm order
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'step',
+                        message: 'Trade ' + currentTradeNumber + ' executed, confirming...'
+                      }));
+                      
+                      const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
                                           document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
                                           document.querySelector('.button[class*="trade"]:not(.red)') ||
-                                          document.querySelector('button:contains("OK")') ||
-                                          document.querySelector('button:contains("Confirm")');
-                        
-                        if (confirmButton) {
-                          confirmButton.click();
-                          console.log('✓ Confirm button clicked for order', (ordersExecuted + 1));
-                          window.ReactNativeWebView.postMessage(JSON.stringify({
-                            type: 'step', 
-                            message: 'Trade ' + (ordersExecuted + 1) + ' of ' + targetOrders + ' completed successfully'
-                          }));
-                        } else {
-                          console.log('⚠️ Confirm button not found, trade may still be processing...');
-                          // Try alternative method - look for any button in modal/dialog
-                          var modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
-                          if (modalButtons.length > 0) {
-                            // Click the first non-red button (usually confirm)
-                            for (var i = 0; i < modalButtons.length; i++) {
-                              if (!modalButtons[i].classList.contains('red') && 
-                                  !modalButtons[i].classList.contains('cancel')) {
-                                modalButtons[i].click();
-                                console.log('✓ Alternative confirm button clicked');
-                                break;
-                              }
-                            }
+                                          document.querySelector('.modal button:not(.red):not(.cancel)') ||
+                                          document.querySelector('.dialog button:not(.red):not(.cancel)');
+                      
+                      if (confirmButton) {
+                        confirmButton.click();
+                        await new Promise(r => setTimeout(r, 2000));
+                        console.log('MT5 Trading: Trade', currentTradeNumber, 'completed successfully');
+                        return true;
+                      } else {
+                        // Try alternative method
+                        const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
+                        for (let i = 0; i < modalButtons.length; i++) {
+                          if (!modalButtons[i].classList.contains('red') && 
+                              !modalButtons[i].classList.contains('cancel')) {
+                            modalButtons[i].click();
+                            await new Promise(r => setTimeout(r, 2000));
+                            console.log('MT5 Trading: Trade', currentTradeNumber, 'completed (alternative confirm)');
+                            return true;
                           }
                         }
-                        
-                        // Wait for trade to process before moving to next
-                        setTimeout(() => {
-                          // Increment the counter AFTER confirming
-                          ordersExecuted++;
-                          console.log('✓ Order confirmed, ordersExecuted now:', ordersExecuted);
-                          console.log('MT5 Trading: SUCCESS - Trade', currentTradeNumber, 'completed! Progress:', ordersExecuted, 'of', targetOrders);
-                          
-                          // CRITICAL: Check if we've reached the target
-                          if (ordersExecuted >= targetOrders) {
-                            console.log('MT5 Trading: TARGET REACHED - All', targetOrders, 'trades completed!');
-                            window.ReactNativeWebView.postMessage(JSON.stringify({
-                              type: 'success', 
-                              message: 'All ' + targetOrders + ' MT5 order(s) executed successfully for ${asset}'
-                            }));
-                            
-                            setTimeout(() => {
-                              window.ReactNativeWebView.postMessage(JSON.stringify({
-                                type: 'close', 
-                                message: 'All trades completed - returning to listening state'
-                              }));
-                            }, 3000);
-                            return;
-                          }
-                          
-                          // Wait between trades (only if we haven't reached the target)
-                          if (ordersExecuted < targetOrders) {
-                            window.ReactNativeWebView.postMessage(JSON.stringify({
-                              type: 'step', 
-                              message: 'Waiting before next trade... (' + ordersExecuted + '/' + targetOrders + ' completed)'
-                            }));
-                            
-                            setTimeout(() => {
-                              console.log('MT5 order processing completed, moving to next trade...');
-                              console.log('MT5 Trading: Continuing to next trade - ordersExecuted:', ordersExecuted, 'targetOrders:', targetOrders);
-                              // Use ordersExecuted as the index for next trade (not orderIndex + 1)
-                              executeMT5OrderSequence(ordersExecuted);
-                            }, 3000); // 3 second delay between orders after confirmation
-                          } else {
-                            console.log('MT5 Trading: All trades completed, stopping sequence');
-                          }
-                        }, 2000); // Wait 2 seconds after clicking confirm
-                      }, 2000); // Wait 2 seconds for confirmation dialog to appear after execute
-                    }, 3000); // Wait 3 seconds for parameter setting to complete
-                  }, 2500); // Increased from 2 to 2.5 seconds for dialog opening
-                }
-                
-                // Start the MT5 sequence
-                executeMT5OrderSequence(0);
+                        console.log('MT5 Trading: Confirm button not found for trade', currentTradeNumber);
+                        return false;
+                      }
+                    } catch (error) {
+                      console.log('MT5 Trading: Trade', (tradeIndex + 1), 'failed:', error.message);
+                      return false;
+                    }
+                  };
+                  
+                  // Execute trades sequentially
+                  for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
+                    // Safety check
+                    if (completedTrades >= numberOfTrades) {
+                      console.log('MT5 Trading: SAFETY BREAK - Target reached');
+                      break;
+                    }
+                    
+                    const success = await executeSingleTrade(tradeIndex);
+                    
+                    if (success) {
+                      completedTrades++;
+                      console.log('MT5 Trading: SUCCESS - Trade', (tradeIndex + 1), 'completed! Progress:', completedTrades, 'of', numberOfTrades);
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'step',
+                        message: 'SUCCESS - Trade ' + (tradeIndex + 1) + ' completed! Progress: ' + completedTrades + ' of ' + numberOfTrades
+                      }));
+                      
+                      // Check if target reached
+                      if (completedTrades >= numberOfTrades) {
+                        console.log('MT5 Trading: TARGET REACHED - All', numberOfTrades, 'trades completed!');
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                          type: 'step',
+                          message: 'TARGET REACHED - All ' + numberOfTrades + ' trades completed!'
+                        }));
+                        break;
+                      }
+                      
+                      // Wait between trades
+                      if (completedTrades < numberOfTrades) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                          type: 'step',
+                          message: 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
+                        }));
+                        await new Promise(r => setTimeout(r, 2000));
+                      }
+                    } else {
+                      failedTrades++;
+                      console.log('MT5 Trading: FAILED - Trade', (tradeIndex + 1), 'failed. Continuing...');
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'step',
+                        message: 'FAILED - Trade ' + (tradeIndex + 1) + ' failed. Continuing to next trade...'
+                      }));
+                      
+                      if (tradeIndex < numberOfTrades - 1) {
+                        await new Promise(r => setTimeout(r, 2000));
+                      }
+                    }
+                  }
+                  
+                  // Final summary
+                  console.log('MT5 Trading: EXECUTION COMPLETED - Completed:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'trade_executed',
+                    message: 'All trades completed: ' + completedTrades + ' of ' + numberOfTrades + ' successful for ${asset}'
+                  }));
+                  
+                  // Close after completion
+                  if (completedTrades === numberOfTrades) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'success',
+                      message: 'All ' + numberOfTrades + ' trade(s) executed successfully for ${asset}'
+                    }));
+                    
+                    setTimeout(() => {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'close',
+                        message: 'All trades completed - returning to listening state'
+                      }));
+                    }, 3000);
+                  } else if (completedTrades > 0) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'success',
+                      message: 'Partial completion: ' + completedTrades + ' of ' + numberOfTrades + ' trades executed'
+                    }));
+                    
+                    setTimeout(() => {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'close',
+                        message: 'Trading completed - returning to listening state'
+                      }));
+                    }, 3000);
+                  } else {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'error',
+                      message: 'No trades executed successfully'
+                    }));
+                  }
+                })();
               }, 3000);
             }, 4000); // Increased delay to allow search bar verification and search completion
           }, 4000); // Increased delay to allow search bar reveal verification
