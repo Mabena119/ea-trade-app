@@ -379,6 +379,56 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   };
 
+  // On Android, automatically show overlay when bot is active and EAs are loaded
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !isBotActive || eas.length === 0) return;
+    
+    const showOverlayOnStart = async () => {
+      try {
+        const { overlayService } = await import('@/services/overlay-service');
+        const primaryEA = eas[0];
+        
+        if (primaryEA) {
+          const botName = primaryEA.name || 'EA Trade';
+          const botImageURL = getEAImageUrl(primaryEA);
+          
+          console.log('[Android Overlay] Bot active and EAs loaded, showing overlay:', { botName, botImageURL });
+          
+          // Save image URL first
+          await overlayService.updateOverlayData(botName, true, false, botImageURL || null);
+          
+          // Show overlay at default position
+          const statusBarHeight = 50;
+          const initialX = 20;
+          const initialY = statusBarHeight + 50;
+          const overlayWidth = 140;
+          const overlayHeight = 140;
+          
+          const showSuccess = await overlayService.showOverlay(
+            initialX,
+            initialY,
+            overlayWidth,
+            overlayHeight
+          );
+          
+          if (showSuccess) {
+            console.log('[Android Overlay] Overlay shown successfully');
+            // Update overlay data again to ensure image is loaded
+            await overlayService.updateOverlayData(botName, true, false, botImageURL || null);
+          } else {
+            console.log('[Android Overlay] Failed to show overlay - permission may be required');
+          }
+        }
+      } catch (error) {
+        console.error('[Android Overlay] Error showing overlay:', error);
+      }
+    };
+    
+    // Small delay to ensure everything is ready
+    const timeoutId = setTimeout(showOverlayOnStart, 500);
+    return () => clearTimeout(timeoutId);
+  }, [isBotActive, eas, getEAImageUrl]);
+
   const setUser = useCallback(async (newUser: User) => {
     setUserState(newUser);
     try {
@@ -686,19 +736,48 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
       const botImageURL = getEAImageUrl(primaryEA);
 
-      // Update Android overlay widget
+      // Update Android overlay widget - show/hide overlay automatically
       if (Platform.OS === 'android') {
         try {
-          console.log('[Android Overlay] Updating overlay:', { botName, active, botImageURL });
-          NativeModules.OverlayWindowModule.updateOverlayData(
-            botName,
-            active,
-            isPollingPaused,
-            botImageURL || ''
-          );
-          console.log('[Android Overlay] Overlay update triggered successfully');
+          const { overlayService } = await import('@/services/overlay-service');
+          
+          if (active) {
+            // Bot is being activated - show overlay automatically
+            console.log('[Android Overlay] Bot activated, showing overlay:', { botName, botImageURL });
+            
+            // Save image URL first
+            await overlayService.updateOverlayData(botName, active, isPollingPaused, botImageURL || null);
+            
+            // Show overlay at default position
+            const statusBarHeight = 50;
+            const initialX = 20;
+            const initialY = statusBarHeight + 50;
+            const overlayWidth = 140;
+            const overlayHeight = 140;
+            
+            const showSuccess = await overlayService.showOverlay(
+              initialX,
+              initialY,
+              overlayWidth,
+              overlayHeight
+            );
+            
+            if (showSuccess) {
+              console.log('[Android Overlay] Overlay shown successfully');
+              // Update overlay data again to ensure image is loaded
+              await overlayService.updateOverlayData(botName, active, isPollingPaused, botImageURL || null);
+            } else {
+              console.log('[Android Overlay] Failed to show overlay - permission may be required');
+            }
+          } else {
+            // Bot is being deactivated - hide overlay
+            console.log('[Android Overlay] Bot deactivated, hiding overlay');
+            await overlayService.hideOverlay();
+            // Still update data in case overlay is shown again later
+            await overlayService.updateOverlayData(botName, active, isPollingPaused, botImageURL || null);
+          }
         } catch (error) {
-          console.error('[Android Overlay] Error updating overlay:', error);
+          console.error('[Android Overlay] Error managing overlay:', error);
         }
       }
 

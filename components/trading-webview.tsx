@@ -553,8 +553,8 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                   }
                   
                   // Wait before next order to ensure current order is fully processed
-                  setTimeout(function() {
-                    executeOrderSequence(orderIndex + 1);
+                setTimeout(function() {
+                  executeOrderSequence(orderIndex + 1);
                   }, 5000); // 5 second delay between MT4 orders
                 }, 2000); // Wait 2 seconds for MT4 order to process
               }, 4500); // Delay to allow field setting to complete
@@ -1092,7 +1092,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                             
                             setTimeout(() => {
                               console.log('MT5 order processing completed, moving to next...');
-                              executeMT5OrderSequence(orderIndex + 1);
+                        executeMT5OrderSequence(orderIndex + 1);
                             }, 3000); // 3 second delay between orders after confirmation
                           }
                         }, 2000); // Wait 2 seconds after clicking confirm
@@ -1117,9 +1117,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal/',
   };
 
-  // Get WebView URL for trading based on platform - Load actual terminal, not proxy
+  // Get WebView URL for trading based on platform
+  // For web: Use proxy URL that injects script server-side (like Android)
+  // For Android/iOS: Use direct terminal URL with client-side script injection
   const getWebViewUrl = useCallback(() => {
-    if (!tradeConfig || !credentials) return '';
+    if (!tradeConfig || !credentials || !signal) return '';
 
     // Determine MT5 broker URL based on server name
     let mt5Url = 'https://webtrader.razormarkets.co.za/terminal/'; // Default
@@ -1127,20 +1129,54 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       mt5Url = MT5_BROKER_URLS[credentials.server] || MT5_BROKER_URLS['RazorMarkets-Live'];
     }
 
-    // Return the actual MT4/MT5 web terminal URL (not the proxy)
+    // For web platform, use proxy URL that injects script server-side
+    if (Platform.OS === 'web') {
+      const proxyBaseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const proxyPath = tradeConfig.platform === 'MT5' ? '/api/mt5-proxy' : '/api/mt4-proxy';
+      
+      const terminalUrl = tradeConfig.platform === 'MT4'
+        ? 'https://metatraderweb.app/trade?version=4'
+        : mt5Url;
+      
+      // Build proxy URL with all trading parameters
+      const proxyUrl = new URL(proxyPath, proxyBaseUrl);
+      proxyUrl.searchParams.set('url', terminalUrl);
+      proxyUrl.searchParams.set('login', credentials.login);
+      proxyUrl.searchParams.set('password', credentials.password);
+      proxyUrl.searchParams.set('server', credentials.server || '');
+      proxyUrl.searchParams.set('asset', signal.asset);
+      proxyUrl.searchParams.set('action', signal.action);
+      proxyUrl.searchParams.set('price', signal.price?.toString() || '');
+      proxyUrl.searchParams.set('tp', signal.tp?.toString() || '');
+      proxyUrl.searchParams.set('sl', signal.sl?.toString() || '');
+      proxyUrl.searchParams.set('volume', tradeConfig.lotSize);
+      proxyUrl.searchParams.set('numberOfTrades', tradeConfig.numberOfTrades);
+      proxyUrl.searchParams.set('botname', eaName);
+
+      console.log('🎯 Web Trading WebView URL (Proxy):', {
+        platform: tradeConfig.platform,
+        proxyUrl: proxyUrl.toString(),
+        broker: tradeConfig.platform === 'MT5' ? credentials.server : 'N/A',
+        willInjectScript: 'server-side via proxy'
+      });
+
+      return proxyUrl.toString();
+    }
+
+    // For Android/iOS: Return direct terminal URL (script injected client-side)
     const terminalUrl = tradeConfig.platform === 'MT4'
         ? 'https://metatraderweb.app/trade?version=4'
       : mt5Url;
 
-    console.log('🎯 Trading WebView URL:', {
+    console.log('🎯 Trading WebView URL (Direct):', {
       platform: tradeConfig.platform,
       terminalUrl: terminalUrl,
       broker: tradeConfig.platform === 'MT5' ? credentials.server : 'N/A',
-      willInjectScript: true
+      willInjectScript: 'client-side'
     });
 
     return terminalUrl;
-  }, [tradeConfig, credentials]);
+  }, [tradeConfig, credentials, signal, eaName]);
 
   // Storage clear script for MT5 cleanup
   const getStorageClearScript = useCallback(() => {
@@ -1531,7 +1567,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             <WebWebView
               key={`trading-web-${webViewKey}`}
               url={webViewUrl}
-              script={tradingScript}
+              script={undefined} // No script needed for web - proxy URL injects script server-side
               onMessage={handleWebViewMessage}
               onLoadEnd={handleWebViewLoad}
               style={styles.invisibleWebView}

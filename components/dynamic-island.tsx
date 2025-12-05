@@ -148,66 +148,113 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
 
   // On Android, always show as overlay widget - show overlay when bot is active
   useEffect(() => {
-    if (Platform.OS === 'android' && isBotActive && visible && !isNativeOverlayActive) {
-      const setupAndroidOverlay = async () => {
-        console.log('[Overlay] Setting up Android overlay widget...');
-        
-        // Always try to show overlay - showOverlay will handle permission check internally
-        // Use fixed size for native overlay widget
-        // Collapsed: Just robot image (circular, compact)
-        // Expanded: Full bot details (larger)
-        const overlayWidth = 140; // Compact size for collapsed (just circular image)
-        const overlayHeight = 140; // Square for circular image
-        const currentX = (panX as any)._value || 20;
-        const currentY = (panY as any)._value || 100;
-        
-        console.log('[Overlay] Attempting to show overlay at:', { currentX, currentY, overlayWidth, overlayHeight });
-        
-        const success = await overlayService.showOverlay(
-          currentX,
-          currentY,
-          overlayWidth,
-          overlayHeight
-        );
-        
-        console.log('[Overlay] Overlay show result:', success);
-        
-        if (success) {
-          setIsNativeOverlayActive(true);
-          // Update overlay data immediately after showing
+    if (Platform.OS !== 'android') return;
+    
+    if (isBotActive && visible && primaryEA) {
+      // Only show overlay if not already active
+      if (!isNativeOverlayActive) {
+        const setupAndroidOverlay = async () => {
+          console.log('[Overlay] Setting up Android overlay widget...');
+          console.log('[Overlay] Conditions:', { isBotActive, visible, hasPrimaryEA: !!primaryEA, botImageURL: primaryEAImage });
+          
+          // Get bot info first
           const botName = primaryEA?.name || 'EA Trade';
           const botImageURL = primaryEAImage;
-          console.log('[Overlay] Updating overlay data:', { botName, isBotActive, botImageURL });
-          await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL);
-        } else {
-          console.log('[Overlay] Failed to show overlay - permission may be required');
-        }
-      };
-      
-      setupAndroidOverlay();
-    }
-    
-    // Cleanup when component unmounts or bot becomes inactive
-    return () => {
-      if (isNativeOverlayActive && Platform.OS === 'android') {
-        console.log('[Overlay] Hiding overlay widget');
+          
+          // Save image URL to preferences BEFORE showing overlay so it's available when overlay loads
+          if (botImageURL) {
+            console.log('[Overlay] Saving bot image URL to preferences before showing overlay:', botImageURL);
+            await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL);
+          }
+          
+          // Always try to show overlay - showOverlay will handle permission check internally
+          // Use fixed size for native overlay widget
+          // Collapsed: Just robot image (circular, compact)
+          // Expanded: Full bot details (larger)
+          const overlayWidth = 140; // Compact size for collapsed (just circular image)
+          const overlayHeight = 140; // Square for circular image
+          const currentX = (panX as any)._value || 20;
+          const currentY = (panY as any)._value || 100;
+          
+          console.log('[Overlay] Attempting to show overlay at:', { currentX, currentY, overlayWidth, overlayHeight });
+          
+          const success = await overlayService.showOverlay(
+            currentX,
+            currentY,
+            overlayWidth,
+            overlayHeight
+          );
+          
+          console.log('[Overlay] Overlay show result:', success);
+          
+          if (success) {
+            setIsNativeOverlayActive(true);
+            // Update overlay data immediately after showing - ensure image is set
+            console.log('[Overlay] Overlay shown successfully, updating with bot image:', { botName, isBotActive, botImageURL });
+            
+            // Always update overlay data to ensure image is loaded
+            await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL || null);
+          } else {
+            console.log('[Overlay] Failed to show overlay - permission may be required');
+            // Retry after a short delay
+            setTimeout(async () => {
+              // Ensure image URL is saved before retry
+              if (botImageURL) {
+                await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL);
+              }
+              
+              const retrySuccess = await overlayService.showOverlay(
+                currentX,
+                currentY,
+                overlayWidth,
+                overlayHeight
+              );
+              if (retrySuccess) {
+                setIsNativeOverlayActive(true);
+                console.log('[Overlay] Retry successful, updating with bot image:', { botName, botImageURL });
+                await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL || null);
+              }
+            }, 1000);
+          }
+        };
+        
+        setupAndroidOverlay();
+      }
+    } else {
+      // Hide overlay when bot becomes inactive or component becomes invisible
+      if (isNativeOverlayActive) {
+        console.log('[Overlay] Hiding overlay widget - bot inactive or component invisible');
         overlayService.hideOverlay();
         setIsNativeOverlayActive(false);
       }
-    };
-  }, [isBotActive, visible, isExpanded, isNativeOverlayActive, primaryEA, primaryEAImage]);
+    }
+  }, [isBotActive, visible, primaryEA, primaryEAImage, isNativeOverlayActive]);
 
-  // Update overlay data when bot info changes
+  // Update overlay data when bot info changes - ensure image is always updated
   useEffect(() => {
     if (Platform.OS === 'android' && isNativeOverlayActive && primaryEA) {
       const updateData = async () => {
         const botName = primaryEA.name || 'EA Trade';
         const botImageURL = primaryEAImage;
+        console.log('[Overlay] Updating overlay data (useEffect):', { botName, isBotActive, botImageURL });
         await overlayService.updateOverlayData(botName, isBotActive, false, botImageURL);
       };
       updateData();
     }
   }, [isNativeOverlayActive, primaryEA, primaryEAImage, isBotActive]);
+
+  // Also update overlay when image URL becomes available (even if overlay was already shown)
+  useEffect(() => {
+    if (Platform.OS === 'android' && isBotActive && visible && primaryEA && primaryEAImage) {
+      // Update overlay even if it's already showing - this ensures image is loaded
+      const updateImage = async () => {
+        const botName = primaryEA.name || 'EA Trade';
+        console.log('[Overlay] Image URL available, updating overlay:', { botName, botImageURL: primaryEAImage });
+        await overlayService.updateOverlayData(botName, isBotActive, false, primaryEAImage);
+      };
+      updateImage();
+    }
+  }, [primaryEAImage, isBotActive, visible, primaryEA]);
 
   // Handle app state changes for overlay mode
   useEffect(() => {
@@ -333,8 +380,12 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     return null; // WidgetKit widget handles iOS display
   }
 
-  // On web (non-PWA), show React overlay
-  // In overlay mode, show a persistent floating widget
+  // On web, don't show overlay widget - it's Android/iOS only
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
+  // In overlay mode, show a persistent floating widget (Android only, but should not reach here)
   const mode = isOverlayMode ?? false; // Default to false if undefined
 
   if (mode) {

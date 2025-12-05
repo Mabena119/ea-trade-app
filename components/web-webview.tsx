@@ -61,9 +61,101 @@ const WebWebView: React.FC<WebWebViewProps> = ({
     };
   }, []);
 
+  // Inject script into iframe when it loads
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
+
+    const injectScriptIntoIframe = () => {
+      if (!script) {
+        console.log('Web WebView: No script to inject');
+        return;
+      }
+
+      try {
+        const iframeWindow = iframe.contentWindow;
+        const iframeDocument = iframe.contentDocument || (iframeWindow && iframeWindow.document);
+        
+        if (iframeDocument && iframeWindow) {
+          console.log('Web WebView: Injecting script into iframe...');
+          
+          // Create a script element and inject it
+          const scriptElement = iframeDocument.createElement('script');
+          scriptElement.type = 'text/javascript';
+          scriptElement.textContent = `
+            (function() {
+              try {
+                // Override postMessage to send messages to parent
+                const originalPostMessage = window.postMessage;
+                window.postMessage = function(data, targetOrigin) {
+                  if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(data, '*');
+                  }
+                  if (originalPostMessage) {
+                    originalPostMessage.call(window, data, targetOrigin);
+                  }
+                };
+                
+                // Also support ReactNativeWebView.postMessage for compatibility
+                window.ReactNativeWebView = {
+                  postMessage: function(data) {
+                    if (window.parent && window.parent !== window) {
+                      window.parent.postMessage(data, '*');
+                    }
+                  }
+                };
+                
+                console.log('Web WebView: ReactNativeWebView.postMessage set up, executing trading script...');
+                
+                // Execute the trading script
+                ${script}
+              } catch (error) {
+                console.error('Error executing injected script:', error);
+                if (window.parent) {
+                  window.parent.postMessage(JSON.stringify({
+                    type: 'injection_error',
+                    error: error.message
+                  }), '*');
+                }
+              }
+            })();
+          `;
+          
+          // Wait for iframe document to be ready
+          if (iframeDocument.readyState === 'loading') {
+            iframeDocument.addEventListener('DOMContentLoaded', () => {
+              if (iframeDocument.body) {
+                iframeDocument.body.appendChild(scriptElement);
+                console.log('Web WebView: Script injected on DOMContentLoaded');
+              }
+            });
+          } else if (iframeDocument.body) {
+            iframeDocument.body.appendChild(scriptElement);
+            console.log('Web WebView: Script injected immediately');
+          } else {
+            // Wait for body to be available
+            const checkBody = setInterval(() => {
+              if (iframeDocument.body) {
+                iframeDocument.body.appendChild(scriptElement);
+                console.log('Web WebView: Script injected after body ready');
+                clearInterval(checkBody);
+              }
+            }, 100);
+            
+            // Timeout after 5 seconds
+            setTimeout(() => {
+              clearInterval(checkBody);
+            }, 5000);
+          }
+        } else {
+          console.log('Web WebView: Cannot access iframe content (CORS) - script injection not possible');
+          console.log('Web WebView: Iframe may need to be loaded via proxy URL with script injection');
+        }
+      } catch (e) {
+        console.log('Web WebView: Error injecting script:', e);
+        console.log('Web WebView: CORS restrictions may prevent direct script injection');
+      }
+    };
 
     const handleLoad = () => {
       console.log('Web WebView iframe loaded');
@@ -80,6 +172,11 @@ const WebWebView: React.FC<WebWebViewProps> = ({
       } catch (e) {
         console.log('Cannot access iframe content (CORS):', e.message);
       }
+
+      // Wait a bit for iframe to fully initialize, then inject script
+      setTimeout(() => {
+        injectScriptIntoIframe();
+      }, 3000);
 
       if (onLoadEnd) {
         onLoadEnd();
@@ -99,7 +196,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
         iframe.removeEventListener('error', handleError);
       }
     };
-  }, [url, onMessage, onLoadEnd]);
+  }, [url, script, onMessage, onLoadEnd]);
 
   // Cleanup on unmount
   useEffect(() => {
