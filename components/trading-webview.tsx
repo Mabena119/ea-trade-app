@@ -277,44 +277,97 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           }
         \`;
         
-        // Main execution function
-        function executeTrading() {
-          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'step',
-            message: 'Initializing MT4...'
-          }));
-          
-          // Step 1: Login
-          setTimeout(function() {
+        // Main execution function with strict login verification
+        async function executeTrading() {
+          try {
             window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'step',
-              message: 'Logging in...'
+              message: 'Initializing MT4...'
+            }));
+            
+            // Step 1: Login
+            await new Promise(r => setTimeout(r, 3000));
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'step',
+              message: 'Logging in to MT4...'
             }));
             eval(js);
             eval(jsPress);
             
-            // Step 2: Wait for login and show all symbols
-            setTimeout(function() {
-              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'step',
-                message: 'Accessing symbol list...'
-              }));
-              eval(item1InSymbolsRightClick);
+            // Step 2: Wait for login to complete
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'step',
+              message: 'Waiting for MT4 login to complete...'
+            }));
+            await new Promise(r => setTimeout(r, 8000));
+            
+            // Step 3: VERIFY login success by checking for Market Watch table
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'step',
+              message: 'Verifying MT4 authentication...'
+            }));
+            
+            let loginSuccess = false;
+            let loginAttempts = 0;
+            
+            while (!loginSuccess && loginAttempts < 10) {
+              await new Promise(r => setTimeout(r, 1000));
               
-              setTimeout(function() {
-                eval(press_show_all);
-                
-                // Step 3: Start trading after authentication
-                setTimeout(function() {
-                  startTradingSequence();
-                }, 3000);
-              }, 2000);
-            }, 8000);
-          }, 3000);
+              // Check if Market Watch is visible (indicates successful login)
+              const marketWatch = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+              const loginButton = document.querySelectorAll('button.input-button')[3];
+              
+              // Login is successful if Market Watch is visible AND login button is no longer visible/disabled
+              if (marketWatch && marketWatch.querySelectorAll('tr').length > 0) {
+                loginSuccess = true;
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'step',
+                  message: 'MT4 Login Successful - Market Watch detected!'
+                }));
+                console.log('MT4 Trading: Login verified - Market Watch detected with', marketWatch.querySelectorAll('tr').length, 'symbols');
+              } else {
+                loginAttempts++;
+                console.log('MT4 Trading: Waiting for login... attempt', loginAttempts);
+              }
+            }
+            
+            if (!loginSuccess) {
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'error',
+                message: 'MT4 Login failed - Could not verify authentication after 10 seconds'
+              }));
+              console.log('MT4 Trading: LOGIN FAILED - Aborting trading execution');
+              return; // STOP - Do not proceed with trading
+            }
+            
+            // Step 4: Show all symbols (only if login succeeded)
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'step',
+              message: 'Accessing symbol list...'
+            }));
+            eval(item1InSymbolsRightClick);
+            await new Promise(r => setTimeout(r, 2000));
+            eval(press_show_all);
+            await new Promise(r => setTimeout(r, 3000));
+            
+            // Step 5: Start trading (only if login succeeded)
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'step',
+              message: 'Login verified - Starting MT4 trading sequence...'
+            }));
+            await startTradingSequence();
+            
+          } catch (error) {
+            console.log('MT4 Trading: Error in executeTrading:', error.message);
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'error',
+              message: 'MT4 execution error: ' + error.message
+            }));
+          }
         }
         
         // Trading sequence - optimized for multiple orders
-        function startTradingSequence() {
+        async function startTradingSequence() {
           window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'step',
             message: 'Starting trade execution for ${asset}...'
@@ -597,10 +650,19 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           }, 2000);
         }
         
-        // Start the execution
-        setTimeout(function() {
-          executeTrading();
-        }, 2000);
+        // Start the execution with proper async handling
+        (async () => {
+          try {
+            await new Promise(r => setTimeout(r, 2000));
+            await executeTrading();
+          } catch (error) {
+            console.log('MT4 Trading: Error in main execution:', error.message);
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'error',
+              message: 'MT4 main execution error: ' + error.message
+            }));
+          }
+        })();
       })();
     `;
   }, [signal, tradeConfig, credentials, eaName]);
