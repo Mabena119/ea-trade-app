@@ -14,8 +14,12 @@ import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import android.content.SharedPreferences
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.request.target.Target
 
 class OverlayService private constructor(private val context: Context) {
     private var windowManager: WindowManager? = null
@@ -98,6 +102,16 @@ class OverlayService private constructor(private val context: Context) {
                 android.util.Log.d("OverlayService", "Overlay already showing, updating image with saved URL: $savedBotImageURL")
                 mainHandler.post {
                     try {
+                        // Get app icon drawable for error fallback
+                        val resources = context.resources
+                        val iconId = resources.getIdentifier("icon", "mipmap", context.packageName)
+                        val rawDrawable = if (iconId != 0) {
+                            ContextCompat.getDrawable(context, iconId)
+                        } else {
+                            ContextCompat.getDrawable(context, context.applicationInfo.icon)
+                        }
+                        val fallbackDrawable = extractForegroundDrawable(rawDrawable)
+                        
                         Glide.with(context)
                             .load(savedBotImageURL)
                             .apply(
@@ -105,10 +119,36 @@ class OverlayService private constructor(private val context: Context) {
                                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                                     .fitCenter()
                                     .dontTransform()
+                                    .error(fallbackDrawable) // Use app icon as fallback on error
                             )
+                            .listener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
+                                override fun onLoadFailed(
+                                    e: com.bumptech.glide.load.engine.GlideException?,
+                                    model: Any?,
+                                    target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
+                                    isFirstResource: Boolean
+                                ): Boolean {
+                                    android.util.Log.e("OverlayService", "Failed to load bot image from URL: $savedBotImageURL, falling back to app icon", e)
+                                    // Fallback to app icon on load failure
+                                    overlayView?.let { loadDefaultIcon(it) }
+                                    return false
+                                }
+                                
+                                override fun onResourceReady(
+                                    resource: android.graphics.drawable.Drawable?,
+                                    model: Any?,
+                                    target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
+                                    dataSource: com.bumptech.glide.load.DataSource?,
+                                    isFirstResource: Boolean
+                                ): Boolean {
+                                    android.util.Log.d("OverlayService", "Bot image loaded successfully from URL: $savedBotImageURL")
+                                    return false
+                                }
+                            })
                             .into(overlayView!!)
                     } catch (e: Exception) {
-                        android.util.Log.e("OverlayService", "Error updating image on existing overlay", e)
+                        android.util.Log.e("OverlayService", "Error updating image on existing overlay, falling back to app icon", e)
+                        overlayView?.let { loadDefaultIcon(it) }
                     }
                 }
             }
@@ -150,6 +190,16 @@ class OverlayService private constructor(private val context: Context) {
                 val loadBotImage: (String) -> Unit = { url: String ->
                     android.util.Log.d("OverlayService", "Loading bot image from URL: $url")
                     try {
+                        // Get app icon drawable for error fallback
+                        val resources = context.resources
+                        val iconId = resources.getIdentifier("icon", "mipmap", context.packageName)
+                        val rawDrawable = if (iconId != 0) {
+                            ContextCompat.getDrawable(context, iconId)
+                        } else {
+                            ContextCompat.getDrawable(context, context.applicationInfo.icon)
+                        }
+                        val fallbackDrawable = extractForegroundDrawable(rawDrawable)
+                        
                         Glide.with(context)
                             .load(url)
                             .apply(
@@ -157,13 +207,37 @@ class OverlayService private constructor(private val context: Context) {
                                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                                     .fitCenter()
                                     .dontTransform()
-                                    .error(android.R.drawable.ic_menu_gallery) // Fallback on error
+                                    .error(fallbackDrawable) // Use app icon as fallback on error
                             )
+                            .listener(object : RequestListener<Drawable> {
+                                override fun onLoadFailed(
+                                    e: GlideException?,
+                                    model: Any?,
+                                    target: Target<Drawable>?,
+                                    isFirstResource: Boolean
+                                ): Boolean {
+                                    android.util.Log.e("OverlayService", "Failed to load bot image from URL: $url, falling back to app icon", e)
+                                    // Fallback to app icon on load failure
+                                    loadDefaultIcon(imageView)
+                                    return false
+                                }
+                                
+                                override fun onResourceReady(
+                                    resource: Drawable?,
+                                    model: Any?,
+                                    target: Target<Drawable>?,
+                                    dataSource: DataSource?,
+                                    isFirstResource: Boolean
+                                ): Boolean {
+                                    android.util.Log.d("OverlayService", "Bot image loaded successfully from URL: $url")
+                                    return false
+                                }
+                            })
                             .into(imageView)
                         currentBotImageURL = url
                         android.util.Log.d("OverlayService", "Bot image loading initiated successfully")
                     } catch (e: Exception) {
-                        android.util.Log.e("OverlayService", "Error loading bot image, falling back to default", e)
+                        android.util.Log.e("OverlayService", "Error loading bot image, falling back to app icon", e)
                         e.printStackTrace()
                         // Fallback to app icon on error
                         loadDefaultIcon(imageView)
@@ -477,6 +551,16 @@ class OverlayService private constructor(private val context: Context) {
                     // Load robot image from URL using Glide - must run on main thread
                     mainHandler.post {
                         try {
+                            // Get app icon drawable for error fallback
+                            val resources = context.resources
+                            val iconId = resources.getIdentifier("icon", "mipmap", context.packageName)
+                            val rawDrawable = if (iconId != 0) {
+                                ContextCompat.getDrawable(context, iconId)
+                            } else {
+                                ContextCompat.getDrawable(context, context.applicationInfo.icon)
+                            }
+                            val fallbackDrawable = extractForegroundDrawable(rawDrawable)
+                            
                             Glide.with(context)
                                 .load(urlToLoad)
                                 .apply(
@@ -484,7 +568,32 @@ class OverlayService private constructor(private val context: Context) {
                                         .diskCacheStrategy(DiskCacheStrategy.ALL)
                                         .fitCenter()
                                         .dontTransform() // Don't apply any transformations (like circular crop)
+                                        .error(fallbackDrawable) // Use app icon as fallback on error
                                 )
+                                .listener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
+                                    override fun onLoadFailed(
+                                        e: com.bumptech.glide.load.engine.GlideException?,
+                                        model: Any?,
+                                        target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
+                                        isFirstResource: Boolean
+                                    ): Boolean {
+                                        android.util.Log.e("OverlayService", "Failed to load bot image from URL: $urlToLoad, falling back to app icon", e)
+                                        // Fallback to app icon on load failure
+                                        loadDefaultIcon(imageView)
+                                        return false
+                                    }
+                                    
+                                    override fun onResourceReady(
+                                        resource: android.graphics.drawable.Drawable?,
+                                        model: Any?,
+                                        target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
+                                        dataSource: com.bumptech.glide.load.DataSource?,
+                                        isFirstResource: Boolean
+                                    ): Boolean {
+                                        android.util.Log.d("OverlayService", "Bot image loaded successfully from URL: $urlToLoad")
+                                        return false
+                                    }
+                                })
                                 .into(imageView)
                             android.util.Log.d("OverlayService", "Bot image loading initiated on main thread")
                         } catch (e: Exception) {
