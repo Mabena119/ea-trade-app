@@ -297,11 +297,11 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                 writable: false
               });
 
-              // Optimized authentication function with strict symbol search validation
+              // Optimized authentication function matching Android robustness
               const authenticateMT5 = async () => {
                 try {
                   sendMessage('step_update', 'Initializing MT5 Account...');
-                  await new Promise(r => setTimeout(r, 2000));
+                  await new Promise(r => setTimeout(r, 5500)); // Match Android timing
                   
                   // Check for disclaimer and accept if present
                   const disclaimer = document.querySelector('#disclaimer');
@@ -310,19 +310,19 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                     if (acceptButton) {
                       acceptButton.click();
                       sendMessage('step_update', 'Accepting disclaimer...');
-                      await new Promise(r => setTimeout(r, 1500));
+                      await new Promise(r => setTimeout(r, 2000)); // Match Android timing
                     }
                   }
                   
                   // Check if form is visible and remove any existing connections
                   const form = document.querySelector('.form');
                   if (form && !form.classList.contains('hidden')) {
-                    // Press remove button first
+                    // Press remove button first to clear any existing connection
                     const removeButton = document.querySelector('.button.svelte-1wrky82.red');
                     if (removeButton) {
                       removeButton.click();
                       sendMessage('step_update', 'Removing existing connection...');
-                      await new Promise(r => setTimeout(r, 2000));
+                      await new Promise(r => setTimeout(r, 3000)); // Match Android timing
                     } else {
                       // Fallback: look for Remove button by text
                       const buttons = document.getElementsByTagName('button');
@@ -330,124 +330,130 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                         if (buttons[i].textContent.trim() === 'Remove') {
                           buttons[i].click();
                           sendMessage('step_update', 'Removing existing connection...');
-                          await new Promise(r => setTimeout(r, 2000));
+                          await new Promise(r => setTimeout(r, 3000)); // Match Android timing
                           break;
                         }
                       }
                     }
                   }
                   
-                  // Fill login credentials
-                  const loginField = document.querySelector('input[name="login"]');
-                  const passwordField = document.querySelector('input[name="password"]');
+                  // Wait for form to be ready
+                  await new Promise(r => setTimeout(r, 2000)); // Match Android timing
                   
+                  // Fill login credentials with enhanced field detection (matching Android)
+                  const loginField = document.querySelector('input[name="login"]') || 
+                                    document.querySelector('input[type="text"][placeholder*="login" i]') ||
+                                    document.querySelector('input[type="number"]') ||
+                                    document.querySelector('input#login');
+                  
+                  const passwordField = document.querySelector('input[name="password"]') || 
+                                       document.querySelector('input[type="password"]') ||
+                                       document.querySelector('input#password');
+                  
+                  // Fill login field with enhanced method (matching Android)
                   if (loginField && '${login}') {
+                    loginField.focus();
+                    loginField.value = ''; // Clear first
+                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    
+                    await new Promise(r => setTimeout(r, 100)); // Match Android timing
+                    loginField.focus();
                     loginField.value = '${login}';
-                    loginField.dispatchEvent(new Event('input', { bubbles: true }));
-                    sendMessage('step_update', 'Entering login credentials...');
-                    await new Promise(r => setTimeout(r, 500));
+                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    sendMessage('step_update', 'Login filled');
+                  } else {
+                    sendMessage('authentication_failed', 'Login field not found');
+                    return;
                   }
                   
+                  // Fill password field with enhanced method (matching Android)
                   if (passwordField && '${password}') {
+                    await new Promise(r => setTimeout(r, 300)); // Match Android timing
+                    passwordField.focus();
+                    passwordField.value = ''; // Clear first
+                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    
+                    await new Promise(r => setTimeout(r, 100)); // Match Android timing
+                    passwordField.focus();
                     passwordField.value = '${password}';
-                    passwordField.dispatchEvent(new Event('input', { bubbles: true }));
-                    sendMessage('step_update', 'Entering password...');
-                    await new Promise(r => setTimeout(r, 500));
+                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    sendMessage('step_update', 'Password filled');
+                  } else {
+                    sendMessage('authentication_failed', 'Password field not found');
+                    return;
                   }
                   
-                  // Click login button
-                  const loginButton = document.querySelector('.button.svelte-1wrky82.active');
+                  // Wait for fields to be filled
+                  await new Promise(r => setTimeout(r, 2000)); // Match Android timing
+                  
+                  // Click login button with enhanced detection (matching Android)
+                  sendMessage('step_update', 'Connecting to Server...');
+                  const loginButton = document.querySelector('.button.svelte-1wrky82.active') ||
+                                     document.querySelector('button[type="submit"]') ||
+                                     document.querySelector('.button.active') ||
+                                     Array.from(document.querySelectorAll('button')).find(btn => 
+                                       btn.textContent.trim().toLowerCase().includes('login') ||
+                                       btn.textContent.trim().toLowerCase().includes('connect')
+                                     );
+                  
                   if (loginButton) {
                     loginButton.click();
-                    sendMessage('step_update', 'Connecting to Server...');
-                    await new Promise(r => setTimeout(r, 8000)); // Optimized wait time
+                    await new Promise(r => setTimeout(r, 8000)); // Match Android timing
+                  } else {
+                    sendMessage('authentication_failed', 'Login button not found');
+                    return;
                   }
                   
-                  // Wait for the terminal to fully load after login
-                  sendMessage('step_update', 'Loading terminal interface...');
-                  await new Promise(r => setTimeout(r, 4000));
+                  // Check for search bar - this is the most reliable indicator of successful login (matching Android)
+                  sendMessage('step_update', 'Verifying authentication...');
+                  await new Promise(r => setTimeout(r, 3000)); // Match Android timing
                   
-                  // STRICT SYMBOL SEARCH VALIDATION - Only succeed if symbol search works
-                  let searchAttempts = 0;
-                  const maxAttempts = 6;
-                  let symbolSearchSuccessful = false;
+                  const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                     document.querySelector('input[placeholder*="Search" i]') ||
+                                     document.querySelector('input[type="search"]');
                   
-                  while (searchAttempts < maxAttempts && !symbolSearchSuccessful) {
-                    sendMessage('step_update', 'Validating symbol search functionality... (' + (searchAttempts + 1) + '/' + maxAttempts + ')');
+                  if (searchField && searchField.offsetParent !== null) {
+                    // Search bar is present and visible - login successful!
+                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
                     
-                    const searchField = document.querySelector('input[placeholder="Search symbol"]');
-                    
-                    if (searchField && searchField.offsetParent !== null && !searchField.disabled) {
-                      // Clear any existing value
-                      searchField.value = '';
-                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                      await new Promise(r => setTimeout(r, 500));
-                      
-                      // Test symbol search with XAUUSD
-                      searchField.value = 'XAUUSD';
-                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                      searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                      searchField.focus();
-                      
-                      sendMessage('step_update', 'Testing XAUUSD symbol search...');
-                      await new Promise(r => setTimeout(r, 2000));
-                      
-                      // STRICT VALIDATION: Check for actual search results
-                      const symbolResults = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                          document.querySelector('[class*="symbol"][class*="svelte"]') ||
-                                          document.querySelector('.symbol-list .symbol') ||
-                                          document.querySelector('[data-symbol="XAUUSD"]') ||
-                                          document.querySelector('[data-symbol*="XAUUSD"]');
-                      
-                      // Additional validation: Check if search field shows the symbol
-                      const searchFieldValue = searchField.value;
-                      const hasSearchResults = symbolResults && symbolResults.offsetParent !== null;
-                      const searchFieldWorking = searchFieldValue === 'XAUUSD';
-                      
-                      if (hasSearchResults && searchFieldWorking) {
-                        // Test clicking on the symbol to ensure it's interactive
-                        try {
-                          symbolResults.click();
-                          await new Promise(r => setTimeout(r, 1000));
-                          
-                          // Check if symbol was selected/activated
-                          const isSymbolSelected = symbolResults.classList.contains('selected') || 
-                                                 symbolResults.classList.contains('active') ||
-                                                 document.querySelector('.selected-symbol') ||
-                                                 document.querySelector('[class*="selected"]');
-                          
-                          if (isSymbolSelected || symbolResults.offsetParent !== null) {
-                              symbolSearchSuccessful = true;
-                              sendMessage('authentication_success', 'MT5 Login Successful - Symbol search and selection working perfectly');
-                              
-                              // If this is a trading request, proceed with trading
-                              ${isTradingRequest ? `
-                              setTimeout(() => {
-                                executeTrading();
-                              }, 2000);
-                              ` : ''}
-                              return;
-                            }
-                        } catch (clickError) {
-                          console.log('Symbol click test failed:', clickError);
-                        }
-                      }
-                    }
-                    
-                    searchAttempts++;
-                    if (searchAttempts < maxAttempts) {
-                      sendMessage('step_update', 'Symbol search not ready, retrying... (' + searchAttempts + '/' + maxAttempts + ')');
-                      await new Promise(r => setTimeout(r, 2000));
-                    }
+                    // If this is a trading request, proceed with trading
+                    ${isTradingRequest ? `
+                    setTimeout(() => {
+                      executeTrading();
+                    }, 2000);
+                    ` : ''}
+                    return;
                   }
                   
-                  // If we reach here, symbol search validation failed
-                  sendMessage('authentication_failed', 'Authentication failed - Symbol search functionality not working properly');
+                  // Double check after a longer wait (matching Android)
+                  await new Promise(r => setTimeout(r, 3000)); // Match Android timing
+                  const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                          document.querySelector('input[placeholder*="Search" i]') ||
+                                          document.querySelector('input[type="search"]');
+                  
+                  if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+                    
+                    // If this is a trading request, proceed with trading
+                    ${isTradingRequest ? `
+                    setTimeout(() => {
+                      executeTrading();
+                    }, 2000);
+                    ` : ''}
+                    return;
+                  }
+                  
+                  // No search bar found - authentication failed
+                  sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
-                };
+              };
                
                  // Trading execution function with STRICT trade count control
                  const executeTrading = async () => {
@@ -644,14 +650,8 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                    }
                  };
 
-                // Start authentication after page loads - optimized timing
-              if (document.readyState === 'complete') {
-                setTimeout(authenticateMT5, 1500); // Reduced from 3000ms to 1500ms
-              } else {
-                window.addEventListener('load', function() {
-                  setTimeout(authenticateMT5, 1500); // Reduced from 3000ms to 1500ms
-                });
-              }
+                // Start authentication after page loads - match Android timing
+              setTimeout(authenticateMT5, 3000); // Match Android timing (3000ms initial delay)
             })();
           </script>
         `;
