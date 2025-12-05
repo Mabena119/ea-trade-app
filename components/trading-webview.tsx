@@ -1402,6 +1402,26 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       {/* WebView for trading execution - Visible for debugging */}
       {visible && (
         <View key={`trading-webview-${webViewKey}`} style={styles.invisibleWebViewContainer}>
+          {/* Debug Close Button */}
+          <TouchableOpacity
+            style={styles.debugCloseButton}
+            onPress={onClose}
+          >
+            <X color="#FFFFFF" size={20} />
+          </TouchableOpacity>
+          
+          {/* Debug Info Banner */}
+          <View style={styles.debugBanner}>
+            <Text style={styles.debugText}>
+              DEBUG MODE - Trading WebView Visible
+            </Text>
+            {signal && (
+              <Text style={styles.debugTextSmall}>
+                Signal: {signal.asset} {signal.action} | Platform: {tradeConfig?.platform || 'N/A'}
+              </Text>
+            )}
+          </View>
+          
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`trading-web-${webViewKey}`}
@@ -1557,12 +1577,26 @@ const styles = StyleSheet.create({
   // Visible WebView Styles - For debugging trade execution
   invisibleWebViewContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 1,
-    height: 1,
-    opacity: 0,
-    zIndex: -1,
+    top: 100,
+    left: 20,
+    right: 20,
+    bottom: 100,
+    width: 'auto',
+    height: 'auto',
+    opacity: 1,
+    zIndex: 10001,
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#00FF88',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 10001,
   },
   invisibleWebView: {
     flex: 1,
@@ -1721,5 +1755,44 @@ const styles = StyleSheet.create({
   },
   footer: {
     display: 'none',
+  },
+  debugCloseButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 0, 0, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10002,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  debugBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 255, 136, 0.9)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    zIndex: 10002,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  debugText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  debugTextSmall: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 2,
   },
 });
