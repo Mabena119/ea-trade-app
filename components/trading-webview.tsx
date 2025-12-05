@@ -897,23 +897,26 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         await sleep(500);
         eval(loginPress);
         
-        await sleep(8000);
-        setTimeout(() => {
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Ensuring search bar is visible...'}));
-          eval(revealAndVerifySearchBar);
-          
-          setTimeout(() => {
-            window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
-            eval(searchSymbol);
-            
-            setTimeout(() => {
-              eval(selectSymbol);
-              
-              setTimeout(() => {
-                window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
+        // CRITICAL: Wait for login to complete before ANY trading
+        await sleep(12000); // Increased wait for login completion
+        
+        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Login complete, verifying search bar...'}));
+        eval(revealAndVerifySearchBar);
+        await sleep(3000); // Wait for search bar to be visible
+        
+        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
+        eval(searchSymbol);
+        await sleep(3000); // Wait for search results
+        
+        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Selecting symbol ${asset}...'}));
+        eval(selectSymbol);
+        await sleep(2500); // Wait for symbol selection
+        
+        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
                 
-                // Clean sequential MT5 order execution - matching web script exactly
-                (async () => {
+        // SEQUENTIAL MT5 trading - ALL async/await, NO nested timeouts
+        (async () => {
+          try {
                   const numberOfTrades = ${numberOfOrders};
                   let completedTrades = 0;
                   let failedTrades = 0;
