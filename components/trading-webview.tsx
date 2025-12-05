@@ -888,33 +888,76 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         }
       \`;
       
-      // Execute trading sequence
+      // Execute trading sequence with proper login verification
       (async () => {
-        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Checking for existing account...'}));
-        await checkAndRemoveExistingAccount();
-        
-        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Logging in...'}));
-        eval(loginScript);
-        await sleep(500);
-        eval(loginPress);
-        
-        await sleep(8000);
-        setTimeout(() => {
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Ensuring search bar is visible...'}));
-          eval(revealAndVerifySearchBar);
+        try {
+          // Step 1: Check and remove existing account
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Checking for existing account...'}));
+          await checkAndRemoveExistingAccount();
           
-          setTimeout(() => {
-            window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
-            eval(searchSymbol);
+          // Step 2: Login
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Logging in to MT5...'}));
+          eval(loginScript);
+          await sleep(500);
+          eval(loginPress);
+          
+          // Step 3: Wait for login to complete and verify
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Waiting for login to complete...'}));
+          await sleep(8000);
+          
+          // Step 4: Verify login success by checking for search bar
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Verifying authentication...'}));
+          let loginSuccess = false;
+          let loginAttempts = 0;
+          
+          while (!loginSuccess && loginAttempts < 10) {
+            await sleep(1000);
+            const searchBar = document.querySelector('input[placeholder="Search symbol"]') ||
+                            document.querySelector('input[placeholder*="Search" i]') ||
+                            document.querySelector('input[type="search"]');
             
-            setTimeout(() => {
-              eval(selectSymbol);
-              
-              setTimeout(() => {
-                window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
-                
-                // Clean sequential MT5 order execution - matching web script exactly
-                (async () => {
+            if (searchBar && searchBar.offsetParent !== null) {
+              loginSuccess = true;
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'step', 
+                message: 'MT5 Login Successful - Authentication verified!'
+              }));
+              console.log('MT5 Trading: Login verified - search bar detected');
+            } else {
+              loginAttempts++;
+              console.log('MT5 Trading: Waiting for login... attempt', loginAttempts);
+            }
+          }
+          
+          if (!loginSuccess) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'error', 
+              message: 'Login failed - Could not verify authentication after 10 seconds'
+            }));
+            return;
+          }
+          
+          // Step 5: Ensure search bar is visible
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Preparing trading interface...'}));
+          eval(revealAndVerifySearchBar);
+          await sleep(2000);
+          
+          // Step 6: Search for symbol
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
+          eval(searchSymbol);
+          await sleep(3000);
+          
+          // Step 7: Select symbol
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Selecting symbol ${asset}...'}));
+          eval(selectSymbol);
+          await sleep(2000);
+          
+          // Step 8: Start trading execution
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
+          
+          // Clean sequential MT5 order execution
+          const executeTrading = async () => {
+            try {
                   const numberOfTrades = ${numberOfOrders};
                   let completedTrades = 0;
                   let failedTrades = 0;
@@ -1079,12 +1122,26 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                       message: 'No trades executed successfully'
                     }));
                   }
-                })();
-              }, 3000);
-            }, 4000); // Increased delay to allow search bar verification and search completion
-          }, 4000); // Increased delay to allow search bar reveal verification
-        }, 0); // Immediate execution after login
-      })(); // Execute async function
+            } catch (error) {
+              console.log('MT5 Trading: Error in trading execution:', error.message);
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'error',
+                message: 'Trading execution error: ' + error.message
+              }));
+            }
+          };
+          
+          // Execute trading
+          await executeTrading();
+          
+        } catch (error) {
+          console.log('MT5 Trading: Error in login/setup:', error.message);
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'error',
+            message: 'Login/setup error: ' + error.message
+          }));
+        }
+      })();
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
