@@ -1091,9 +1091,13 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                             }));
                             
                             setTimeout(() => {
-                              console.log('MT5 order processing completed, moving to next...');
-                        executeMT5OrderSequence(orderIndex + 1);
+                              console.log('MT5 order processing completed, moving to next trade...');
+                              console.log('MT5 Trading: Continuing to next trade - ordersExecuted:', ordersExecuted, 'targetOrders:', targetOrders);
+                              // Use ordersExecuted as the index for next trade (not orderIndex + 1)
+                              executeMT5OrderSequence(ordersExecuted);
                             }, 3000); // 3 second delay between orders after confirmation
+                          } else {
+                            console.log('MT5 Trading: All trades completed, stopping sequence');
                           }
                         }, 2000); // Wait 2 seconds after clicking confirm
                       }, 2000); // Wait 2 seconds for confirmation dialog to appear after execute

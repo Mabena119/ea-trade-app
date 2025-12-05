@@ -471,36 +471,52 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                      sendMessage('step', 'Starting STRICT execution of EXACTLY ' + numberOfTrades + ' trade(s) for ${asset}...');
                      console.log('MT5 Trading: STRICT MODE - Target: EXACTLY', numberOfTrades, 'trades');
                      
-                     // Function to execute a single trade with enhanced tracking
+                     // CRITICAL: Search for symbol ONCE before starting trade loop (prevents page reset)
+                     sendMessage('step', 'Searching for symbol ${asset}...');
+                     const searchField = document.querySelector('input[placeholder="Search symbol"]') ||
+                                       document.querySelector('input[placeholder*="Search" i]') ||
+                                       document.querySelector('input[type="search"]');
+                     if (searchField) {
+                       searchField.focus();
+                       searchField.value = '${asset}';
+                       searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                       searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                       searchField.dispatchEvent(new Event('keyup', { bubbles: true }));
+                       await new Promise(r => setTimeout(r, 2000)); // Wait for search results
+                       sendMessage('step', 'Symbol ${asset} found');
+                     } else {
+                       sendMessage('error', 'Search field not found - cannot proceed with trading');
+                       return;
+                     }
+                     
+                     // Select the asset ONCE before trade loop
+                     const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
+                                        document.querySelector('[class*="symbol"][class*="svelte"]') ||
+                                        document.querySelector('.symbol');
+                     if (assetElement) {
+                       assetElement.click();
+                       sendMessage('step', 'Asset ${asset} selected');
+                       await new Promise(r => setTimeout(r, 1500));
+                     } else {
+                       sendMessage('error', 'Asset ${asset} not found - cannot proceed with trading');
+                       return;
+                     }
+                     
+                     // Function to execute a single trade with enhanced tracking (NO symbol search - already done)
                      const executeSingleTrade = async (tradeIndex) => {
                        try {
                          console.log('MT5 Trading: Starting trade', (tradeIndex + 1), 'of', numberOfTrades);
                          sendMessage('step', 'Executing trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
                          
-                         // Search for the specific asset
-                         const searchField = document.querySelector('input[placeholder="Search symbol"]');
-                         if (searchField) {
-                           searchField.value = '${asset}';
-                           searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                           searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                           await new Promise(r => setTimeout(r, 1500));
-                         }
-                         
-                         // Select the asset
-                         const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                            document.querySelector('[class*="symbol"][class*="svelte"]');
-                         if (assetElement) {
-                           assetElement.click();
-                           sendMessage('step', 'Asset ${asset} selected for trade ' + (tradeIndex + 1) + '...');
-                           await new Promise(r => setTimeout(r, 1500));
-                         }
-                         
-                         // Open order dialog
+                         // Open order dialog (symbol already selected)
                          const orderButton = document.querySelector('.icon-button.withText span.button-text');
                          if (orderButton) {
                            orderButton.click();
                            sendMessage('step', 'Order dialog opened for trade ' + (tradeIndex + 1) + '...');
                            await new Promise(r => setTimeout(r, 1500));
+                         } else {
+                           console.log('MT5 Trading: Order button not found for trade', (tradeIndex + 1));
+                           return false;
                          }
                          
                          // Set trading parameters with enhanced validation
@@ -989,36 +1005,47 @@ async function handleMT4Proxy(request: Request): Promise<Response> {
                    sendMessage('step', 'Starting STRICT execution of EXACTLY ' + numberOfTrades + ' MT4 trade(s) for ${asset}...');
                    console.log('MT4 Trading: STRICT MODE - Target: EXACTLY', numberOfTrades, 'trades');
                    
-                   // Function to execute a single MT4 trade with enhanced tracking
+                   // CRITICAL: Find and store asset element ONCE before trade loop (prevents page reset)
+                   sendMessage('step', 'Locating asset ${asset} in Market Watch...');
+                   const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+                   let assetElement = null;
+                   
+                   if (marketWatchTable) {
+                     const allTRs = marketWatchTable.querySelectorAll('tr');
+                     for (let i = 0; i < allTRs.length; i++) {
+                       const a = allTRs[i].getElementsByTagName('td')[0];
+                       if (a && a.textContent && a.textContent.trim() === '${asset}') {
+                         assetElement = a;
+                         sendMessage('step', 'Asset ${asset} found in Market Watch');
+                         break;
+                       }
+                     }
+                     
+                     if (!assetElement) {
+                       console.log('MT4 Trading: Asset ${asset} not found in Market Watch');
+                       sendMessage('error', 'Asset ${asset} not found in Market Watch - cannot proceed with trading');
+                       return;
+                     }
+                   } else {
+                     sendMessage('error', 'Market Watch table not found - cannot proceed with trading');
+                     return;
+                   }
+                   
+                   // Function to execute a single MT4 trade with enhanced tracking (asset already found)
                    const executeSingleTrade = async (tradeIndex) => {
                      try {
                        console.log('MT4 Trading: Starting trade', (tradeIndex + 1), 'of', numberOfTrades);
                        sendMessage('step', 'Executing MT4 trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
                        
-                       // Search for the specific asset in Market Watch
-                       const marketWatchTable = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
-                       if (marketWatchTable) {
-                         const allTRs = marketWatchTable.querySelectorAll('tr');
-                         let assetFound = false;
-                         
-                         for (let i = 0; i < allTRs.length; i++) {
-                           const a = allTRs[i].getElementsByTagName('td')[0];
-                           if (a && a.textContent && a.textContent.trim() === '${asset}') {
-                             // Double click to open order dialog
-                             const ev = document.createEvent('MouseEvents');
-                             ev.initEvent('dblclick', true, true);
-                             a.dispatchEvent(ev);
-                             assetFound = true;
-                             sendMessage('step', 'Asset ${asset} selected for MT4 trade ' + (tradeIndex + 1) + '...');
-                             break;
-                           }
-                         }
-                         
-                         if (!assetFound) {
-                           console.log('MT4 Trading: Asset ${asset} not found for trade', (tradeIndex + 1));
-                           sendMessage('error', 'Asset ${asset} not found in Market Watch for trade ' + (tradeIndex + 1));
-                           return false;
-                         }
+                       // Double click asset element to open order dialog (element already found)
+                       if (assetElement) {
+                         const ev = document.createEvent('MouseEvents');
+                         ev.initEvent('dblclick', true, true);
+                         assetElement.dispatchEvent(ev);
+                         sendMessage('step', 'Order dialog opened for MT4 trade ' + (tradeIndex + 1) + '...');
+                       } else {
+                         console.log('MT4 Trading: Asset element not available for trade', (tradeIndex + 1));
+                         return false;
                        }
                        
                        // Wait for order dialog to open
