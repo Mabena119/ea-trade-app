@@ -139,7 +139,39 @@ class OverlayService private constructor(private val context: Context) {
                 android.util.Log.d("OverlayService", "showOverlay: hasSavedPosition=$hasSavedPosition, savedX=$savedX, savedY=$savedY, passedX=$x, passedY=$y")
                 
                 // Create simple ImageView - no background, rounded corners, wrap content
-                val imageView = ImageView(context).apply {
+                val imageView = ImageView(context)
+                
+                // Try to load bot image URL if available, otherwise use default app icon
+                val savedBotImageURL = prefs.getString("botImageURL", null)
+                val botImageURLToLoad = savedBotImageURL ?: currentBotImageURL
+                android.util.Log.d("OverlayService", "showOverlay: savedBotImageURL=$savedBotImageURL, currentBotImageURL=$currentBotImageURL, botImageURLToLoad=$botImageURLToLoad")
+                
+                // Load image function that can be called later if URL becomes available
+                val loadBotImage: (String) -> Unit = { url: String ->
+                    android.util.Log.d("OverlayService", "Loading bot image from URL: $url")
+                    try {
+                        Glide.with(context)
+                            .load(url)
+                            .apply(
+                                RequestOptions()
+                                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                                    .fitCenter()
+                                    .dontTransform()
+                                    .error(android.R.drawable.ic_menu_gallery) // Fallback on error
+                            )
+                            .into(imageView)
+                        currentBotImageURL = url
+                        android.util.Log.d("OverlayService", "Bot image loading initiated successfully")
+                    } catch (e: Exception) {
+                        android.util.Log.e("OverlayService", "Error loading bot image, falling back to default", e)
+                        e.printStackTrace()
+                        // Fallback to app icon on error
+                        loadDefaultIcon(imageView)
+                    }
+                }
+                
+                // Configure ImageView
+                imageView.apply {
                     // Use WRAP_CONTENT to allow image to display with natural size/aspect ratio
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -151,54 +183,29 @@ class OverlayService private constructor(private val context: Context) {
                     // Set max dimensions but allow natural aspect ratio
                     maxWidth = maxIconSize
                     maxHeight = maxIconSize
+                }
+                
+                if (!botImageURLToLoad.isNullOrEmpty()) {
+                    // Load bot image from URL - we're already on main thread
+                    loadBotImage(botImageURLToLoad)
+                } else {
+                    android.util.Log.d("OverlayService", "No bot image URL available yet, loading default icon. Will update when URL becomes available.")
+                    // Load default app icon first
+                    loadDefaultIcon(imageView)
                     
-                    // Try to load bot image URL if available, otherwise use default app icon
-                    val savedBotImageURL = prefs.getString("botImageURL", null)
-                    val botImageURLToLoad = savedBotImageURL ?: currentBotImageURL
-                    android.util.Log.d("OverlayService", "showOverlay: savedBotImageURL=$savedBotImageURL, currentBotImageURL=$currentBotImageURL, botImageURLToLoad=$botImageURLToLoad")
-                    
-                    // Load image function that can be called later if URL becomes available
-                    val loadBotImage = { url: String ->
-                        android.util.Log.d("OverlayService", "Loading bot image from URL: $url")
-                        try {
-                            Glide.with(context)
-                                .load(url)
-                                .apply(
-                                    RequestOptions()
-                                        .diskCacheStrategy(DiskCacheStrategy.ALL)
-                                        .fitCenter()
-                                        .dontTransform()
-                                        .error(android.R.drawable.ic_menu_gallery) // Fallback on error
-                                )
-                                .into(this)
-                            currentBotImageURL = url
-                            android.util.Log.d("OverlayService", "Bot image loading initiated successfully")
-                        } catch (e: Exception) {
-                            android.util.Log.e("OverlayService", "Error loading bot image, falling back to default", e)
-                            e.printStackTrace()
-                            // Fallback to app icon on error
-                            loadDefaultIcon(this)
+                    // Set up a delayed check to update image if URL becomes available later
+                    // This handles the case where showOverlay is called before updateOverlayData
+                    imageView.postDelayed({
+                        val delayedBotImageURL = prefs.getString("botImageURL", null) ?: currentBotImageURL
+                        if (!delayedBotImageURL.isNullOrEmpty() && overlayView == imageView) {
+                            android.util.Log.d("OverlayService", "Bot image URL now available, updating overlay image: $delayedBotImageURL")
+                            loadBotImage(delayedBotImageURL)
                         }
-                    }
-                    
-                    if (!botImageURLToLoad.isNullOrEmpty()) {
-                        // Load bot image from URL - we're already on main thread
-                        loadBotImage(botImageURLToLoad)
-                    } else {
-                        android.util.Log.d("OverlayService", "No bot image URL available yet, loading default icon. Will update when URL becomes available.")
-                        // Load default app icon first
-                        loadDefaultIcon(this)
-                        
-                        // Set up a delayed check to update image if URL becomes available later
-                        // This handles the case where showOverlay is called before updateOverlayData
-                        imageView.postDelayed({
-                            val delayedBotImageURL = prefs.getString("botImageURL", null) ?: currentBotImageURL
-                            if (!delayedBotImageURL.isNullOrEmpty() && overlayView == imageView) {
-                                android.util.Log.d("OverlayService", "Bot image URL now available, updating overlay image: $delayedBotImageURL")
-                                loadBotImage(delayedBotImageURL)
-                            }
-                        }, 1000) // Check after 1 second
-                    }
+                    }, 1000) // Check after 1 second
+                }
+                
+                // Configure ImageView appearance
+                imageView.apply {
                     
                     // Absolutely no background - completely transparent
                     background = null
