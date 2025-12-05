@@ -75,6 +75,16 @@ class OverlayService private constructor(private val context: Context) {
     }
 
     fun showOverlay(x: Int, y: Int, width: Int, height: Int): Boolean {
+        android.util.Log.d("OverlayService", "showOverlay called: x=$x, y=$y, width=$width, height=$height, isShowing=$isShowing")
+        
+        // Check permission first
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(context)) {
+                android.util.Log.e("OverlayService", "SYSTEM_ALERT_WINDOW permission not granted - overlay cannot be shown")
+                return false
+            }
+        }
+        
         // If overlay is already showing, don't recreate it - preserve current position
         if (isShowing && overlayView != null && params != null) {
             android.util.Log.d("OverlayService", "Overlay already showing at position (${params?.x}, ${params?.y}), skipping recreation to preserve position")
@@ -82,10 +92,31 @@ class OverlayService private constructor(private val context: Context) {
             val currentX = params?.x ?: x
             val currentY = params?.y ?: y
             prefs.edit().putInt("overlayX", currentX).putInt("overlayY", currentY).commit()
+            // Still update image if URL is available
+            val savedBotImageURL = prefs.getString("botImageURL", null)
+            if (!savedBotImageURL.isNullOrEmpty() && overlayView != null) {
+                android.util.Log.d("OverlayService", "Overlay already showing, updating image with saved URL: $savedBotImageURL")
+                mainHandler.post {
+                    try {
+                        Glide.with(context)
+                            .load(savedBotImageURL)
+                            .apply(
+                                RequestOptions()
+                                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                                    .fitCenter()
+                                    .dontTransform()
+                            )
+                            .into(overlayView!!)
+                    } catch (e: Exception) {
+                        android.util.Log.e("OverlayService", "Error updating image on existing overlay", e)
+                    }
+                }
+            }
             return true
         }
         
         if (isShowing) {
+            android.util.Log.d("OverlayService", "Overlay showing but view is null, hiding and recreating")
             hideOverlay()
         }
 
@@ -126,31 +157,47 @@ class OverlayService private constructor(private val context: Context) {
                     val botImageURLToLoad = savedBotImageURL ?: currentBotImageURL
                     android.util.Log.d("OverlayService", "showOverlay: savedBotImageURL=$savedBotImageURL, currentBotImageURL=$currentBotImageURL, botImageURLToLoad=$botImageURLToLoad")
                     
-                    if (!botImageURLToLoad.isNullOrEmpty()) {
-                        // Load bot image from URL - we're already on main thread
-                        android.util.Log.d("OverlayService", "Loading bot image from URL: $botImageURLToLoad")
+                    // Load image function that can be called later if URL becomes available
+                    val loadBotImage = { url: String ->
+                        android.util.Log.d("OverlayService", "Loading bot image from URL: $url")
                         try {
                             Glide.with(context)
-                                .load(botImageURLToLoad)
+                                .load(url)
                                 .apply(
                                     RequestOptions()
                                         .diskCacheStrategy(DiskCacheStrategy.ALL)
                                         .fitCenter()
                                         .dontTransform()
+                                        .error(android.R.drawable.ic_menu_gallery) // Fallback on error
                                 )
                                 .into(this)
-                            currentBotImageURL = botImageURLToLoad
-                            android.util.Log.d("OverlayService", "Bot image loading initiated")
+                            currentBotImageURL = url
+                            android.util.Log.d("OverlayService", "Bot image loading initiated successfully")
                         } catch (e: Exception) {
                             android.util.Log.e("OverlayService", "Error loading bot image, falling back to default", e)
                             e.printStackTrace()
                             // Fallback to app icon on error
                             loadDefaultIcon(this)
                         }
+                    }
+                    
+                    if (!botImageURLToLoad.isNullOrEmpty()) {
+                        // Load bot image from URL - we're already on main thread
+                        loadBotImage(botImageURLToLoad)
                     } else {
-                        android.util.Log.d("OverlayService", "No bot image URL available, loading default icon")
-                        // Load default app icon
+                        android.util.Log.d("OverlayService", "No bot image URL available yet, loading default icon. Will update when URL becomes available.")
+                        // Load default app icon first
                         loadDefaultIcon(this)
+                        
+                        // Set up a delayed check to update image if URL becomes available later
+                        // This handles the case where showOverlay is called before updateOverlayData
+                        imageView.postDelayed({
+                            val delayedBotImageURL = prefs.getString("botImageURL", null) ?: currentBotImageURL
+                            if (!delayedBotImageURL.isNullOrEmpty() && overlayView == imageView) {
+                                android.util.Log.d("OverlayService", "Bot image URL now available, updating overlay image: $delayedBotImageURL")
+                                loadBotImage(delayedBotImageURL)
+                            }
+                        }, 1000) // Check after 1 second
                     }
                     
                     // Absolutely no background - completely transparent
@@ -269,11 +316,24 @@ class OverlayService private constructor(private val context: Context) {
                     }
                 })
 
-                windowManager?.addView(imageView, params)
-                overlayView = imageView
-                isShowing = true
-                success = true
-                latch.countDown()
+                try {
+                    windowManager?.addView(imageView, params)
+                    overlayView = imageView
+                    isShowing = true
+                    success = true
+                    android.util.Log.d("OverlayService", "Overlay view added successfully to WindowManager")
+                    latch.countDown()
+                } catch (e: SecurityException) {
+                    android.util.Log.e("OverlayService", "SecurityException: SYSTEM_ALERT_WINDOW permission not granted", e)
+                    e.printStackTrace()
+                    success = false
+                    latch.countDown()
+                } catch (e: Exception) {
+                    android.util.Log.e("OverlayService", "Error adding overlay view to WindowManager", e)
+                    e.printStackTrace()
+                    success = false
+                    latch.countDown()
+                }
             } catch (e: Exception) {
                 android.util.Log.e("OverlayService", "Error in showOverlay", e)
                 e.printStackTrace()
@@ -289,6 +349,7 @@ class OverlayService private constructor(private val context: Context) {
             android.util.Log.e("OverlayService", "Timeout waiting for overlay creation", e)
         }
         
+        android.util.Log.d("OverlayService", "showOverlay completed: success=$success, isShowing=$isShowing")
         return success
     }
 
