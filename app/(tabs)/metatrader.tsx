@@ -942,15 +942,41 @@ export default function MetaTraderScreen() {
   // Handle MT5 WebView messages
   const onMT5WebViewMessage = async (data: any) => {
     try {
-      // Data is already parsed by CustomWebView component
-      console.log('MT5 WebView message:', data);
+      // Handle both formats: parsed (CustomWebView) and unparsed (WebWebView)
+      let parsedData = data;
+      
+      // If data has nativeEvent.data (WebWebView format), parse it
+      if (data?.nativeEvent?.data) {
+        try {
+          parsedData = typeof data.nativeEvent.data === 'string' 
+            ? JSON.parse(data.nativeEvent.data) 
+            : data.nativeEvent.data;
+        } catch (e) {
+          console.error('Error parsing MT5 WebView message data:', e);
+          return;
+        }
+      } else if (typeof data === 'string') {
+        // If data is a string, parse it
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('Error parsing MT5 WebView message string:', e);
+          return;
+        }
+      }
+      
+      console.log('MT5 WebView message:', parsedData);
 
-      if (data.type === 'mt5_loaded') {
+      if (parsedData.type === 'mt5_loaded') {
         console.log('MT5 terminal loaded successfully');
-      } else if (data.type === 'step_update') {
-        console.log('MT5 step:', data.message);
-      } else if (data.type === 'authentication_success') {
+      } else if (parsedData.type === 'step_update') {
+        console.log('MT5 step:', parsedData.message);
+        // Update authentication step for UI feedback
+        setAuthenticationStep(parsedData.message);
+      } else if (parsedData.type === 'authentication_success') {
         console.log('MT5 authentication successful');
+        // Update authentication step
+        setAuthenticationStep('Login Successful!');
         // Update account status to connected - use await to ensure state is saved
         await setMT5Account({
           login: login.trim(),
@@ -965,12 +991,12 @@ export default function MetaTraderScreen() {
           connected: true,
         });
         console.log('✅ MT5 account authenticated successfully!');
-        // Close WebView after 1 second (reduced from 2s)
-        setTimeout(() => {
+        // Close WebView immediately after successful authentication
         closeMT5WebView();
-        }, 1000);
-      } else if (data.type === 'authentication_failed') {
-        console.log('MT5 authentication failed:', data.message);
+      } else if (parsedData.type === 'authentication_failed') {
+        console.log('MT5 authentication failed:', parsedData.message);
+        // Update authentication step
+        setAuthenticationStep(parsedData.message || 'Authentication Failed');
         // Update account status to disconnected - use await to ensure state is saved
         await setMT5Account({
           login: login.trim(),
@@ -984,17 +1010,17 @@ export default function MetaTraderScreen() {
           server: server.trim(),
           connected: false,
         });
-        console.log('❌ MT5 authentication failed:', data.message);
-        // Close WebView after 2 seconds (reduced from 3s)
+        console.log('❌ MT5 authentication failed:', parsedData.message);
+        // Close WebView after 2 seconds
         setTimeout(() => {
-        closeMT5WebView();
+          closeMT5WebView();
         }, 2000);
-      } else if (data.type === 'error') {
-        console.error('MT5 WebView error:', data.message);
-      } else if (data.type === 'injection_error') {
-        console.error('MT5 JavaScript injection error:', data.error);
-        Alert.alert('Script Injection Error', `Failed to inject authentication script: ${data.error}`);
-      } else if (data.type === 'webview_ready') {
+      } else if (parsedData.type === 'error') {
+        console.error('MT5 WebView error:', parsedData.message);
+      } else if (parsedData.type === 'injection_error') {
+        console.error('MT5 JavaScript injection error:', parsedData.error);
+        Alert.alert('Script Injection Error', `Failed to inject authentication script: ${parsedData.error}`);
+      } else if (parsedData.type === 'webview_ready') {
         console.log('MT5 WebView is ready for script injection');
       }
     } catch (error) {
@@ -1005,15 +1031,41 @@ export default function MetaTraderScreen() {
   // Handle MT4 WebView messages
   const onMT4WebViewMessage = async (data: any) => {
     try {
-      // Data is already parsed by CustomWebView component
-      console.log('MT4 WebView message:', data);
+      // Handle both formats: parsed (CustomWebView) and unparsed (WebWebView)
+      let parsedData = data;
+      
+      // If data has nativeEvent.data (WebWebView format), parse it
+      if (data?.nativeEvent?.data) {
+        try {
+          parsedData = typeof data.nativeEvent.data === 'string' 
+            ? JSON.parse(data.nativeEvent.data) 
+            : data.nativeEvent.data;
+        } catch (e) {
+          console.error('Error parsing MT4 WebView message data:', e);
+          return;
+        }
+      } else if (typeof data === 'string') {
+        // If data is a string, parse it
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('Error parsing MT4 WebView message string:', e);
+          return;
+        }
+      }
+      
+      console.log('MT4 WebView message:', parsedData);
 
-      if (data.type === 'mt4_loaded') {
+      if (parsedData.type === 'mt4_loaded') {
         console.log('MT4 terminal loaded successfully');
-      } else if (data.type === 'step_update') {
-        console.log('MT4 step:', data.message);
-      } else if (data.type === 'authentication_success') {
+      } else if (parsedData.type === 'step_update') {
+        console.log('MT4 step:', parsedData.message);
+        // Update authentication step for UI feedback
+        setAuthenticationStep(parsedData.message);
+      } else if (parsedData.type === 'authentication_success') {
         console.log('MT4 authentication successful');
+        // Update authentication step
+        setAuthenticationStep('Login Successful!');
         // Update account status to connected - use await to ensure state is saved
         await setMT4Account({
           login: login.trim(),
@@ -1028,12 +1080,12 @@ export default function MetaTraderScreen() {
           connected: true,
         });
         console.log('✅ MT4 account authenticated successfully!');
-        // Close WebView after 1 second (reduced from 2s)
-        setTimeout(() => {
+        // Close WebView immediately after successful authentication
         closeMT4WebView();
-        }, 1000);
-      } else if (data.type === 'authentication_failed') {
-        console.log('MT4 authentication failed:', data.message);
+      } else if (parsedData.type === 'authentication_failed') {
+        console.log('MT4 authentication failed:', parsedData.message);
+        // Update authentication step
+        setAuthenticationStep(parsedData.message || 'Authentication Failed');
         // Update account status to disconnected - use await to ensure state is saved
         await setMT4Account({
           login: login.trim(),
@@ -1047,17 +1099,17 @@ export default function MetaTraderScreen() {
           server: server.trim(),
           connected: false,
         });
-        console.log('❌ MT4 authentication failed:', data.message);
-        // Close WebView after 2 seconds (reduced from 3s)
+        console.log('❌ MT4 authentication failed:', parsedData.message);
+        // Close WebView after 2 seconds
         setTimeout(() => {
-        closeMT4WebView();
+          closeMT4WebView();
         }, 2000);
-      } else if (data.type === 'error') {
-        console.error('MT4 WebView error:', data.message);
-      } else if (data.type === 'injection_error') {
-        console.error('MT4 JavaScript injection error:', data.error);
-        Alert.alert('Script Injection Error', `Failed to inject authentication script: ${data.error}`);
-      } else if (data.type === 'webview_ready') {
+      } else if (parsedData.type === 'error') {
+        console.error('MT4 WebView error:', parsedData.message);
+      } else if (parsedData.type === 'injection_error') {
+        console.error('MT4 JavaScript injection error:', parsedData.error);
+        Alert.alert('Script Injection Error', `Failed to inject authentication script: ${parsedData.error}`);
+      } else if (parsedData.type === 'webview_ready') {
         console.log('MT4 WebView is ready for script injection');
       }
     } catch (error) {
