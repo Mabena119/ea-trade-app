@@ -147,14 +147,17 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
   }, [panX, panY, collapsedSize, animatedWidth, visible, isBotActive]);
 
   // On Android, always show as overlay widget - show overlay when bot is active
+  // Note: Overlay is primarily managed by setBotActive in app-provider.tsx
+  // This useEffect is a backup to ensure overlay shows even if setBotActive doesn't trigger it
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     
-    if (isBotActive && visible && primaryEA) {
+    // Show overlay when bot is active and we have a primary EA (don't require visible prop)
+    if (isBotActive && primaryEA) {
       // Only show overlay if not already active
       if (!isNativeOverlayActive) {
         const setupAndroidOverlay = async () => {
-          console.log('[Overlay] Setting up Android overlay widget...');
+          console.log('[Overlay] Setting up Android overlay widget (backup)...');
           console.log('[Overlay] Conditions:', { isBotActive, visible, hasPrimaryEA: !!primaryEA, botImageURL: primaryEAImage });
           
           // Get bot info first
@@ -169,8 +172,6 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
           
           // Always try to show overlay - showOverlay will handle permission check internally
           // Use fixed size for native overlay widget
-          // Collapsed: Just robot image (circular, compact)
-          // Expanded: Full bot details (larger)
           const overlayWidth = 140; // Compact size for collapsed (just circular image)
           const overlayHeight = 140; // Square for circular image
           const currentX = (panX as any)._value || 20;
@@ -220,15 +221,15 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
         
         setupAndroidOverlay();
       }
-    } else {
-      // Hide overlay when bot becomes inactive or component becomes invisible
+    } else if (!isBotActive) {
+      // Hide overlay when bot becomes inactive
       if (isNativeOverlayActive) {
-        console.log('[Overlay] Hiding overlay widget - bot inactive or component invisible');
+        console.log('[Overlay] Hiding overlay widget - bot inactive');
         overlayService.hideOverlay();
         setIsNativeOverlayActive(false);
       }
     }
-  }, [isBotActive, visible, primaryEA, primaryEAImage, isNativeOverlayActive]);
+  }, [isBotActive, primaryEA, primaryEAImage, isNativeOverlayActive]);
 
   // Update overlay data when bot info changes - ensure image is always updated
   useEffect(() => {

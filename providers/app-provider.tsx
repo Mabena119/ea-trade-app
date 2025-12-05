@@ -743,9 +743,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           
           if (active) {
             // Bot is being activated - show overlay automatically
-            console.log('[Android Overlay] Bot activated, showing overlay:', { botName, botImageURL });
+            console.log('[Android Overlay] Bot activated, showing overlay:', { botName, botImageURL, hasPrimaryEA: !!primaryEA });
             
-            // Save image URL first
+            // Save image URL first (even if null, so overlay can load default icon)
             await overlayService.updateOverlayData(botName, active, isPollingPaused, botImageURL || null);
             
             // Show overlay at default position
@@ -755,20 +755,43 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             const overlayWidth = 140;
             const overlayHeight = 140;
             
-            const showSuccess = await overlayService.showOverlay(
-              initialX,
-              initialY,
-              overlayWidth,
-              overlayHeight
-            );
+            const showOverlayWithRetry = async (retryCount = 0): Promise<boolean> => {
+              try {
+                const showSuccess = await overlayService.showOverlay(
+                  initialX,
+                  initialY,
+                  overlayWidth,
+                  overlayHeight
+                );
+                
+                if (showSuccess) {
+                  console.log('[Android Overlay] Overlay shown successfully');
+                  // Update overlay data again to ensure image is loaded
+                  await overlayService.updateOverlayData(botName, active, isPollingPaused, botImageURL || null);
+                  return true;
+                } else {
+                  console.log('[Android Overlay] Failed to show overlay - retry count:', retryCount);
+                  if (retryCount < 2) {
+                    // Retry after delay
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return showOverlayWithRetry(retryCount + 1);
+                  } else {
+                    console.log('[Android Overlay] Failed to show overlay after retries - permission may be required');
+                    return false;
+                  }
+                }
+              } catch (error) {
+                console.error('[Android Overlay] Error showing overlay:', error);
+                if (retryCount < 2) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  return showOverlayWithRetry(retryCount + 1);
+                }
+                return false;
+              }
+            };
             
-            if (showSuccess) {
-              console.log('[Android Overlay] Overlay shown successfully');
-              // Update overlay data again to ensure image is loaded
-              await overlayService.updateOverlayData(botName, active, isPollingPaused, botImageURL || null);
-            } else {
-              console.log('[Android Overlay] Failed to show overlay - permission may be required');
-            }
+            // Show overlay with retry logic
+            await showOverlayWithRetry();
           } else {
             // Bot is being deactivated - hide overlay
             console.log('[Android Overlay] Bot deactivated, hiding overlay');
@@ -778,6 +801,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           }
         } catch (error) {
           console.error('[Android Overlay] Error managing overlay:', error);
+          // Don't throw - allow bot activation to continue even if overlay fails
         }
       }
 
