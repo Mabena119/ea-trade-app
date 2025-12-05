@@ -489,128 +489,245 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        return;
                      }
                      
-                     // Select the asset ONCE before trade loop
-                     const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                        document.querySelector('[class*="symbol"][class*="svelte"]') ||
-                                        document.querySelector('.symbol');
-                     if (assetElement) {
-                       assetElement.click();
-                       sendMessage('step', 'Asset ${asset} selected');
-                       await new Promise(r => setTimeout(r, 1500));
-                     } else {
-                       sendMessage('error', 'Asset ${asset} not found - cannot proceed with trading');
+                     // Step 2: Select symbol ONCE - Enhanced selectors matching Android
+                     sendMessage('step', 'Selecting ${asset} symbol...');
+                     const symbolElements = document.querySelectorAll('.name.svelte-19bwscl .symbol.svelte-19bwscl, .symbol.svelte-19bwscl, [class*="symbol"]');
+                     let symbolSelected = false;
+                     
+                     for (let i = 0; i < symbolElements.length; i++) {
+                       const text = (symbolElements[i].innerText || '').trim();
+                       if (text === '${asset}' || text.includes('${asset}')) {
+                         symbolElements[i].click();
+                         symbolSelected = true;
+                         console.log('MT5: ${asset} symbol selected');
+                         break;
+                       }
+                     }
+                     
+                     if (!symbolSelected) {
+                       sendMessage('error', 'Could not select ${asset} symbol');
                        return;
                      }
                      
-                     // Function to execute a single trade with enhanced tracking (NO symbol search - already done)
-                     const executeSingleTrade = async (tradeIndex) => {
-                       try {
-                         console.log('MT5 Trading: Starting trade', (tradeIndex + 1), 'of', numberOfTrades);
-                         sendMessage('step', 'Executing trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' for ${asset}...');
-                         
-                         // Open order dialog (symbol already selected)
-                         const orderButton = document.querySelector('.icon-button.withText span.button-text');
-                         if (orderButton) {
-                           orderButton.click();
-                           sendMessage('step', 'Order dialog opened for trade ' + (tradeIndex + 1) + '...');
-                           await new Promise(r => setTimeout(r, 1500));
-                         } else {
-                           console.log('MT5 Trading: Order button not found for trade', (tradeIndex + 1));
-                           return false;
+                     await new Promise(r => setTimeout(r, 2000)); // Wait for chart to fully load
+                     sendMessage('step', '${asset} symbol chart opened - ready for trading');
+                     
+                     // Step 3: STRICT SEQUENTIAL TRADE EXECUTION according to trade configuration
+                     sendMessage('step', 'Executing trades according to trade configuration...');
+                     console.log('MT5: Executing EXACTLY ' + numberOfTrades + ' trades for ${asset} (lot size: ${volume})');
+                     sendMessage('step', 'Trade Configuration: ' + numberOfTrades + ' trade(s), Lot Size: ${volume}, Action: ${action}');
+                     
+                     // Execute trades sequentially - loop runs EXACTLY numberOfTrades times
+                     for (let tradeNum = 0; tradeNum < numberOfTrades; tradeNum++) {
+                       const currentTrade = tradeNum + 1;
+                       console.log('MT5: === TRADE ' + currentTrade + ' OF ' + numberOfTrades + ' START ===');
+                       
+                       sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': Opening order dialog...');
+                       
+                       // Open order dialog - try multiple selectors matching Android
+                       let orderBtn = document.querySelector('.icon-button.withText span.button-text') ||
+                                     document.querySelector('.icon-button.withText') ||
+                                     document.querySelector('button[class*="order"]') ||
+                                     document.querySelector('button[class*="trade"]') ||
+                                     Array.from(document.querySelectorAll('button')).find(btn => 
+                                       (btn.textContent || '').trim().toLowerCase().includes('order') ||
+                                       (btn.textContent || '').trim().toLowerCase().includes('trade'));
+                       
+                       if (!orderBtn) {
+                         // Try clicking on the chart area to open order dialog
+                         const chartArea = document.querySelector('.chart-container') || 
+                                          document.querySelector('[class*="chart"]') ||
+                                          document.querySelector('canvas');
+                         if (chartArea) {
+                           chartArea.click();
+                           await new Promise(r => setTimeout(r, 1000));
+                           // Try finding order button again
+                           orderBtn = document.querySelector('.icon-button.withText span.button-text') ||
+                                     document.querySelector('.icon-button.withText') ||
+                                     document.querySelector('button[class*="order"]');
                          }
-                         
-                        // STRICTLY SEQUENTIAL parameter setting - NO delays between fields
-                        sendMessage('step', 'Setting parameters for trade ' + (tradeIndex + 1) + '...');
-                        
-                        const setFieldImmediate = (selector, value, fieldName) => {
-                          const field = document.querySelector(selector);
-                          if (field) {
-                            field.focus();
-                            field.select();
-                            field.value = String(value);
-                            field.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                            field.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                            field.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-                            field.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true }));
-                            console.log('MT5: Set ' + fieldName + ' to: ' + value);
-                            return true;
-                          }
-                          console.log('MT5: Field not found: ' + selector);
-                          return false;
-                        };
-                        
-                        // Set all fields IMMEDIATELY - NO delays
-                        console.log('MT5: Setting all parameters NOW');
-                        setFieldImmediate('.trade-input input[type="text"]', '${volume}', 'Volume');
-                        setFieldImmediate('.sl input[type="text"]', '${sl}', 'SL');
-                        setFieldImmediate('.tp input[type="text"]', '${tp}', 'TP');
-                        
-                        // Set comment
-                        const commentSelector = '.input.svelte-mtorg2 input[type="text"]';
-                        const commentField = document.querySelector(commentSelector) || 
-                                           document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
-                        if (commentField) {
-                          setFieldImmediate(commentSelector, '${botname}', 'Comment');
-                        }
-                        
-                        console.log('MT5: All parameters set immediately');
-                        sendMessage('step', 'Parameters set for trade ' + (tradeIndex + 1) + ', executing ${action} order...');
-                        await new Promise(r => setTimeout(r, 1500));
-                         
-                         // Execute the order
-                         const executeButton = '${action}' === 'BUY' ? 
-                           document.querySelector('.footer-row button.trade-button:not(.red)') :
-                           document.querySelector('.footer-row button.trade-button.red');
-                         
-                         if (executeButton) {
-                           executeButton.click();
-                           sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' executed, confirming...');
-                           await new Promise(r => setTimeout(r, 2000));
-                           
-                           // Confirm the order with multiple selector fallbacks
-                           const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
-                                                document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
-                                                document.querySelector('.button[class*="trade"]:not(.red)') ||
-                                                document.querySelector('.modal button:not(.red):not(.cancel)') ||
-                                                document.querySelector('.dialog button:not(.red):not(.cancel)');
-                           
-                           if (confirmButton) {
-                             confirmButton.click();
-                             sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                             await new Promise(r => setTimeout(r, 2000));
-                             console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed successfully');
-                             return true;
-                           } else {
-                             console.log('MT5 Trading: Confirm button not found for trade', (tradeIndex + 1), '- trying alternative methods...');
-                             // Try alternative method - look for any button in modal/dialog
-                             const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
-                             if (modalButtons.length > 0) {
-                               // Click the first non-red button (usually confirm)
-                               for (let i = 0; i < modalButtons.length; i++) {
-                                 if (!modalButtons[i].classList.contains('red') && 
-                                     !modalButtons[i].classList.contains('cancel')) {
-                                   modalButtons[i].click();
-                                   console.log('MT5 Trading: Alternative confirm button clicked');
-                                   sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                                   await new Promise(r => setTimeout(r, 2000));
-                                   return true;
-                                 }
-                               }
-                             }
-                             console.log('MT5 Trading: No confirm button found for trade', (tradeIndex + 1));
-                             return false;
-                           }
-                         } else {
-                           console.log('MT5 Trading: Execute button not found for trade', (tradeIndex + 1));
-                           return false;
-                         }
-                         
-                       } catch (error) {
-                         console.log('MT5 Trading: Trade', (tradeIndex + 1), 'failed:', error.message);
-                         sendMessage('error', 'Trade ' + (tradeIndex + 1) + ' failed: ' + error.message);
-                         return false;
                        }
-                     };
+                       
+                       if (!orderBtn) {
+                         console.error('MT5: Order button not found for trade ' + currentTrade);
+                         sendMessage('error', 'Trade ' + currentTrade + ': Order dialog button not found');
+                         failedTrades++;
+                         continue;
+                       }
+                       
+                       orderBtn.click();
+                       await new Promise(r => setTimeout(r, 2000)); // Wait for order dialog to open
+                       console.log('MT5: Order dialog opened for trade ' + currentTrade);
+                       sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': Order dialog opened');
+                       
+                       // Set parameters with enhanced field detection matching Android
+                       sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': Setting trade parameters (Lot: ${volume}, SL: ${sl}, TP: ${tp})...');
+                       
+                       const setField = (selector, value, name) => {
+                         const field = typeof selector === 'string' ? document.querySelector(selector) : selector;
+                         if (field) {
+                           field.focus();
+                           field.select();
+                           field.value = '';
+                           field.dispatchEvent(new Event('input', { bubbles: true }));
+                           field.dispatchEvent(new Event('change', { bubbles: true }));
+                           
+                           setTimeout(() => {
+                             field.focus();
+                             field.value = value;
+                             field.dispatchEvent(new Event('input', { bubbles: true }));
+                             field.dispatchEvent(new Event('change', { bubbles: true }));
+                             field.dispatchEvent(new Event('blur', { bubbles: true }));
+                             console.log('MT5: Set ' + name + ' to ' + value);
+                           }, 100);
+                           return true;
+                         }
+                         console.error('MT5: Could not set ' + name + ' - field not found: ' + selector);
+                         return false;
+                       };
+                       
+                       // Set Volume (lot size) - try multiple selectors
+                       const volumeSet = setField('.trade-input input[type="text"]', '${volume}', 'Volume') ||
+                                       setField('input[placeholder*="volume" i]', '${volume}', 'Volume') ||
+                                       setField('input[placeholder*="lot" i]', '${volume}', 'Volume') ||
+                                       setField('input[name="volume"]', '${volume}', 'Volume');
+                       
+                       await new Promise(r => setTimeout(r, 300));
+                       
+                       // Set Stop Loss - try multiple selectors
+                       const slSet = setField('.sl input[type="text"]', '${sl}', 'Stop Loss') ||
+                                   setField('input[placeholder*="stop" i]', '${sl}', 'Stop Loss') ||
+                                   setField('input[name="sl"]', '${sl}', 'Stop Loss') ||
+                                   setField('input[class*="sl"]', '${sl}', 'Stop Loss');
+                       
+                       await new Promise(r => setTimeout(r, 300));
+                       
+                       // Set Take Profit - try multiple selectors
+                       const tpSet = setField('.tp input[type="text"]', '${tp}', 'Take Profit') ||
+                                   setField('input[placeholder*="profit" i]', '${tp}', 'Take Profit') ||
+                                   setField('input[name="tp"]', '${tp}', 'Take Profit') ||
+                                   setField('input[class*="tp"]', '${tp}', 'Take Profit');
+                       
+                       await new Promise(r => setTimeout(r, 300));
+                       
+                       // Set comment - try multiple selectors
+                       const commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') || 
+                                           document.querySelector('.input.svelte-1d8k9kk input[type="text"]') ||
+                                           document.querySelector('input[placeholder*="comment" i]') ||
+                                           document.querySelector('input[name="comment"]');
+                       if (commentField) {
+                         setField(commentField, '${botname}', 'Comment');
+                       }
+                       
+                       await new Promise(r => setTimeout(r, 1500)); // Wait for all parameters to be set
+                       console.log('MT5: All parameters set for trade ' + currentTrade);
+                       sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': Parameters set - Volume: ${volume}, SL: ${sl}, TP: ${tp}');
+                       
+                       // Execute order - try multiple selectors for BUY/SELL buttons matching Android
+                       sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': Executing ${action} order...');
+                       
+                       let executeBtn = null;
+                       if ('${action}' === 'BUY') {
+                         executeBtn = document.querySelector('.footer-row button.trade-button:not(.red)') ||
+                                     document.querySelector('button.trade-button:not(.red)') ||
+                                     document.querySelector('button[class*="buy"]') ||
+                                     Array.from(document.querySelectorAll('button')).find(btn => 
+                                       (btn.textContent || '').trim().toLowerCase().includes('buy') &&
+                                       !btn.classList.contains('red'));
+                       } else {
+                         executeBtn = document.querySelector('.footer-row button.trade-button.red') ||
+                                     document.querySelector('button.trade-button.red') ||
+                                     document.querySelector('button[class*="sell"]') ||
+                                     Array.from(document.querySelectorAll('button')).find(btn => 
+                                       (btn.textContent || '').trim().toLowerCase().includes('sell') ||
+                                       btn.classList.contains('red'));
+                       }
+                       
+                       if (executeBtn) {
+                         executeBtn.click();
+                         await new Promise(r => setTimeout(r, 2500)); // Wait for order execution
+                         console.log('MT5: Order executed for trade ' + currentTrade);
+                         sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': Order executed, confirming...');
+                       } else {
+                         console.error('MT5: Execute button not found for trade ' + currentTrade);
+                         sendMessage('error', 'Trade ' + currentTrade + ': Execute button not found');
+                         failedTrades++;
+                         continue;
+                       }
+                       
+                       // Confirm order - try multiple selectors matching Android
+                       sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': Confirming order...');
+                       await new Promise(r => setTimeout(r, 1000));
+                       
+                       let confirmBtn = document.querySelector('.trade-button.svelte-16cwwe0') ||
+                                       document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
+                                       document.querySelector('.modal button:not(.red):not(.cancel)') ||
+                                       document.querySelector('button[class*="confirm"]') ||
+                                       Array.from(document.querySelectorAll('button')).find(btn => 
+                                         (btn.textContent || '').trim().toLowerCase().includes('confirm') ||
+                                         (btn.textContent || '').trim().toLowerCase().includes('ok') ||
+                                         (!btn.classList.contains('red') && 
+                                          !btn.classList.contains('cancel') && 
+                                          btn.offsetParent !== null));
+                       
+                       if (confirmBtn) {
+                         confirmBtn.click();
+                         await new Promise(r => setTimeout(r, 2000));
+                         completedTrades++;
+                         console.log('MT5: Trade ' + currentTrade + ' confirmed successfully');
+                         sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': COMPLETED ✓ (' + completedTrades + ' successful)');
+                       } else {
+                         // Try alternative confirmation methods
+                         const modalBtns = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
+                         let confirmed = false;
+                         for (let i = 0; i < modalBtns.length; i++) {
+                           const btn = modalBtns[i];
+                           if (!btn.classList.contains('red') && 
+                               !btn.classList.contains('cancel') && 
+                               !btn.classList.contains('close') &&
+                               btn.offsetParent !== null) {
+                             btn.click();
+                             await new Promise(r => setTimeout(r, 2000));
+                             completedTrades++;
+                             confirmed = true;
+                             console.log('MT5: Trade ' + currentTrade + ' confirmed via alternative method');
+                             sendMessage('step', 'Trade ' + currentTrade + '/' + numberOfTrades + ': COMPLETED ✓ (' + completedTrades + ' successful)');
+                             break;
+                           }
+                         }
+                         if (!confirmed) {
+                           failedTrades++;
+                           console.error('MT5: Could not confirm trade ' + currentTrade);
+                           sendMessage('error', 'Trade ' + currentTrade + ': Confirmation button not found');
+                         }
+                       }
+                       
+                       // Wait between trades (except after last)
+                       if (tradeNum < numberOfTrades - 1) {
+                         sendMessage('step', 'Trade ' + currentTrade + ' complete - waiting before next trade...');
+                         await new Promise(r => setTimeout(r, 2500)); // Wait before opening next order dialog
+                       }
+                     }
+                     
+                     // Final completion
+                     console.log('MT5: === ALL TRADES COMPLETED ===');
+                     console.log('MT5: Completed:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);
+                     
+                     sendMessage('trade_executed', 'Trading complete: ' + completedTrades + '/' + numberOfTrades + ' successful');
+                     
+                     if (completedTrades === numberOfTrades) {
+                       sendMessage('success', 'All trades executed successfully according to trade configuration');
+                       setTimeout(() => {
+                         sendMessage('close', 'Trading completed - closing WebView');
+                       }, 2000);
+                     } else if (completedTrades > 0) {
+                       sendMessage('partial', 'Trading completed with partial success');
+                       setTimeout(() => {
+                         sendMessage('close', 'Trading completed - closing WebView');
+                       }, 2000);
+                     } else {
+                       sendMessage('error', 'No trades executed successfully');
+                     }
                      
                      // Execute trades sequentially - loop runs EXACTLY numberOfTrades times
                      console.log('MT5 Trading: Starting loop to execute EXACTLY', numberOfTrades, 'trades');

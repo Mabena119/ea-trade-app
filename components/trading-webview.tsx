@@ -46,6 +46,9 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   const heartbeatIndexRef = useRef<number>(0);
   const lastUpdateRef = useRef<number>(Date.now());
   const webViewRef = useRef<WebView>(null);
+  // Add WebView readiness state and proper timing control
+  const [webViewReady, setWebViewReady] = useState(false);
+  const [isTradingInProgress, setIsTradingInProgress] = useState(false);
 
   // Get trade configuration for the signal
   const getTradeConfig = useCallback((): TradeConfig | null => {
@@ -277,85 +280,107 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           }
         \`;
         
-        // Main execution function with strict login verification
+        // MT4 ACCOUNT AUTHENTICATION FUNCTION - Returns true if successful
+        async function authenticateMT4Account() {
+          const sendMessage = (type, message) => {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+          };
+          
+          console.log('MT4: === ACCOUNT AUTHENTICATION START ===');
+          sendMessage('step', 'Starting MT4 account authentication...');
+          
+          // Step 1: ALWAYS connect/login with correct account credentials
+          await new Promise(r => setTimeout(r, 3000));
+          sendMessage('step', 'Connecting to account ${credentials.login} on server ${credentials.server}...');
+          
+          // Fill login credentials (login, server, password)
+          eval(js);
+          
+          // Submit login
+          await new Promise(r => setTimeout(r, 1000));
+          eval(jsPress);
+          
+          // Step 2: Wait for login to complete
+          sendMessage('step', 'Authenticating with MT4 server...');
+          await new Promise(r => setTimeout(r, 8000));
+          
+          // Step 3: VERIFY login success by checking for Market Watch table (MUST PASS)
+          sendMessage('step', 'Verifying account connection...');
+          
+          let loginSuccess = false;
+          let loginAttempts = 0;
+          
+          while (!loginSuccess && loginAttempts < 15) {
+            await new Promise(r => setTimeout(r, 1000));
+            loginAttempts++;
+            
+            // Check if Market Watch is visible (indicates successful login)
+            const marketWatch = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
+            const loginButton = document.querySelectorAll('button.input-button')[3];
+            
+            // Login is successful if Market Watch is visible AND login button is no longer visible/disabled
+            if (marketWatch && marketWatch.querySelectorAll('tr').length > 0) {
+              loginSuccess = true;
+              sendMessage('step', '✅ Authentication SUCCESS - Account ${credentials.login} connected on ${credentials.server}');
+              sendMessage('authentication_success', 'MT4 Account authenticated successfully');
+              console.log('MT4: Authentication PASSED - Market Watch detected with', marketWatch.querySelectorAll('tr').length, 'symbols');
+              return true; // Authentication successful
+            }
+            
+            if (loginAttempts % 3 === 0) {
+              sendMessage('step', 'Still verifying connection... (' + loginAttempts + '/15 attempts)');
+            }
+          }
+          
+          // Authentication failed
+          sendMessage('error', '❌ Authentication FAILED - Could not verify login after 15 seconds');
+          sendMessage('authentication_failed', 'MT4 Account authentication failed');
+          console.log('MT4: Authentication FAILED - Aborting trading execution');
+          return false;
+        }
+        
+        // MT4 TRADING EXECUTION FUNCTION - Executes trades according to trade configuration
+        async function executeMT4Trades() {
+          const sendMessage = (type, message) => {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+          };
+          
+          console.log('MT4: === TRADING EXECUTION START ===');
+          sendMessage('step', 'Starting MT4 trade execution according to trade configuration...');
+          
+          // Step 1: Show all symbols
+          sendMessage('step', 'Accessing symbol list...');
+          eval(item1InSymbolsRightClick);
+          await new Promise(r => setTimeout(r, 2000));
+          eval(press_show_all);
+          await new Promise(r => setTimeout(r, 3000));
+          
+          // Step 2: Execute trading sequence according to trade configuration
+          await startTradingSequence();
+        }
+        
+        // MAIN EXECUTION FLOW: Authenticate first, then execute trades
         async function executeTrading() {
           try {
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Initializing MT4...'
-            }));
+            const sendMessage = (type, message) => {
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+            };
             
-            // Step 1: Login
-            await new Promise(r => setTimeout(r, 3000));
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Logging in to MT4...'
-            }));
-            eval(js);
-            eval(jsPress);
+            console.log('MT4: === STRICT SEQUENTIAL TRADING START ===');
+            sendMessage('step', 'Initializing MT4 - Ensuring correct account connection...');
             
-            // Step 2: Wait for login to complete
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Waiting for MT4 login to complete...'
-            }));
-            await new Promise(r => setTimeout(r, 8000));
+            // STEP 1: Authenticate account first
+            const authenticationSuccess = await authenticateMT4Account();
             
-            // Step 3: VERIFY login success by checking for Market Watch table
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Verifying MT4 authentication...'
-            }));
-            
-            let loginSuccess = false;
-            let loginAttempts = 0;
-            
-            while (!loginSuccess && loginAttempts < 10) {
-              await new Promise(r => setTimeout(r, 1000));
-              
-              // Check if Market Watch is visible (indicates successful login)
-              const marketWatch = document.querySelector('body > div.page-window.market-watch.compact > div > div.b > div.page-block > div > table > tbody');
-              const loginButton = document.querySelectorAll('button.input-button')[3];
-              
-              // Login is successful if Market Watch is visible AND login button is no longer visible/disabled
-              if (marketWatch && marketWatch.querySelectorAll('tr').length > 0) {
-                loginSuccess = true;
-                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'step',
-                  message: 'MT4 Login Successful - Market Watch detected!'
-                }));
-                console.log('MT4 Trading: Login verified - Market Watch detected with', marketWatch.querySelectorAll('tr').length, 'symbols');
-              } else {
-                loginAttempts++;
-                console.log('MT4 Trading: Waiting for login... attempt', loginAttempts);
-              }
+            if (!authenticationSuccess) {
+              sendMessage('error', 'Cannot proceed with trading - Authentication failed');
+              console.log('MT4: Trading aborted - Authentication failed');
+              return;
             }
             
-            if (!loginSuccess) {
-              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'error',
-                message: 'MT4 Login failed - Could not verify authentication after 10 seconds'
-              }));
-              console.log('MT4 Trading: LOGIN FAILED - Aborting trading execution');
-              return; // STOP - Do not proceed with trading
-            }
-            
-            // Step 4: Show all symbols (only if login succeeded)
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Accessing symbol list...'
-            }));
-            eval(item1InSymbolsRightClick);
-            await new Promise(r => setTimeout(r, 2000));
-            eval(press_show_all);
-            await new Promise(r => setTimeout(r, 3000));
-            
-            // Step 5: Start trading (only if login succeeded)
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Login verified - Starting MT4 trading sequence...'
-            }));
-            await startTradingSequence();
+            // STEP 2: Once authentication is true, continue to place trades
+            await new Promise(r => setTimeout(r, 2000)); // Brief pause after authentication
+            await executeMT4Trades();
             
           } catch (error) {
             console.log('MT4 Trading: Error in executeTrading:', error.message);
@@ -671,7 +696,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
   const generateMT5JavaScript = useCallback(() => {
     if (!signal || !tradeConfig || !credentials) return '';
 
-    const numberOfOrders = parseInt(tradeConfig.numberOfTrades) || 1;
+    const numberOfTrades = parseInt(tradeConfig.numberOfTrades) || 1;
     const volume = tradeConfig.lotSize;
     const asset = signal.asset;
     const tp = signal.tp;
@@ -680,492 +705,510 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     const botname = `${eaName}`;
 
     return `
-      // MT5 Trading Script
-      console.log('Starting MT5 trade execution for ${asset}');
-      
-      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-      
-      // Check for and remove existing connected account
-      const checkAndRemoveExistingAccount = async () => {
-        console.log('Checking for existing connected MT5 account...');
-        await sleep(5500); // Wait for page to load
+      (function(){
+        console.log('MT5 Trading script injected - starting immediately');
         
-        // Check for disclaimer and accept if present
-        const disclaimer = document.querySelector('#disclaimer');
-        if (disclaimer) {
-          const acceptButton = document.querySelector('.accept-button');
-          if (acceptButton) {
-            acceptButton.click();
-            console.log('Accepted disclaimer');
-            await sleep(5500);
-          }
-        }
+        // Start execution immediately when script loads
+        // Wait a moment for page to be ready, then start authentication and trading
+        setTimeout(() => {
+          console.log('MT5: Starting STRICT sequential trading execution');
+          executeStrictMT5Trading();
+        }, 3000); // Wait 3 seconds for MT5 terminal to initialize
         
-        // Check if form is visible (means we need to login)
-        const form = document.querySelector('.form');
-        if (form && !form.classList.contains('hidden')) {
-          console.log('Login form is visible, checking for existing connection...');
+        // MT5 ACCOUNT AUTHENTICATION FUNCTION - Duplicated from metatrader screen
+        // Returns true if successful, false if failed
+        async function authenticateMT5Account() {
+          const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+          const sendMessage = (type, message) => {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+          };
           
-          // Press remove button first to clear any existing connection
-          const removeButton = document.querySelector('.button.svelte-1wrky82.red');
-          if (removeButton) {
-            console.log('Found Remove button, clicking to clear existing connection...');
-            removeButton.click();
+          console.log('MT5: === ACCOUNT AUTHENTICATION START ===');
+          
+          try {
+            sendMessage('step', 'Initializing MT5 Account...');
             await sleep(5500);
-          } else {
-            // Fallback: look for Remove button by text
-            const buttons = document.getElementsByTagName('button');
-            for (let i = 0; i < buttons.length; i++) {
-              if (buttons[i].textContent.trim() === 'Remove') {
-                console.log('Found Remove button by text, clicking...');
-                buttons[i].click();
-                await sleep(5500);
-                break;
+            
+            // Check for disclaimer and accept if present
+            const disclaimer = document.querySelector('#disclaimer');
+            if (disclaimer) {
+              const acceptButton = document.querySelector('.accept-button');
+              if (acceptButton) {
+                acceptButton.click();
+                sendMessage('step', 'Accepting disclaimer...');
+                await sleep(2000);
               }
             }
-          }
-          
-          console.log('Ready to login with fresh credentials');
-        } else {
-          console.log('Form is hidden or not found, may already be logged in');
-        }
-      };
-      
-      const loginScript = \`
-        var x = document.querySelector('input[name="login"]');
-        if (x != null) {
-          x.value = '${credentials.login}';
-          x.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        var y = document.querySelector('input[name="password"]');
-        if (y != null) {
-          y.value = '${credentials.password}';
-          y.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      \`;
-      
-      const loginPress = \`
-        var button = document.querySelector('.button.svelte-1wrky82.active');
-        if(button !== null) {
-          button.click();
-        }
-      \`;
-      
-      // Enhanced search bar reveal and verification function
-      const revealAndVerifySearchBar = \`
-        function ensureSearchBarVisible(callback) {
-          var attempts = 0;
-          var maxAttempts = 3;
-          
-          function tryRevealSearchBar() {
-            attempts++;
-            console.log('Attempting to reveal search bar, attempt: ' + attempts);
             
-            // First, try to click the title to reveal search bar
-            var titleEl = document.querySelector('.title-wrap.svelte-19c9jff .title.svelte-19c9jff');
-            if (titleEl) {
-              titleEl.click();
-              console.log('Clicked title element to reveal search bar');
-            }
-            
-            // Wait a moment then check if search bar is visible
-            setTimeout(function() {
-              var searchInput = document.querySelector('input[placeholder="Search symbol"]') ||
-                               document.querySelector('label.search.svelte-1mvzp7f input') ||
-                               document.querySelector('.search input');
-              
-              if (searchInput && searchInput.offsetParent !== null) {
-                console.log('Search bar is now visible and ready');
-                callback(searchInput);
-              } else if (attempts < maxAttempts) {
-                console.log('Search bar not visible yet, retrying...');
-                setTimeout(tryRevealSearchBar, 1000);
+            // Check if form is visible and remove any existing connections
+            const form = document.querySelector('.form');
+            if (form && !form.classList.contains('hidden')) {
+              // Press remove button first to clear any existing connection
+              const removeButton = document.querySelector('.button.svelte-1wrky82.red');
+              if (removeButton) {
+                removeButton.click();
+                sendMessage('step', 'Removing existing connection...');
+                await sleep(3000);
               } else {
-                console.log('Failed to reveal search bar after ' + maxAttempts + ' attempts');
-                // Try to proceed anyway with any input field found
-                var fallbackInput = document.querySelector('input[type="text"]');
-                if (fallbackInput) {
-                  console.log('Using fallback input field');
-                  callback(fallbackInput);
-                } else {
-                  console.log('No input field found at all');
-                  callback(null);
+                // Fallback: look for Remove button by text
+                const buttons = document.getElementsByTagName('button');
+                for (let i = 0; i < buttons.length; i++) {
+                  if (buttons[i].textContent.trim() === 'Remove') {
+                    buttons[i].click();
+                    sendMessage('step', 'Removing existing connection...');
+                    await sleep(3000);
+                    break;
+                  }
                 }
               }
-            }, 800);
-          }
-          
-          tryRevealSearchBar();
-        }
-      \`;
-      
-      const searchSymbol = \`
-        ensureSearchBarVisible(function(searchInput) {
-          if (searchInput) {
-            console.log('Setting search value to: ${asset}');
-            searchInput.focus();
-            searchInput.select();
-            searchInput.value = '${asset}';
-            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-            searchInput.dispatchEvent(new Event('change', { bubbles: true }));
-            searchInput.dispatchEvent(new Event('keyup', { bubbles: true }));
+            }
             
-            // Verify the value was set
-            setTimeout(function() {
-              console.log('Search input value after setting: "' + searchInput.value + '"');
-            }, 200);
-          } else {
-            console.log('Could not find or reveal search input field');
-          }
-        });
-      \`;
-      
-      const selectSymbol = \`
-        var candidates = document.querySelectorAll('.name.svelte-19bwscl .symbol.svelte-19bwscl, .symbol.svelte-19bwscl, [class*="symbol"], .name .symbol');
-        var found = false;
-        for (var i = 0; i < candidates.length; i++) {
-          var el = candidates[i];
-          var txt = (el.innerText || '').trim();
-          if (txt === '${asset}' || txt === '${asset}.mic' || txt.includes('${asset}')) {
-            el.click();
-            found = true;
-            break;
-          }
-        }
-        if (!found && candidates.length > 0) {
-          candidates[0].click();
-        }
-      \`;
-      
-      const openOrderDialog = \`
-        var element = document.querySelector('.icon-button.withText span.button-text');
-        if (element !== null) {
-          element.scrollIntoView();
-          element.click();
-        }
-      \`;
-      
-      const setOrderParams = \`
-        // STRICTLY SEQUENTIAL MT5 field setting - NO nested timeouts
-        function setMT5FieldImmediate(selector, value, fieldName) {
-          var field = document.querySelector(selector);
-          if (field) {
-            console.log('Setting MT5 ' + fieldName + ' to: ' + value);
+            // Wait for form to be ready
+            await sleep(2000);
             
-            // Immediate synchronous setting
-            field.focus();
-            field.select();
-            field.value = String(value);
+            // Fill login credentials with enhanced field detection (matching metatrader screen)
+            const loginField = document.querySelector('input[name="login"]') || 
+                              document.querySelector('input[type="text"][placeholder*="login" i]') ||
+                              document.querySelector('input[type="number"]') ||
+                              document.querySelector('input#login');
             
-            // Trigger all events immediately
-            field.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-            field.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-            field.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-            field.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true }));
+            const passwordField = document.querySelector('input[name="password"]') || 
+                                 document.querySelector('input[type="password"]') ||
+                                 document.querySelector('input#password');
             
-            console.log('MT5 ' + fieldName + ' set to: ' + field.value);
-            return true;
-          } else {
-            console.log('MT5 Field not found: ' + selector);
+            // Fill login field
+            if (loginField && '${credentials.login}') {
+              loginField.focus();
+              loginField.value = '';
+              loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+              loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+              
+              setTimeout(() => {
+                loginField.focus();
+                loginField.value = '${credentials.login}';
+                loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                sendMessage('step', 'Login filled');
+              }, 100);
+            } else {
+              sendMessage('error', 'Login field not found');
+              sendMessage('authentication_failed', 'MT5 Login field not found');
+              return false;
+            }
+            
+            // Fill password field
+            if (passwordField && '${credentials.password}') {
+              setTimeout(() => {
+                passwordField.focus();
+                passwordField.value = '';
+                passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                
+                setTimeout(() => {
+                  passwordField.focus();
+                  passwordField.value = '${credentials.password}';
+                  passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                  passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                  sendMessage('step', 'Password filled');
+                }, 100);
+              }, 300);
+            } else {
+              sendMessage('error', 'Password field not found');
+              sendMessage('authentication_failed', 'MT5 Password field not found');
+              return false;
+            }
+            
+            // Wait for fields to be filled
+            await sleep(2000);
+            
+            // Click login button
+            sendMessage('step', 'Connecting to Server ${credentials.server}...');
+            const loginButton = document.querySelector('.button.svelte-1wrky82.active') ||
+                               document.querySelector('button[type="submit"]') ||
+                               document.querySelector('.button.active') ||
+                               Array.from(document.querySelectorAll('button')).find(btn => 
+                                 btn.textContent.trim().toLowerCase().includes('login') ||
+                                 btn.textContent.trim().toLowerCase().includes('connect')
+                               );
+            
+            if (loginButton) {
+              loginButton.click();
+              await sleep(8000);
+            } else {
+              sendMessage('error', 'Login button not found');
+              sendMessage('authentication_failed', 'MT5 Login button not found');
+              return false;
+            }
+            
+            // Check for search bar - this is the most reliable indicator of successful login
+            sendMessage('step', 'Verifying authentication...');
+            await sleep(3000);
+            
+            const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                               document.querySelector('input[placeholder*="Search" i]') ||
+                               document.querySelector('input[type="search"]');
+            
+            if (searchField && searchField.offsetParent !== null) {
+              // Search bar is present and visible - login successful!
+              sendMessage('step', '✅ Authentication SUCCESS - Account ${credentials.login} connected on ${credentials.server}');
+              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+              console.log('MT5: Authentication PASSED - Account connected successfully');
+              return true;
+            }
+            
+            // Double check after a longer wait
+            await sleep(3000);
+            const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                    document.querySelector('input[placeholder*="Search" i]') ||
+                                    document.querySelector('input[type="search"]');
+            
+            if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+              sendMessage('step', '✅ Authentication SUCCESS - Account ${credentials.login} connected on ${credentials.server}');
+              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+              console.log('MT5: Authentication PASSED - Account connected successfully');
+              return true;
+            }
+            
+            // No search bar found - authentication failed
+            sendMessage('error', '❌ Authentication FAILED - Invalid login or password');
+            sendMessage('authentication_failed', 'MT5 Authentication failed - Invalid login or password');
+            console.error('MT5: Authentication failed - Search bar not found');
+            return false;
+            
+          } catch(e) {
+            sendMessage('error', 'Error during authentication: ' + e.message);
+            sendMessage('authentication_failed', 'MT5 Error during authentication: ' + e.message);
+            console.error('MT5: Authentication error:', e);
             return false;
           }
         }
         
-        // Set all fields IMMEDIATELY in sequence - NO delays
-        console.log('MT5: Setting all order parameters NOW');
-        setMT5FieldImmediate('.trade-input input[type="text"]', '${volume}', 'Volume');
-        setMT5FieldImmediate('.sl input[type="text"]', '${sl}', 'SL');
-        setMT5FieldImmediate('.tp input[type="text"]', '${tp}', 'TP');
-        
-        // Set Comment
-        var commentSelector = '.input.svelte-mtorg2 input[type="text"]';
-        var commentField = document.querySelector(commentSelector);
-        if (!commentField) {
-          commentSelector = '.input.svelte-1d8k9kk input[type="text"]';
-        }
-        setMT5FieldImmediate(commentSelector, '${botname}', 'Comment');
-        
-        console.log('MT5: All parameters set immediately');
-      \`;
-      
-      const executeOrder = \`
-        ${action === 'BUY' ?
-        "var buyButton = document.querySelector('.footer-row button.trade-button:not(.red)'); if (buyButton !== null) { buyButton.click(); }" :
-        "var sellButton = document.querySelector('.footer-row button.trade-button.red'); if (sellButton !== null) { sellButton.click(); }"
-      }
-      \`;
-      
-      const confirmOrder = \`
-        var okButton = document.querySelector('.trade-button.svelte-16cwwe0');
-        if (okButton !== null) {
-          okButton.click();
-        }
-      \`;
-      
-      // Execute trading sequence with proper login verification
-      (async () => {
-        try {
-          // Step 1: Check and remove existing account
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Checking for existing account...'}));
-          await checkAndRemoveExistingAccount();
+        // MT5 TRADING EXECUTION FUNCTION - Executes trades according to trade configuration
+        async function executeMT5Trades() {
+          const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+          const sendMessage = (type, message) => {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+          };
           
-          // Step 2: Login
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Logging in to MT5...'}));
-          eval(loginScript);
-          await sleep(500);
-          eval(loginPress);
+          console.log('MT5: === TRADING EXECUTION START ===');
+          sendMessage('step', 'Starting trade execution according to trade configuration...');
           
-          // Step 3: Wait for login to complete and verify
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Waiting for login to complete...'}));
-          await sleep(8000);
-          
-          // Step 4: Verify login success by checking for search bar
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Verifying authentication...'}));
-          let loginSuccess = false;
-          let loginAttempts = 0;
-          
-          while (!loginSuccess && loginAttempts < 10) {
-            await sleep(1000);
-            const searchBar = document.querySelector('input[placeholder="Search symbol"]') ||
-                            document.querySelector('input[placeholder*="Search" i]') ||
-                            document.querySelector('input[type="search"]');
-            
-            if (searchBar && searchBar.offsetParent !== null) {
-              loginSuccess = true;
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'step', 
-                message: 'MT5 Login Successful - Authentication verified!'
-              }));
-              console.log('MT5 Trading: Login verified - search bar detected');
-            } else {
-              loginAttempts++;
-              console.log('MT5 Trading: Waiting for login... attempt', loginAttempts);
-            }
-          }
-          
-          if (!loginSuccess) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'error', 
-              message: 'Login failed - Could not verify authentication after 10 seconds'
-            }));
-            return;
-          }
-          
-          // Step 5: Search for symbol ONCE before trading
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
-          
-          // Reveal search bar
-          const titleEl = document.querySelector('.title-wrap.svelte-19c9jff .title.svelte-19c9jff');
-          if (titleEl) {
-            titleEl.click();
-            console.log('MT5: Clicked title to reveal search bar');
-          }
-          await sleep(1000);
-          
-          // Find and use search bar
+          // Step 1: Search for symbol ONCE
+          sendMessage('step', 'Locating ${asset} symbol...');
           const searchBar = document.querySelector('input[placeholder="Search symbol"]') ||
-                           document.querySelector('input[placeholder*="Search" i]') ||
+                           document.querySelector('input[placeholder*="Search"]') ||
                            document.querySelector('input[type="search"]');
           
           if (!searchBar) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'error',
-              message: 'MT5 Search bar not found - cannot proceed'
-            }));
-            console.log('MT5: CRITICAL - Search bar not found');
+            sendMessage('error', 'Search bar not found - cannot locate symbol');
             return;
           }
           
-          // Search for symbol
           searchBar.focus();
           searchBar.value = '${asset}';
           searchBar.dispatchEvent(new Event('input', { bubbles: true }));
           searchBar.dispatchEvent(new Event('change', { bubbles: true }));
           searchBar.dispatchEvent(new Event('keyup', { bubbles: true }));
-          console.log('MT5: Searched for ${asset}');
           await sleep(2000);
+          sendMessage('step', '${asset} symbol search completed');
           
-          // Step 6: Select symbol ONCE before trading
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Selecting symbol ${asset}...'}));
+          // Step 2: Select symbol ONCE
+          sendMessage('step', 'Selecting ${asset} symbol...');
+          const symbolElements = document.querySelectorAll('.name.svelte-19bwscl .symbol.svelte-19bwscl, .symbol.svelte-19bwscl, [class*="symbol"]');
+          let symbolSelected = false;
           
-          const symbolCandidates = document.querySelectorAll('.name.svelte-19bwscl .symbol.svelte-19bwscl, .symbol.svelte-19bwscl, [class*="symbol"]');
-          let symbolFound = false;
-          for (let i = 0; i < symbolCandidates.length; i++) {
-            const txt = (symbolCandidates[i].innerText || '').trim();
-            if (txt === '${asset}' || txt.includes('${asset}')) {
-              symbolCandidates[i].click();
-              symbolFound = true;
-              console.log('MT5: Selected symbol ${asset}');
+          for (let i = 0; i < symbolElements.length; i++) {
+            const text = (symbolElements[i].innerText || '').trim();
+            if (text === '${asset}' || text.includes('${asset}')) {
+              symbolElements[i].click();
+              symbolSelected = true;
+              console.log(\`MT5: \${asset} symbol selected\`);
               break;
             }
           }
           
-          if (!symbolFound) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'error',
-              message: 'MT5 Symbol ${asset} not found - cannot proceed'
-            }));
-            console.log('MT5: CRITICAL - Symbol ${asset} not found');
+          if (!symbolSelected) {
+            sendMessage('error', 'Could not select ${asset} symbol');
             return;
           }
           
-          await sleep(1500);
+          await sleep(2000); // Wait for chart to fully load
+          sendMessage('step', '${asset} symbol chart opened - ready for trading');
           
-          // Step 7: Execute trades STRICTLY sequentially
-          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Starting MT5 trading sequence...'}));
-          
-          const numberOfTrades = ${numberOfOrders};
-          let completedTrades = 0;
+          // Step 3: STRICT SEQUENTIAL TRADE EXECUTION according to trade configuration
+          sendMessage('step', 'Executing trades according to trade configuration...');
+          const numTrades = ${numberOfTrades};
+          let successfulTrades = 0;
           let failedTrades = 0;
           
-          console.log('🎯 MT5 Trading: STRICT SEQUENTIAL execution of EXACTLY', numberOfTrades, 'trade(s) for ${asset}');
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'step',
-            message: 'Executing ' + numberOfTrades + ' trade(s) for ${asset}...'
-          }));
+          console.log(\`MT5: Executing EXACTLY \${numTrades} trades for \${asset} (lot size: \${volume})\`);
+          sendMessage('step', \`Trade Configuration: \${numTrades} trade(s), Lot Size: \${volume}, Action: \${action}\`);
           
-          // Execute each trade STRICTLY one after another
-          for (let tradeIndex = 0; tradeIndex < numberOfTrades; tradeIndex++) {
-            const currentTradeNumber = tradeIndex + 1;
-            console.log('MT5: ========== TRADE ' + currentTradeNumber + ' of ' + numberOfTrades + ' START ==========');
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Trade ' + currentTradeNumber + '/' + numberOfTrades + ': Opening order dialog...'
-            }));
+          // Execute trades sequentially - loop runs EXACTLY numTrades times
+          for (let tradeNum = 0; tradeNum < numTrades; tradeNum++) {
+            const currentTrade = tradeNum + 1;
+            console.log(\`MT5: === TRADE \${currentTrade} OF \${numTrades} START ===\`);
             
-            // 1. Open order dialog
-            const orderButton = document.querySelector('.icon-button.withText span.button-text');
-            if (!orderButton) {
-              console.log('MT5: Order button not found for trade ' + currentTradeNumber);
+            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Opening order dialog...\`);
+            
+            // Open order dialog - try multiple selectors
+            let orderBtn = document.querySelector('.icon-button.withText span.button-text') ||
+                          document.querySelector('.icon-button.withText') ||
+                          document.querySelector('button[class*="order"]') ||
+                          document.querySelector('button[class*="trade"]') ||
+                          Array.from(document.querySelectorAll('button')).find(btn => 
+                            (btn.textContent || '').trim().toLowerCase().includes('order') ||
+                            (btn.textContent || '').trim().toLowerCase().includes('trade'));
+            
+            if (!orderBtn) {
+              // Try clicking on the chart area to open order dialog
+              const chartArea = document.querySelector('.chart-container') || 
+                               document.querySelector('[class*="chart"]') ||
+                               document.querySelector('canvas');
+              if (chartArea) {
+                chartArea.click();
+                await sleep(1000);
+                // Try finding order button again
+                orderBtn = document.querySelector('.icon-button.withText span.button-text') ||
+                          document.querySelector('.icon-button.withText') ||
+                          document.querySelector('button[class*="order"]');
+              }
+            }
+            
+            if (!orderBtn) {
+              console.error(\`MT5: Order button not found for trade \${currentTrade}\`);
+              sendMessage('error', \`Trade \${currentTrade}: Order dialog button not found\`);
               failedTrades++;
               continue;
             }
-            orderButton.click();
-            console.log('MT5: Order dialog opened');
-            await sleep(1500);
             
-            // 2. Set parameters IMMEDIATELY
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Trade ' + currentTradeNumber + '/' + numberOfTrades + ': Setting parameters...'
-            }));
-            eval(setOrderParams);
-            await sleep(1500);
+            orderBtn.click();
+            await sleep(2000); // Wait for order dialog to open
+            console.log(\`MT5: Order dialog opened for trade \${currentTrade}\`);
+            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Order dialog opened\`);
             
-            // 3. Execute order
-            console.log('MT5: Executing ${action} order for trade ' + currentTradeNumber);
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Trade ' + currentTradeNumber + '/' + numberOfTrades + ': Executing ${action}...'
-            }));
-            eval(executeOrder);
-            await sleep(2000);
+            // Set parameters with enhanced field detection
+            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Setting trade parameters (Lot: \${volume}, SL: \${sl}, TP: \${tp})...\`);
             
-            // 4. Confirm order
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'step',
-              message: 'Trade ' + currentTradeNumber + '/' + numberOfTrades + ': Confirming...'
-            }));
+            const setField = (selector, value, name) => {
+              const field = typeof selector === 'string' ? document.querySelector(selector) : selector;
+              if (field) {
+                field.focus();
+                field.select();
+                field.value = '';
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                setTimeout(() => {
+                  field.focus();
+                  field.value = value;
+                  field.dispatchEvent(new Event('input', { bubbles: true }));
+                  field.dispatchEvent(new Event('change', { bubbles: true }));
+                  field.dispatchEvent(new Event('blur', { bubbles: true }));
+                  console.log(\`MT5: Set \${name} to \${value}\`);
+                }, 100);
+                return true;
+              }
+              console.error(\`MT5: Could not set \${name} - field not found: \${selector}\`);
+              return false;
+            };
             
-            const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
-                                document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
-                                document.querySelector('.button[class*="trade"]:not(.red)') ||
-                                document.querySelector('.modal button:not(.red):not(.cancel)') ||
-                                document.querySelector('.dialog button:not(.red):not(.cancel)');
+            // Set Volume (lot size) - try multiple selectors
+            const volumeSet = setField('.trade-input input[type="text"]', '${volume}', 'Volume') ||
+                             setField('input[placeholder*="volume" i]', '${volume}', 'Volume') ||
+                             setField('input[placeholder*="lot" i]', '${volume}', 'Volume') ||
+                             setField('input[name="volume"]', '${volume}', 'Volume');
             
-            if (confirmButton) {
-              confirmButton.click();
-              await sleep(2000);
-              completedTrades++;
-              console.log('MT5: ========== TRADE ' + currentTradeNumber + ' COMPLETED ========== (' + completedTrades + '/' + numberOfTrades + ')');
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'step',
-                message: 'Trade ' + currentTradeNumber + '/' + numberOfTrades + ' COMPLETED ✓ (' + completedTrades + ' successful)'
-              }));
+            await sleep(300);
+            
+            // Set Stop Loss - try multiple selectors
+            const slSet = setField('.sl input[type="text"]', '${sl}', 'Stop Loss') ||
+                         setField('input[placeholder*="stop" i]', '${sl}', 'Stop Loss') ||
+                         setField('input[name="sl"]', '${sl}', 'Stop Loss') ||
+                         setField('input[class*="sl"]', '${sl}', 'Stop Loss');
+            
+            await sleep(300);
+            
+            // Set Take Profit - try multiple selectors
+            const tpSet = setField('.tp input[type="text"]', '${tp}', 'Take Profit') ||
+                         setField('input[placeholder*="profit" i]', '${tp}', 'Take Profit') ||
+                         setField('input[name="tp"]', '${tp}', 'Take Profit') ||
+                         setField('input[class*="tp"]', '${tp}', 'Take Profit');
+            
+            await sleep(300);
+            
+            // Set comment - try multiple selectors
+            const commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') || 
+                                document.querySelector('.input.svelte-1d8k9kk input[type="text"]') ||
+                                document.querySelector('input[placeholder*="comment" i]') ||
+                                document.querySelector('input[name="comment"]');
+            if (commentField) {
+              setField(commentField, '${botname}', 'Comment');
+            }
+            
+            await sleep(1500); // Wait for all parameters to be set
+            console.log(\`MT5: All parameters set for trade \${currentTrade}\`);
+            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Parameters set - Volume: \${volume}, SL: \${sl}, TP: \${tp}\`);
+            
+            // Execute order - try multiple selectors for BUY/SELL buttons
+            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Executing \${action} order...\`);
+            
+            let executeBtn = null;
+            if ('${action}' === 'BUY') {
+              executeBtn = document.querySelector('.footer-row button.trade-button:not(.red)') ||
+                          document.querySelector('button.trade-button:not(.red)') ||
+                          document.querySelector('button[class*="buy"]') ||
+                          Array.from(document.querySelectorAll('button')).find(btn => 
+                            (btn.textContent || '').trim().toLowerCase().includes('buy') &&
+                            !btn.classList.contains('red'));
             } else {
-              // Try alternative confirmation
-              const modalButtons = document.querySelectorAll('.modal button, .dialog button');
+              executeBtn = document.querySelector('.footer-row button.trade-button.red') ||
+                          document.querySelector('button.trade-button.red') ||
+                          document.querySelector('button[class*="sell"]') ||
+                          Array.from(document.querySelectorAll('button')).find(btn => 
+                            (btn.textContent || '').trim().toLowerCase().includes('sell') ||
+                            btn.classList.contains('red'));
+            }
+            
+            if (executeBtn) {
+              executeBtn.click();
+              await sleep(2500); // Wait for order execution
+              console.log(\`MT5: Order executed for trade \${currentTrade}\`);
+              sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Order executed, confirming...\`);
+            } else {
+              console.error(\`MT5: Execute button not found for trade \${currentTrade}\`);
+              sendMessage('error', \`Trade \${currentTrade}: Execute button not found\`);
+              failedTrades++;
+              continue;
+            }
+            
+            // Confirm order - try multiple selectors
+            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Confirming order...\`);
+            await sleep(1000);
+            
+            let confirmBtn = document.querySelector('.trade-button.svelte-16cwwe0') ||
+                            document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
+                            document.querySelector('.modal button:not(.red):not(.cancel)') ||
+                            document.querySelector('button[class*="confirm"]') ||
+                            Array.from(document.querySelectorAll('button')).find(btn => 
+                              (btn.textContent || '').trim().toLowerCase().includes('confirm') ||
+                              (btn.textContent || '').trim().toLowerCase().includes('ok') ||
+                              (!btn.classList.contains('red') && 
+                               !btn.classList.contains('cancel') && 
+                               btn.offsetParent !== null));
+            
+            if (confirmBtn) {
+              confirmBtn.click();
+              await sleep(2000);
+              successfulTrades++;
+              console.log(\`MT5: Trade \${currentTrade} confirmed successfully\`);
+              sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: COMPLETED ✓ (\${successfulTrades} successful)\`);
+            } else {
+              // Try alternative confirmation methods
+              const modalBtns = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
               let confirmed = false;
-              for (let i = 0; i < modalButtons.length; i++) {
-                if (!modalButtons[i].classList.contains('red') && !modalButtons[i].classList.contains('cancel')) {
-                  modalButtons[i].click();
+              for (let i = 0; i < modalBtns.length; i++) {
+                const btn = modalBtns[i];
+                if (!btn.classList.contains('red') && 
+                    !btn.classList.contains('cancel') && 
+                    !btn.classList.contains('close') &&
+                    btn.offsetParent !== null) {
+                  btn.click();
                   await sleep(2000);
-                  completedTrades++;
+                  successfulTrades++;
                   confirmed = true;
-                  console.log('MT5: ========== TRADE ' + currentTradeNumber + ' COMPLETED (alt) ========== (' + completedTrades + '/' + numberOfTrades + ')');
+                  console.log(\`MT5: Trade \${currentTrade} confirmed via alternative method\`);
+                  sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: COMPLETED ✓ (\${successfulTrades} successful)\`);
                   break;
                 }
               }
               if (!confirmed) {
                 failedTrades++;
-                console.log('MT5: ========== TRADE ' + currentTradeNumber + ' FAILED ========== (no confirm button)');
+                console.error(\`MT5: Could not confirm trade \${currentTrade}\`);
+                sendMessage('error', \`Trade \${currentTrade}: Confirmation button not found\`);
               }
             }
             
-            // Wait between trades (except after last one)
-            if (tradeIndex < numberOfTrades - 1) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'step',
-                message: 'Waiting before next trade... (' + completedTrades + '/' + numberOfTrades + ' completed)'
-              }));
-              await sleep(2000);
+            // Wait between trades (except after last)
+            if (tradeNum < numTrades - 1) {
+              sendMessage('step', \`Trade \${currentTrade} complete - waiting before next trade...\`);
+              await sleep(2500); // Wait before opening next order dialog
             }
           }
           
-          // Log final completion
-          console.log('MT5 Trading: ALL TRADES COMPLETED - Success:', completedTrades, 'Failed:', failedTrades, 'Target:', numberOfTrades);
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'trade_executed',
-            message: 'All trades completed: ' + completedTrades + ' of ' + numberOfTrades + ' successful for ${asset}'
-          }));
+          // Final completion
+          console.log('MT5: === ALL TRADES COMPLETED ===');
+          console.log('MT5: Successful:', successfulTrades, 'Failed:', failedTrades, 'Target:', numTrades);
           
-          // Close after completion
-          if (completedTrades === numberOfTrades) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'success',
-              message: 'All ' + numberOfTrades + ' trade(s) executed successfully for ${asset}'
-            }));
-            
+          sendMessage('trade_executed', \`Trading complete: \${successfulTrades}/\${numTrades} successful\`);
+          
+          if (successfulTrades === numTrades) {
+            sendMessage('success', 'All trades executed successfully according to trade configuration');
             setTimeout(() => {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'close',
-                message: 'All trades completed - returning to listening state'
-              }));
-            }, 3000);
-          } else if (completedTrades > 0) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'success',
-              message: 'Partial completion: ' + completedTrades + ' of ' + numberOfTrades + ' trades executed'
-            }));
-            
+              sendMessage('close', 'Trading completed - closing WebView');
+            }, 2000);
+          } else if (successfulTrades > 0) {
+            sendMessage('partial', 'Trading completed with partial success');
             setTimeout(() => {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'close',
-                message: 'Trading completed - returning to listening state'
-              }));
-            }, 3000);
+              sendMessage('close', 'Trading completed - closing WebView');
+            }, 2000);
           } else {
+            sendMessage('error', 'No trades executed successfully');
+          }
+        }
+        
+        // MAIN EXECUTION FLOW: Authenticate first, then execute trades
+        async function executeStrictMT5Trading() {
+          try {
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            const sendMessage = (type, message) => {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+            };
+            
+            console.log('MT5: === STRICT SEQUENTIAL TRADING START ===');
+            
+            // STEP 1: Authenticate account first
+            const authenticationSuccess = await authenticateMT5Account();
+            
+            if (!authenticationSuccess) {
+              sendMessage('error', 'Cannot proceed with trading - Authentication failed');
+              console.error('MT5: Trading aborted - Authentication failed');
+              return;
+            }
+            
+            // STEP 2: Once authentication is true, continue to place trades
+            await sleep(2000); // Brief pause after authentication
+            await executeMT5Trades();
+            
+          } catch (error) {
+            console.error('MT5 Trading Error:', error);
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'error',
-              message: 'No trades executed successfully'
+              message: 'Critical trading error: ' + error.message
             }));
           }
-          
-        } catch (error) {
-          console.log('MT5 Trading: Error in login/setup:', error.message);
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'error',
-            message: 'Login/setup error: ' + error.message
-          }));
         }
       })();
     `;
   }, [signal, tradeConfig, credentials, eaName]);
 
-  // MT5 Broker URL mapping
+  // MT5 Broker URL mapping - Must match metatrader screen exactly
   const MT5_BROKER_URLS: Record<string, string> = {
     'RazorMarkets-Live': 'https://webtrader.razormarkets.co.za/terminal/',
     'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal/',
+    'RockWest-Server': 'https://webtrader.rock-west.com/terminal',
+    'MaonoGlobalMarkets-Live': 'https://web.maonoglobalmarkets.com/terminal',
+    'Deriv-Demo': 'https://mt5-demo-web.deriv.com/terminal',
+    'DerivSVG-Server': 'https://mt5-real01-web-svg.deriv.com/terminal',
+    'DerivSVG-Server-02': 'https://mt5-real02-web-svg.deriv.com/terminal',
+    'DerivSVG-Server-03': 'https://mt5-real03-web-svg.deriv.com/terminal',
+    'DerivBVI-Server': 'https://mt5-real01-web-bvi.deriv.com/terminal',
+    'DerivBVI-Server-02': 'https://mt5-real02-web-bvi.deriv.com/terminal',
+    'DerivBVI-Server-03': 'https://mt5-real03-web-bvi.deriv.com/terminal',
+    'DerivBVI-Server-VU': 'https://mt5-real01-web-vu.deriv.com/terminal',
+    'DerivBVI-Server-VU-02': 'https://mt5-real02-web-vu.deriv.com/terminal',
+    'DerivBVI-Server-VU-03': 'https://mt5-real03-web-vu.deriv.com/terminal',
+    'RocketX-Live': 'https://webtrader.rocketx.io:1950/terminal',
   };
 
   // Get WebView URL for trading based on platform
@@ -1184,11 +1227,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     if (Platform.OS === 'web') {
       const proxyBaseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const proxyPath = tradeConfig.platform === 'MT5' ? '/api/mt5-proxy' : '/api/mt4-proxy';
-      
+
       const terminalUrl = tradeConfig.platform === 'MT4'
         ? 'https://metatraderweb.app/trade?version=4'
         : mt5Url;
-      
+
       // Build proxy URL with all trading parameters
       const proxyUrl = new URL(proxyPath, proxyBaseUrl);
       proxyUrl.searchParams.set('url', terminalUrl);
@@ -1216,7 +1259,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
 
     // For Android/iOS: Return direct terminal URL (script injected client-side)
     const terminalUrl = tradeConfig.platform === 'MT4'
-        ? 'https://metatraderweb.app/trade?version=4'
+      ? 'https://metatraderweb.app/trade?version=4'
       : mt5Url;
 
     console.log('🎯 Trading WebView URL (Direct):', {
@@ -1285,10 +1328,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
     }
 
     // Increment key to force WebView remount and destroy cached instance
-      setTimeout(() => {
+    setTimeout(() => {
       console.log('Trading webview cleanup completed - incrementing key to destroy instance');
       setWebViewKey(prev => prev + 1);
-      }, 500);
+    }, 500);
   }, [tradeConfig, getStorageClearScript]);
 
   // Handle WebView messages
@@ -1358,10 +1401,10 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           } else {
             // Cleanup webview before closing (both MT4 and MT5)
             cleanupTradingWebView();
-              // Close after cleanup delay
-              setTimeout(() => {
-                onClose();
-              }, 600);
+            // Close after cleanup delay
+            setTimeout(() => {
+              onClose();
+            }, 600);
           }
           break;
         case 'error':
@@ -1500,11 +1543,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                   <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                 )}
                 <LinearGradient
-                  colors={error 
+                  colors={error
                     ? ['rgba(220, 38, 38, 0.2)', 'rgba(220, 38, 38, 0.1)']
                     : tradeExecuted
-                    ? ['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']
-                    : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                      ? ['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']
+                      : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
                   style={StyleSheet.absoluteFill}
                 />
                 {error ? (
@@ -1564,9 +1607,9 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                 onPress={() => {
                   // Cleanup before closing
                   cleanupTradingWebView();
-                    setTimeout(() => {
-                      onClose();
-                    }, 600);
+                  setTimeout(() => {
+                    onClose();
+                  }, 600);
                 }}
                 activeOpacity={0.8}
               >
@@ -1601,7 +1644,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           >
             <X color="#FFFFFF" size={20} />
           </TouchableOpacity>
-          
+
           {/* Debug Info Banner */}
           <View style={styles.debugBanner}>
             <Text style={styles.debugText}>
@@ -1613,7 +1656,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               </Text>
             )}
           </View>
-          
+
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`trading-web-${webViewKey}`}
@@ -1836,11 +1879,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
   statusBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1895,12 +1933,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  webViewContainer: {
-    flex: 1,
-  },
-  webView: {
-    flex: 1,
   },
   loadingContainer: {
     flex: 1,
