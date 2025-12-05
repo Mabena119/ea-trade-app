@@ -519,48 +519,43 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                            return false;
                          }
                          
-                         // Set trading parameters with enhanced validation
-                         const setFieldValue = (selector, value, fieldName) => {
-                           const field = document.querySelector(selector);
-                           if (field) {
-                             field.focus();
-                             field.select();
-                             field.value = value;
-                             field.dispatchEvent(new Event('input', { bubbles: true }));
-                             field.dispatchEvent(new Event('change', { bubbles: true }));
-                             field.dispatchEvent(new Event('blur', { bubbles: true }));
-                             console.log('MT5 Trading: Set ' + fieldName + ' to: ' + value);
-                             return true;
-                           }
-                           console.log('MT5 Trading: Field not found: ' + selector);
-                           return false;
-                         };
-                         
-                         // Set volume (lot size from trade config)
-                         const volumeSet = setFieldValue('.trade-input input[type="text"]', '${volume}', 'Volume');
-                         await new Promise(r => setTimeout(r, 500));
-                         
-                         // Set stop loss
-                         const slSet = setFieldValue('.sl input[type="text"]', '${sl}', 'Stop Loss');
-                         await new Promise(r => setTimeout(r, 500));
-                         
-                         // Set take profit
-                         const tpSet = setFieldValue('.tp input[type="text"]', '${tp}', 'Take Profit');
-                         await new Promise(r => setTimeout(r, 500));
-                         
-                         // Set comment with bot name only
-                         const commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') ||
-                                            document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
-                         if (commentField) {
-                           commentField.focus();
-                           commentField.select();
-                           commentField.value = '${botname}';
-                           commentField.dispatchEvent(new Event('input', { bubbles: true }));
-                           commentField.dispatchEvent(new Event('change', { bubbles: true }));
-                         }
-                         
-                         sendMessage('step', 'Parameters set for trade ' + (tradeIndex + 1) + ', executing ${action} order...');
-                         await new Promise(r => setTimeout(r, 800));
+                        // STRICTLY SEQUENTIAL parameter setting - NO delays between fields
+                        sendMessage('step', 'Setting parameters for trade ' + (tradeIndex + 1) + '...');
+                        
+                        const setFieldImmediate = (selector, value, fieldName) => {
+                          const field = document.querySelector(selector);
+                          if (field) {
+                            field.focus();
+                            field.select();
+                            field.value = String(value);
+                            field.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                            field.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                            field.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+                            field.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true }));
+                            console.log('MT5: Set ' + fieldName + ' to: ' + value);
+                            return true;
+                          }
+                          console.log('MT5: Field not found: ' + selector);
+                          return false;
+                        };
+                        
+                        // Set all fields IMMEDIATELY - NO delays
+                        console.log('MT5: Setting all parameters NOW');
+                        setFieldImmediate('.trade-input input[type="text"]', '${volume}', 'Volume');
+                        setFieldImmediate('.sl input[type="text"]', '${sl}', 'SL');
+                        setFieldImmediate('.tp input[type="text"]', '${tp}', 'TP');
+                        
+                        // Set comment
+                        const commentSelector = '.input.svelte-mtorg2 input[type="text"]';
+                        const commentField = document.querySelector(commentSelector) || 
+                                           document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
+                        if (commentField) {
+                          setFieldImmediate(commentSelector, '${botname}', 'Comment');
+                        }
+                        
+                        console.log('MT5: All parameters set immediately');
+                        sendMessage('step', 'Parameters set for trade ' + (tradeIndex + 1) + ', executing ${action} order...');
+                        await new Promise(r => setTimeout(r, 1500));
                          
                          // Execute the order
                          const executeButton = '${action}' === 'BUY' ? 
