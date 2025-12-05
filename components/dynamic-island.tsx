@@ -60,7 +60,7 @@ export function DynamicIsland({ visible, newSignal, onSignalDismiss }: DynamicIs
     if (/^https?:\/\//i.test(raw)) return raw;
     // Otherwise, treat as filename and prefix uploads base URL
     const filename = raw.replace(/^\/+/, '');
-    const base = 'https://ea-converter.com/admin/uploads';
+    const base = 'https://www.eatrade.io/admin/uploads';
     return `${base}/${filename}`;
   }, []);
 

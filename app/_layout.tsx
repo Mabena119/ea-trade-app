@@ -164,7 +164,7 @@ function RootLayoutNav() {
                 botImageURL = raw;
               } else {
                 const filename = raw.replace(/^\/+/, '');
-                botImageURL = `https://ea-converter.com/admin/uploads/${filename}`;
+                botImageURL = `https://www.eatrade.io/admin/uploads/${filename}`;
               }
             }
           }
@@ -273,7 +273,7 @@ function RootLayoutNav() {
                   botImageURL = raw;
                 } else {
                   const filename = raw.replace(/^\/+/, '');
-                  botImageURL = `https://ea-converter.com/admin/uploads/${filename}`;
+                  botImageURL = `https://www.eatrade.io/admin/uploads/${filename}`;
                 }
               }
             }
