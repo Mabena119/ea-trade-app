@@ -970,30 +970,48 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         message: 'Trade ' + currentTradeNumber + ' executed, confirming...'
                       }));
                       
-                      const confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
-                                          document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
-                                          document.querySelector('.button[class*="trade"]:not(.red)') ||
-                                          document.querySelector('.modal button:not(.red):not(.cancel)') ||
-                                          document.querySelector('.dialog button:not(.red):not(.cancel)');
+                      // CRITICAL: Wait longer for confirmation dialog to appear
+                      await new Promise(r => setTimeout(r, 1000));
+                      
+                      // Try multiple times to find confirm button
+                      let confirmButton = null;
+                      let attempts = 0;
+                      while (!confirmButton && attempts < 3) {
+                        confirmButton = document.querySelector('.trade-button.svelte-16cwwe0') ||
+                                       document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
+                                       document.querySelector('.button[class*="trade"]:not(.red)') ||
+                                       document.querySelector('.modal button:not(.red):not(.cancel)') ||
+                                       document.querySelector('.dialog button:not(.red):not(.cancel)');
+                        if (!confirmButton) {
+                          await new Promise(r => setTimeout(r, 500));
+                          attempts++;
+                        }
+                      }
                       
                       if (confirmButton) {
                         confirmButton.click();
-                        await new Promise(r => setTimeout(r, 2000));
+                        console.log('MT5 Trading: Confirm button clicked for trade', currentTradeNumber);
+                        await new Promise(r => setTimeout(r, 2500));
                         console.log('MT5 Trading: Trade', currentTradeNumber, 'completed successfully');
                         return true;
                       } else {
-                        // Try alternative method
-                        const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
+                        // Try alternative method - any button in modal
+                        console.log('MT5 Trading: Primary confirm not found, trying alternatives...');
+                        const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button, [class*="dialog"] button');
                         for (let i = 0; i < modalButtons.length; i++) {
+                          const btnText = (modalButtons[i].textContent || '').toLowerCase();
                           if (!modalButtons[i].classList.contains('red') && 
-                              !modalButtons[i].classList.contains('cancel')) {
+                              !modalButtons[i].classList.contains('cancel') &&
+                              !btnText.includes('cancel') &&
+                              !btnText.includes('close')) {
                             modalButtons[i].click();
-                            await new Promise(r => setTimeout(r, 2000));
+                            console.log('MT5 Trading: Alternative confirm clicked:', btnText);
+                            await new Promise(r => setTimeout(r, 2500));
                             console.log('MT5 Trading: Trade', currentTradeNumber, 'completed (alternative confirm)');
                             return true;
                           }
                         }
-                        console.log('MT5 Trading: Confirm button not found for trade', currentTradeNumber);
+                        console.log('MT5 Trading: ERROR - No confirm button found for trade', currentTradeNumber);
                         return false;
                       }
                     } catch (error) {

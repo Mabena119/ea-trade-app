@@ -489,18 +489,19 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        return;
                      }
                      
-                     // Select the asset ONCE before trade loop
-                     const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
-                                        document.querySelector('[class*="symbol"][class*="svelte"]') ||
-                                        document.querySelector('.symbol');
-                     if (assetElement) {
-                       assetElement.click();
-                       sendMessage('step', 'Asset ${asset} selected');
-                       await new Promise(r => setTimeout(r, 1500));
-                     } else {
-                       sendMessage('error', 'Asset ${asset} not found - cannot proceed with trading');
-                       return;
-                     }
+                    // Select the asset ONCE before trade loop - PREVENT NAVIGATION
+                    const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
+                                       document.querySelector('[class*="symbol"][class*="svelte"]') ||
+                                       document.querySelector('.symbol');
+                    if (assetElement) {
+                      // Click without navigation - just select for trading
+                      assetElement.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                      sendMessage('step', 'Asset ${asset} selected for trading');
+                      await new Promise(r => setTimeout(r, 2000)); // Wait for selection to register
+                    } else {
+                      sendMessage('error', 'Asset ${asset} not found - cannot proceed with trading');
+                      return;
+                    }
                      
                      // Function to execute a single trade with enhanced tracking (NO symbol search - already done)
                      const executeSingleTrade = async (tradeIndex) => {
@@ -579,32 +580,52 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                                                 document.querySelector('.modal button:not(.red):not(.cancel)') ||
                                                 document.querySelector('.dialog button:not(.red):not(.cancel)');
                            
-                           if (confirmButton) {
-                             confirmButton.click();
-                             sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                             await new Promise(r => setTimeout(r, 2000));
-                             console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed successfully');
-                             return true;
-                           } else {
-                             console.log('MT5 Trading: Confirm button not found for trade', (tradeIndex + 1), '- trying alternative methods...');
-                             // Try alternative method - look for any button in modal/dialog
-                             const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button');
-                             if (modalButtons.length > 0) {
-                               // Click the first non-red button (usually confirm)
-                               for (let i = 0; i < modalButtons.length; i++) {
-                                 if (!modalButtons[i].classList.contains('red') && 
-                                     !modalButtons[i].classList.contains('cancel')) {
-                                   modalButtons[i].click();
-                                   console.log('MT5 Trading: Alternative confirm button clicked');
-                                   sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
-                                   await new Promise(r => setTimeout(r, 2000));
-                                   return true;
-                                 }
-                               }
-                             }
-                             console.log('MT5 Trading: No confirm button found for trade', (tradeIndex + 1));
-                             return false;
-                           }
+                          // CRITICAL: Wait longer for confirmation dialog to appear
+                          await new Promise(r => setTimeout(r, 1000));
+                          
+                          // Try multiple times to find confirm button
+                          let confirmBtn = null;
+                          let attempts = 0;
+                          while (!confirmBtn && attempts < 3) {
+                            confirmBtn = document.querySelector('.trade-button.svelte-16cwwe0') ||
+                                        document.querySelector('button.trade-button:not(.red):not([class*="footer"])') ||
+                                        document.querySelector('.button[class*="trade"]:not(.red)') ||
+                                        document.querySelector('.modal button:not(.red):not(.cancel)') ||
+                                        document.querySelector('.dialog button:not(.red):not(.cancel)');
+                            if (!confirmBtn) {
+                              await new Promise(r => setTimeout(r, 500));
+                              attempts++;
+                            }
+                          }
+                          
+                          if (confirmBtn) {
+                            confirmBtn.click();
+                            console.log('MT5 Trading: Confirm button clicked for trade', (tradeIndex + 1));
+                            sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
+                            await new Promise(r => setTimeout(r, 2500));
+                            console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed successfully');
+                            return true;
+                          } else {
+                            // Try alternative method - any button in modal
+                            console.log('MT5 Trading: Primary confirm not found, trying alternatives...');
+                            const modalButtons = document.querySelectorAll('.modal button, .dialog button, [class*="modal"] button, [class*="dialog"] button');
+                            for (let i = 0; i < modalButtons.length; i++) {
+                              const btnText = (modalButtons[i].textContent || '').toLowerCase();
+                              if (!modalButtons[i].classList.contains('red') && 
+                                  !modalButtons[i].classList.contains('cancel') &&
+                                  !btnText.includes('cancel') &&
+                                  !btnText.includes('close')) {
+                                modalButtons[i].click();
+                                console.log('MT5 Trading: Alternative confirm clicked:', btnText);
+                                sendMessage('step', 'Trade ' + (tradeIndex + 1) + ' of ' + numberOfTrades + ' completed successfully');
+                                await new Promise(r => setTimeout(r, 2500));
+                                console.log('MT5 Trading: Trade', (tradeIndex + 1), 'completed (alternative confirm)');
+                                return true;
+                              }
+                            }
+                            console.log('MT5 Trading: ERROR - No confirm button found for trade', (tradeIndex + 1));
+                            return false;
+                          }
                          } else {
                            console.log('MT5 Trading: Execute button not found for trade', (tradeIndex + 1));
                            return false;
