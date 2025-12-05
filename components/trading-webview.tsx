@@ -977,7 +977,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
                         message: 'Setting parameters for trade ' + currentTradeNumber + '...'
                       }));
                       eval(setOrderParams);
-                      await new Promise(r => setTimeout(r, 2000));
+                      await new Promise(r => setTimeout(r, 3000)); // Increased wait for fields to update
                       
                       // Execute order
                       console.log('MT5 Trading: Executing trade', currentTradeNumber, '- ${action}');
