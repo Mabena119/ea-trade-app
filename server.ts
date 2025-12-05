@@ -482,7 +482,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                        searchField.dispatchEvent(new Event('input', { bubbles: true }));
                        searchField.dispatchEvent(new Event('change', { bubbles: true }));
                        searchField.dispatchEvent(new Event('keyup', { bubbles: true }));
-                       await new Promise(r => setTimeout(r, 2000)); // Wait for search results
+                       await sleep(3000); // Increased wait for search results
                        sendMessage('step', 'Symbol ${asset} found');
                      } else {
                        sendMessage('error', 'Search field not found - cannot proceed with trading');
@@ -490,6 +490,7 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                      }
                      
                     // Select the asset ONCE before trade loop - PREVENT NAVIGATION
+                    sendMessage('step', 'Selecting symbol ${asset}...');
                     const assetElement = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') || 
                                        document.querySelector('[class*="symbol"][class*="svelte"]') ||
                                        document.querySelector('.symbol');
@@ -497,11 +498,13 @@ async function handleMT5Proxy(request: Request): Promise<Response> {
                       // Click without navigation - just select for trading
                       assetElement.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
                       sendMessage('step', 'Asset ${asset} selected for trading');
-                      await new Promise(r => setTimeout(r, 2000)); // Wait for selection to register
+                      await sleep(2500); // Wait for selection to register
                     } else {
                       sendMessage('error', 'Asset ${asset} not found - cannot proceed with trading');
                       return;
                     }
+                    
+                    sendMessage('step', 'Ready to start trading - all setup complete');
                      
                      // Function to execute a single trade with enhanced tracking (NO symbol search - already done)
                      const executeSingleTrade = async (tradeIndex) => {
