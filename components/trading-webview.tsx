@@ -897,12 +897,33 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         await sleep(500);
         eval(loginPress);
         
-        // CRITICAL: Wait for login to complete before ANY trading
-        await sleep(12000); // Increased wait for login completion
+        // CRITICAL: Wait and VERIFY login succeeded before ANY trading
+        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Waiting for login to complete...'}));
         
-        window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Login complete, verifying search bar...'}));
+        // Check for login success (search bar appears when logged in)
+        let loginSuccess = false;
+        let loginAttempts = 0;
+        while (!loginSuccess && loginAttempts < 20) {
+          await sleep(1000);
+          const searchBar = document.querySelector('input[placeholder="Search symbol"]') ||
+                          document.querySelector('input[placeholder*="Search" i]') ||
+                          document.querySelector('input[type="search"]');
+          if (searchBar) {
+            loginSuccess = true;
+            window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Login verified - search bar detected!'}));
+          } else {
+            loginAttempts++;
+            console.log('MT5: Waiting for login... attempt', loginAttempts);
+          }
+        }
+        
+        if (!loginSuccess) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({type: 'error', message: 'Login failed - search bar not found after 20 seconds'}));
+          return;
+        }
+        
         eval(revealAndVerifySearchBar);
-        await sleep(3000); // Wait for search bar to be visible
+        await sleep(2000); // Brief wait for UI stabilization
         
         window.ReactNativeWebView.postMessage(JSON.stringify({type: 'step', message: 'Searching for symbol ${asset}...'}));
         eval(searchSymbol);
