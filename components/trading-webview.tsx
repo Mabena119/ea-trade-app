@@ -849,28 +849,55 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           }
         }
         
+        // IMMEDIATE SYNCHRONOUS SETTING - NO DELAYS
+        console.log('MT5: Setting parameters NOW - Volume: ${volume}, SL: ${sl}, TP: ${tp}');
+        
         // Set Volume
-        setMT5FieldValue('.trade-input input[type="text"]', '${volume}', 'Volume');
+        var volumeField = document.querySelector('.trade-input input[type="text"]');
+        if (volumeField) {
+          volumeField.focus();
+          volumeField.value = '${volume}';
+          volumeField.dispatchEvent(new Event('input', { bubbles: true }));
+          volumeField.dispatchEvent(new Event('change', { bubbles: true }));
+          volumeField.blur();
+          console.log('MT5: Volume set to:', volumeField.value);
+        }
         
-        // Set Stop Loss with enhanced validation
-        setTimeout(function() {
-          setMT5FieldValue('.sl input[type="text"]', '${sl}', 'SL');
-        }, 300);
+        // Set Stop Loss
+        var slField = document.querySelector('.sl input[type="text"]');
+        if (slField) {
+          slField.focus();
+          slField.value = '${sl}';
+          slField.dispatchEvent(new Event('input', { bubbles: true }));
+          slField.dispatchEvent(new Event('change', { bubbles: true }));
+          slField.blur();
+          console.log('MT5: SL set to:', slField.value);
+        }
         
-        // Set Take Profit with enhanced validation  
-        setTimeout(function() {
-          setMT5FieldValue('.tp input[type="text"]', '${tp}', 'TP');
-        }, 600);
+        // Set Take Profit
+        var tpField = document.querySelector('.tp input[type="text"]');
+        if (tpField) {
+          tpField.focus();
+          tpField.value = '${tp}';
+          tpField.dispatchEvent(new Event('input', { bubbles: true }));
+          tpField.dispatchEvent(new Event('change', { bubbles: true }));
+          tpField.blur();
+          console.log('MT5: TP set to:', tpField.value);
+        }
         
         // Set Comment
-        setTimeout(function() {
-          var commentSelector = '.input.svelte-mtorg2 input[type="text"]';
-          var commentField = document.querySelector(commentSelector);
-          if (!commentField) {
-            commentSelector = '.input.svelte-1d8k9kk input[type="text"]';
-          }
-          setMT5FieldValue(commentSelector, '${botname}', 'Comment');
-        }, 900);
+        var commentField = document.querySelector('.input.svelte-mtorg2 input[type="text"]') ||
+                         document.querySelector('.input.svelte-1d8k9kk input[type="text"]');
+        if (commentField) {
+          commentField.focus();
+          commentField.value = '${botname}';
+          commentField.dispatchEvent(new Event('input', { bubbles: true }));
+          commentField.dispatchEvent(new Event('change', { bubbles: true }));
+          commentField.blur();
+          console.log('MT5: Comment set');
+        }
+        
+        console.log('MT5: All parameters set immediately');
       \`;
       
       const executeOrder = \`
