@@ -708,13 +708,6 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
       (function(){
         console.log('MT5 Trading script injected - starting immediately');
         
-        // Start execution immediately when script loads
-        // Wait a moment for page to be ready, then start authentication and trading
-        setTimeout(() => {
-          console.log('MT5: Starting STRICT sequential trading execution');
-          executeStrictMT5Trading();
-        }, 3000); // Wait 3 seconds for MT5 terminal to initialize
-        
         // MT5 ACCOUNT AUTHENTICATION FUNCTION - Duplicated from metatrader screen
         // Returns true if successful, false if failed
         async function authenticateMT5Account() {
@@ -1338,6 +1331,29 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             }));
           }
         }
+        
+        // Start execution immediately when script loads
+        // Wait a moment for page to be ready, then start authentication and trading
+        console.log('MT5: Setting up execution timer...');
+        setTimeout(() => {
+          console.log('MT5: Timer fired - checking if executeStrictMT5Trading exists:', typeof executeStrictMT5Trading);
+          if (typeof executeStrictMT5Trading === 'function') {
+            console.log('MT5: Starting STRICT sequential trading execution');
+            executeStrictMT5Trading().catch(err => {
+              console.error('MT5: Unhandled error in executeStrictMT5Trading:', err);
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'error',
+                message: 'Unhandled execution error: ' + err.message
+              }));
+            });
+          } else {
+            console.error('MT5: ERROR - executeStrictMT5Trading is not a function! Type:', typeof executeStrictMT5Trading);
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'error',
+              message: 'CRITICAL: executeStrictMT5Trading function not found!'
+            }));
+          }
+        }, 3000); // Wait 3 seconds for MT5 terminal to initialize
       })();
     `;
   }, [signal, tradeConfig, credentials, eaName]);
