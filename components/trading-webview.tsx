@@ -885,16 +885,19 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
         
         // MT5 TRADING EXECUTION FUNCTION - Executes trades according to trade configuration
         async function executeMT5Trades() {
-          const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-          const sendMessage = (type, message) => {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
-          };
-          
-          console.log('MT5: === TRADING EXECUTION START ===');
-          sendMessage('step', 'Starting trade execution according to trade configuration...');
+          try {
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            const sendMessage = (type, message) => {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+            };
+            
+            console.log('MT5: === TRADING EXECUTION START ===');
+            sendMessage('step', 'Starting trade execution according to trade configuration...');
+            console.log('MT5: Function executeMT5Trades called successfully');
           
           // Step 1: Search for symbol ONCE
           sendMessage('step', 'Locating ${asset} symbol...');
+          console.log('MT5: Step 1 - Searching for symbol ${asset}');
           const searchBar = document.querySelector('input[placeholder="Search symbol"]') ||
                            document.querySelector('input[placeholder*="Search"]') ||
                            document.querySelector('input[type="search"]');
@@ -934,6 +937,7 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           
           await sleep(2000); // Wait for chart to fully load
           sendMessage('step', '${asset} symbol chart opened - ready for trading');
+          console.log('MT5: Chart opened successfully, proceeding to trade execution');
           
           // Step 3: STRICT SEQUENTIAL TRADE EXECUTION according to trade configuration
           sendMessage('step', 'Executing trades according to trade configuration...');
@@ -943,9 +947,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
           
           console.log(\`MT5: Executing EXACTLY \${numTrades} trades for \${asset} (lot size: \${volume})\`);
           sendMessage('step', \`Trade Configuration: \${numTrades} trade(s), Lot Size: \${volume}, Action: \${action}\`);
+          console.log('MT5: Starting trade loop - will execute ' + numTrades + ' trades');
           
           // Execute trades sequentially - loop runs EXACTLY numTrades times
           for (let tradeNum = 0; tradeNum < numTrades; tradeNum++) {
+            console.log('MT5: === LOOP ITERATION ' + (tradeNum + 1) + ' START ===');
             const currentTrade = tradeNum + 1;
             console.log(\`MT5: === TRADE \${currentTrade} OF \${numTrades} START ===\`);
             
@@ -1088,25 +1094,43 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
               }
             }
             
-            // Verify order dialog is actually open
+            // Verify order dialog is actually open - try one more time with longer wait
             if (!orderDialogOpen) {
-              console.error(\`MT5: Order dialog not found after all attempts for trade \${currentTrade}\`);
-              sendMessage('error', \`Trade \${currentTrade}: Could not open order dialog - trying to continue...\`);
-              // Don't fail immediately - try to find volume field directly
-              orderDialogOpen = document.querySelector('input[placeholder*="volume" i]') ||
+              console.log(\`MT5: Order dialog not detected, waiting longer and checking again...\`);
+              await sleep(2000);
+              orderDialogOpen = document.querySelector('.modal') || 
+                               document.querySelector('[class*="dialog"]') ||
+                               document.querySelector('[class*="order"]') ||
+                               document.querySelector('.trade-input') ||
+                               document.querySelector('input[placeholder*="volume" i]') ||
                                document.querySelector('input[placeholder*="lot" i]') ||
-                               document.querySelector('.trade-input input');
-              
-              if (!orderDialogOpen) {
-                failedTrades++;
-                sendMessage('error', \`Trade \${currentTrade}: Order dialog not accessible - skipping\`);
-                continue;
-              }
+                               document.querySelector('input[name="volume"]');
             }
             
-            console.log(\`MT5: Order dialog confirmed open for trade \${currentTrade}\`);
-            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Order dialog opened successfully\`);
-            await sleep(500); // Brief pause to ensure dialog is fully rendered
+            // Final verification - if still not found, try to find volume field directly
+            if (!orderDialogOpen) {
+              console.log(\`MT5: Trying to find volume field directly without dialog detection...\`);
+              const volumeField = document.querySelector('input[placeholder*="volume" i]') ||
+                                 document.querySelector('input[placeholder*="lot" i]') ||
+                                 document.querySelector('input[name="volume"]') ||
+                                 document.querySelector('.trade-input input[type="text"]');
+              
+              if (volumeField) {
+                console.log(\`MT5: Found volume field directly - proceeding with trade setup\`);
+                orderDialogOpen = volumeField; // Use volume field as indicator
+                sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Found order form fields - proceeding\`);
+              } else {
+                console.error(\`MT5: Order dialog and fields not found after all attempts for trade \${currentTrade}\`);
+                sendMessage('error', \`Trade \${currentTrade}: Could not access order dialog or form fields - all methods failed\`);
+                failedTrades++;
+                continue;
+              }
+            } else {
+              console.log(\`MT5: Order dialog confirmed open for trade \${currentTrade}\`);
+              sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Order dialog opened successfully\`);
+            }
+            
+            await sleep(1000); // Brief pause to ensure dialog/form is fully rendered
             
             // Set parameters with enhanced field detection
             sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Setting trade parameters (Lot: \${volume}, SL: \${sl}, TP: \${tp})...\`);
@@ -1275,6 +1299,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             }, 2000);
           } else {
             sendMessage('error', 'No trades executed successfully');
+          }
+          } catch (error) {
+            console.error('MT5: Critical error in executeMT5Trades:', error);
+            sendMessage('error', 'Critical error in trade execution: ' + error.message);
+            sendMessage('error', 'Stack trace: ' + (error.stack || 'No stack available'));
           }
         }
         
