@@ -55,8 +55,25 @@ class BackgroundMonitoringService : Service() {
             "START_MONITORING" -> {
             licenseKey = intent.getStringExtra("licenseKey")
             lastPollTime = intent.getStringExtra("lastPollTime") ?: getCurrentISOTime()
-                startForeground(NOTIFICATION_ID, createNotification())
-                startPolling()
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        // Android 14+ (API 34+) requires foregroundServiceType flag
+                        // FOREGROUND_SERVICE_TYPE_DATA_SYNC = 4
+                        startForeground(NOTIFICATION_ID, createNotification(), 
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                        Log.d(TAG, "✅ Foreground service started with dataSync type (Android 14+)")
+                    } else {
+                        startForeground(NOTIFICATION_ID, createNotification())
+                        Log.d(TAG, "✅ Foreground service started (Android < 14)")
+                    }
+                    startPolling()
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Error starting foreground service", e)
+                    Log.e(TAG, "❌ Error details: ${e.message}")
+                    Log.e(TAG, "❌ Stack trace: ${e.stackTraceToString()}")
+                    // Don't start polling if foreground service failed
+                    stopSelf()
+                }
             }
             "STOP_MONITORING" -> {
                 stopPolling()
