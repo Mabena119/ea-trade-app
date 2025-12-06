@@ -951,41 +951,162 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             
             sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Opening order dialog...\`);
             
-            // Open order dialog - try multiple selectors
-            let orderBtn = document.querySelector('.icon-button.withText span.button-text') ||
-                          document.querySelector('.icon-button.withText') ||
-                          document.querySelector('button[class*="order"]') ||
-                          document.querySelector('button[class*="trade"]') ||
-                          Array.from(document.querySelectorAll('button')).find(btn => 
-                            (btn.textContent || '').trim().toLowerCase().includes('order') ||
-                            (btn.textContent || '').trim().toLowerCase().includes('trade'));
+            // Method 1: Try keyboard shortcut F9 (standard MT5 shortcut for new order)
+            console.log(\`MT5: Attempting to open order dialog using F9 keyboard shortcut...\`);
+            const f9Event = new KeyboardEvent('keydown', {
+              key: 'F9',
+              code: 'F9',
+              keyCode: 120,
+              which: 120,
+              bubbles: true,
+              cancelable: true
+            });
+            document.dispatchEvent(f9Event);
+            document.dispatchEvent(new KeyboardEvent('keyup', {
+              key: 'F9',
+              code: 'F9',
+              keyCode: 120,
+              which: 120,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(1500);
             
-            if (!orderBtn) {
-              // Try clicking on the chart area to open order dialog
+            // Check if order dialog opened
+            let orderDialogOpen = document.querySelector('.modal') || 
+                                 document.querySelector('[class*="dialog"]') ||
+                                 document.querySelector('[class*="order"]') ||
+                                 document.querySelector('.trade-input') ||
+                                 document.querySelector('input[placeholder*="volume" i]') ||
+                                 document.querySelector('input[placeholder*="lot" i]');
+            
+            if (orderDialogOpen) {
+              console.log(\`MT5: Order dialog opened via F9 shortcut for trade \${currentTrade}\`);
+              sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Order dialog opened via F9\`);
+            } else {
+              // Method 2: Try right-clicking on chart to open context menu
+              console.log(\`MT5: F9 failed, trying right-click on chart...\`);
+              const chartArea = document.querySelector('.chart-container') || 
+                               document.querySelector('[class*="chart"]') ||
+                               document.querySelector('canvas') ||
+                               document.querySelector('[class*="tradingview"]');
+              
+              if (chartArea) {
+                const rect = chartArea.getBoundingClientRect();
+                const rightClickEvent = new MouseEvent('contextmenu', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: rect.left + rect.width / 2,
+                  clientY: rect.top + rect.height / 2,
+                  button: 2
+                });
+                chartArea.dispatchEvent(rightClickEvent);
+                await sleep(1000);
+                
+                // Try to find and click "New Order" in context menu
+                const newOrderOption = Array.from(document.querySelectorAll('*')).find(el => {
+                  const text = (el.textContent || '').trim().toLowerCase();
+                  return text.includes('new order') || text.includes('order') || text.includes('trade');
+                });
+                
+                if (newOrderOption) {
+                  newOrderOption.click();
+                  await sleep(1500);
+                  orderDialogOpen = document.querySelector('.modal') || 
+                                   document.querySelector('[class*="dialog"]') ||
+                                   document.querySelector('.trade-input');
+                }
+              }
+            }
+            
+            // Method 3: Try finding order button with comprehensive selectors
+            if (!orderDialogOpen) {
+              console.log(\`MT5: Trying to find order button with comprehensive selectors...\`);
+              let orderBtn = document.querySelector('.icon-button.withText span.button-text') ||
+                            document.querySelector('.icon-button.withText') ||
+                            document.querySelector('button[class*="order"]') ||
+                            document.querySelector('button[class*="trade"]') ||
+                            document.querySelector('[class*="new-order"]') ||
+                            document.querySelector('[class*="new-order-button"]') ||
+                            document.querySelector('button[title*="order" i]') ||
+                            document.querySelector('button[title*="trade" i]') ||
+                            Array.from(document.querySelectorAll('button')).find(btn => {
+                              const text = (btn.textContent || '').trim().toLowerCase();
+                              const title = (btn.getAttribute('title') || '').toLowerCase();
+                              return (text.includes('order') || text.includes('trade') || text.includes('buy') || text.includes('sell')) &&
+                                     !btn.classList.contains('red') &&
+                                     btn.offsetParent !== null;
+                            });
+              
+              if (orderBtn) {
+                orderBtn.click();
+                await sleep(1500);
+                orderDialogOpen = document.querySelector('.modal') || 
+                                 document.querySelector('[class*="dialog"]') ||
+                                 document.querySelector('.trade-input');
+              }
+            }
+            
+            // Method 4: Try clicking on toolbar buttons
+            if (!orderDialogOpen) {
+              console.log(\`MT5: Trying toolbar buttons...\`);
+              const toolbarButtons = document.querySelectorAll('[class*="toolbar"] button, [class*="header"] button, [class*="bar"] button');
+              for (let i = 0; i < toolbarButtons.length; i++) {
+                const btn = toolbarButtons[i];
+                const text = (btn.textContent || '').trim().toLowerCase();
+                const title = (btn.getAttribute('title') || '').toLowerCase();
+                if ((text.includes('order') || text.includes('trade') || title.includes('order') || title.includes('trade')) &&
+                    btn.offsetParent !== null) {
+                  btn.click();
+                  await sleep(1500);
+                  orderDialogOpen = document.querySelector('.modal') || 
+                                   document.querySelector('[class*="dialog"]') ||
+                                   document.querySelector('.trade-input');
+                  if (orderDialogOpen) break;
+                }
+              }
+            }
+            
+            // Final check - if still no dialog, try double-clicking chart
+            if (!orderDialogOpen) {
+              console.log(\`MT5: Trying double-click on chart...\`);
               const chartArea = document.querySelector('.chart-container') || 
                                document.querySelector('[class*="chart"]') ||
                                document.querySelector('canvas');
               if (chartArea) {
-                chartArea.click();
-                await sleep(1000);
-                // Try finding order button again
-                orderBtn = document.querySelector('.icon-button.withText span.button-text') ||
-                          document.querySelector('.icon-button.withText') ||
-                          document.querySelector('button[class*="order"]');
+                const dblClickEvent = new MouseEvent('dblclick', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: chartArea.getBoundingClientRect().left + chartArea.getBoundingClientRect().width / 2,
+                  clientY: chartArea.getBoundingClientRect().top + chartArea.getBoundingClientRect().height / 2
+                });
+                chartArea.dispatchEvent(dblClickEvent);
+                await sleep(1500);
+                orderDialogOpen = document.querySelector('.modal') || 
+                                 document.querySelector('[class*="dialog"]') ||
+                                 document.querySelector('.trade-input');
               }
             }
             
-            if (!orderBtn) {
-              console.error(\`MT5: Order button not found for trade \${currentTrade}\`);
-              sendMessage('error', \`Trade \${currentTrade}: Order dialog button not found\`);
-              failedTrades++;
-              continue;
+            // Verify order dialog is actually open
+            if (!orderDialogOpen) {
+              console.error(\`MT5: Order dialog not found after all attempts for trade \${currentTrade}\`);
+              sendMessage('error', \`Trade \${currentTrade}: Could not open order dialog - trying to continue...\`);
+              // Don't fail immediately - try to find volume field directly
+              orderDialogOpen = document.querySelector('input[placeholder*="volume" i]') ||
+                               document.querySelector('input[placeholder*="lot" i]') ||
+                               document.querySelector('.trade-input input');
+              
+              if (!orderDialogOpen) {
+                failedTrades++;
+                sendMessage('error', \`Trade \${currentTrade}: Order dialog not accessible - skipping\`);
+                continue;
+              }
             }
             
-            orderBtn.click();
-            await sleep(2000); // Wait for order dialog to open
-            console.log(\`MT5: Order dialog opened for trade \${currentTrade}\`);
-            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Order dialog opened\`);
+            console.log(\`MT5: Order dialog confirmed open for trade \${currentTrade}\`);
+            sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Order dialog opened successfully\`);
+            await sleep(500); // Brief pause to ensure dialog is fully rendered
             
             // Set parameters with enhanced field detection
             sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Setting trade parameters (Lot: \${volume}, SL: \${sl}, TP: \${tp})...\`);
