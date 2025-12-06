@@ -3,9 +3,32 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert, AppState, Linking } from 'react-native';
 import { LicenseData } from '@/services/api';
-import signalsMonitor, { SignalLog } from '@/services/signals-monitor';
-import databaseSignalsPollingService, { DatabaseSignal } from '@/services/database-signals-polling';
 import { isIOSPWA } from '@/utils/pwa-detection';
+
+// Type exports
+export type { SignalLog } from '@/services/signals-monitor';
+export type { DatabaseSignal } from '@/services/database-signals-polling';
+
+// Lazy imports for services to prevent circular dependencies and web initialization errors
+const getSignalsMonitor = async () => {
+  try {
+    const module = await import('@/services/signals-monitor');
+    return module.default;
+  } catch (error) {
+    console.log('[AppProvider] Failed to load signalsMonitor (non-critical):', error);
+    return null;
+  }
+};
+
+const getDatabaseSignalsPollingService = async () => {
+  try {
+    const module = await import('@/services/database-signals-polling');
+    return module.default;
+  } catch (error) {
+    console.log('[AppProvider] Failed to load databaseSignalsPollingService (non-critical):', error);
+    return null;
+  }
+};
 
 // Lazy imports for Android-only native services to prevent web initialization errors
 const getBackgroundMonitoringService = async () => {
