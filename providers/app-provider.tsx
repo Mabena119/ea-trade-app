@@ -1329,7 +1329,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   // Ensure signal monitoring continues when app is in background and resumes when active
   useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
+    const handleAppStateChange = async (nextAppState: string) => {
       console.log('App state changed - ensuring signal monitoring continues:', nextAppState);
 
       // When app becomes active, ensure monitoring is running if bot is active
