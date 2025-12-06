@@ -6,27 +6,46 @@ interface BackgroundMonitoringModuleInterface {
   isRunning(): Promise<boolean>;
 }
 
-const { BackgroundMonitoringModule } = NativeModules;
+// Lazy access to native module to prevent web initialization errors
+const getBackgroundMonitoringModule = () => {
+  if (Platform.OS !== 'android') {
+    return null;
+  }
+  try {
+    return NativeModules.BackgroundMonitoringModule || null;
+  } catch (error) {
+    return null;
+  }
+};
 
 class BackgroundMonitoringService {
   private eventEmitter: NativeEventEmitter | null = null;
   private listener: any = null;
 
   constructor() {
-    if (Platform.OS === 'android' && BackgroundMonitoringModule) {
-      this.eventEmitter = new NativeEventEmitter(BackgroundMonitoringModule);
+    if (Platform.OS === 'android') {
+      const module = getBackgroundMonitoringModule();
+      if (module) {
+        try {
+          this.eventEmitter = new NativeEventEmitter(module);
+        } catch (error) {
+          console.log('[BackgroundMonitoring] EventEmitter initialization failed (non-critical):', error);
+        }
+      }
     }
   }
 
   async startMonitoring(licenseKey: string): Promise<boolean> {
     console.log('[BackgroundMonitoring] 🚀 Attempting to start monitoring...');
     console.log('[BackgroundMonitoring] Platform:', Platform.OS);
-    console.log('[BackgroundMonitoring] Module available:', !!BackgroundMonitoringModule);
 
     if (Platform.OS !== 'android') {
       console.log('[BackgroundMonitoring] ⚠️ Not Android platform, skipping');
       return false;
     }
+
+    const BackgroundMonitoringModule = getBackgroundMonitoringModule();
+    console.log('[BackgroundMonitoring] Module available:', !!BackgroundMonitoringModule);
 
     if (!BackgroundMonitoringModule) {
       console.error('[BackgroundMonitoring] ❌ BackgroundMonitoringModule not available!');
@@ -52,7 +71,12 @@ class BackgroundMonitoringService {
   }
 
   async stopMonitoring(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !BackgroundMonitoringModule) {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+
+    const BackgroundMonitoringModule = getBackgroundMonitoringModule();
+    if (!BackgroundMonitoringModule) {
       return false;
     }
 
@@ -67,7 +91,12 @@ class BackgroundMonitoringService {
   }
 
   async isRunning(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !BackgroundMonitoringModule) {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+
+    const BackgroundMonitoringModule = getBackgroundMonitoringModule();
+    if (!BackgroundMonitoringModule) {
       return false;
     }
 

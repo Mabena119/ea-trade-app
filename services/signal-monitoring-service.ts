@@ -5,14 +5,31 @@ interface SignalMonitoringModuleInterface {
   stopMonitoring(): Promise<boolean>;
 }
 
-const { SignalMonitoringModule } = NativeModules;
+// Lazy access to native module to prevent web initialization errors
+const getSignalMonitoringModule = () => {
+  if (Platform.OS !== 'android') {
+    return null;
+  }
+  try {
+    return NativeModules.SignalMonitoringModule || null;
+  } catch (error) {
+    return null;
+  }
+};
 
 class SignalMonitoringService {
   private eventEmitter: NativeEventEmitter | null = null;
 
   constructor() {
-    if (Platform.OS === 'android' && SignalMonitoringModule) {
-      this.eventEmitter = new NativeEventEmitter(SignalMonitoringModule);
+    if (Platform.OS === 'android') {
+      const module = getSignalMonitoringModule();
+      if (module) {
+        try {
+          this.eventEmitter = new NativeEventEmitter(module);
+        } catch (error) {
+          console.log('[SignalMonitoring] EventEmitter initialization failed (non-critical):', error);
+        }
+      }
     }
   }
 
@@ -22,6 +39,7 @@ class SignalMonitoringService {
       return false;
     }
 
+    const SignalMonitoringModule = getSignalMonitoringModule();
     if (!SignalMonitoringModule) {
       console.log('[SignalMonitoring] Native module not available - using database polling service for background monitoring');
       return false;
@@ -42,7 +60,12 @@ class SignalMonitoringService {
   }
 
   async stopMonitoring(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !SignalMonitoringModule) {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+
+    const SignalMonitoringModule = getSignalMonitoringModule();
+    if (!SignalMonitoringModule) {
       return false;
     }
 
