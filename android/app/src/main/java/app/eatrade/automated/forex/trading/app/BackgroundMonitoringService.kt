@@ -188,7 +188,10 @@ class BackgroundMonitoringService : Service() {
             // Get new signals
             val signalsUrl = "https://ea-trade-app.onrender.com/api/get-new-signals?eaId=${eaId}&since=${since}"
             val signalsResponse = makeHttpRequest(signalsUrl)
-            val signalsArray = JSONArray(signalsResponse)
+            
+            // Parse response - API returns {"signals": [...]}
+            val signalsJson = JSONObject(signalsResponse)
+            val signalsArray = signalsJson.optJSONArray("signals") ?: JSONArray()
 
             if (signalsArray.length() > 0) {
                 Log.d(TAG, "🎯 Found ${signalsArray.length()} new signals in background")
