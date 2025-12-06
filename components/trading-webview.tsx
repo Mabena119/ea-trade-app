@@ -928,9 +928,11 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             return;
           }
           
-          await sleep(2000); // Wait for chart to fully load
-          sendMessage('step', '${asset} symbol chart opened - ready for trading');
-          console.log('MT5: Chart opened successfully, proceeding to trade execution');
+          sendMessage('step', '${asset} symbol selected - starting trade execution immediately');
+          console.log('MT5: Symbol selected successfully, starting trade execution NOW');
+          
+          // Brief wait for symbol selection to register
+          await sleep(1000);
           
           // Step 3: STRICT SEQUENTIAL TRADE EXECUTION according to trade configuration
           sendMessage('step', 'Executing trades according to trade configuration...');
@@ -949,6 +951,12 @@ export function TradingWebView({ visible, signal, onClose }: TradingWebViewProps
             console.log(\`MT5: === TRADE \${currentTrade} OF \${numTrades} START ===\`);
             
             sendMessage('step', \`Trade \${currentTrade}/\${numTrades}: Opening order dialog...\`);
+            
+            // Wait a moment for chart/UI to be ready if this is the first trade
+            if (tradeNum === 0) {
+              await sleep(1500); // Give chart time to render after symbol selection
+              console.log('MT5: First trade - waited for chart to render');
+            }
             
             // Method 1: Try keyboard shortcut F9 (standard MT5 shortcut for new order)
             console.log(\`MT5: Attempting to open order dialog using F9 keyboard shortcut...\`);
