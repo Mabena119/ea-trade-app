@@ -10,43 +10,56 @@ import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 
 class OverlayWindowModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
-    private val overlayService: OverlayService = OverlayService.getInstance(reactContext)
-
+    
+    private var overlayViewTag: Int = -1
+    
+    companion object {
+        private const val OVERLAY_PERMISSION_REQUEST_CODE = 1001
+        
+        fun getOverlayService(context: Context): OverlayService {
+            val service = OverlayService.getInstance()
+            service.initialize(context)
+            return service
+        }
+    }
+    
     override fun getName(): String {
         return "OverlayWindowModule"
     }
-
+    
     @ReactMethod
     fun checkOverlayPermission(promise: Promise) {
         try {
+            val context = reactApplicationContext
             val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(reactApplicationContext)
+                Settings.canDrawOverlays(context)
             } else {
                 true
             }
             promise.resolve(hasPermission)
         } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to check overlay permission: ${e.message}", e)
+            promise.reject("PERMISSION_ERROR", "Error checking overlay permission", e)
         }
     }
-
+    
     @ReactMethod
     fun requestOverlayPermission(promise: Promise) {
         try {
+            val context = reactApplicationContext
             val activity = currentActivity
-            if (activity == null) {
-                promise.reject("ERROR", "Activity is null")
-                return
-            }
-
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (!Settings.canDrawOverlays(reactApplicationContext)) {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${reactApplicationContext.packageName}")
-                    )
-                    activity.startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
-                    promise.resolve(false)
+                if (!Settings.canDrawOverlays(context)) {
+                    if (activity != null) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        activity.startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
+                        promise.resolve(false)
+                    } else {
+                        promise.resolve(false)
+                    }
                 } else {
                     promise.resolve(true)
                 }
@@ -54,72 +67,86 @@ class OverlayWindowModule(reactContext: ReactApplicationContext) : ReactContextB
                 promise.resolve(true)
             }
         } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to request overlay permission: ${e.message}", e)
+            promise.reject("PERMISSION_ERROR", "Error requesting overlay permission", e)
         }
     }
-
+    
     @ReactMethod
     fun showOverlay(x: Int, y: Int, width: Int, height: Int, promise: Promise) {
         try {
-            val success = overlayService.showOverlay(x, y, width, height)
+            val context = reactApplicationContext
+            
+            // Check permission first
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                promise.resolve(false)
+                return
+            }
+            
+            // Get overlay service instance
+            val service = getOverlayService(context)
+            val success = service.showOverlay(x, y, width, height)
+            if (success) {
+                overlayViewTag = System.currentTimeMillis().toInt()
+            }
             promise.resolve(success)
         } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to show overlay: ${e.message}", e)
+            promise.reject("OVERLAY_ERROR", "Error showing overlay", e)
         }
     }
-
-    @ReactMethod
-    fun updateOverlayPosition(x: Int, y: Int, promise: Promise) {
-        try {
-            val success = overlayService.updatePosition(x, y)
-            promise.resolve(success)
-        } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to update overlay position: ${e.message}", e)
-        }
-    }
-
-    @ReactMethod
-    fun updateOverlaySize(width: Int, height: Int, promise: Promise) {
-        try {
-            val success = overlayService.updateSize(width, height)
-            promise.resolve(success)
-        } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to update overlay size: ${e.message}", e)
-        }
-    }
-
+    
     @ReactMethod
     fun hideOverlay(promise: Promise) {
         try {
-            val success = overlayService.hideOverlay()
+            val context = reactApplicationContext
+            val service = getOverlayService(context)
+            val success = service.hideOverlay()
+            if (success) {
+                overlayViewTag = -1
+            }
             promise.resolve(success)
         } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to hide overlay: ${e.message}", e)
+            promise.reject("OVERLAY_ERROR", "Error hiding overlay", e)
         }
     }
-
+    
+    @ReactMethod
+    fun updateOverlayPosition(x: Int, y: Int, promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            val service = getOverlayService(context)
+            val success = service.updateOverlayPosition(x, y)
+            promise.resolve(success)
+        } catch (e: Exception) {
+            promise.reject("OVERLAY_ERROR", "Error updating overlay position", e)
+        }
+    }
+    
+    @ReactMethod
+    fun updateOverlaySize(width: Int, height: Int, promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            val service = getOverlayService(context)
+            val success = service.updateOverlaySize(width, height)
+            promise.resolve(success)
+        } catch (e: Exception) {
+            promise.reject("OVERLAY_ERROR", "Error updating overlay size", e)
+        }
+    }
+    
     @ReactMethod
     fun getOverlayViewTag(promise: Promise) {
-        try {
-            val viewTag = overlayService.getOverlayViewTag()
-            promise.resolve(viewTag)
-        } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to get overlay view tag: ${e.message}", e)
-        }
+        promise.resolve(overlayViewTag)
     }
-
+    
     @ReactMethod
     fun updateOverlayData(botName: String, isActive: Boolean, isPaused: Boolean, botImageURL: String?, promise: Promise) {
         try {
-            overlayService.updateOverlayData(botName, isActive, isPaused, botImageURL)
+            val context = reactApplicationContext
+            val service = getOverlayService(context)
+            service.updateOverlayData(botName, isActive, isPaused, botImageURL)
             promise.resolve(true)
         } catch (e: Exception) {
-            promise.reject("ERROR", "Failed to update overlay data: ${e.message}", e)
+            promise.reject("OVERLAY_ERROR", "Error updating overlay data", e)
         }
     }
-
-    companion object {
-        const val OVERLAY_PERMISSION_REQUEST_CODE = 1001
-    }
 }
-

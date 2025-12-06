@@ -17,17 +17,26 @@ class SignalMonitoringService {
   }
 
   async startMonitoring(licenseKey: string): Promise<boolean> {
-    if (Platform.OS !== 'android' || !SignalMonitoringModule) {
-      console.warn('SignalMonitoringModule not available');
+    if (Platform.OS !== 'android') {
+      console.log('[SignalMonitoring] Not Android platform, skipping native monitoring');
+      return false;
+    }
+
+    if (!SignalMonitoringModule) {
+      console.log('[SignalMonitoring] Native module not available - using database polling service for background monitoring');
       return false;
     }
 
     try {
       const result = await SignalMonitoringModule.startMonitoring(licenseKey);
-      console.log('[SignalMonitoring] Started native background monitoring');
+      if (result) {
+        console.log('[SignalMonitoring] Started native background monitoring');
+      } else {
+        console.log('[SignalMonitoring] Native monitoring not started - using database polling service');
+      }
       return result;
     } catch (error) {
-      console.error('[SignalMonitoring] Error starting monitoring:', error);
+      console.log('[SignalMonitoring] Native module error - using database polling service for background monitoring:', error);
       return false;
     }
   }
@@ -42,7 +51,7 @@ class SignalMonitoringService {
       console.log('[SignalMonitoring] Stopped native background monitoring');
       return result;
     } catch (error) {
-      console.error('[SignalMonitoring] Error stopping monitoring:', error);
+      console.log('[SignalMonitoring] Error stopping monitoring (non-critical):', error);
       return false;
     }
   }

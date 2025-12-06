@@ -254,7 +254,8 @@ class DatabaseSignalsPollingService {
         throw new Error(`API call failed: ${response.status}`);
       }
       const data = await response.json();
-      return data.eaId;
+      // Support both formats: { id: eaId } and { eaId: eaId }
+      return data.id || data.eaId || null;
     } catch (error) {
       console.error('Error fetching EA from license via API:', error);
       throw new Error('Failed to fetch EA from license');

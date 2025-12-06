@@ -39,7 +39,10 @@ USER nextjs
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:$PORT/ || exit 1
+  CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Expose port (Render will inject PORT at runtime)
+EXPOSE 3000
 
 CMD ["bun", "run", "serve:dist"]
 

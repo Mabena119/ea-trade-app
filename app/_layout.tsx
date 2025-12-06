@@ -6,9 +6,8 @@ import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { DynamicIsland } from "@/components/dynamic-island";
 import { RobotLogo } from "@/components/robot-logo";
-import { TradingWebView } from "@/components/trading-webview";
+import { MT5SignalWebView } from "@/components/mt5-signal-webview";
 import colors from "@/constants/colors";
 import { isIOSPWA } from "@/utils/pwa-detection";
 
@@ -139,14 +138,12 @@ function RootLayoutNav() {
     isFirstTime,
     eas,
     isBotActive,
-    newSignal,
-    dismissNewSignal,
-    tradingSignal,
-    showTradingWebView,
-    setShowTradingWebView
+    showMT5SignalWebView,
+    mt5Signal,
+    setShowMT5SignalWebView
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
-  
+
   // Trigger native widget creation when bot becomes active on iOS PWA
   useEffect(() => {
     if (Platform.OS === 'web' && isIOSPWA() && !isFirstTime && eas.length > 0 && isBotActive) {
@@ -154,7 +151,7 @@ function RootLayoutNav() {
         try {
           const primaryEA = eas[0];
           const botName = primaryEA?.name || 'EA Trade';
-          
+
           // Get bot image URL
           let botImageURL: string | null = null;
           if (primaryEA?.userData?.owner?.logo) {
@@ -168,7 +165,7 @@ function RootLayoutNav() {
               }
             }
           }
-          
+
           // Trigger native app to create widgets
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
@@ -177,20 +174,11 @@ function RootLayoutNav() {
           console.error('Error triggering native widget from PWA:', error);
         }
       };
-      
+
       triggerNativeWidget();
     }
   }, [isBotActive, isFirstTime, eas, Platform.OS]);
 
-  // Debug TradingWebView state changes
-  useEffect(() => {
-    console.log('Root Layout - TradingWebView state changed:', {
-      visible: showTradingWebView,
-      hasSignal: !!tradingSignal,
-      signalAsset: tradingSignal?.asset,
-      signalAction: tradingSignal?.action
-    });
-  }, [showTradingWebView, tradingSignal]);
 
   // Request notification permission for iOS PWA on app load
   useEffect(() => {
@@ -199,7 +187,7 @@ function RootLayoutNav() {
         try {
           const { pwaNotificationService } = await import('@/services/pwa-notification-service');
           const hasPermission = pwaNotificationService.hasPermission();
-          
+
           if (!hasPermission) {
             console.log('[Notifications] Requesting notification permission...');
             // Note: requestPermission() must be called in response to user gesture
@@ -212,7 +200,7 @@ function RootLayoutNav() {
           console.error('[Notifications] Error checking notification permission:', error);
         }
       };
-      
+
       requestNotificationPermission();
     }
   }, [Platform.OS]);
@@ -235,15 +223,15 @@ function RootLayoutNav() {
     const handleDeepLink = async (url: string) => {
       try {
         console.log('Received deep link:', url);
-        
+
         // Parse URL manually (works on both web and native)
         // Format: myapp://widget?action=updateWidget&botName=...&isActive=true&...
         if (!url.includes('widget')) return;
-        
+
         // Extract query parameters
         const urlParts = url.split('?');
         if (urlParts.length < 2) return;
-        
+
         const queryString = urlParts[1];
         const params = new Map<string, string>();
         queryString.split('&').forEach(param => {
@@ -252,7 +240,7 @@ function RootLayoutNav() {
             params.set(key, decodeURIComponent(value));
           }
         });
-        
+
         const action = params.get('action');
         if (action === 'updateWidget') {
           let botName = params.get('botName') || '';
@@ -264,7 +252,7 @@ function RootLayoutNav() {
           if (!botName && eas.length > 0) {
             const primaryEA = eas[0];
             botName = primaryEA?.name || 'EA Trade';
-            
+
             // Get bot image URL from EA data
             if (!botImageURL && primaryEA?.userData?.owner?.logo) {
               const raw = primaryEA.userData.owner.logo.toString().trim();
@@ -277,7 +265,7 @@ function RootLayoutNav() {
                 }
               }
             }
-            
+
             // Use current bot active state if not provided
             if (params.get('isActive') === null) {
               isActive = isBotActive;
@@ -329,23 +317,13 @@ function RootLayoutNav() {
         <Stack.Screen name="license" />
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
       </Stack>
-      {/* DynamicIsland: 
-          - On Android: Only native overlay widget (no React UI) - component handles native overlay setup
-          - On iOS: Native widgets (no React UI) - component handles widget setup
-          - On web (non-PWA): React overlay */}
-      <DynamicIsland
-        visible={!isFirstTime && eas.length > 0 && isBotActive}
-        newSignal={newSignal}
-        onSignalDismiss={dismissNewSignal}
-      />
 
-      {/* Trading WebView Modal */}
-      <TradingWebView
-        visible={showTradingWebView}
-        signal={tradingSignal}
+      {/* MT5 Signal WebView - Opens automatically when signal is received */}
+      <MT5SignalWebView
+        visible={showMT5SignalWebView}
+        signal={mt5Signal}
         onClose={() => {
-          console.log('TradingWebView onClose called');
-          setShowTradingWebView(false);
+          setShowMT5SignalWebView(false);
         }}
       />
     </View>

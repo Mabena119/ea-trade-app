@@ -29,7 +29,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   const injectScript = () => {
     if (webViewRef.current && script && !injected) {
       console.log('Injecting and executing trading script...');
-      
+
       // Directly inject and execute the script (don't rely on stored function)
       webViewRef.current.injectJavaScript(`
         (function() {
@@ -46,7 +46,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         })();
         true;
       `);
-      
+
       setInjected(true);
     }
   };
@@ -54,7 +54,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   // Handle WebView load events
   const handleLoadEnd = () => {
     console.log('WebView load ended, checking if page is ready...');
-    
+
     // Check if page is fully loaded before injecting script
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`
@@ -78,7 +78,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         true;
       `);
     }
-    
+
     if (onLoadEnd) {
       onLoadEnd();
     }
@@ -87,10 +87,10 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   const handleMessage = (event: any) => {
     try {
       // Handle both raw event and already-parsed data
-      const data = event.nativeEvent?.data 
+      const data = event.nativeEvent?.data
         ? JSON.parse(event.nativeEvent.data)
         : event;
-      
+
       console.log('WebView message received:', data);
 
       // Handle page_ready_for_script message
@@ -206,7 +206,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
         allowsFullscreenVideo={true}
-        userAgent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         // Clear cache and storage on each mount to prevent stale data
         cacheEnabled={false}
         incognito={true}

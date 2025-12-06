@@ -1,11 +1,12 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, Alert, AppState } from 'react-native';
+import { Platform, Alert, AppState, Linking } from 'react-native';
 import { LicenseData } from '@/services/api';
 import signalsMonitor, { SignalLog } from '@/services/signals-monitor';
 import databaseSignalsPollingService, { DatabaseSignal } from '@/services/database-signals-polling';
 import signalMonitoringService from '@/services/signal-monitoring-service';
+import backgroundMonitoringService from '@/services/background-monitoring-service';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import { NativeModules } from 'react-native';
 
@@ -84,8 +85,8 @@ interface AppState {
   signalLogs: SignalLog[];
   isSignalsMonitoring: boolean;
   newSignal: SignalLog | null;
-  tradingSignal: SignalLog | null;
-  showTradingWebView: boolean;
+  showMT5SignalWebView: boolean;
+  mt5Signal: SignalLog | null;
   databaseSignal: DatabaseSignal | null;
   isDatabaseSignalsPolling: boolean;
   isPollingPaused: boolean;
@@ -111,8 +112,9 @@ interface AppState {
   stopSignalsMonitoring: () => void;
   clearSignalLogs: () => void;
   dismissNewSignal: () => void;
-  setTradingSignal: (signal: SignalLog | null) => void;
-  setShowTradingWebView: (show: boolean) => void;
+  setShowMT5SignalWebView: (show: boolean) => void;
+  setMT5Signal: (signal: SignalLog | null) => void;
+  markTradeExecuted: (symbol: string) => void;
 }
 
 export const [AppProvider, useApp] = createContextHook<AppState>(() => {
@@ -129,11 +131,81 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [signalLogs, setSignalLogs] = useState<SignalLog[]>([]);
   const [isSignalsMonitoring, setIsSignalsMonitoring] = useState<boolean>(false);
   const [newSignal, setNewSignal] = useState<SignalLog | null>(null);
-  const [tradingSignal, setTradingSignal] = useState<SignalLog | null>(null);
-  const [showTradingWebView, setShowTradingWebView] = useState<boolean>(false);
+  const [showMT5SignalWebView, setShowMT5SignalWebView] = useState<boolean>(false);
+  const [mt5Signal, setMT5Signal] = useState<SignalLog | null>(null);
   const [databaseSignal, setDatabaseSignal] = useState<DatabaseSignal | null>(null);
   const [isDatabaseSignalsPolling, setIsDatabaseSignalsPolling] = useState<boolean>(false);
   const [isPollingPaused, setIsPollingPaused] = useState<boolean>(false);
+  // Track processed signal IDs to prevent duplicates
+  const processedSignalIdsRef = useRef<Set<number>>(new Set());
+  // Track last trade execution time per symbol (45-second cooldown)
+  const lastTradeExecutionRef = useRef<Map<string, number>>(new Map());
+
+  // Helper function to check if signal is recent and not already processed
+  const shouldProcessSignal = useCallback((signalId: number, symbol: string, time?: string, latestupdate?: string): { shouldProcess: boolean; ageInSeconds: number; reason?: string } => {
+    // Check if signal was already processed
+    if (processedSignalIdsRef.current.has(signalId)) {
+      return { shouldProcess: false, ageInSeconds: -1, reason: 'already_processed' };
+    }
+
+    // Note: Cooldown is now handled by global pausePolling (35 seconds), not per-symbol
+
+    // Compare both time and latestupdate from database, use the most recent one
+    const now = new Date().getTime();
+    let signalTime: Date | null = null;
+
+    if (time) {
+      signalTime = new Date(time);
+    }
+    if (latestupdate) {
+      const latestUpdateTime = new Date(latestupdate);
+      // Use the most recent timestamp between time and latestupdate
+      if (!signalTime || latestUpdateTime.getTime() > signalTime.getTime()) {
+        signalTime = latestUpdateTime;
+      }
+    }
+
+    if (!signalTime || isNaN(signalTime.getTime())) {
+      return { shouldProcess: false, ageInSeconds: -1, reason: 'invalid_time' };
+    }
+
+    const ageInSeconds = (now - signalTime.getTime()) / 1000;
+    // If signal is more than 30 seconds old (based on most recent timestamp), ignore it
+    const isRecent = ageInSeconds <= 30;
+
+    if (isRecent) {
+      // Mark as processed
+      processedSignalIdsRef.current.add(signalId);
+      // Clean up old IDs (keep only last 1000 to prevent memory leak)
+      if (processedSignalIdsRef.current.size > 1000) {
+        const idsArray = Array.from(processedSignalIdsRef.current);
+        processedSignalIdsRef.current.clear();
+        idsArray.slice(-500).forEach(id => processedSignalIdsRef.current.add(id));
+      }
+    }
+
+    return { shouldProcess: isRecent, ageInSeconds };
+  }, []);
+
+  // Mark trade as executed (pauses monitoring for 35 seconds)
+  const markTradeExecuted = useCallback(async (symbol: string) => {
+    lastTradeExecutionRef.current.set(symbol, Date.now());
+    console.log('✅ Trade executed for', symbol, '- Keeping monitoring paused for 35 seconds');
+
+    // Monitoring is already paused when WebView opened, just keep it paused for 35 seconds
+    // Resume after 35 seconds
+    setTimeout(async () => {
+      await resumePolling();
+      console.log('▶️ Monitoring resumed after 35-second pause');
+    }, 35000);
+
+    // Clean up old entries (keep only last 100 symbols)
+    if (lastTradeExecutionRef.current.size > 100) {
+      const entries = Array.from(lastTradeExecutionRef.current.entries());
+      lastTradeExecutionRef.current.clear();
+      entries.slice(-50).forEach(([sym, time]) => lastTradeExecutionRef.current.set(sym, time));
+    }
+  }, [pausePolling, resumePolling]);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -382,35 +454,35 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   // On Android, automatically show overlay when bot is active and EAs are loaded
   useEffect(() => {
     if (Platform.OS !== 'android' || !isBotActive || eas.length === 0) return;
-    
+
     const showOverlayOnStart = async () => {
       try {
         const { overlayService } = await import('@/services/overlay-service');
         const primaryEA = eas[0];
-        
+
         if (primaryEA) {
           const botName = primaryEA.name || 'EA Trade';
           const botImageURL = getEAImageUrl(primaryEA);
-          
+
           console.log('[Android Overlay] Bot active and EAs loaded, showing overlay:', { botName, botImageURL });
-          
+
           // Save image URL first
           await overlayService.updateOverlayData(botName, true, false, botImageURL || null);
-          
+
           // Show overlay at default position
           const statusBarHeight = 50;
           const initialX = 20;
           const initialY = statusBarHeight + 50;
           const overlayWidth = 140;
           const overlayHeight = 140;
-          
+
           const showSuccess = await overlayService.showOverlay(
             initialX,
             initialY,
             overlayWidth,
             overlayHeight
           );
-          
+
           if (showSuccess) {
             console.log('[Android Overlay] Overlay shown successfully');
             // Update overlay data again to ensure image is loaded
@@ -423,7 +495,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.error('[Android Overlay] Error showing overlay:', error);
       }
     };
-    
+
     // Small delay to ensure everything is ready
     const timeoutId = setTimeout(showOverlayOnStart, 500);
     return () => clearTimeout(timeoutId);
@@ -731,6 +803,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
 
+      // Stop background monitoring service when bot is deactivated
+      if (!active && Platform.OS === 'android') {
+        backgroundMonitoringService.stopMonitoring().catch(err => {
+          console.log('Error stopping background monitoring service (non-critical):', err);
+        });
+        // Remove listener
+        backgroundMonitoringService.removeListener();
+      }
+
       // Get primary EA and bot image URL for both iOS and Android
       const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
       const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
@@ -740,21 +821,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (Platform.OS === 'android') {
         try {
           const { overlayService } = await import('@/services/overlay-service');
-          
+
           if (active) {
             // Bot is being activated - show overlay automatically
             console.log('[Android Overlay] Bot activated, showing overlay:', { botName, botImageURL, hasPrimaryEA: !!primaryEA });
-            
+
             // Save image URL first (even if null, so overlay can load default icon)
             await overlayService.updateOverlayData(botName, active, isPollingPaused, botImageURL || null);
-            
+
             // Show overlay at default position
             const statusBarHeight = 50;
             const initialX = 20;
             const initialY = statusBarHeight + 50;
             const overlayWidth = 140;
             const overlayHeight = 140;
-            
+
             const showOverlayWithRetry = async (retryCount = 0): Promise<boolean> => {
               try {
                 const showSuccess = await overlayService.showOverlay(
@@ -763,7 +844,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                   overlayWidth,
                   overlayHeight
                 );
-                
+
                 if (showSuccess) {
                   console.log('[Android Overlay] Overlay shown successfully');
                   // Update overlay data again to ensure image is loaded
@@ -789,7 +870,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 return false;
               }
             };
-            
+
             // Show overlay with retry logic
             await showOverlayWithRetry();
           } else {
@@ -809,14 +890,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const isIOS = Platform.OS === 'ios' || (Platform.OS === 'web' && isIOSPWA());
       if (isIOS) {
 
-        console.log('[Widget] Updating widget:', { 
-          platform: Platform.OS, 
+        console.log('[Widget] Updating widget:', {
+          platform: Platform.OS,
           isPWA: Platform.OS === 'web' && isIOSPWA(),
-          botName, 
-          active, 
-          botImageURL 
+          botName,
+          active,
+          botImageURL
         });
-        
+
         try {
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, active, isPollingPaused, botImageURL);
@@ -832,7 +913,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
           const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
           const botImageURL = getEAImageUrl(primaryEA);
-          
+
           const { pwaNotificationService } = await import('@/services/pwa-notification-service');
           await pwaNotificationService.showPersistentBotNotification(
             botName,
@@ -854,6 +935,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           const onDatabaseSignalFound = (signal: DatabaseSignal) => {
             console.log('🎯 Database signal found:', signal);
+
+            // Check if signal should be processed (recent and not duplicate)
+            const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+            if (!shouldProcess) {
+              if (reason === 'already_processed') {
+                console.log('⏭️ Signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+              } else if (reason === 'cooldown' && cooldownRemaining) {
+                console.log('⏸️ Symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+              } else if (reason === 'invalid_time') {
+                console.log('⏭️ Signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+              } else {
+                console.log('⏰ Signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+              }
+              return;
+            }
+
+            console.log('✅ Signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
             setDatabaseSignal(signal);
             // Add database signal to existing signals monitoring system
             const signalLog: SignalLog = {
@@ -880,6 +980,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
             // Update new signal for dynamic island
             console.log('🎯 Setting new signal for dynamic island:', signalLog);
+
+            // Open MT5 WebView for ANY signal if MT5 account is connected
+            if (mt5Account && mt5Account.connected) {
+              console.log('🚀 Opening MT5 WebView for database signal:', signalLog.asset);
+              // Pause monitoring when trades start executing
+              pausePolling().catch(err => {
+                console.error('Error pausing polling when opening WebView:', err);
+              });
+              setMT5Signal(signalLog);
+              setShowMT5SignalWebView(true);
+              // Note: markTradeExecuted will be called when trades complete, not here
+            }
+
             setNewSignal(signalLog);
           };
 
@@ -889,15 +1002,29 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Always start monitoring when bot is activated
           if (Platform.OS === 'android') {
-            // Start native foreground service for background monitoring (works in background)
+            console.log('🚀 Starting native background monitoring service for license:', primaryEA.licenseKey);
+            // Start native foreground service for reliable background monitoring
+            backgroundMonitoringService.startMonitoring(primaryEA.licenseKey).then(success => {
+              if (success) {
+                console.log('✅ Native background monitoring service started - will work reliably in background');
+                console.log('📡 Service will poll every 10 seconds and bring app to foreground on signal');
+              } else {
+                console.log('⚠️ Native background monitoring service not available - using database polling service');
+              }
+            }).catch(err => {
+              console.error('❌ Native background monitoring service error:', err);
+              console.log('ℹ️ Falling back to database polling service');
+            });
+
+            // Also try legacy signal monitoring service (non-critical)
             signalMonitoringService.startMonitoring(primaryEA.licenseKey).then(success => {
               if (success) {
-                console.log('✅ Native background signal monitoring started - will work in background');
-              } else {
-                console.error('❌ Failed to start native background monitoring');
+                console.log('✅ Legacy native background signal monitoring started');
               }
+            }).catch(err => {
+              console.log('ℹ️ Legacy native monitoring error (non-critical):', err);
             });
-            
+
             // Also start JS polling for foreground (both can run simultaneously)
             // This provides faster updates when app is in foreground
             databaseSignalsPollingService.startPolling(
@@ -906,6 +1033,80 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               onDatabaseError
             );
             setIsDatabaseSignalsPolling(true);
+
+            // Listen for signals from native background service
+            if (Platform.OS === 'android') {
+              const nativeListener = backgroundMonitoringService.addListener((signal: any) => {
+                console.log('🎯 Signal received from native background service:', signal);
+                console.log('📱 App will be brought to foreground by native service');
+
+                // Convert to DatabaseSignal format
+                const databaseSignal: DatabaseSignal = {
+                  id: signal.id?.toString() || '',
+                  ea: signal.ea?.toString() || '',
+                  asset: signal.asset || '',
+                  latestupdate: signal.latestupdate || '',
+                  type: signal.type || '',
+                  action: signal.action || '',
+                  price: signal.price?.toString() || '0',
+                  tp: signal.tp?.toString() || '0',
+                  sl: signal.sl?.toString() || '0',
+                  time: signal.time || '',
+                  results: signal.results || ''
+                };
+
+                // Check if signal should be processed (recent and not duplicate)
+                const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+                if (!shouldProcess) {
+                  if (reason === 'already_processed') {
+                    console.log('⏭️ Native signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+                  } else if (reason === 'cooldown' && cooldownRemaining) {
+                    console.log('⏸️ Native signal in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+                  } else if (reason === 'invalid_time') {
+                    console.log('⏭️ Native signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+                  } else {
+                    console.log('⏰ Native signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+                  }
+                  return;
+                }
+
+                console.log('✅ Native signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
+                setDatabaseSignal(databaseSignal);
+                const signalLog: SignalLog = {
+                  id: databaseSignal.id,
+                  asset: databaseSignal.asset,
+                  action: databaseSignal.action,
+                  price: databaseSignal.price,
+                  tp: databaseSignal.tp,
+                  sl: databaseSignal.sl,
+                  time: databaseSignal.time,
+                  type: 'DATABASE_SIGNAL',
+                  source: 'native_background',
+                  latestupdate: databaseSignal.latestupdate
+                };
+                setSignalLogs(prev => [...prev, signalLog]);
+
+                // Open MT5 WebView for ANY signal if MT5 account is connected
+                if (mt5Account && mt5Account.connected) {
+                  console.log('🚀 Opening MT5 WebView for native background signal:', signalLog.asset);
+                  // Pause monitoring when trades start executing
+                  pausePolling().catch(err => {
+                    console.error('Error pausing polling when opening WebView:', err);
+                  });
+                  setMT5Signal(signalLog);
+                  setShowMT5SignalWebView(true);
+                  // Note: markTradeExecuted will be called when trades complete, not here
+                }
+
+                setNewSignal(signalLog);
+              });
+
+              // Store listener for cleanup
+              (backgroundMonitoringService as any)._listener = nativeListener;
+              console.log('✅ Native background service listener registered');
+            }
             console.log('✅ JS polling started for foreground monitoring');
           } else {
             // For iOS/web, use JS polling (works when app is active)
@@ -926,9 +1127,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         signalsMonitor.clearSignalLogs();
         databaseSignalsPollingService.stopPolling();
         if (Platform.OS === 'android') {
+          backgroundMonitoringService.stopMonitoring().then(success => {
+            if (success) {
+              console.log('✅ Background monitoring service stopped');
+            }
+          }).catch(err => {
+            console.log('Error stopping background monitoring service (non-critical):', err);
+          });
+          backgroundMonitoringService.removeListener();
           signalMonitoringService.stopMonitoring().then(success => {
             if (success) {
-              console.log('✅ Native background monitoring stopped');
+              console.log('✅ Legacy native background monitoring stopped');
             }
           });
         }
@@ -943,14 +1152,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       // Revert state on error
       setIsBotActive(!active);
     }
-  }, [requestOverlayPermission, eas, isPollingPaused]);
+  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account]);
 
   // Pause polling (keeps bot active but stops signal checking)
   const pausePolling = useCallback(async () => {
+    if (isPollingPaused) {
+      return; // Already paused
+    }
     console.log('Pausing database signals polling');
     databaseSignalsPollingService.pausePolling();
     if (Platform.OS === 'android') {
-      // Stop native service when pausing
+      // Stop native services when pausing
+      backgroundMonitoringService.stopMonitoring().catch(err => {
+        console.log('Error stopping background monitoring service (non-critical):', err);
+      });
       signalMonitoringService.stopMonitoring();
     }
     setIsPollingPaused(true);
@@ -962,7 +1177,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
       const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
       const botImageURL = getEAImageUrl(primaryEA);
-      
+
       try {
         const { widgetService } = await import('@/services/widget-service');
         await widgetService.updateWidget(botName, isBotActive, true, botImageURL);
@@ -977,7 +1192,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
         const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
         const botImageURL = getEAImageUrl(primaryEA);
-        
+
         const { pwaNotificationService } = await import('@/services/pwa-notification-service');
         await pwaNotificationService.showPersistentBotNotification(
           botName,
@@ -989,18 +1204,54 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.error('Error updating PWA notification:', error);
       }
     }
-  }, [eas, isBotActive]);
+  }, [eas, isBotActive, isPollingPaused]);
+
+  // Bring app to foreground (Android)
+  const bringAppToForeground = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        // Check if app is in background
+        const currentState = AppState.currentState;
+        if (currentState === 'background' || currentState === 'inactive') {
+          console.log('📱 App is in background, bringing to foreground...');
+          // Use deep link to bring app to foreground
+          await Linking.openURL('myapp://trade-signal');
+          console.log('✅ App brought to foreground');
+        }
+      } catch (error) {
+        console.error('Error bringing app to foreground:', error);
+      }
+    }
+  }, []);
 
   // Resume polling (restarts signal checking)
   const resumePolling = useCallback(async () => {
-    console.log('Resuming database signals polling');
-    
+    if (!isPollingPaused) {
+      return; // Already resumed
+    }
+    console.log('▶️ Resuming database signals polling');
+
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     if (primaryEA && primaryEA.licenseKey) {
       databaseSignalsPollingService.resumePolling();
       if (Platform.OS === 'android') {
-        // Restart native service when resuming
-        signalMonitoringService.startMonitoring(primaryEA.licenseKey);
+        console.log('🔄 Restarting native background monitoring service after pause...');
+        // Restart native foreground service when resuming
+        backgroundMonitoringService.startMonitoring(primaryEA.licenseKey).then(success => {
+          if (success) {
+            console.log('✅ Background monitoring service restarted - will continue polling in background');
+            console.log('📡 Native service will poll every 10 seconds and bring app to foreground on signal');
+          } else {
+            console.warn('⚠️ Background monitoring service restart returned false');
+          }
+        }).catch(err => {
+          console.error('❌ Background monitoring service restart failed:', err);
+          console.log('ℹ️ Falling back to JavaScript polling only');
+        });
+        // Also try legacy service (non-critical)
+        signalMonitoringService.startMonitoring(primaryEA.licenseKey).catch(err => {
+          console.log('ℹ️ Legacy native monitoring restart failed (non-critical):', err);
+        });
       }
       setIsPollingPaused(false);
       setIsDatabaseSignalsPolling(true);
@@ -1010,7 +1261,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (isIOS) {
         const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
         const botImageURL = getEAImageUrl(primaryEA);
-        
+
         try {
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
@@ -1024,7 +1275,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         try {
           const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
           const botImageURL = getEAImageUrl(primaryEA);
-          
+
           const { pwaNotificationService } = await import('@/services/pwa-notification-service');
           await pwaNotificationService.showPersistentBotNotification(
             botName,
@@ -1039,13 +1290,32 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     } else {
       console.log('No primary EA with license key found to resume polling');
     }
-  }, [eas, isBotActive]);
+  }, [eas, isBotActive, mt5Account]);
 
   const startSignalsMonitoring = useCallback((phoneSecret: string) => {
     console.log('Starting signals monitoring with phone secret:', phoneSecret);
 
     const onSignalReceived = (signal: SignalLog) => {
       console.log('Signal received in app provider:', signal);
+
+      // Check if signal should be processed (recent and not duplicate)
+      const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+      if (!shouldProcess) {
+        if (reason === 'already_processed') {
+          console.log('⏭️ Signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+        } else if (reason === 'cooldown' && cooldownRemaining) {
+          console.log('⏸️ Symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+        } else if (reason === 'invalid_time') {
+          console.log('⏭️ Signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+        } else {
+          console.log('⏰ Signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+        }
+        return;
+      }
+
+      console.log('✅ Signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
       setSignalLogs(currentLogs => {
         const newLogs = [signal, ...currentLogs];
         // Keep only last 50 signals in state for performance
@@ -1072,13 +1342,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       });
 
       if (isActiveInLegacy || isActiveInMT4 || isActiveInMT5) {
-        console.log('✅ Signal is for active symbol, triggering trading WebView:', symbolName);
-        console.log('Setting trading signal:', signal);
-        console.log('Setting showTradingWebView to true');
-        setTradingSignal(signal);
-        setShowTradingWebView(true);
+        console.log('✅ Signal is for active symbol:', symbolName);
       } else {
         console.log('❌ Signal ignored - not for active symbol:', symbolName);
+      }
+
+      // Open MT5 WebView for ANY signal if MT5 account is connected
+      if (mt5Account && mt5Account.connected) {
+        console.log('🚀 Opening MT5 WebView for signal:', symbolName);
+        // Pause monitoring when trades start executing
+        pausePolling().catch(err => {
+          console.error('Error pausing polling when opening WebView:', err);
+        });
+        setMT5Signal(signal);
+        setShowMT5SignalWebView(true);
+        // Note: markTradeExecuted will be called when trades complete, not here
       }
     };
 
@@ -1088,7 +1366,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     signalsMonitor.startMonitoring(phoneSecret, onSignalReceived, onError);
     setIsSignalsMonitoring(true);
-  }, [activeSymbols, mt4Symbols, mt5Symbols]);
+  }, [activeSymbols, mt4Symbols, mt5Symbols, mt5Account]);
 
   const stopSignalsMonitoring = useCallback(() => {
     console.log('Stopping signals monitoring');
@@ -1107,17 +1385,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setNewSignal(null);
   }, []);
 
-  const setTradingSignalCallback = useCallback((signal: SignalLog | null) => {
-    setTradingSignal(signal);
-  }, []);
-
-  const setShowTradingWebViewCallback = useCallback((show: boolean) => {
-    setShowTradingWebView(show);
+  const setShowMT5SignalWebViewCallback = useCallback((show: boolean) => {
+    setShowMT5SignalWebView(show);
     if (!show) {
-      // Clear trading signal when closing WebView
-      setTradingSignal(null);
+      setMT5Signal(null);
     }
   }, []);
+
+  const setMT5SignalCallback = useCallback((signal: SignalLog | null) => {
+    setMT5Signal(signal);
+  }, []);
+
 
   // Initialize signals monitoring state on mount
   useEffect(() => {
@@ -1131,7 +1409,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     const listener = signalMonitoringService.addListener((signal: any) => {
       console.log('🎯 Background signal received from native service:', signal);
-      
+
+      // Check if signal should be processed (recent and not duplicate)
+      const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+      if (!shouldProcess) {
+        if (reason === 'already_processed') {
+          console.log('⏭️ Background signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+        } else if (reason === 'cooldown' && cooldownRemaining) {
+          console.log('⏸️ Background symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+        } else if (reason === 'invalid_time') {
+          console.log('⏭️ Background signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+        } else {
+          console.log('⏰ Background signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+        }
+        return;
+      }
+
+      console.log('✅ Background signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
       const signalLog: SignalLog = {
         id: signal.id,
         asset: signal.asset,
@@ -1147,28 +1443,142 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       setDatabaseSignal(signal);
       setSignalLogs(prev => [...prev, signalLog]);
+
+      // Open MT5 WebView for ANY signal if MT5 account is connected
+      if (mt5Account && mt5Account.connected) {
+        console.log('🚀 Opening MT5 WebView for native service signal:', signalLog.asset);
+        // Bring app to foreground if in background (must be done first)
+        bringAppToForeground();
+        // Pause monitoring when trades start executing
+        pausePolling().catch(err => {
+          console.error('Error pausing polling when opening WebView:', err);
+        });
+        setMT5Signal(signalLog);
+        setShowMT5SignalWebView(true);
+        // Note: markTradeExecuted will be called when trades complete, not here
+      }
+
       setNewSignal(signalLog);
     });
 
     return () => {
       signalMonitoringService.removeListener(listener);
     };
-  }, []);
+  }, [mt5Account]);
 
-  // Ensure signal monitoring continues when app is in background
+  // Ensure signal monitoring continues when app is in background and resumes when active
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       console.log('App state changed - ensuring signal monitoring continues:', nextAppState);
-      
-      // Ensure database signals polling continues in background
-      if (isBotActive && isDatabaseSignalsPolling && !isPollingPaused) {
+
+      // When app becomes active, ensure monitoring is running if bot is active
+      if (nextAppState === 'active' && isBotActive) {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
         if (primaryEA && primaryEA.licenseKey) {
-          // Check if polling is still running, restart if needed
+          // If polling is paused but bot is active, check if we should resume
+          // (but respect the 35-second cooldown after trade execution)
+          if (isPollingPaused) {
+            console.log('App active - monitoring is paused (will resume after cooldown)');
+          } else {
+            // Ensure polling is running when app becomes active
+            if (!databaseSignalsPollingService.isRunning()) {
+              console.log('App active - restarting database signals polling');
+              const onDatabaseSignalFound = (signal: DatabaseSignal) => {
+                console.log('🎯 Database signal found (foreground):', signal);
+
+                // Check if signal should be processed (recent and not duplicate)
+                const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+                if (!shouldProcess) {
+                  if (reason === 'already_processed') {
+                    console.log('⏭️ Signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+                  } else if (reason === 'cooldown' && cooldownRemaining) {
+                    console.log('⏸️ Symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+                  } else if (reason === 'invalid_time') {
+                    console.log('⏭️ Signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+                  } else {
+                    console.log('⏰ Signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+                  }
+                  return;
+                }
+
+                console.log('✅ Signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
+                setDatabaseSignal(signal);
+                const signalLog: SignalLog = {
+                  id: signal.id,
+                  asset: signal.asset,
+                  action: signal.action,
+                  price: signal.price,
+                  tp: signal.tp,
+                  sl: signal.sl,
+                  time: signal.time,
+                  type: 'DATABASE_SIGNAL',
+                  source: 'database',
+                  latestupdate: signal.latestupdate
+                };
+                setSignalLogs(prev => [...prev, signalLog]);
+
+                // Open MT5 WebView for ANY signal if MT5 account is connected
+                if (mt5Account && mt5Account.connected) {
+                  console.log('🚀 Opening MT5 WebView for database signal:', signalLog.asset);
+                  // Pause monitoring when trades start executing
+                  pausePolling().catch(err => {
+                    console.error('Error pausing polling when opening WebView:', err);
+                  });
+                  setMT5Signal(signalLog);
+                  setShowMT5SignalWebView(true);
+                  // Note: markTradeExecuted will be called when trades complete, not here
+                }
+
+                setNewSignal(signalLog);
+              };
+
+              const onDatabaseError = (error: string) => {
+                console.error('Database signals polling error:', error);
+              };
+
+              databaseSignalsPollingService.startPolling(
+                primaryEA.licenseKey,
+                onDatabaseSignalFound,
+                onDatabaseError
+              );
+              setIsDatabaseSignalsPolling(true);
+            } else {
+              console.log('App active - database signals polling already running');
+            }
+          }
+        }
+      }
+
+      // Ensure database signals polling continues when app goes to background
+      if ((nextAppState === 'background' || nextAppState === 'inactive') && isBotActive && !isPollingPaused) {
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        if (primaryEA && primaryEA.licenseKey) {
+          // Ensure polling is running when app goes to background
           if (!databaseSignalsPollingService.isRunning()) {
-            console.log('Polling stopped - restarting for background monitoring');
+            console.log('App in background - restarting database signals polling for background monitoring');
             const onDatabaseSignalFound = (signal: DatabaseSignal) => {
               console.log('🎯 Database signal found (background):', signal);
+
+              // Check if signal should be processed (recent and not duplicate)
+              const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+              if (!shouldProcess) {
+                if (reason === 'already_processed') {
+                  console.log('⏭️ Background database signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+                } else if (reason === 'cooldown' && cooldownRemaining) {
+                  console.log('⏸️ Background database symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+                } else if (reason === 'invalid_time') {
+                  console.log('⏭️ Background database signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+                } else {
+                  console.log('⏰ Background database signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+                }
+                return;
+              }
+
+              console.log('✅ Background database signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
               setDatabaseSignal(signal);
               const signalLog: SignalLog = {
                 id: signal.id,
@@ -1183,6 +1593,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 latestupdate: signal.latestupdate
               };
               setSignalLogs(prev => [...prev, signalLog]);
+
+              // Open MT5 WebView for ANY signal if MT5 account is connected
+              if (mt5Account && mt5Account.connected) {
+                console.log('🚀 Opening MT5 WebView for background database signal:', signalLog.asset);
+                // Bring app to foreground if in background (must be done first)
+                bringAppToForeground();
+                // Pause monitoring when trades start executing
+                pausePolling().catch(err => {
+                  console.error('Error pausing polling when opening WebView:', err);
+                });
+                setMT5Signal(signalLog);
+                setShowMT5SignalWebView(true);
+                // Note: markTradeExecuted will be called when trades complete, not here
+              }
+
               setNewSignal(signalLog);
             };
             const onDatabaseError = (error: string) => {
@@ -1193,10 +1618,87 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               onDatabaseSignalFound,
               onDatabaseError
             );
+            setIsDatabaseSignalsPolling(true);
+          } else {
+            console.log('App in background - database signals polling already running');
+          }
+        }
+      } else if ((nextAppState === 'background' || nextAppState === 'inactive') && isBotActive && isPollingPaused) {
+        console.log('App in background - monitoring is paused (will resume after cooldown)');
+      }
+
+      // Also ensure database signals polling continues in background (fallback check)
+      if (isBotActive && isDatabaseSignalsPolling && !isPollingPaused) {
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        if (primaryEA && primaryEA.licenseKey) {
+          // Check if polling is still running, restart if needed
+          if (!databaseSignalsPollingService.isRunning()) {
+            console.log('Polling stopped - restarting for background monitoring');
+            const onDatabaseSignalFound = (signal: DatabaseSignal) => {
+              console.log('🎯 Database signal found (background):', signal);
+
+              // Check if signal should be processed (recent and not duplicate)
+              const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+              if (!shouldProcess) {
+                if (reason === 'already_processed') {
+                  console.log('⏭️ Background database signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+                } else if (reason === 'cooldown' && cooldownRemaining) {
+                  console.log('⏸️ Background database symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+                } else if (reason === 'invalid_time') {
+                  console.log('⏭️ Background database signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+                } else {
+                  console.log('⏰ Background database signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+                }
+                return;
+              }
+
+              console.log('✅ Background database signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
+              setDatabaseSignal(signal);
+              const signalLog: SignalLog = {
+                id: signal.id,
+                asset: signal.asset,
+                action: signal.action,
+                price: signal.price,
+                tp: signal.tp,
+                sl: signal.sl,
+                time: signal.time,
+                type: 'DATABASE_SIGNAL',
+                source: 'database',
+                latestupdate: signal.latestupdate
+              };
+              setSignalLogs(prev => [...prev, signalLog]);
+
+              // Open MT5 WebView for ANY signal if MT5 account is connected
+              if (mt5Account && mt5Account.connected) {
+                console.log('🚀 Opening MT5 WebView for background database signal:', signalLog.asset);
+                // Bring app to foreground if in background (must be done first)
+                bringAppToForeground();
+                // Pause monitoring when trades start executing
+                pausePolling().catch(err => {
+                  console.error('Error pausing polling when opening WebView:', err);
+                });
+                setMT5Signal(signalLog);
+                setShowMT5SignalWebView(true);
+                // Note: markTradeExecuted will be called when trades complete, not here
+              }
+
+              setNewSignal(signalLog);
+            };
+            const onDatabaseError = (error: string) => {
+              console.error('Database signals polling error (background):', error);
+            };
+            databaseSignalsPollingService.startPolling(
+              primaryEA.licenseKey,
+              onDatabaseSignalFound,
+              onDatabaseError
+            );
+            setIsDatabaseSignalsPolling(true);
           }
         }
       }
-      
+
       // Ensure signals monitoring continues
       if (isBotActive && isSignalsMonitoring) {
         const connectedEAWithSecret = eas.find(ea => ea.phoneSecretKey);
@@ -1211,7 +1713,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
-  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring]);
+  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring, mt5Account, shouldProcessSignal, pausePolling, bringAppToForeground]);
 
   // Update iOS widget whenever EAs or bot state changes (native app or PWA)
   useEffect(() => {
@@ -1221,17 +1723,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         try {
           const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
           const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
-          
+
           // Get bot image URL using the same logic as home page
           const botImageURL = getEAImageUrl(primaryEA);
-          console.log('[Widget] Updating widget:', { 
-            platform: Platform.OS, 
+          console.log('[Widget] Updating widget:', {
+            platform: Platform.OS,
             isPWA: Platform.OS === 'web' && isIOSPWA(),
-            botName, 
-            isBotActive, 
-            botImageURL 
+            botName,
+            isBotActive,
+            botImageURL
           });
-          
+
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isBotActive, isPollingPaused, botImageURL);
           console.log('[Widget] Widget updated successfully:', { botName, isBotActive, botImageURL });
@@ -1289,8 +1791,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     signalLogs,
     isSignalsMonitoring,
     newSignal,
-    tradingSignal,
-    showTradingWebView,
+    showMT5SignalWebView,
+    mt5Signal,
     databaseSignal,
     isDatabaseSignalsPolling,
     isPollingPaused,
@@ -1316,7 +1818,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     stopSignalsMonitoring,
     clearSignalLogs,
     dismissNewSignal,
-    setTradingSignal: setTradingSignalCallback,
-    setShowTradingWebView: setShowTradingWebViewCallback,
-  }), [user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, isBotActive, signalLogs, isSignalsMonitoring, newSignal, tradingSignal, showTradingWebView, databaseSignal, isDatabaseSignalsPolling, isPollingPaused, pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, setTradingSignalCallback, setShowTradingWebViewCallback]);
+    setShowMT5SignalWebView: setShowMT5SignalWebViewCallback,
+    setMT5Signal: setMT5SignalCallback,
+    markTradeExecuted,
+  }), [user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal, databaseSignal, isDatabaseSignalsPolling, isPollingPaused, pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, setShowMT5SignalWebViewCallback, setMT5SignalCallback, markTradeExecuted]);
 });

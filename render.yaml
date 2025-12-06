@@ -4,9 +4,11 @@ services:
     env: docker
     plan: free
     autoDeploy: true
-    healthCheckPath: /
+    healthCheckPath: /health
     buildCommand: ""
-    startCommand: ""
+    startCommand: bun run serve:dist
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: EXPO_NO_TELEMETRY
         value: "1"
@@ -14,4 +16,14 @@ services:
         value: "production"
       - key: PORT
         value: "3000"
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_PORT
+        value: "3306"
 

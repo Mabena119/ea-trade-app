@@ -1,12 +1,69 @@
-node_modules
-.expo
-dist
-.git
-.gitignore
-*.md
+# Dependencies
+node_modules/
+bun.lockb
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
 .DS_Store
-ios
-android
-.env.local
-.env.*.local
-*.log
+*.pem
+
+# Local env files
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+.vercel
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/.kotlin/
+
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+
+# Documentation
+*.md
+!README.md
+
+# Screenshots
+assets/Screenshot_*.png
+
+# Test files
+browser-console-test.js
