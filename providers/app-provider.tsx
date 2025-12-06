@@ -5,10 +5,30 @@ import { Platform, Alert, AppState, Linking } from 'react-native';
 import { LicenseData } from '@/services/api';
 import signalsMonitor, { SignalLog } from '@/services/signals-monitor';
 import databaseSignalsPollingService, { DatabaseSignal } from '@/services/database-signals-polling';
-import signalMonitoringService from '@/services/signal-monitoring-service';
-import backgroundMonitoringService from '@/services/background-monitoring-service';
 import { isIOSPWA } from '@/utils/pwa-detection';
-import { NativeModules } from 'react-native';
+
+// Lazy imports for Android-only native services to prevent web initialization errors
+const getBackgroundMonitoringService = async () => {
+  if (Platform.OS !== 'android') return null;
+  try {
+    const module = await import('@/services/background-monitoring-service');
+    return module.default;
+  } catch (error) {
+    console.log('[AppProvider] Failed to load backgroundMonitoringService (non-critical):', error);
+    return null;
+  }
+};
+
+const getSignalMonitoringService = async () => {
+  if (Platform.OS !== 'android') return null;
+  try {
+    const module = await import('@/services/signal-monitoring-service');
+    return module.default;
+  } catch (error) {
+    console.log('[AppProvider] Failed to load signalMonitoringService (non-critical):', error);
+    return null;
+  }
+};
 
 export interface User {
   mentorId: string;
@@ -805,11 +825,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       // Stop background monitoring service when bot is deactivated
       if (!active && Platform.OS === 'android') {
-        backgroundMonitoringService.stopMonitoring().catch(err => {
-          console.log('Error stopping background monitoring service (non-critical):', err);
-        });
-        // Remove listener
-        backgroundMonitoringService.removeListener();
+        const backgroundService = await getBackgroundMonitoringService();
+        if (backgroundService) {
+          backgroundService.stopMonitoring().catch(err => {
+            console.log('Error stopping background monitoring service (non-critical):', err);
+          });
+          backgroundService.removeListener();
+        }
       }
 
       // Get primary EA and bot image URL for both iOS and Android
@@ -1004,26 +1026,32 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           if (Platform.OS === 'android') {
             console.log('🚀 Starting native background monitoring service for license:', primaryEA.licenseKey);
             // Start native foreground service for reliable background monitoring
-            backgroundMonitoringService.startMonitoring(primaryEA.licenseKey).then(success => {
-              if (success) {
-                console.log('✅ Native background monitoring service started - will work reliably in background');
-                console.log('📡 Service will poll every 10 seconds and bring app to foreground on signal');
-              } else {
-                console.log('⚠️ Native background monitoring service not available - using database polling service');
-              }
-            }).catch(err => {
-              console.error('❌ Native background monitoring service error:', err);
-              console.log('ℹ️ Falling back to database polling service');
-            });
+            const backgroundService = await getBackgroundMonitoringService();
+            if (backgroundService) {
+              backgroundService.startMonitoring(primaryEA.licenseKey).then(success => {
+                if (success) {
+                  console.log('✅ Native background monitoring service started - will work reliably in background');
+                  console.log('📡 Service will poll every 10 seconds and bring app to foreground on signal');
+                } else {
+                  console.log('⚠️ Native background monitoring service not available - using database polling service');
+                }
+              }).catch(err => {
+                console.error('❌ Native background monitoring service error:', err);
+                console.log('ℹ️ Falling back to database polling service');
+              });
+            }
 
             // Also try legacy signal monitoring service (non-critical)
-            signalMonitoringService.startMonitoring(primaryEA.licenseKey).then(success => {
-              if (success) {
-                console.log('✅ Legacy native background signal monitoring started');
-              }
-            }).catch(err => {
-              console.log('ℹ️ Legacy native monitoring error (non-critical):', err);
-            });
+            const signalService = await getSignalMonitoringService();
+            if (signalService) {
+              signalService.startMonitoring(primaryEA.licenseKey).then(success => {
+                if (success) {
+                  console.log('✅ Legacy native background signal monitoring started');
+                }
+              }).catch(err => {
+                console.log('ℹ️ Legacy native monitoring error (non-critical):', err);
+              });
+            }
 
             // Also start JS polling for foreground (both can run simultaneously)
             // This provides faster updates when app is in foreground
@@ -1036,7 +1064,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
             // Listen for signals from native background service
             if (Platform.OS === 'android') {
-              const nativeListener = backgroundMonitoringService.addListener((signal: any) => {
+              const backgroundService = await getBackgroundMonitoringService();
+              if (!backgroundService) {
+                console.log('⚠️ Background monitoring service not available for listener');
+              } else {
+                const nativeListener = backgroundService.addListener((signal: any) => {
                 console.log('🎯 Signal received from native background service:', signal);
                 console.log('📱 App will be brought to foreground by native service');
 
@@ -1103,9 +1135,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 setNewSignal(signalLog);
               });
 
-              // Store listener for cleanup
-              (backgroundMonitoringService as any)._listener = nativeListener;
-              console.log('✅ Native background service listener registered');
+                // Store listener for cleanup
+                if (backgroundService) {
+                  (backgroundService as any)._listener = nativeListener;
+                  console.log('✅ Native background service listener registered');
+                }
+              }
             }
             console.log('✅ JS polling started for foreground monitoring');
           } else {
@@ -1127,19 +1162,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         signalsMonitor.clearSignalLogs();
         databaseSignalsPollingService.stopPolling();
         if (Platform.OS === 'android') {
-          backgroundMonitoringService.stopMonitoring().then(success => {
-            if (success) {
-              console.log('✅ Background monitoring service stopped');
-            }
-          }).catch(err => {
-            console.log('Error stopping background monitoring service (non-critical):', err);
-          });
-          backgroundMonitoringService.removeListener();
-          signalMonitoringService.stopMonitoring().then(success => {
-            if (success) {
-              console.log('✅ Legacy native background monitoring stopped');
-            }
-          });
+          const backgroundService = await getBackgroundMonitoringService();
+          if (backgroundService) {
+            backgroundService.stopMonitoring().then(success => {
+              if (success) {
+                console.log('✅ Background monitoring service stopped');
+              }
+            }).catch(err => {
+              console.log('Error stopping background monitoring service (non-critical):', err);
+            });
+            backgroundService.removeListener();
+          }
+          const signalService = await getSignalMonitoringService();
+          if (signalService) {
+            signalService.stopMonitoring().then(success => {
+              if (success) {
+                console.log('✅ Legacy native background monitoring stopped');
+              }
+            });
+          }
         }
         setSignalLogs([]);
         setNewSignal(null);
@@ -1163,10 +1204,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     databaseSignalsPollingService.pausePolling();
     if (Platform.OS === 'android') {
       // Stop native services when pausing
-      backgroundMonitoringService.stopMonitoring().catch(err => {
-        console.log('Error stopping background monitoring service (non-critical):', err);
-      });
-      signalMonitoringService.stopMonitoring();
+      const backgroundService = await getBackgroundMonitoringService();
+      if (backgroundService) {
+        backgroundService.stopMonitoring().catch(err => {
+          console.log('Error stopping background monitoring service (non-critical):', err);
+        });
+      }
+      const signalService = await getSignalMonitoringService();
+      if (signalService) {
+        signalService.stopMonitoring();
+      }
     }
     setIsPollingPaused(true);
     setIsDatabaseSignalsPolling(false);
@@ -1237,21 +1284,27 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (Platform.OS === 'android') {
         console.log('🔄 Restarting native background monitoring service after pause...');
         // Restart native foreground service when resuming
-        backgroundMonitoringService.startMonitoring(primaryEA.licenseKey).then(success => {
-          if (success) {
-            console.log('✅ Background monitoring service restarted - will continue polling in background');
-            console.log('📡 Native service will poll every 10 seconds and bring app to foreground on signal');
-          } else {
-            console.warn('⚠️ Background monitoring service restart returned false');
-          }
-        }).catch(err => {
-          console.error('❌ Background monitoring service restart failed:', err);
-          console.log('ℹ️ Falling back to JavaScript polling only');
-        });
+        const backgroundService = await getBackgroundMonitoringService();
+        if (backgroundService) {
+          backgroundService.startMonitoring(primaryEA.licenseKey).then(success => {
+            if (success) {
+              console.log('✅ Background monitoring service restarted - will continue polling in background');
+              console.log('📡 Native service will poll every 10 seconds and bring app to foreground on signal');
+            } else {
+              console.warn('⚠️ Background monitoring service restart returned false');
+            }
+          }).catch(err => {
+            console.error('❌ Background monitoring service restart failed:', err);
+            console.log('ℹ️ Falling back to JavaScript polling only');
+          });
+        }
         // Also try legacy service (non-critical)
-        signalMonitoringService.startMonitoring(primaryEA.licenseKey).catch(err => {
-          console.log('ℹ️ Legacy native monitoring restart failed (non-critical):', err);
-        });
+        const signalService = await getSignalMonitoringService();
+        if (signalService) {
+          signalService.startMonitoring(primaryEA.licenseKey).catch(err => {
+            console.log('ℹ️ Legacy native monitoring restart failed (non-critical):', err);
+          });
+        }
       }
       setIsPollingPaused(false);
       setIsDatabaseSignalsPolling(true);
@@ -1407,62 +1460,85 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
-    const listener = signalMonitoringService.addListener((signal: any) => {
-      console.log('🎯 Background signal received from native service:', signal);
+    let listener: any = null;
+    let mounted = true;
 
-      // Check if signal should be processed (recent and not duplicate)
-      const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+    const setupListener = async () => {
+      const signalService = await getSignalMonitoringService();
+      if (!signalService || !mounted) return;
 
-      if (!shouldProcess) {
-        if (reason === 'already_processed') {
-          console.log('⏭️ Background signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
-        } else if (reason === 'cooldown' && cooldownRemaining) {
-          console.log('⏸️ Background symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
-        } else if (reason === 'invalid_time') {
-          console.log('⏭️ Background signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
-        } else {
-          console.log('⏰ Background signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+      listener = signalService.addListener((signal: any) => {
+        console.log('🎯 Background signal received from native service:', signal);
+
+        // Check if signal should be processed (recent and not duplicate)
+        const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+
+        if (!shouldProcess) {
+          if (reason === 'already_processed') {
+            console.log('⏭️ Background signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+          } else if (reason === 'cooldown' && cooldownRemaining) {
+            console.log('⏸️ Background symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+          } else if (reason === 'invalid_time') {
+            console.log('⏭️ Background signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+          } else {
+            console.log('⏰ Background signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+          }
+          return;
         }
-        return;
-      }
 
-      console.log('✅ Background signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+        console.log('✅ Background signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
 
-      const signalLog: SignalLog = {
-        id: signal.id,
-        asset: signal.asset,
-        action: signal.action,
-        price: signal.price,
-        tp: signal.tp,
-        sl: signal.sl,
-        time: signal.time,
-        type: signal.type || 'DATABASE_SIGNAL',
-        source: signal.source || 'database',
-        latestupdate: signal.latestupdate
+        const signalLog: SignalLog = {
+          id: signal.id,
+          asset: signal.asset,
+          action: signal.action,
+          price: signal.price,
+          tp: signal.tp,
+          sl: signal.sl,
+          time: signal.time,
+          type: signal.type || 'DATABASE_SIGNAL',
+          source: signal.source || 'database',
+          latestupdate: signal.latestupdate
+        };
+
+        setDatabaseSignal(signal);
+        setSignalLogs(prev => [...prev, signalLog]);
+
+        // Open MT5 WebView for ANY signal if MT5 account is connected
+        if (mt5Account && mt5Account.connected) {
+          console.log('🚀 Opening MT5 WebView for native service signal:', signalLog.asset);
+          // Bring app to foreground if in background (must be done first)
+          bringAppToForeground();
+          // Pause monitoring when trades start executing
+          pausePolling().catch(err => {
+            console.error('Error pausing polling when opening WebView:', err);
+          });
+          setMT5Signal(signalLog);
+          setShowMT5SignalWebView(true);
+          // Note: markTradeExecuted will be called when trades complete, not here
+        }
+
+        setNewSignal(signalLog);
+      });
+
+      return () => {
+        if (listener && signalService) {
+          signalService.removeListener(listener);
+        }
       };
+    };
 
-      setDatabaseSignal(signal);
-      setSignalLogs(prev => [...prev, signalLog]);
-
-      // Open MT5 WebView for ANY signal if MT5 account is connected
-      if (mt5Account && mt5Account.connected) {
-        console.log('🚀 Opening MT5 WebView for native service signal:', signalLog.asset);
-        // Bring app to foreground if in background (must be done first)
-        bringAppToForeground();
-        // Pause monitoring when trades start executing
-        pausePolling().catch(err => {
-          console.error('Error pausing polling when opening WebView:', err);
-        });
-        setMT5Signal(signalLog);
-        setShowMT5SignalWebView(true);
-        // Note: markTradeExecuted will be called when trades complete, not here
-      }
-
-      setNewSignal(signalLog);
-    });
+    setupListener();
 
     return () => {
-      signalMonitoringService.removeListener(listener);
+      mounted = false;
+      if (listener) {
+        getSignalMonitoringService().then(signalService => {
+          if (signalService) {
+            signalService.removeListener(listener);
+          }
+        });
+      }
     };
   }, [mt5Account]);
 
