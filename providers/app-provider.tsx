@@ -1748,5 +1748,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setShowMT5SignalWebView: setShowMT5SignalWebViewCallback,
     setMT5Signal: setMT5SignalCallback,
     markTradeExecuted,
-  }), [user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal, databaseSignal, isDatabaseSignalsPolling, isPollingPaused, pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, setShowMT5SignalWebViewCallback, setMT5SignalCallback, markTradeExecuted]);
+  }), [
+    user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, 
+    isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal, 
+    databaseSignal, isDatabaseSignalsPolling, isPollingPaused,
+    // Functions are stable due to useCallback, but removing from deps to prevent initialization issues
+    pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account, 
+    setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol, 
+    deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission, 
+    startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, 
+    setShowMT5SignalWebViewCallback, setMT5SignalCallback, markTradeExecuted
+  ]);
 });

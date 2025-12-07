@@ -1,5 +1,4 @@
-import { apiService, SignalsResponse } from './api';
-
+// Removed apiService import to prevent circular dependencies - not used anyway
 export interface SignalLog {
   id: string;
   asset: string;
