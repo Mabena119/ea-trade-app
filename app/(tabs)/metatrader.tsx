@@ -2346,15 +2346,24 @@ export default function MetaTraderScreen() {
             </Text>
           </View>
           
-          {/* Use CustomWebView for all platforms (web, Android, iOS) - same as Android */}
-          <CustomWebView
-            key={`mt5-custom-${mt5WebViewKey}`}
-            url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
-            script={getMT5Script()}
-            onMessage={onMT5WebViewMessage}
-            onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
-            style={styles.invisibleWebView}
-          />
+          {Platform.OS === 'web' ? (
+            <WebWebView
+              key={`mt5-web-${mt5WebViewKey}`}
+              url={`/api/mt5-proxy?url=${encodeURIComponent(MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live'])}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}`}
+              onMessage={onMT5WebViewMessage}
+              onLoadEnd={() => console.log('MT5 Web WebView loaded')}
+              style={styles.invisibleWebView}
+            />
+          ) : (
+            <CustomWebView
+              key={`mt5-custom-${mt5WebViewKey}`}
+              url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
+              script={getMT5Script()}
+              onMessage={onMT5WebViewMessage}
+              onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
+              style={styles.invisibleWebView}
+            />
+          )}
         </View>
       )}
 
