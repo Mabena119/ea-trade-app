@@ -319,19 +319,19 @@ async function handleApi(request: Request): Promise<Response> {
           // Fix relative URLs in HTML (for assets, scripts, stylesheets)
           // Replace relative URLs with proxy URLs so they go through our proxy
           // Ensure we use HTTPS (force HTTPS even if request came via HTTP)
-          const proxyOrigin = url.protocol === 'https:' || url.hostname.includes('onrender.com') 
+          const proxyOrigin = url.protocol === 'https:' || url.hostname.includes('onrender.com')
             ? `https://${url.hostname}${url.port ? `:${url.port}` : ''}`
             : url.origin;
-          
+
           html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}"`;
+              return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
             return `href="${baseUrl}/${path}"`;
           });
           html = html.replace(/src="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              return `src="${proxyOrigin}/terminal/${path.replace('terminal/', '')}"`;
+              return `src="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
             return `src="${baseUrl}/${path}"`;
           });
@@ -347,28 +347,28 @@ async function handleApi(request: Request): Promise<Response> {
             }
             return `url('${baseUrl}/${path}')`;
           });
-          
+
           // Also fix absolute URLs that point to terminal assets (ensure HTTPS)
           html = html.replace(new RegExp(`${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/`, 'g'), `${proxyOrigin}/terminal/`);
-          
+
           // Fix any remaining HTTP URLs in terminal paths to HTTPS
           html = html.replace(/http:\/\/ea-trade-app\.onrender\.com\/terminal\//g, `${proxyOrigin}/terminal/`);
 
           // Fix WebSocket URLs - replace proxy domain with broker domain
           const proxyDomain = url.origin; // e.g., https://ea-trade-app.onrender.com
           const proxyHost = proxyDomain.replace(/https?:\/\//, '').replace(/\./g, '\\.');
-          
+
           // Replace WebSocket URLs pointing to proxy with broker's WebSocket URL
           html = html.replace(new RegExp(`wss?://${proxyHost}/terminal/ws`, 'gi'), `${wsBaseUrl}/terminal/ws`);
           html = html.replace(new RegExp(`wss?://${proxyHost}/terminal/`, 'gi'), `${wsBaseUrl}/terminal/`);
-          
+
           // Fix dynamically constructed WebSocket URLs
           // Replace window.location.origin/hostname with broker's base URL in WebSocket contexts
           html = html.replace(
             /(new\s+WebSocket\s*\(\s*['"`])(wss?:\/\/)(window\.location\.(origin|hostname)|location\.(origin|hostname))(['"`])/g,
             `$1${wsBaseUrl}/terminal/ws$6`
           );
-          
+
           // Also inject a script to override WebSocket construction
           const wsOverrideScript = `
             (function() {
@@ -395,7 +395,7 @@ async function handleApi(request: Request): Promise<Response> {
               window.WebSocket.CLOSED = originalWebSocket.CLOSED;
             })();
           `;
-          
+
           // Inject WebSocket override script before auth script
           if (html.includes('</head>')) {
             html = html.replace('</head>', `<script>${wsOverrideScript}</script></head>`);
@@ -720,30 +720,52 @@ const server = Bun.serve({
         const brokerParam = url.searchParams.get('broker');
         let brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
 
-        // Map of broker URLs
-        const brokerUrls: Record<string, string> = {
-          'accumarkets': 'https://webterminal.accumarkets.co.za',
+        // Map of broker names to their base URLs (matching MT5_BROKER_URLS from metatrader.tsx)
+        const brokerUrlMap: Record<string, string> = {
+          'razormarkets-live': 'https://webtrader.razormarkets.co.za',
           'razormarkets': 'https://webtrader.razormarkets.co.za',
+          'accumarkets-live': 'https://webterminal.accumarkets.co.za',
+          'accumarkets': 'https://webterminal.accumarkets.co.za',
+          'rockwest-server': 'https://webtrader.rock-west.com',
+          'rockwest': 'https://webtrader.rock-west.com',
           'rock-west': 'https://webtrader.rock-west.com',
+          'maonoglobalmarkets-live': 'https://web.maonoglobalmarkets.com',
           'maonoglobalmarkets': 'https://web.maonoglobalmarkets.com',
-          'deriv': 'https://mt5-demo-web.deriv.com',
-          'derivsvg': 'https://mt5-real01-web-svg.deriv.com',
-          'derivbvi': 'https://mt5-real01-web-bvi.deriv.com',
+          'deriv-demo': 'https://mt5-demo-web.deriv.com',
+          'derivsvg-server': 'https://mt5-real01-web-svg.deriv.com',
+          'derivsvg-server-02': 'https://mt5-real02-web-svg.deriv.com',
+          'derivsvg-server-03': 'https://mt5-real03-web-svg.deriv.com',
+          'derivbvi-server': 'https://mt5-real01-web-bvi.deriv.com',
+          'derivbvi-server-02': 'https://mt5-real02-web-bvi.deriv.com',
+          'derivbvi-server-03': 'https://mt5-real03-web-bvi.deriv.com',
+          'derivbvi-server-vu': 'https://mt5-real01-web-vu.deriv.com',
+          'derivbvi-server-vu-02': 'https://mt5-real02-web-vu.deriv.com',
+          'derivbvi-server-vu-03': 'https://mt5-real03-web-vu.deriv.com',
+          'rocketx-live': 'https://webtrader.rocketx.io:1950',
           'rocketx': 'https://webtrader.rocketx.io:1950',
         };
 
-        // Try to detect broker from referer or query param
+        // Try to detect broker from query param first
         if (brokerParam) {
-          for (const [key, url] of Object.entries(brokerUrls)) {
-            if (brokerParam.toLowerCase().includes(key)) {
-              brokerBaseUrl = url;
-              break;
+          const brokerKey = brokerParam.toLowerCase().replace(/\s+/g, '-');
+          if (brokerUrlMap[brokerKey]) {
+            brokerBaseUrl = brokerUrlMap[brokerKey];
+          } else {
+            // Try partial match
+            for (const [key, url] of Object.entries(brokerUrlMap)) {
+              if (brokerKey.includes(key.replace(/-/g, '')) || key.includes(brokerKey.replace(/-/g, ''))) {
+                brokerBaseUrl = url;
+                break;
+              }
             }
           }
-        } else {
-          // Check referer for broker domain
-          for (const [key, brokerUrl] of Object.entries(brokerUrls)) {
-            if (referer.includes(key.replace('-', '')) || referer.includes(brokerUrl.replace('https://', '').replace('http://', ''))) {
+        }
+        
+        // Fallback: Check referer for broker domain
+        if (brokerBaseUrl === 'https://webtrader.razormarkets.co.za') {
+          for (const [key, brokerUrl] of Object.entries(brokerUrlMap)) {
+            const domain = brokerUrl.replace('https://', '').replace('http://', '').split('/')[0];
+            if (referer.includes(domain)) {
               brokerBaseUrl = brokerUrl;
               break;
             }
@@ -763,7 +785,7 @@ const server = Bun.serve({
         if (response.ok) {
           // Get content type from response or infer from file extension
           let contentType = response.headers.get('content-type');
-          
+
           if (!contentType || contentType.includes('text/html')) {
             // Infer content type from file extension
             const ext = assetPath.split('.').pop()?.toLowerCase();
