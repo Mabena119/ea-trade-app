@@ -1235,6 +1235,27 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [eas, isBotActive, mt5Account]);
 
+  // Mark trade as executed (pauses monitoring for 35 seconds)
+  // Defined after resumePolling to avoid forward reference issues
+  const markTradeExecuted = useCallback(async (symbol: string) => {
+    lastTradeExecutionRef.current.set(symbol, Date.now());
+    console.log('✅ Trade executed for', symbol, '- Keeping monitoring paused for 35 seconds');
+
+    // Monitoring is already paused when WebView opened, just keep it paused for 35 seconds
+    // Resume after 35 seconds
+    setTimeout(async () => {
+      await resumePolling();
+      console.log('▶️ Monitoring resumed after 35-second pause');
+    }, 35000);
+
+    // Clean up old entries (keep only last 100 symbols)
+    if (lastTradeExecutionRef.current.size > 100) {
+      const entries = Array.from(lastTradeExecutionRef.current.entries());
+      lastTradeExecutionRef.current.clear();
+      entries.slice(-50).forEach(([sym, time]) => lastTradeExecutionRef.current.set(sym, time));
+    }
+  }, [resumePolling]);
+
   const startSignalsMonitoring = useCallback(async (phoneSecret: string) => {
     console.log('Starting signals monitoring with phone secret:', phoneSecret);
 
