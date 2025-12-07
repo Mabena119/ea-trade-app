@@ -421,20 +421,28 @@ async function handleApi(request: Request): Promise<Response> {
           const serverValue = escapeValue(server || '');
 
           // Generate authentication script - EXACT COPY from Android getMT5Script()
+          // This script will be injected into the HTML and executed automatically when page loads
           const authScript = `
             (function() {
+              console.log('[MT5 Auth] Script injected and executing...');
+              
               const sendMessage = (type, message) => {
                 try { 
+                  const messageData = JSON.stringify({ type, message });
                   if (window.parent && window.parent !== window) {
-                    window.parent.postMessage(JSON.stringify({ type, message }), '*');
+                    window.parent.postMessage(messageData, '*');
                   }
                   if (window.ReactNativeWebView) {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+                    window.ReactNativeWebView.postMessage(messageData);
                   }
-                } catch(e) {}
+                  console.log('[MT5 Auth] Message sent:', type, message);
+                } catch(e) {
+                  console.error('[MT5 Auth] Error sending message:', e);
+                }
               };
 
               sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
+              console.log('[MT5 Auth] Script initialized, waiting for page load...');
               
               const sleep = (ms) => new Promise(r => setTimeout(r, ms));
               
@@ -445,8 +453,10 @@ async function handleApi(request: Request): Promise<Response> {
               
               const authenticateMT5 = async () => {
                 try {
+                  console.log('[MT5 Auth] Starting authentication process...');
                   sendMessage('step_update', 'Initializing MT5 Account...');
                   await sleep(5500);
+                  console.log('[MT5 Auth] Initial wait complete, checking for existing connections...');
                   
                   // Check for disclaimer and accept if present
                   const disclaimer = document.querySelector('#disclaimer');
