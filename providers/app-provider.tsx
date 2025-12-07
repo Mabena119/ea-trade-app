@@ -62,6 +62,8 @@ let databaseSignalsPollingServiceCache: any = null;
 let signalsMonitorPromise: Promise<any> | null = null;
 let databaseSignalsPollingServicePromise: Promise<any> | null = null;
 
+// Lazy import helpers - using function declarations to prevent hoisting issues
+// These functions are only called at runtime, never during module initialization
 function getSignalsMonitor(): Promise<any> {
   if (signalsMonitorCache) {
     return Promise.resolve(signalsMonitorCache);
@@ -69,18 +71,21 @@ function getSignalsMonitor(): Promise<any> {
   if (signalsMonitorPromise) {
     return signalsMonitorPromise;
   }
-  signalsMonitorPromise = (async () => {
+  // Create promise lazily - only when function is called
+  signalsMonitorPromise = Promise.resolve().then(async () => {
     try {
+      // Dynamic import - only loads when called, not during module initialization
       const module = await import('@/services/signals-monitor');
-      signalsMonitorCache = module.default;
-      return signalsMonitorCache;
+      const service = module.default || module.signalsMonitor;
+      signalsMonitorCache = service;
+      return service;
     } catch (error) {
       console.log('[AppProvider] Failed to load signalsMonitor (non-critical):', error);
       return null;
     } finally {
       signalsMonitorPromise = null;
     }
-  })();
+  });
   return signalsMonitorPromise;
 }
 
@@ -91,18 +96,21 @@ function getDatabaseSignalsPollingService(): Promise<any> {
   if (databaseSignalsPollingServicePromise) {
     return databaseSignalsPollingServicePromise;
   }
-  databaseSignalsPollingServicePromise = (async () => {
+  // Create promise lazily - only when function is called
+  databaseSignalsPollingServicePromise = Promise.resolve().then(async () => {
     try {
+      // Dynamic import - only loads when called, not during module initialization
       const module = await import('@/services/database-signals-polling');
-      databaseSignalsPollingServiceCache = module.default;
-      return databaseSignalsPollingServiceCache;
+      const service = module.default || module.databaseSignalsPollingService;
+      databaseSignalsPollingServiceCache = service;
+      return service;
     } catch (error) {
       console.log('[AppProvider] Failed to load databaseSignalsPollingService (non-critical):', error);
       return null;
     } finally {
       databaseSignalsPollingServicePromise = null;
     }
-  })();
+  });
   return databaseSignalsPollingServicePromise;
 }
 
