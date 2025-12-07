@@ -79,73 +79,119 @@ const WebWebView: React.FC<WebWebViewProps> = ({
         if (iframeDocument && iframeWindow) {
           console.log('Web WebView: Injecting script into iframe...');
           
-          // Create a script element and inject it
-          const scriptElement = iframeDocument.createElement('script');
-          scriptElement.type = 'text/javascript';
-          scriptElement.textContent = `
-            (function() {
-              try {
-                // Override postMessage to send messages to parent
-                const originalPostMessage = window.postMessage;
-                window.postMessage = function(data, targetOrigin) {
-                  if (window.parent && window.parent !== window) {
-                    window.parent.postMessage(data, '*');
-                  }
-                  if (originalPostMessage) {
-                    originalPostMessage.call(window, data, targetOrigin);
-                  }
-                };
-                
-                // Also support ReactNativeWebView.postMessage for compatibility
-                window.ReactNativeWebView = {
-                  postMessage: function(data) {
+          // Try to inject script via eval in iframe context (works for same-origin)
+          try {
+            // Execute script in iframe's context
+            iframeWindow.eval(`
+              (function() {
+                try {
+                  // Override postMessage to send messages to parent
+                  const originalPostMessage = window.postMessage;
+                  window.postMessage = function(data, targetOrigin) {
                     if (window.parent && window.parent !== window) {
                       window.parent.postMessage(data, '*');
                     }
+                    if (originalPostMessage) {
+                      originalPostMessage.call(window, data, targetOrigin);
+                    }
+                  };
+                  
+                  // Also support ReactNativeWebView.postMessage for compatibility
+                  window.ReactNativeWebView = {
+                    postMessage: function(data) {
+                      if (window.parent && window.parent !== window) {
+                        window.parent.postMessage(data, '*');
+                      }
+                    }
+                  };
+                  
+                  console.log('Web WebView: ReactNativeWebView.postMessage set up, executing trading script...');
+                  
+                  // Execute the trading script
+                  ${script}
+                } catch (error) {
+                  console.error('Error executing injected script:', error);
+                  if (window.parent) {
+                    window.parent.postMessage(JSON.stringify({
+                      type: 'injection_error',
+                      error: error.message
+                    }), '*');
                   }
-                };
-                
-                console.log('Web WebView: ReactNativeWebView.postMessage set up, executing trading script...');
-                
-                // Execute the trading script
-                ${script}
-              } catch (error) {
-                console.error('Error executing injected script:', error);
-                if (window.parent) {
-                  window.parent.postMessage(JSON.stringify({
-                    type: 'injection_error',
-                    error: error.message
-                  }), '*');
                 }
-              }
-            })();
-          `;
-          
-          // Wait for iframe document to be ready
-          if (iframeDocument.readyState === 'loading') {
-            iframeDocument.addEventListener('DOMContentLoaded', () => {
-              if (iframeDocument.body) {
-                iframeDocument.body.appendChild(scriptElement);
-                console.log('Web WebView: Script injected on DOMContentLoaded');
-              }
-            });
-          } else if (iframeDocument.body) {
-            iframeDocument.body.appendChild(scriptElement);
-            console.log('Web WebView: Script injected immediately');
-          } else {
-            // Wait for body to be available
-            const checkBody = setInterval(() => {
-              if (iframeDocument.body) {
-                iframeDocument.body.appendChild(scriptElement);
-                console.log('Web WebView: Script injected after body ready');
-                clearInterval(checkBody);
-              }
-            }, 100);
+              })();
+            `);
+            console.log('Web WebView: Script injected via eval');
+          } catch (evalError) {
+            // Fallback to DOM injection if eval fails
+            console.log('Web WebView: Eval failed, trying DOM injection:', evalError);
             
-            // Timeout after 5 seconds
-            setTimeout(() => {
-              clearInterval(checkBody);
-            }, 5000);
+            const scriptElement = iframeDocument.createElement('script');
+            scriptElement.type = 'text/javascript';
+            scriptElement.textContent = `
+              (function() {
+                try {
+                  // Override postMessage to send messages to parent
+                  const originalPostMessage = window.postMessage;
+                  window.postMessage = function(data, targetOrigin) {
+                    if (window.parent && window.parent !== window) {
+                      window.parent.postMessage(data, '*');
+                    }
+                    if (originalPostMessage) {
+                      originalPostMessage.call(window, data, targetOrigin);
+                    }
+                  };
+                  
+                  // Also support ReactNativeWebView.postMessage for compatibility
+                  window.ReactNativeWebView = {
+                    postMessage: function(data) {
+                      if (window.parent && window.parent !== window) {
+                        window.parent.postMessage(data, '*');
+                      }
+                    }
+                  };
+                  
+                  console.log('Web WebView: ReactNativeWebView.postMessage set up, executing trading script...');
+                  
+                  // Execute the trading script
+                  ${script}
+                } catch (error) {
+                  console.error('Error executing injected script:', error);
+                  if (window.parent) {
+                    window.parent.postMessage(JSON.stringify({
+                      type: 'injection_error',
+                      error: error.message
+                    }), '*');
+                  }
+                }
+              })();
+            `;
+            
+            // Wait for iframe document to be ready
+            if (iframeDocument.readyState === 'loading') {
+              iframeDocument.addEventListener('DOMContentLoaded', () => {
+                if (iframeDocument.body) {
+                  iframeDocument.body.appendChild(scriptElement);
+                  console.log('Web WebView: Script injected on DOMContentLoaded');
+                }
+              });
+            } else if (iframeDocument.body) {
+              iframeDocument.body.appendChild(scriptElement);
+              console.log('Web WebView: Script injected immediately');
+            } else {
+              // Wait for body to be available
+              const checkBody = setInterval(() => {
+                if (iframeDocument.body) {
+                  iframeDocument.body.appendChild(scriptElement);
+                  console.log('Web WebView: Script injected after body ready');
+                  clearInterval(checkBody);
+                }
+              }, 100);
+              
+              // Timeout after 5 seconds
+              setTimeout(() => {
+                clearInterval(checkBody);
+              }, 5000);
+            }
           }
         } else {
           console.log('Web WebView: Cannot access iframe content (CORS) - script injection not possible');
