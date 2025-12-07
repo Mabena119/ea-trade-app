@@ -176,7 +176,7 @@ async function handleApi(request: Request): Promise<Response> {
       const route = await import('./app/api/check-email/route.ts');
       if (request.method === 'POST' && typeof route.POST === 'function') {
         return route.POST(request) as Promise<Response>;
-      }
+  }
       if (request.method === 'GET' && typeof route.GET === 'function') {
         return route.GET() as Promise<Response>;
       }
@@ -218,7 +218,7 @@ async function handleApi(request: Request): Promise<Response> {
           status: (code: number) => ({
             json: (data: any) => new Response(JSON.stringify(data), {
               status: code,
-              headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' }
             }),
             send: (data: string) => new Response(data, {
               status: code,
@@ -297,19 +297,19 @@ async function handleApi(request: Request): Promise<Response> {
           return new Response('Missing terminal URL', { status: 400 });
         }
 
-        try {
+  try {
           // Fetch the MT5 terminal page
           const response = await fetch(terminalUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
-          });
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
 
-          if (!response.ok) {
+    if (!response.ok) {
             return new Response(`Failed to fetch terminal: ${response.statusText}`, { status: response.status });
-          }
+    }
 
-          let html = await response.text();
+    let html = await response.text();
 
           // Get base URL for fixing relative URLs
           const baseUrlObj = new URL(terminalUrl);
@@ -424,7 +424,7 @@ async function handleApi(request: Request): Promise<Response> {
               const sendMessage = (type, message) => {
                 try { 
                   if (window.parent && window.parent !== window) {
-                    window.parent.postMessage(JSON.stringify({ type, message }), '*');
+                  window.parent.postMessage(JSON.stringify({ type, message }), '*'); 
                   }
                   if (window.ReactNativeWebView) {
                     window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
@@ -518,11 +518,11 @@ async function handleApi(request: Request): Promise<Response> {
                     loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
                     
                     setTimeout(() => {
-                      loginField.focus();
+                    loginField.focus();
                       loginField.value = loginCredential;
-                      loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                      loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                      sendMessage('step_update', 'Login filled');
+                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    sendMessage('step_update', 'Login filled');
                     }, 100);
                   } else {
                     sendMessage('authentication_failed', 'Login field not found');
@@ -531,17 +531,17 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   if (passwordField && passwordCredential) {
                     setTimeout(() => {
-                      passwordField.focus();
+                    passwordField.focus();
                       passwordField.value = '';
-                      passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                      passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                      
+                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    
                       setTimeout(() => {
-                        passwordField.focus();
+                    passwordField.focus();
                         passwordField.value = passwordCredential;
-                        passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                        passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                        sendMessage('step_update', 'Password filled');
+                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    sendMessage('step_update', 'Password filled');
                       }, 100);
                     }, 300);
                   } else {
@@ -597,31 +597,31 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
               };
-              
+               
               // Start authentication after page loads
               setTimeout(authenticateMT5, 3000);
             })();
-          `;
+        `;
 
           // Inject script before closing body tag
-          if (html.includes('</body>')) {
+    if (html.includes('</body>')) {
             html = html.replace('</body>', `<script>${authScript}</script></body>`);
-          } else {
+    } else {
             html += `<script>${authScript}</script>`;
-          }
+    }
 
           // Return modified HTML with CORS headers
-          return new Response(html, {
-            headers: {
-              'Content-Type': 'text/html; charset=utf-8',
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-              'Access-Control-Allow-Headers': 'Content-Type',
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
               'X-Frame-Options': 'SAMEORIGIN',
-            },
-          });
-        } catch (error) {
-          console.error('MT5 Proxy error:', error);
+      },
+    });
+  } catch (error) {
+    console.error('MT5 Proxy error:', error);
           return new Response(`Proxy error: ${error.message}`, { status: 500 });
         }
       }
@@ -719,12 +719,12 @@ const server = Bun.serve({
     if (url.pathname.startsWith('/terminal/')) {
       try {
         const assetPath = url.pathname.replace('/terminal/', '');
-
+        
         // Determine broker URL from referer header, query param, or default to RazorMarkets
         const referer = request.headers.get('referer') || '';
         const brokerParam = url.searchParams.get('broker');
         let brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
-
+        
         // Map of broker names to their base URLs (matching MT5_BROKER_URLS from metatrader.tsx)
         const brokerUrlMap: Record<string, string> = {
           'razormarkets-live': 'https://webtrader.razormarkets.co.za',
@@ -773,7 +773,7 @@ const server = Bun.serve({
             if (referer.includes(domain)) {
               brokerBaseUrl = brokerUrl;
               break;
-            }
+        }
           }
         }
 

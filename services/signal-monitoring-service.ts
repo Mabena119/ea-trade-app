@@ -48,7 +48,7 @@ class SignalMonitoringService {
     try {
       const result = await SignalMonitoringModule.startMonitoring(licenseKey);
       if (result) {
-        console.log('[SignalMonitoring] Started native background monitoring');
+      console.log('[SignalMonitoring] Started native background monitoring');
       } else {
         console.log('[SignalMonitoring] Native monitoring not started - using database polling service');
       }
