@@ -143,7 +143,7 @@ function RootLayoutNav() {
     setShowMT5SignalWebView
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
-
+  
   // Trigger native widget creation when bot becomes active on iOS PWA
   useEffect(() => {
     if (Platform.OS === 'web' && isIOSPWA() && !isFirstTime && eas.length > 0 && isBotActive) {
@@ -151,7 +151,7 @@ function RootLayoutNav() {
         try {
           const primaryEA = eas[0];
           const botName = primaryEA?.name || 'EA Trade';
-
+          
           // Get bot image URL
           let botImageURL: string | null = null;
           if (primaryEA?.userData?.owner?.logo) {
@@ -165,7 +165,7 @@ function RootLayoutNav() {
               }
             }
           }
-
+          
           // Trigger native app to create widgets
           const { widgetService } = await import('@/services/widget-service');
           await widgetService.updateWidget(botName, isBotActive, false, botImageURL);
@@ -174,7 +174,7 @@ function RootLayoutNav() {
           console.error('Error triggering native widget from PWA:', error);
         }
       };
-
+      
       triggerNativeWidget();
     }
   }, [isBotActive, isFirstTime, eas, Platform.OS]);
@@ -187,7 +187,7 @@ function RootLayoutNav() {
         try {
           const { pwaNotificationService } = await import('@/services/pwa-notification-service');
           const hasPermission = pwaNotificationService.hasPermission();
-
+          
           if (!hasPermission) {
             console.log('[Notifications] Requesting notification permission...');
             // Note: requestPermission() must be called in response to user gesture
@@ -200,7 +200,7 @@ function RootLayoutNav() {
           console.error('[Notifications] Error checking notification permission:', error);
         }
       };
-
+      
       requestNotificationPermission();
     }
   }, [Platform.OS]);
@@ -223,15 +223,15 @@ function RootLayoutNav() {
     const handleDeepLink = async (url: string) => {
       try {
         console.log('Received deep link:', url);
-
+        
         // Parse URL manually (works on both web and native)
         // Format: myapp://widget?action=updateWidget&botName=...&isActive=true&...
         if (!url.includes('widget')) return;
-
+        
         // Extract query parameters
         const urlParts = url.split('?');
         if (urlParts.length < 2) return;
-
+        
         const queryString = urlParts[1];
         const params = new Map<string, string>();
         queryString.split('&').forEach(param => {
@@ -240,7 +240,7 @@ function RootLayoutNav() {
             params.set(key, decodeURIComponent(value));
           }
         });
-
+        
         const action = params.get('action');
         if (action === 'updateWidget') {
           let botName = params.get('botName') || '';
@@ -252,7 +252,7 @@ function RootLayoutNav() {
           if (!botName && eas.length > 0) {
             const primaryEA = eas[0];
             botName = primaryEA?.name || 'EA Trade';
-
+            
             // Get bot image URL from EA data
             if (!botImageURL && primaryEA?.userData?.owner?.logo) {
               const raw = primaryEA.userData.owner.logo.toString().trim();
@@ -265,7 +265,7 @@ function RootLayoutNav() {
                 }
               }
             }
-
+            
             // Use current bot active state if not provided
             if (params.get('isActive') === null) {
               isActive = isBotActive;

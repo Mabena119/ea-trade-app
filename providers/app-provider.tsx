@@ -34,11 +34,18 @@ export interface DatabaseSignal {
   results?: string;
 }
 
-// Lazy imports for services to prevent circular dependencies and web initialization errors
+// Android background monitoring removed - using JavaScript polling only for cross-platform compatibility
+
+// Lazy import helpers - defined outside component to prevent bundling issues
+let signalsMonitorCache: any = null;
+let databaseSignalsPollingServiceCache: any = null;
+
 const getSignalsMonitor = async () => {
+  if (signalsMonitorCache) return signalsMonitorCache;
   try {
     const module = await import('@/services/signals-monitor');
-    return module.default;
+    signalsMonitorCache = module.default;
+    return signalsMonitorCache;
   } catch (error) {
     console.log('[AppProvider] Failed to load signalsMonitor (non-critical):', error);
     return null;
@@ -46,16 +53,16 @@ const getSignalsMonitor = async () => {
 };
 
 const getDatabaseSignalsPollingService = async () => {
+  if (databaseSignalsPollingServiceCache) return databaseSignalsPollingServiceCache;
   try {
     const module = await import('@/services/database-signals-polling');
-    return module.default;
+    databaseSignalsPollingServiceCache = module.default;
+    return databaseSignalsPollingServiceCache;
   } catch (error) {
     console.log('[AppProvider] Failed to load databaseSignalsPollingService (non-critical):', error);
     return null;
   }
 };
-
-// Android background monitoring removed - using JavaScript polling only for cross-platform compatibility
 
 export interface User {
   mentorId: string;
