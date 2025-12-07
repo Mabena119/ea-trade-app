@@ -56,32 +56,55 @@ export interface DatabaseSignal {
 // Android background monitoring removed - using JavaScript polling only for cross-platform compatibility
 
 // Lazy import helpers - defined outside component to prevent bundling issues
+// Using function declarations instead of const to prevent hoisting issues
 let signalsMonitorCache: any = null;
 let databaseSignalsPollingServiceCache: any = null;
+let signalsMonitorPromise: Promise<any> | null = null;
+let databaseSignalsPollingServicePromise: Promise<any> | null = null;
 
-const getSignalsMonitor = async () => {
-  if (signalsMonitorCache) return signalsMonitorCache;
-  try {
-    const module = await import('@/services/signals-monitor');
-    signalsMonitorCache = module.default;
-    return signalsMonitorCache;
-  } catch (error) {
-    console.log('[AppProvider] Failed to load signalsMonitor (non-critical):', error);
-    return null;
+function getSignalsMonitor(): Promise<any> {
+  if (signalsMonitorCache) {
+    return Promise.resolve(signalsMonitorCache);
   }
-};
+  if (signalsMonitorPromise) {
+    return signalsMonitorPromise;
+  }
+  signalsMonitorPromise = (async () => {
+    try {
+      const module = await import('@/services/signals-monitor');
+      signalsMonitorCache = module.default;
+      return signalsMonitorCache;
+    } catch (error) {
+      console.log('[AppProvider] Failed to load signalsMonitor (non-critical):', error);
+      return null;
+    } finally {
+      signalsMonitorPromise = null;
+    }
+  })();
+  return signalsMonitorPromise;
+}
 
-const getDatabaseSignalsPollingService = async () => {
-  if (databaseSignalsPollingServiceCache) return databaseSignalsPollingServiceCache;
-  try {
-    const module = await import('@/services/database-signals-polling');
-    databaseSignalsPollingServiceCache = module.default;
-    return databaseSignalsPollingServiceCache;
-  } catch (error) {
-    console.log('[AppProvider] Failed to load databaseSignalsPollingService (non-critical):', error);
-    return null;
+function getDatabaseSignalsPollingService(): Promise<any> {
+  if (databaseSignalsPollingServiceCache) {
+    return Promise.resolve(databaseSignalsPollingServiceCache);
   }
-};
+  if (databaseSignalsPollingServicePromise) {
+    return databaseSignalsPollingServicePromise;
+  }
+  databaseSignalsPollingServicePromise = (async () => {
+    try {
+      const module = await import('@/services/database-signals-polling');
+      databaseSignalsPollingServiceCache = module.default;
+      return databaseSignalsPollingServiceCache;
+    } catch (error) {
+      console.log('[AppProvider] Failed to load databaseSignalsPollingService (non-critical):', error);
+      return null;
+    } finally {
+      databaseSignalsPollingServicePromise = null;
+    }
+  })();
+  return databaseSignalsPollingServicePromise;
+}
 
 export interface User {
   mentorId: string;
