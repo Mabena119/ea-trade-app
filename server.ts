@@ -317,7 +317,11 @@ async function handleApi(request: Request): Promise<Response> {
 
           // Fix relative URLs in HTML (for assets, scripts, stylesheets)
           // Replace relative URLs with proxy URLs so they go through our proxy
-          const proxyOrigin = url.origin;
+          // Ensure we use HTTPS (force HTTPS even if request came via HTTP)
+          const proxyOrigin = url.protocol === 'https:' || url.hostname.includes('onrender.com') 
+            ? `https://${url.hostname}${url.port ? `:${url.port}` : ''}`
+            : url.origin;
+          
           html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
               return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}"`;
@@ -343,8 +347,11 @@ async function handleApi(request: Request): Promise<Response> {
             return `url('${baseUrl}/${path}')`;
           });
           
-          // Also fix absolute URLs that point to terminal assets
+          // Also fix absolute URLs that point to terminal assets (ensure HTTPS)
           html = html.replace(new RegExp(`${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/`, 'g'), `${proxyOrigin}/terminal/`);
+          
+          // Fix any remaining HTTP URLs in terminal paths to HTTPS
+          html = html.replace(/http:\/\/ea-trade-app\.onrender\.com\/terminal\//g, `${proxyOrigin}/terminal/`);
 
           // Fix WebSocket URLs - replace proxy domain with broker domain
           const proxyDomain = url.origin; // e.g., https://ea-trade-app.onrender.com
