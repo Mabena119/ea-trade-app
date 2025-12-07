@@ -4,7 +4,6 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
 import CustomWebView from '../../components/custom-webview';
-import WebWebView from '../../components/web-webview';
 import SimpleWebView from '../../components/simple-webview';
 import InjectableWebView from '../../components/injectable-webview';
 import FallbackWebView from '../../components/fallback-webview';
@@ -2426,24 +2425,15 @@ export default function MetaTraderScreen() {
             </Text>
           </View>
           
-          {Platform.OS === 'web' ? (
-            <WebWebView
-              key={`mt4-web-${mt4WebViewKey}`}
-              url={`/api/mt4-proxy?url=${encodeURIComponent('https://metatraderweb.app/trade?version=4')}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&server=${encodeURIComponent(server)}`}
-              onMessage={onMT4WebViewMessage}
-              onLoadEnd={() => console.log('MT4 Web WebView loaded')}
-              style={styles.invisibleWebView}
-            />
-          ) : (
-            <CustomWebView
-              key={`mt4-custom-${mt4WebViewKey}`}
-              url="https://metatraderweb.app/trade?version=4"
-              script={getMT4Script()}
-              onMessage={onMT4WebViewMessage}
-              onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
-              style={styles.invisibleWebView}
-            />
-          )}
+          {/* Use CustomWebView for all platforms (web, Android, iOS) - same as Android */}
+          <CustomWebView
+            key={`mt4-custom-${mt4WebViewKey}`}
+            url="https://metatraderweb.app/trade?version=4"
+            script={getMT4Script()}
+            onMessage={onMT4WebViewMessage}
+            onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
+            style={styles.invisibleWebView}
+          />
         </View>
       )}
     </SafeAreaView>
