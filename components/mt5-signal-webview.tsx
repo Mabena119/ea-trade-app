@@ -997,7 +997,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       console.log('MT5 Signal WebView message:', data);
 
       if (data.type === 'step_update') {
-        setCurrentStep(data.message);
+        // Don't show "Market Watch already visible" messages to the user
+        if (!data.message.includes('Market Watch already visible')) {
+          setCurrentStep(data.message);
+        }
       } else if (data.type === 'authentication_success') {
         // Don't report authentication success - just update step silently
         setCurrentStep('Ready');
@@ -1124,26 +1127,19 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   return (
     <Modal
       visible={visible}
-      animationType="slide"
-      transparent={false}
+      animationType="none"
+      transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>MT5 Trading</Text>
-            <Text style={styles.headerSubtitle}>{signal.asset}</Text>
-          </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <X color={colors.text} size={24} />
-          </TouchableOpacity>
-        </View>
-
+      {/* Hidden WebView Container - Completely invisible, only status bar visible */}
+      <View style={styles.hiddenWebViewContainer}>
+        {/* Status Bar - Only visible UI element */}
         <View style={styles.statusBar}>
           <Text style={styles.statusText}>{currentStep}</Text>
           {loading && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
         </View>
 
+        {/* WebView - Completely hidden */}
         {Platform.OS === 'web' ? (
           <WebWebView
             key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}

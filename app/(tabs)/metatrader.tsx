@@ -929,7 +929,10 @@ export default function MetaTraderScreen() {
           handleAuthenticationResult(false, 'Invalid Login or Password');
         }, 1000);
       } else if (data.type === 'step_update') {
-        setAuthenticationStep(data.message);
+        // Don't show "Market Watch already visible" messages to the user
+        if (!data.message.includes('Market Watch already visible')) {
+          setAuthenticationStep(data.message);
+        }
       }
     } catch (error) {
       console.error('Error parsing WebView message:', error);
