@@ -1253,7 +1253,23 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 8,
   },
+  // Hidden WebView Container - Same as MT5 auth
+  hiddenWebViewContainer: {
+    position: 'absolute',
+    top: -10000,
+    left: -10000,
+    width: 0,
+    height: 0,
+    opacity: 0,
+    zIndex: -1,
+    pointerEvents: 'none',
+  },
+  // Status Bar - Only visible UI element (positioned absolutely at top)
   statusBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 20,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -1261,6 +1277,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    zIndex: 10000,
   },
   statusText: {
     flex: 1,
@@ -1270,9 +1287,6 @@ const styles = StyleSheet.create({
   loader: {
     marginLeft: 8,
   },
-  webview: {
-    flex: 1,
-  },
   hiddenWebView: {
     width: 0,
     height: 0,
@@ -1281,6 +1295,5 @@ const styles = StyleSheet.create({
     top: -10000,
     left: -10000,
     pointerEvents: 'none',
-    display: 'none',
   },
 });
