@@ -1,8 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Modal, Text, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { useApp } from '@/providers/app-provider';
-import { SignalLog } from '@/services/signals-monitor';
+import { useApp, SignalLog } from '@/providers/app-provider';
 import colors from '@/constants/colors';
 import { X } from 'lucide-react-native';
 
