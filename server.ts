@@ -342,13 +342,15 @@ async function handleApi(request: Request): Promise<Response> {
           });
           html = html.replace(/url\("\/\/([^"]+)"\)/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              return `url("${proxyOrigin}/terminal/${path.replace('terminal/', '')}")`;
+              // Use absolute URL to broker domain for CSS url() references
+              return `url("${baseUrl}/${path}")`;
             }
             return `url("${baseUrl}/${path}")`;
           });
           html = html.replace(/url\('\/\/([^']+)'\)/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              return `url('${proxyOrigin}/terminal/${path.replace('terminal/', '')}')`;
+              // Use absolute URL to broker domain for CSS url() references
+              return `url('${baseUrl}/${path}')`;
             }
             return `url('${baseUrl}/${path}')`;
           });
