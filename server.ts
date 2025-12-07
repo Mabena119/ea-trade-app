@@ -616,11 +616,24 @@ async function handleApi(request: Request): Promise<Response> {
             })();
         `;
 
-          // Inject script before closing body tag
+          // Inject script before closing body tag (EXACTLY like Android)
+          // The script is already embedded in the HTML string, just need to insert it
           if (html.includes('</body>')) {
             html = html.replace('</body>', `<script>${authScript}</script></body>`);
+            console.log('✅ MT5 authentication script injected before </body> tag');
+          } else if (html.includes('</html>')) {
+            html = html.replace('</html>', `<script>${authScript}</script></html>`);
+            console.log('✅ MT5 authentication script injected before </html> tag');
           } else {
             html += `<script>${authScript}</script>`;
+            console.log('✅ MT5 authentication script appended to HTML');
+          }
+          
+          // Verify script was injected
+          if (html.includes('authenticateMT5')) {
+            console.log('✅ Script injection verified - authenticateMT5 function found in HTML');
+          } else {
+            console.error('❌ Script injection failed - authenticateMT5 function not found in HTML');
           }
 
           // Return modified HTML with CORS headers
