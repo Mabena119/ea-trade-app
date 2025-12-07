@@ -218,7 +218,7 @@ async function handleApi(request: Request): Promise<Response> {
           status: (code: number) => ({
             json: (data: any) => new Response(JSON.stringify(data), {
               status: code,
-              headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' }
             }),
             send: (data: string) => new Response(data, {
               status: code,
@@ -301,16 +301,16 @@ async function handleApi(request: Request): Promise<Response> {
         try {
           // Fetch the MT5 terminal page
           const response = await fetch(terminalUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
-          });
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
 
-          if (!response.ok) {
+    if (!response.ok) {
             return new Response(`Failed to fetch terminal: ${response.statusText}`, { status: response.status });
-          }
+    }
 
-          let html = await response.text();
+    let html = await response.text();
 
           // Get base URL for fixing relative URLs
           const baseUrlObj = new URL(terminalUrl);
@@ -479,9 +479,9 @@ async function handleApi(request: Request): Promise<Response> {
                                        btn.textContent.trim().toLowerCase().includes('remove')
                                      );
                   
-                  if (removeButton) {
+                    if (removeButton) {
                     console.log('[MT5 Auth] Found existing connection, removing...');
-                    sendMessage('step_update', 'Removing existing connection...');
+                      sendMessage('step_update', 'Removing existing connection...');
                     removeButton.click();
                     await sleep(3000);
                     
@@ -506,14 +506,14 @@ async function handleApi(request: Request): Promise<Response> {
                   } else if (form && !form.classList.contains('hidden')) {
                     console.log('[MT5 Auth] Form visible but no remove button found, searching...');
                     // Form is visible but no remove button - try to find it by other means
-                    const buttons = document.getElementsByTagName('button');
-                    for (let i = 0; i < buttons.length; i++) {
+                      const buttons = document.getElementsByTagName('button');
+                      for (let i = 0; i < buttons.length; i++) {
                       const btnText = buttons[i].textContent.trim().toLowerCase();
                       if (btnText === 'remove' || btnText.includes('remove') || btnText === 'disconnect') {
-                        sendMessage('step_update', 'Removing existing connection...');
+                          sendMessage('step_update', 'Removing existing connection...');
                         buttons[i].click();
                         await sleep(3000);
-                        break;
+                          break;
                       }
                     }
                   }
@@ -540,12 +540,12 @@ async function handleApi(request: Request): Promise<Response> {
                     loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
                     
                     setTimeout(() => {
-                      loginField.focus();
+                    loginField.focus();
                       loginField.value = loginCredential;
-                      loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                      loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
                       console.log('[MT5 Auth] Login field filled');
-                      sendMessage('step_update', 'Login filled');
+                    sendMessage('step_update', 'Login filled');
                     }, 100);
                   } else {
                     console.error('[MT5 Auth] Login field not found! Available inputs:', document.querySelectorAll('input').length);
@@ -556,17 +556,17 @@ async function handleApi(request: Request): Promise<Response> {
                   // Fill password field
                   if (passwordField && passwordCredential) {
                     setTimeout(() => {
-                      passwordField.focus();
+                    passwordField.focus();
                       passwordField.value = '';
-                      passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                      passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                      
+                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    
                       setTimeout(() => {
-                        passwordField.focus();
+                    passwordField.focus();
                         passwordField.value = passwordCredential;
-                        passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                        passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                        sendMessage('step_update', 'Password filled');
+                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    sendMessage('step_update', 'Password filled');
                       }, 100);
                     }, 300);
                   } else {
@@ -631,7 +631,7 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
               };
-              
+               
               // Start authentication after page loads
               setTimeout(authenticateMT5, 3000);
             })();
@@ -653,7 +653,7 @@ async function handleApi(request: Request): Promise<Response> {
           // Verify script was injected
           if (html.includes('authenticateMT5')) {
             console.log('✅ Script injection verified - authenticateMT5 function found in HTML');
-          } else {
+                     } else {
             console.error('❌ Script injection failed - authenticateMT5 function not found in HTML');
           }
 
@@ -788,7 +788,7 @@ async function handleApi(request: Request): Promise<Response> {
             html = html.replace('</head>', `<script>${wsOverrideScript}</script></head>`);
           } else if (html.includes('<head>')) {
             html = html.replace('<head>', `<head><script>${wsOverrideScript}</script>`);
-          } else {
+                       } else {
             html = `<script>${wsOverrideScript}</script>` + html;
           }
 
@@ -1079,8 +1079,8 @@ async function handleApi(request: Request): Promise<Response> {
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     await executeMultipleTrades();
-                    return;
-                  }
+                          return;
+                        }
                   
                   await sleep(3000);
                   const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -1100,7 +1100,7 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
               };
-
+              
               // Search for symbol function - STRICTLY SEQUENTIAL Step 2
               const searchForSymbol = async (symbolName) => {
                 try {
@@ -1211,14 +1211,14 @@ async function handleApi(request: Request): Promise<Response> {
                         sendMessage('symbol_selected', 'Symbol ' + symbolName + ' selected');
                         symbolSelected = true;
                         await sleep(2000);
-                        break;
-                      }
-                    }
-                    
+                         break;
+                       }
+                     }
+                     
                     if (!symbolSelected) {
                       sendMessage('error', 'Symbol ' + symbolName + ' not found in search results');
-                    }
-                  } else {
+                     }
+                   } else {
                     sendMessage('error', 'Search field not found or not visible after expanding');
                   }
                 } catch(e) {
@@ -1319,12 +1319,12 @@ async function handleApi(request: Request): Promise<Response> {
                   });
                   element.dispatchEvent(clickEvent);
                   
-                  return true;
+                         return true;
                 } catch(e) {
-                  return false;
-                }
-              };
-
+                       return false;
+                     }
+                   };
+                   
               // Open order dialog and execute single trade - STRICTLY SEQUENTIAL
               const openOrderDialogAndExecuteTrade = async (tradeNumber, totalTrades) => {
                 try {
@@ -1357,8 +1357,8 @@ async function handleApi(request: Request): Promise<Response> {
                       } else {
                         orderDialogTrigger.click();
                         sendMessage('step_update', '✅ Order dialog opened via group div (fallback click)');
-                      }
-                    } else {
+                       }
+                     } else {
                       const hideTradeFormButton = document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Hide Trade Form (F9)"]') ||
                                                  Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find(btn => {
                                                    const title = btn.getAttribute('title') || '';
@@ -1779,12 +1779,12 @@ const server = Bun.serve({
     if (url.pathname.startsWith('/terminal/')) {
       try {
         const assetPath = url.pathname.replace('/terminal/', '');
-
+        
         // Determine broker URL from referer header, query param, or default to RazorMarkets
         const referer = request.headers.get('referer') || '';
         const brokerParam = url.searchParams.get('broker');
         let brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
-
+        
         // Map of broker names to their base URLs (matching MT5_BROKER_URLS from metatrader.tsx)
         const brokerUrlMap: Record<string, string> = {
           'razormarkets-live': 'https://webtrader.razormarkets.co.za',
