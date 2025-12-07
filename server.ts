@@ -772,6 +772,7 @@ const server = Bun.serve({
           }
         }
 
+        // Try to fetch from broker's terminal directory
         const targetUrl = `${brokerBaseUrl}/terminal/${assetPath}`;
 
         const response = await fetch(targetUrl, {
@@ -813,15 +814,30 @@ const server = Bun.serve({
           }
           
           // Check if we got HTML instead of the actual asset (some brokers return error pages)
-          const contentStr = new TextDecoder().decode(content.slice(0, 200));
-          const isHtml = contentStr.trim().startsWith('<!') || contentStr.includes('<html') || contentStr.includes('<!DOCTYPE');
+          const contentStr = new TextDecoder().decode(content.slice(0, 500));
+          const isHtml = contentStr.trim().startsWith('<!') || 
+                        contentStr.includes('<html') || 
+                        contentStr.includes('<!DOCTYPE') ||
+                        contentStr.includes('<sprite>') ||
+                        response.headers.get('content-type')?.includes('text/html');
           
-          // If we got HTML but expected an asset, log error and try to return error response
+          // If we got HTML but expected an asset, try fetching directly from broker (bypass proxy)
           if (isHtml && (ext === 'js' || ext === 'css')) {
             console.error(`⚠️ Got HTML instead of ${ext.toUpperCase()} for asset: ${targetUrl}`);
             console.error(`Broker: ${brokerParam || 'unknown'}, BrokerBaseUrl: ${brokerBaseUrl}`);
             console.error(`Response preview: ${contentStr.substring(0, 300)}`);
-            // Still return the content but with correct MIME type - browser might handle it
+            console.error(`Attempting direct fetch from broker...`);
+            
+            // Return a redirect or fetch directly - but for now, return the broker URL directly
+            // The browser will fetch it directly, bypassing CORS issues if possible
+            // Actually, better to return 302 redirect to original broker URL
+            return new Response(null, {
+              status: 302,
+              headers: {
+                'Location': targetUrl,
+                'Access-Control-Allow-Origin': '*',
+              },
+            });
           }
 
           return new Response(content, {
@@ -835,6 +851,14 @@ const server = Bun.serve({
           });
         } else {
           console.error(`Failed to fetch asset: ${targetUrl}, status: ${response.status}`);
+          // Return redirect to original URL so browser can try direct fetch
+          return new Response(null, {
+            status: 302,
+            headers: {
+              'Location': targetUrl,
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
         }
       } catch (error) {
         console.error('Terminal asset proxy error:', error);
