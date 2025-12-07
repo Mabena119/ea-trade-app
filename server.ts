@@ -291,6 +291,7 @@ async function handleApi(request: Request): Promise<Response> {
         const terminalUrl = url.searchParams.get('url');
         const login = url.searchParams.get('login');
         const password = url.searchParams.get('password');
+        const broker = url.searchParams.get('broker') || '';
 
         if (!terminalUrl) {
           return new Response('Missing terminal URL', { status: 400 });
@@ -719,17 +720,34 @@ const server = Bun.serve({
         const brokerParam = url.searchParams.get('broker');
         let brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
 
+        // Map of broker URLs
+        const brokerUrls: Record<string, string> = {
+          'accumarkets': 'https://webterminal.accumarkets.co.za',
+          'razormarkets': 'https://webtrader.razormarkets.co.za',
+          'rock-west': 'https://webtrader.rock-west.com',
+          'maonoglobalmarkets': 'https://web.maonoglobalmarkets.com',
+          'deriv': 'https://mt5-demo-web.deriv.com',
+          'derivsvg': 'https://mt5-real01-web-svg.deriv.com',
+          'derivbvi': 'https://mt5-real01-web-bvi.deriv.com',
+          'rocketx': 'https://webtrader.rocketx.io:1950',
+        };
+
+        // Try to detect broker from referer or query param
         if (brokerParam) {
-          // Try to extract broker from query param
-          if (brokerParam.includes('accumarkets')) {
-            brokerBaseUrl = 'https://webterminal.accumarkets.co.za';
-          } else if (brokerParam.includes('razormarkets')) {
-            brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
+          for (const [key, url] of Object.entries(brokerUrls)) {
+            if (brokerParam.toLowerCase().includes(key)) {
+              brokerBaseUrl = url;
+              break;
+            }
           }
-        } else if (referer.includes('accumarkets.co.za')) {
-          brokerBaseUrl = 'https://webterminal.accumarkets.co.za';
-        } else if (referer.includes('razormarkets.co.za')) {
-          brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
+        } else {
+          // Check referer for broker domain
+          for (const [key, brokerUrl] of Object.entries(brokerUrls)) {
+            if (referer.includes(key.replace('-', '')) || referer.includes(brokerUrl.replace('https://', '').replace('http://', ''))) {
+              brokerBaseUrl = brokerUrl;
+              break;
+            }
+          }
         }
 
         const targetUrl = `${brokerBaseUrl}/terminal/${assetPath}`;
@@ -738,11 +756,36 @@ const server = Bun.serve({
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Referer': brokerBaseUrl,
+            'Accept': request.headers.get('accept') || '*/*',
           },
         });
 
         if (response.ok) {
-          const contentType = response.headers.get('content-type') || 'application/octet-stream';
+          // Get content type from response or infer from file extension
+          let contentType = response.headers.get('content-type');
+          
+          if (!contentType || contentType.includes('text/html')) {
+            // Infer content type from file extension
+            const ext = assetPath.split('.').pop()?.toLowerCase();
+            if (ext === 'js' || assetPath.includes('.js')) {
+              contentType = 'application/javascript; charset=utf-8';
+            } else if (ext === 'css' || assetPath.includes('.css')) {
+              contentType = 'text/css; charset=utf-8';
+            } else if (ext === 'json') {
+              contentType = 'application/json; charset=utf-8';
+            } else if (ext === 'png') {
+              contentType = 'image/png';
+            } else if (ext === 'jpg' || ext === 'jpeg') {
+              contentType = 'image/jpeg';
+            } else if (ext === 'svg') {
+              contentType = 'image/svg+xml';
+            } else if (ext === 'woff' || ext === 'woff2') {
+              contentType = `font/${ext}`;
+            } else {
+              contentType = 'application/octet-stream';
+            }
+          }
+
           const content = await response.arrayBuffer();
 
           return new Response(content, {
@@ -754,6 +797,8 @@ const server = Bun.serve({
               'Access-Control-Allow-Headers': 'Content-Type',
             },
           });
+        } else {
+          console.error(`Failed to fetch asset: ${targetUrl}, status: ${response.status}`);
         }
       } catch (error) {
         console.error('Terminal asset proxy error:', error);
