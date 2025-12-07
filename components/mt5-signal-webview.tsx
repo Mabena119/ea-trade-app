@@ -1276,5 +1276,11 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
+    opacity: 0,
+    width: 1,
+    height: 1,
+    position: 'absolute',
+    left: -9999,
+    top: -9999,
   },
 });
