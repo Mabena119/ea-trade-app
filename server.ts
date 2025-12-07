@@ -316,10 +316,35 @@ async function handleApi(request: Request): Promise<Response> {
           const wsBaseUrl = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
 
           // Fix relative URLs in HTML (for assets, scripts, stylesheets)
-          html = html.replace(/href="\//g, `href="${baseUrl}/`);
-          html = html.replace(/src="\//g, `src="${baseUrl}/`);
-          html = html.replace(/url\("\//g, `url("${baseUrl}/`);
-          html = html.replace(/url\('\//g, `url('${baseUrl}/`);
+          // Replace relative URLs with proxy URLs so they go through our proxy
+          const proxyOrigin = url.origin;
+          html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
+            if (path.startsWith('terminal/')) {
+              return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}"`;
+            }
+            return `href="${baseUrl}/${path}"`;
+          });
+          html = html.replace(/src="\/([^"]+)"/g, (match, path) => {
+            if (path.startsWith('terminal/')) {
+              return `src="${proxyOrigin}/terminal/${path.replace('terminal/', '')}"`;
+            }
+            return `src="${baseUrl}/${path}"`;
+          });
+          html = html.replace(/url\("\/\/([^"]+)"\)/g, (match, path) => {
+            if (path.startsWith('terminal/')) {
+              return `url("${proxyOrigin}/terminal/${path.replace('terminal/', '')}")`;
+            }
+            return `url("${baseUrl}/${path}")`;
+          });
+          html = html.replace(/url\('\/\/([^']+)'\)/g, (match, path) => {
+            if (path.startsWith('terminal/')) {
+              return `url('${proxyOrigin}/terminal/${path.replace('terminal/', '')}')`;
+            }
+            return `url('${baseUrl}/${path}')`;
+          });
+          
+          // Also fix absolute URLs that point to terminal assets
+          html = html.replace(new RegExp(`${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/`, 'g'), `${proxyOrigin}/terminal/`);
 
           // Fix WebSocket URLs - replace proxy domain with broker domain
           const proxyDomain = url.origin; // e.g., https://ea-trade-app.onrender.com
@@ -403,8 +428,31 @@ async function handleApi(request: Request): Promise<Response> {
               
               const authenticateMT5 = async () => {
                 try {
+                  sendMessage('step_update', 'Waiting for page to load...');
+                  
+                  // Wait for DOM to be fully ready
+                  let retries = 0;
+                  while (retries < 20) {
+                    if (document.readyState === 'complete' && document.body) {
+                      const loginField = document.querySelector('input[name="login"]') || 
+                                        document.querySelector('input[type="text"][placeholder*="login" i]') ||
+                                        document.querySelector('input[type="number"]') ||
+                                        document.querySelector('input#login');
+                      if (loginField) {
+                        break; // Login field found, proceed
+                      }
+                    }
+                    await sleep(500);
+                    retries++;
+                  }
+                  
+                  if (retries >= 20) {
+                    sendMessage('authentication_failed', 'Page did not load properly - login field not found after waiting');
+                    return;
+                  }
+                  
                   sendMessage('step_update', 'Initializing MT5 Account...');
-                  await sleep(5500);
+                  await sleep(2000);
                   
                   // Check for disclaimer and accept if present
                   const disclaimer = document.querySelector('#disclaimer');
@@ -556,6 +604,7 @@ async function handleApi(request: Request): Promise<Response> {
               'Access-Control-Allow-Origin': '*',
               'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
               'Access-Control-Allow-Headers': 'Content-Type',
+              'X-Frame-Options': 'SAMEORIGIN',
             },
           });
         } catch (error) {
@@ -658,11 +707,19 @@ const server = Bun.serve({
       try {
         const assetPath = url.pathname.replace('/terminal/', '');
 
-        // Determine broker URL from referer header or default to RazorMarkets
+        // Determine broker URL from referer header, query param, or default to RazorMarkets
         const referer = request.headers.get('referer') || '';
+        const brokerParam = url.searchParams.get('broker');
         let brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
 
-        if (referer.includes('accumarkets.co.za')) {
+        if (brokerParam) {
+          // Try to extract broker from query param
+          if (brokerParam.includes('accumarkets')) {
+            brokerBaseUrl = 'https://webterminal.accumarkets.co.za';
+          } else if (brokerParam.includes('razormarkets')) {
+            brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
+          }
+        } else if (referer.includes('accumarkets.co.za')) {
           brokerBaseUrl = 'https://webterminal.accumarkets.co.za';
         } else if (referer.includes('razormarkets.co.za')) {
           brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
@@ -673,6 +730,7 @@ const server = Bun.serve({
         const response = await fetch(targetUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': brokerBaseUrl,
           },
         });
 
@@ -685,6 +743,8 @@ const server = Bun.serve({
               'Content-Type': contentType,
               'Cache-Control': 'public, max-age=3600',
               'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
             },
           });
         }
