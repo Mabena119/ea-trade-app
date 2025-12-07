@@ -2,8 +2,27 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert, AppState, Linking } from 'react-native';
-import { LicenseData } from '@/services/api';
 import { isIOSPWA } from '@/utils/pwa-detection';
+
+// Define LicenseData locally to avoid importing from api service (prevents circular dependency)
+export interface LicenseData {
+  id: string;
+  owner: {
+    logo?: string;
+    [key: string]: any;
+  };
+  ea: string;
+  user: string;
+  k_ey: string;
+  created: string;
+  expires: string;
+  plan: string;
+  status: string;
+  phone_secret_code: string;
+  phoneId: string;
+  power: string;
+  [key: string]: any;
+}
 
 // Define types locally to avoid importing service modules at top level
 export interface SignalLog {
