@@ -352,11 +352,9 @@ async function handleApi(request: Request): Promise<Response> {
             return `url('${baseUrl}/${path}')`;
           });
 
-          // Also fix absolute URLs that point to terminal assets (ensure HTTPS)
-          html = html.replace(new RegExp(`${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/`, 'g'), `${proxyOrigin}/terminal/`);
-
-          // Fix any remaining HTTP URLs in terminal paths to HTTPS
-          html = html.replace(/http:\/\/ea-trade-app\.onrender\.com\/terminal\//g, `${proxyOrigin}/terminal/`);
+          // Ensure all terminal asset URLs point to broker (not proxy)
+          // This allows assets to load directly from broker, avoiding proxy MIME type issues
+          html = html.replace(new RegExp(`${proxyOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/`, 'g'), `${baseUrl}/terminal/`);
 
           // Fix WebSocket URLs - replace proxy domain with broker domain
           const proxyDomain = url.origin; // e.g., https://ea-trade-app.onrender.com
