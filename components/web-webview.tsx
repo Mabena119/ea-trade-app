@@ -75,10 +75,10 @@ const WebWebView: React.FC<WebWebViewProps> = ({
       try {
         const iframeWindow = iframe.contentWindow;
         const iframeDocument = iframe.contentDocument || (iframeWindow && iframeWindow.document);
-        
+
         if (iframeDocument && iframeWindow) {
           console.log('Web WebView: Injecting script into iframe...');
-          
+
           // Try to inject script via eval in iframe context (works for same-origin)
           try {
             // Execute script in iframe's context
@@ -124,10 +124,10 @@ const WebWebView: React.FC<WebWebViewProps> = ({
           } catch (evalError) {
             // Fallback to DOM injection if eval fails
             console.log('Web WebView: Eval failed, trying DOM injection:', evalError);
-            
-          const scriptElement = iframeDocument.createElement('script');
-          scriptElement.type = 'text/javascript';
-          scriptElement.textContent = `
+
+            const scriptElement = iframeDocument.createElement('script');
+            scriptElement.type = 'text/javascript';
+            scriptElement.textContent = `
             (function() {
               try {
                 // Override postMessage to send messages to parent
@@ -165,32 +165,32 @@ const WebWebView: React.FC<WebWebViewProps> = ({
               }
             })();
           `;
-          
-          // Wait for iframe document to be ready
-          if (iframeDocument.readyState === 'loading') {
-            iframeDocument.addEventListener('DOMContentLoaded', () => {
-              if (iframeDocument.body) {
-                iframeDocument.body.appendChild(scriptElement);
-                console.log('Web WebView: Script injected on DOMContentLoaded');
-              }
-            });
-          } else if (iframeDocument.body) {
-            iframeDocument.body.appendChild(scriptElement);
-            console.log('Web WebView: Script injected immediately');
-          } else {
-            // Wait for body to be available
-            const checkBody = setInterval(() => {
-              if (iframeDocument.body) {
-                iframeDocument.body.appendChild(scriptElement);
-                console.log('Web WebView: Script injected after body ready');
+
+            // Wait for iframe document to be ready
+            if (iframeDocument.readyState === 'loading') {
+              iframeDocument.addEventListener('DOMContentLoaded', () => {
+                if (iframeDocument.body) {
+                  iframeDocument.body.appendChild(scriptElement);
+                  console.log('Web WebView: Script injected on DOMContentLoaded');
+                }
+              });
+            } else if (iframeDocument.body) {
+              iframeDocument.body.appendChild(scriptElement);
+              console.log('Web WebView: Script injected immediately');
+            } else {
+              // Wait for body to be available
+              const checkBody = setInterval(() => {
+                if (iframeDocument.body) {
+                  iframeDocument.body.appendChild(scriptElement);
+                  console.log('Web WebView: Script injected after body ready');
+                  clearInterval(checkBody);
+                }
+              }, 100);
+
+              // Timeout after 5 seconds
+              setTimeout(() => {
                 clearInterval(checkBody);
-              }
-            }, 100);
-            
-            // Timeout after 5 seconds
-            setTimeout(() => {
-              clearInterval(checkBody);
-            }, 5000);
+              }, 5000);
             }
           }
         } else {
@@ -278,12 +278,24 @@ const WebWebView: React.FC<WebWebViewProps> = ({
     return () => window.removeEventListener('message', handleMessage);
   }, [onMessage]);
 
+  // Merge iframe styles with container style to ensure hiding works
+  const iframeStyle = {
+    ...styles.iframe,
+    ...(style?.opacity !== undefined && { opacity: style.opacity }),
+    ...(style?.display !== undefined && { display: style.display }),
+    ...(style?.width !== undefined && { width: style.width }),
+    ...(style?.height !== undefined && { height: style.height }),
+    ...(style?.position !== undefined && { position: style.position }),
+    ...(style?.top !== undefined && { top: style.top }),
+    ...(style?.left !== undefined && { left: style.left }),
+  };
+
   return (
     <View style={[styles.container, style]}>
       <iframe
         ref={iframeRef}
         src={url}
-        style={styles.iframe}
+        style={iframeStyle}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals allow-downloads"
         allow="payment *; clipboard-write; camera; microphone; geolocation; autoplay; fullscreen"
         referrerPolicy="no-referrer-when-downgrade"
@@ -306,10 +318,7 @@ const styles = StyleSheet.create({
     height: '100%',
     border: 'none',
     backgroundColor: '#000000',
-    display: 'block',
-    visibility: 'visible',
-    opacity: 1,
-  },
+  } as any,
 });
 
 export default WebWebView;

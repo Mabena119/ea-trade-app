@@ -1111,13 +1111,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   const mt5Url = getMT5Url();
   const numberOfTrades = getNumberOfTrades();
-  
+
   // Get robot/EA name
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
   const robotName = primaryEA?.name || 'EA Trade';
 
   // Build proxy URL for web (same as Android but through proxy)
-  const proxyUrl = Platform.OS === 'web' 
+  const proxyUrl = Platform.OS === 'web'
     ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}`
     : null;
 
@@ -1154,14 +1154,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               setCurrentStep('MT5 Terminal loaded');
               console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
             }}
-            style={styles.webview}
+            style={styles.hiddenWebView}
           />
         ) : (
           <WebView
             key={`${webViewKey}-${signal.id || 'no-signal'}`}
             ref={webViewRef}
             source={{ uri: mt5Url }}
-            style={styles.webview}
+            style={styles.hiddenWebView}
             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             onMessage={handleWebViewMessage}
             onLoadStart={() => {
@@ -1276,5 +1276,15 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
+  },
+  hiddenWebView: {
+    width: 0,
+    height: 0,
+    opacity: 0,
+    position: 'absolute',
+    top: -10000,
+    left: -10000,
+    pointerEvents: 'none',
+    display: 'none',
   },
 });

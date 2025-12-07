@@ -113,9 +113,6 @@
       "typedRoutes": true
     },
     "extra": {
-      "eas": {
-        "projectId": "82a5b181-3fb0-4117-9f99-33d989cdf0a3"
-      },
       "EXPO_PUBLIC_API_BASE_URL": "https://ea-trade-app.onrender.com"
     },
     "owner": "justvino"
