@@ -310,6 +310,68 @@ async function handleApi(request: Request): Promise<Response> {
 
           let html = await response.text();
 
+          // Get base URL for fixing relative URLs
+          const baseUrlObj = new URL(terminalUrl);
+          const baseUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}`;
+          const wsBaseUrl = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+
+          // Fix relative URLs in HTML (for assets, scripts, stylesheets)
+          html = html.replace(/href="\//g, `href="${baseUrl}/`);
+          html = html.replace(/src="\//g, `src="${baseUrl}/`);
+          html = html.replace(/url\("\//g, `url("${baseUrl}/`);
+          html = html.replace(/url\('\//g, `url('${baseUrl}/`);
+
+          // Fix WebSocket URLs - replace proxy domain with broker domain
+          const proxyDomain = url.origin; // e.g., https://ea-trade-app.onrender.com
+          const proxyHost = proxyDomain.replace(/https?:\/\//, '').replace(/\./g, '\\.');
+          
+          // Replace WebSocket URLs pointing to proxy with broker's WebSocket URL
+          html = html.replace(new RegExp(`wss?://${proxyHost}/terminal/ws`, 'gi'), `${wsBaseUrl}/terminal/ws`);
+          html = html.replace(new RegExp(`wss?://${proxyHost}/terminal/`, 'gi'), `${wsBaseUrl}/terminal/`);
+          
+          // Fix dynamically constructed WebSocket URLs
+          // Replace window.location.origin/hostname with broker's base URL in WebSocket contexts
+          html = html.replace(
+            /(new\s+WebSocket\s*\(\s*['"`])(wss?:\/\/)(window\.location\.(origin|hostname)|location\.(origin|hostname))(['"`])/g,
+            `$1${wsBaseUrl}/terminal/ws$6`
+          );
+          
+          // Also inject a script to override WebSocket construction
+          const wsOverrideScript = `
+            (function() {
+              const originalWebSocket = window.WebSocket;
+              const brokerWsUrl = '${wsBaseUrl}/terminal/ws';
+              
+              window.WebSocket = function(url, protocols) {
+                // If URL points to proxy domain, replace with broker domain
+                if (url && typeof url === 'string') {
+                  const proxyHost = '${proxyHost.replace(/\\/g, '')}';
+                  if (url.includes(proxyHost) || url.includes('/terminal/ws')) {
+                    url = brokerWsUrl;
+                  }
+                }
+                return new originalWebSocket(url, protocols);
+              };
+              
+              // Copy static properties
+              Object.setPrototypeOf(window.WebSocket, originalWebSocket);
+              window.WebSocket.prototype = originalWebSocket.prototype;
+              window.WebSocket.CONNECTING = originalWebSocket.CONNECTING;
+              window.WebSocket.OPEN = originalWebSocket.OPEN;
+              window.WebSocket.CLOSING = originalWebSocket.CLOSING;
+              window.WebSocket.CLOSED = originalWebSocket.CLOSED;
+            })();
+          `;
+          
+          // Inject WebSocket override script before auth script
+          if (html.includes('</head>')) {
+            html = html.replace('</head>', `<script>${wsOverrideScript}</script></head>`);
+          } else if (html.includes('<head>')) {
+            html = html.replace('<head>', `<head><script>${wsOverrideScript}</script>`);
+          } else {
+            html = `<script>${wsOverrideScript}</script>` + html;
+          }
+
           // Escape credentials for safe injection
           const escapeValue = (value: string) => {
             return (value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
@@ -631,6 +693,30 @@ const server = Bun.serve({
       }
 
       return new Response('Asset not found', { status: 404 });
+    }
+
+    // Handle WebSocket upgrade requests - proxy to broker's WebSocket server
+    if (url.pathname === '/terminal/ws' && request.headers.get('upgrade') === 'websocket') {
+      // Extract broker info from referer or query params
+      const referer = request.headers.get('referer') || '';
+      let brokerWsUrl = 'wss://webtrader.razormarkets.co.za/terminal/ws';
+
+      if (referer.includes('accumarkets.co.za')) {
+        brokerWsUrl = 'wss://webterminal.accumarkets.co.za/terminal/ws';
+      } else if (referer.includes('razormarkets.co.za')) {
+        brokerWsUrl = 'wss://webtrader.razormarkets.co.za/terminal/ws';
+      }
+
+      // For WebSocket proxying, we'd need to upgrade the connection
+      // Since Bun doesn't easily support WebSocket proxying in this context,
+      // we'll return an error suggesting direct connection
+      return new Response('WebSocket proxying not supported. Please connect directly to broker.', {
+        status: 426, // Upgrade Required
+        headers: {
+          'Upgrade': 'websocket',
+          'Connection': 'Upgrade',
+        },
+      });
     }
 
     // API routes
