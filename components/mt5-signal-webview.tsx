@@ -1,11 +1,10 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Modal, Text, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
+import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
 import colors from '@/constants/colors';
 import { X } from 'lucide-react-native';
-import WebWebView from './web-webview';
-import CustomWebView from './custom-webview';
 
 interface MT5SignalWebViewProps {
   visible: boolean;
@@ -1111,22 +1110,16 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   }
 
   const mt5Url = getMT5Url();
-  
-  // Get trading parameters
-  const { login, password, server } = mt5Account;
-  const symbol = signal.asset;
-  const action = signal.action || '';
-  const sl = signal.sl || '';
-  const tp = signal.tp || '';
-  const volume = '0.01'; // Default volume - can be configured
   const numberOfTrades = getNumberOfTrades();
+  
+  // Get robot/EA name
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
   const robotName = primaryEA?.name || 'EA Trade';
 
-  // Build proxy URL for web platform
+  // Build proxy URL for web (same as Android but through proxy)
   const proxyUrl = Platform.OS === 'web' 
-    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(symbol)}&action=${encodeURIComponent(action)}&sl=${encodeURIComponent(sl)}&tp=${encodeURIComponent(tp)}&volume=${encodeURIComponent(volume)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}&robotName=${encodeURIComponent(robotName)}`
-    : mt5Url;
+    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}`
+    : null;
 
   return (
     <Modal
@@ -1153,8 +1146,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
         {Platform.OS === 'web' ? (
           <WebWebView
-            key={`mt5-trading-web-${webViewKey}-${signal.id || 'no-signal'}`}
-            url={proxyUrl}
+            key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
+            url={proxyUrl || ''}
             onMessage={handleWebViewMessage}
             onLoadEnd={() => {
               setLoading(false);
@@ -1164,17 +1157,67 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             style={styles.webview}
           />
         ) : (
-          <CustomWebView
-            key={`mt5-trading-native-${webViewKey}-${signal.id || 'no-signal'}`}
-            url={mt5Url}
-            script={generateMT5AuthScript()}
+          <WebView
+            key={`${webViewKey}-${signal.id || 'no-signal'}`}
+            ref={webViewRef}
+            source={{ uri: mt5Url }}
+            style={styles.webview}
+            userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             onMessage={handleWebViewMessage}
+            onLoadStart={() => {
+              setLoading(true);
+              setCurrentStep('Loading MT5 Terminal...');
+              console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
+            }}
             onLoadEnd={() => {
               setLoading(false);
               setCurrentStep('MT5 Terminal loaded');
-              console.log('✅ Native WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+              console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+              // Inject script when page loads (Android only - script is pre-injected for web via proxy)
+              const script = generateMT5AuthScript();
+              if (script && webViewRef.current) {
+                setTimeout(() => {
+                  if (webViewRef.current) {
+                    webViewRef.current.injectJavaScript(script);
+                  }
+                }, 1000);
+              }
             }}
-            style={styles.webview}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.error('❌ WebView error for signal:', signal.asset, 'ID:', signal.id, nativeEvent);
+              setCurrentStep('Error loading MT5 Terminal');
+              setLoading(false);
+            }}
+            onShouldStartLoadWithRequest={(request) => {
+              // Prevent navigation away from the terminal URL
+              if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
+                console.log('🚫 Navigation prevented:', request.url);
+                return false;
+              }
+              return true;
+            }}
+            onNavigationStateChange={(navState) => {
+              // Prevent reloads and navigation away
+              if (navState.loading) {
+                // Only allow navigation if it's the initial load or same URL
+                if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
+                  console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
+                  if (webViewRef.current) {
+                    webViewRef.current.stopLoading();
+                  }
+                }
+              }
+            }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            scalesPageToFit={false}
+            mixedContentMode="always"
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            cacheEnabled={false}
+            incognito={true}
           />
         )}
       </View>

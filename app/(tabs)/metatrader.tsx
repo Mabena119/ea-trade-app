@@ -944,12 +944,12 @@ export default function MetaTraderScreen() {
     try {
       // Handle both formats: parsed (CustomWebView) and unparsed (WebWebView)
       let parsedData = data;
-
+      
       // If data has nativeEvent.data (WebWebView format), parse it
       if (data?.nativeEvent?.data) {
         try {
-          parsedData = typeof data.nativeEvent.data === 'string'
-            ? JSON.parse(data.nativeEvent.data)
+          parsedData = typeof data.nativeEvent.data === 'string' 
+            ? JSON.parse(data.nativeEvent.data) 
             : data.nativeEvent.data;
         } catch (e) {
           console.error('Error parsing MT5 WebView message data:', e);
@@ -964,7 +964,7 @@ export default function MetaTraderScreen() {
           return;
         }
       }
-
+      
       console.log('MT5 WebView message:', parsedData);
 
       if (parsedData.type === 'mt5_loaded') {
@@ -1033,12 +1033,12 @@ export default function MetaTraderScreen() {
     try {
       // Handle both formats: parsed (CustomWebView) and unparsed (WebWebView)
       let parsedData = data;
-
+      
       // If data has nativeEvent.data (WebWebView format), parse it
       if (data?.nativeEvent?.data) {
         try {
-          parsedData = typeof data.nativeEvent.data === 'string'
-            ? JSON.parse(data.nativeEvent.data)
+          parsedData = typeof data.nativeEvent.data === 'string' 
+            ? JSON.parse(data.nativeEvent.data) 
             : data.nativeEvent.data;
         } catch (e) {
           console.error('Error parsing MT4 WebView message data:', e);
@@ -1053,7 +1053,7 @@ export default function MetaTraderScreen() {
           return;
         }
       }
-
+      
       console.log('MT4 WebView message:', parsedData);
 
       if (parsedData.type === 'mt4_loaded') {
@@ -1550,14 +1550,14 @@ export default function MetaTraderScreen() {
     const escapeValue = (value: string) => {
       return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
     };
-
+    
     const loginValue = escapeValue(login.trim());
     const passwordValue = escapeValue(password.trim());
     const serverValue = escapeValue(server.trim());
-
+    
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
-      return `
+    return `
       (function() {
         const sendMessage = (type, message) => {
           try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
@@ -1566,7 +1566,7 @@ export default function MetaTraderScreen() {
         })();
       `;
     }
-
+    
     return `
       (function() {
         const sendMessage = (type, message) => {
@@ -1924,21 +1924,21 @@ export default function MetaTraderScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
+      <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView
-          style={styles.content}
+        <ScrollView 
+          style={styles.content} 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Account Type Tabs */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
+        {/* Account Type Tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
               style={[styles.tab, activeTab === 'MT5' && styles.activeTab, styles.centeredTab]}
-              onPress={() => setActiveTab('MT5')}
+            onPress={() => setActiveTab('MT5')}
               activeOpacity={0.8}
             >
               {Platform.OS === 'ios' && (
@@ -1950,91 +1950,91 @@ export default function MetaTraderScreen() {
                   : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
-                MT5 ACCOUNT
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Connection Status */}
-          <View style={styles.statusContainer}>
-            <View testID="connection-status-dot" style={[
-              styles.statusDot,
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedDot,
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedDot
-            ]} />
-            <Text style={[
-              styles.statusText,
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
-            ]}>
-              MT5
+            <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
+              MT5 ACCOUNT
             </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Connection Status */}
+        <View style={styles.statusContainer}>
+          <View testID="connection-status-dot" style={[
+            styles.statusDot,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedDot,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedDot
+          ]} />
+          <Text style={[
+            styles.statusText,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
+            (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
+          ]}>
+              MT5
+          </Text>
+        </View>
+
+        {/* MT Logo and Title */}
+        <View style={styles.logoContainer}>
+          <View style={styles.mtLogoImageContainer}>
+            <Image
+              source={activeTab === 'MT4' ? require('@/assets/images/mt4logo.png') : require('@/assets/images/mt5logo.png')}
+              style={styles.mtLogoImage}
+              resizeMode="contain"
+            />
           </View>
+        </View>
 
-          {/* MT Logo and Title */}
-          <View style={styles.logoContainer}>
-            <View style={styles.mtLogoImageContainer}>
-              <Image
-                source={activeTab === 'MT4' ? require('@/assets/images/mt4logo.png') : require('@/assets/images/mt5logo.png')}
-                style={styles.mtLogoImage}
-                resizeMode="contain"
-              />
+        {/* Current Account Details Display */}
+        {false && (
+          <View style={styles.accountDetailsContainer}>
+            <Text style={styles.accountDetailsTitle}>CURRENT {activeTab} ACCOUNT</Text>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Login:</Text>
+              <Text style={styles.accountDetailValue}>
+                {(activeTab === 'MT4' ? mt4Account?.login : mt5Account?.login) || 'Not set'}
+              </Text>
+            </View>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Password:</Text>
+              <Text style={styles.accountDetailValue}>
+                {(activeTab === 'MT4' ? mt4Account?.password : mt5Account?.password) ? '••••••••' : 'Not set'}
+              </Text>
+            </View>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Server:</Text>
+              <Text style={styles.accountDetailValue}>
+                {(activeTab === 'MT4' ? mt4Account?.server : mt5Account?.server) || 'Not set'}
+              </Text>
+            </View>
+            <View style={styles.accountDetailRow}>
+              <Text style={styles.accountDetailLabel}>Status:</Text>
+              <Text style={[
+                styles.accountDetailValue,
+                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedStatus,
+                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedStatus
+              ]}>
+                {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true ? 'Connected' :
+                  (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false ? 'Disconnected' : 'Not configured'}
+              </Text>
             </View>
           </View>
+        )}
 
-          {/* Current Account Details Display */}
-          {false && (
-            <View style={styles.accountDetailsContainer}>
-              <Text style={styles.accountDetailsTitle}>CURRENT {activeTab} ACCOUNT</Text>
-              <View style={styles.accountDetailRow}>
-                <Text style={styles.accountDetailLabel}>Login:</Text>
-                <Text style={styles.accountDetailValue}>
-                  {(activeTab === 'MT4' ? mt4Account?.login : mt5Account?.login) || 'Not set'}
-                </Text>
-              </View>
-              <View style={styles.accountDetailRow}>
-                <Text style={styles.accountDetailLabel}>Password:</Text>
-                <Text style={styles.accountDetailValue}>
-                  {(activeTab === 'MT4' ? mt4Account?.password : mt5Account?.password) ? '••••••••' : 'Not set'}
-                </Text>
-              </View>
-              <View style={styles.accountDetailRow}>
-                <Text style={styles.accountDetailLabel}>Server:</Text>
-                <Text style={styles.accountDetailValue}>
-                  {(activeTab === 'MT4' ? mt4Account?.server : mt5Account?.server) || 'Not set'}
-                </Text>
-              </View>
-              <View style={styles.accountDetailRow}>
-                <Text style={styles.accountDetailLabel}>Status:</Text>
-                <Text style={[
-                  styles.accountDetailValue,
-                  (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedStatus,
-                  (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedStatus
-                ]}>
-                  {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true ? 'Connected' :
-                    (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false ? 'Disconnected' : 'Not configured'}
-                </Text>
-              </View>
-            </View>
-          )}
+        {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
+        {/* Networking disabled: broker fetch WebView removed */}
 
-          {/* Hidden WebView for fetching MT4 brokers - Mobile only, only shown when fetching brokers */}
-          {/* Networking disabled: broker fetch WebView removed */}
+        {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
+        {/* Networking disabled: authentication WebView removed */}
 
-          {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
-          {/* Networking disabled: authentication WebView removed */}
+        {/* Authentication Status Display - Only shown during authentication */}
+        {isAuthenticating && (
+          <View style={styles.authStatusDisplay}>
+            <ActivityIndicator color={Platform.OS === 'ios' ? '#DC2626' : '#000000'} size="small" />
+            <Text style={styles.authStatusDisplayText}>{authenticationStep}</Text>
+          </View>
+        )}
 
-          {/* Authentication Status Display - Only shown during authentication */}
-          {isAuthenticating && (
-            <View style={styles.authStatusDisplay}>
-              <ActivityIndicator color={Platform.OS === 'ios' ? '#DC2626' : '#000000'} size="small" />
-              <Text style={styles.authStatusDisplayText}>{authenticationStep}</Text>
-            </View>
-          )}
-
-          {/* Login Form */}
-          <View style={styles.form}>
+        {/* Login Form */}
+        <View style={styles.form}>
             <View style={styles.inputContainer} pointerEvents="box-none">
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -2044,18 +2044,18 @@ export default function MetaTraderScreen() {
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Login"
-                placeholderTextColor="#999999"
-                value={login}
+          <TextInput
+            style={styles.input}
+            placeholder="Login"
+            placeholderTextColor="#999999"
+            value={login}
                 onChangeText={(text) => {
                   console.log('Login input changed:', text);
                   setLogin(text);
                 }}
-                keyboardType="numeric"
+            keyboardType="numeric"
                 editable={true}
-              />
+          />
             </View>
 
             <View style={styles.passwordContainer} pointerEvents="box-none">
@@ -2067,35 +2067,35 @@ export default function MetaTraderScreen() {
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
               />
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Password"
-                placeholderTextColor="#999999"
-                value={password}
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              placeholderTextColor="#999999"
+              value={password}
                 onChangeText={(text) => {
                   console.log('Password input changed:', text);
                   setPassword(text);
                 }}
-                secureTextEntry={!showPassword}
+              secureTextEntry={!showPassword}
                 editable={true}
-              />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
                 activeOpacity={0.8}
-              >
+            >
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                 )}
-                {showPassword ? (
+              {showPassword ? (
                   <EyeOff color="#999999" size={18} />
-                ) : (
+              ) : (
                   <Eye color="#999999" size={18} />
-                )}
-              </TouchableOpacity>
-            </View>
+              )}
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.serverContainer}>
+          <View style={styles.serverContainer}>
               <View style={styles.serverInputContainer} pointerEvents="box-none">
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -2106,41 +2106,41 @@ export default function MetaTraderScreen() {
                   pointerEvents="none"
                 />
                 <Server color="#999999" size={18} style={styles.serverIcon} />
-                <TextInput
-                  style={styles.serverInput}
-                  placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
-                  placeholderTextColor="#999999"
-                  value={server}
-                  onChangeText={(text) => {
+              <TextInput
+                style={styles.serverInput}
+                placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
+                placeholderTextColor="#999999"
+                value={server}
+                onChangeText={(text) => {
                     console.log('Server input changed:', text);
-                    setServer(text);
-                    setShowBrokerList(true);
-                  }}
-                  onFocus={() => {
-                    setShowBrokerList(true);
-                  }}
-                  autoCapitalize="none"
+                  setServer(text);
+                  setShowBrokerList(true);
+                }}
+                onFocus={() => {
+                  setShowBrokerList(true);
+                }}
+                autoCapitalize="none"
                   editable={true}
-                />
-                {server.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.clearButton}
-                    onPress={() => {
-                      setServer('');
-                      setShowBrokerList(false);
-                    }}
+              />
+              {server.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={() => {
+                    setServer('');
+                    setShowBrokerList(false);
+                  }}
                     activeOpacity={0.8}
-                  >
+                >
                     {Platform.OS === 'ios' && (
                       <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                     )}
-                    <Text style={styles.clearButtonText}>×</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+                  <Text style={styles.clearButtonText}>×</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-              {showBrokerList && (
-                <View style={styles.brokerListContainer}>
+            {showBrokerList && (
+              <View style={styles.brokerListContainer}>
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
                   )}
@@ -2148,96 +2148,96 @@ export default function MetaTraderScreen() {
                     colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
                     style={StyleSheet.absoluteFill}
                   />
-                  <View style={styles.brokerListHeader}>
-                    <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
-                    <View style={styles.brokerListActions}>
-                      {activeTab === 'MT4' && (
-                        <TouchableOpacity
-                          onPress={() => {
-                            console.log('Manual broker refresh requested');
-                            fetchMT4Brokers();
-                          }}
-                          style={styles.refreshButton}
-                          disabled={isLoadingBrokers}
+                <View style={styles.brokerListHeader}>
+                  <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
+                  <View style={styles.brokerListActions}>
+                    {activeTab === 'MT4' && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          console.log('Manual broker refresh requested');
+                          fetchMT4Brokers();
+                        }}
+                        style={styles.refreshButton}
+                        disabled={isLoadingBrokers}
                           activeOpacity={0.8}
-                        >
+                      >
                           {Platform.OS === 'ios' && (
                             <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                           )}
-                          <RefreshCw
+                        <RefreshCw
                             color={Platform.OS === 'ios' ? '#FFFFFF' : '#FFFFFF'}
-                            size={16}
-                            style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
-                          />
-                        </TouchableOpacity>
-                      )}
-                      <TouchableOpacity
-                        onPress={() => setShowBrokerList(false)}
-                        style={styles.closeBrokerList}
+                          size={16}
+                          style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
+                        />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => setShowBrokerList(false)}
+                      style={styles.closeBrokerList}
                         activeOpacity={0.8}
-                      >
+                    >
                         {Platform.OS === 'ios' && (
                           <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                         )}
-                        <Text style={styles.closeBrokerListText}>×</Text>
-                      </TouchableOpacity>
-                    </View>
+                      <Text style={styles.closeBrokerListText}>×</Text>
+                    </TouchableOpacity>
                   </View>
-                  {brokerFetchError && (
-                    <View style={styles.errorContainer}>
-                      <Text style={styles.errorText}>{brokerFetchError}</Text>
-                    </View>
-                  )}
-                  {isLoadingBrokers && (
-                    <View style={styles.loadingBrokersContainer}>
-                      <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
-                      <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
-                    </View>
-                  )}
-                  <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
-                    {filteredBrokers.map((item, index) => {
-                      return (
-                        <TouchableOpacity
-                          key={`${item}-${index}`}
-                          style={styles.brokerItem}
-                          onPress={() => {
-                            console.log('Broker selected:', item);
-                            setServer(item); // Allow selection of any broker from the list
-                            setShowBrokerList(false);
-                          }}
-                        >
-                          <View style={styles.brokerItemContent}>
-                            <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
-                            <Text style={styles.brokerItemText}>
-                              {item}
-                            </Text>
-                            <Text style={styles.brokerItemType}>
-                              {item.includes('Demo') ? 'DEMO' : 'LIVE'}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                  {filteredBrokers.length === 0 && (
-                    <View style={styles.noBrokersContainer}>
-                      <Search color="#999999" size={24} />
-                      <Text style={styles.noBrokersText}>No brokers found</Text>
-                      <Text style={styles.noBrokersSubtext}>Try a different search term</Text>
-                    </View>
-                  )}
                 </View>
-              )}
-            </View>
+                {brokerFetchError && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{brokerFetchError}</Text>
+                  </View>
+                )}
+                {isLoadingBrokers && (
+                  <View style={styles.loadingBrokersContainer}>
+                    <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
+                    <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
+                  </View>
+                )}
+                <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
+                  {filteredBrokers.map((item, index) => {
+                    return (
+                      <TouchableOpacity
+                        key={`${item}-${index}`}
+                        style={styles.brokerItem}
+                        onPress={() => {
+                          console.log('Broker selected:', item);
+                          setServer(item); // Allow selection of any broker from the list
+                          setShowBrokerList(false);
+                        }}
+                      >
+                        <View style={styles.brokerItemContent}>
+                            <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
+                          <Text style={styles.brokerItemText}>
+                            {item}
+                          </Text>
+                          <Text style={styles.brokerItemType}>
+                            {item.includes('Demo') ? 'DEMO' : 'LIVE'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {filteredBrokers.length === 0 && (
+                  <View style={styles.noBrokersContainer}>
+                    <Search color="#999999" size={24} />
+                    <Text style={styles.noBrokersText}>No brokers found</Text>
+                    <Text style={styles.noBrokersSubtext}>Try a different search term</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
 
-            <TouchableOpacity
-              style={[
-                styles.linkButton,
-                isAuthenticating && styles.linkButtonDisabled,
-                activeTab === 'MT4' && styles.linkButtonComingSoon
-              ]}
-              onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
-              disabled={isAuthenticating || activeTab === 'MT4'}
+          <TouchableOpacity
+            style={[
+              styles.linkButton,
+              isAuthenticating && styles.linkButtonDisabled,
+              activeTab === 'MT4' && styles.linkButtonComingSoon
+            ]}
+            onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
+            disabled={isAuthenticating || activeTab === 'MT4'}
               activeOpacity={0.8}
             >
               {Platform.OS === 'ios' && (
@@ -2249,33 +2249,33 @@ export default function MetaTraderScreen() {
                   : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
                 style={StyleSheet.absoluteFill}
               />
-              {isAuthenticating ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                  <Text style={styles.linkButtonText}>
-                    AUTHENTICATING...
-                  </Text>
-                </View>
-              ) : activeTab === 'MT4' ? (
-                <View style={styles.buttonContent}>
-                  <Shield color="#999999" size={16} style={styles.buttonIcon} />
-                  <Text style={styles.linkButtonText}>
-                    LINK MT4 ACCOUNT DETAILS
-                  </Text>
-                  <Text style={styles.comingSoonText}>
-                    COMING SOON
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.buttonContent}>
-                  <Text style={styles.linkButtonText}>
+            {isAuthenticating ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+                <Text style={styles.linkButtonText}>
+                  AUTHENTICATING...
+                </Text>
+              </View>
+            ) : activeTab === 'MT4' ? (
+              <View style={styles.buttonContent}>
+                <Shield color="#999999" size={16} style={styles.buttonIcon} />
+                <Text style={styles.linkButtonText}>
+                  LINK MT4 ACCOUNT DETAILS
+                </Text>
+                <Text style={styles.comingSoonText}>
+                  COMING SOON
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.buttonContent}>
+                <Text style={styles.linkButtonText}>
                     CONNECT
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
       </KeyboardAvoidingView>
 
       {/* MT5 Authentication Toast */}
@@ -2335,7 +2335,7 @@ export default function MetaTraderScreen() {
           >
             <X color="#FFFFFF" size={20} />
           </TouchableOpacity>
-
+          
           {/* Debug Info Banner */}
           <View style={styles.debugBanner}>
             <Text style={styles.debugText}>
@@ -2345,7 +2345,7 @@ export default function MetaTraderScreen() {
               Server: {server} | Login: {login}
             </Text>
           </View>
-
+          
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`mt5-web-${mt5WebViewKey}`}
@@ -2424,7 +2424,7 @@ export default function MetaTraderScreen() {
           >
             <X color="#FFFFFF" size={20} />
           </TouchableOpacity>
-
+          
           {/* Debug Info Banner */}
           <View style={styles.debugBanner}>
             <Text style={styles.debugText}>
@@ -2434,16 +2434,16 @@ export default function MetaTraderScreen() {
               Server: {server} | Login: {login}
             </Text>
           </View>
-
+          
           {/* Use CustomWebView for all platforms (web, Android, iOS) - same as Android */}
-          <CustomWebView
-            key={`mt4-custom-${mt4WebViewKey}`}
-            url="https://metatraderweb.app/trade?version=4"
-            script={getMT4Script()}
-            onMessage={onMT4WebViewMessage}
-            onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
-            style={styles.invisibleWebView}
-          />
+            <CustomWebView
+              key={`mt4-custom-${mt4WebViewKey}`}
+              url="https://metatraderweb.app/trade?version=4"
+              script={getMT4Script()}
+              onMessage={onMT4WebViewMessage}
+              onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
+              style={styles.invisibleWebView}
+            />
         </View>
       )}
     </SafeAreaView>

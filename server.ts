@@ -675,7 +675,7 @@ async function handleApi(request: Request): Promise<Response> {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
-    // MT5 Trading Proxy endpoint - fetches MT5 terminal and injects trading script
+    // MT5 Trading Proxy endpoint - fetches MT5 terminal and injects trading script (EXACTLY like Android)
     if (pathname === '/api/mt5-trading-proxy') {
       if (request.method === 'GET') {
         const terminalUrl = url.searchParams.get('url');
@@ -687,16 +687,15 @@ async function handleApi(request: Request): Promise<Response> {
         const sl = url.searchParams.get('sl') || '';
         const tp = url.searchParams.get('tp') || '';
         const volume = url.searchParams.get('volume') || '0.01';
-        const numberOfTrades = url.searchParams.get('numberOfTrades') || '1';
         const robotName = url.searchParams.get('robotName') || 'EA Trade';
-        const server = broker; // Server name is the broker name
+        const numberOfTrades = url.searchParams.get('numberOfTrades') || '1';
 
         if (!terminalUrl) {
           return new Response('Missing terminal URL', { status: 400 });
         }
 
         try {
-          // Fetch the MT5 terminal page
+          // Fetch the MT5 terminal page (same as auth proxy)
           const response = await fetch(terminalUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -709,17 +708,16 @@ async function handleApi(request: Request): Promise<Response> {
 
           let html = await response.text();
 
-          // Get base URL for fixing relative URLs (same as auth proxy)
+          // Get base URL and fix URLs (same as auth proxy)
           const baseUrlObj = new URL(terminalUrl);
           const baseUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}`;
           const wsBaseUrl = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
 
-          // Fix relative URLs in HTML (same as auth proxy)
           const proxyOrigin = url.protocol === 'https:' || url.hostname.includes('onrender.com')
             ? `https://${url.hostname}${url.port ? `:${url.port}` : ''}`
             : url.origin;
 
-          // Route terminal assets through proxy
+          // Fix relative URLs (same as auth proxy)
           html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
               return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
@@ -745,16 +743,17 @@ async function handleApi(request: Request): Promise<Response> {
             return `url('${baseUrl}/${path}')`;
           });
 
-          // Fix absolute broker URLs
           html = html.replace(new RegExp(`${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/([^"'>\\s]+)`, 'g'), (match, assetPath) => {
             return `${proxyOrigin}/terminal/${assetPath}?broker=${encodeURIComponent(broker)}`;
           });
 
-          // Fix WebSocket URLs (same as auth proxy)
+          // Fix WebSocket URLs
           const proxyDomain = url.origin;
           const proxyHost = proxyDomain.replace(/https?:\/\//, '').replace(/\./g, '\\.');
+
           html = html.replace(new RegExp(`wss?://${proxyHost}/terminal/ws`, 'gi'), `${wsBaseUrl}/terminal/ws`);
           html = html.replace(new RegExp(`wss?://${proxyHost}/terminal/`, 'gi'), `${wsBaseUrl}/terminal/`);
+
           html = html.replace(
             /(new\s+WebSocket\s*\(\s*['"`])(wss?:\/\/)(window\.location\.(origin|hostname)|location\.(origin|hostname))(['"`])/g,
             `$1${wsBaseUrl}/terminal/ws$6`
@@ -805,12 +804,11 @@ async function handleApi(request: Request): Promise<Response> {
           const slValue = escapeValue(sl || '');
           const tpValue = escapeValue(tp || '');
           const volumeValue = escapeValue(volume || '0.01');
-          const numberOfTradesValue = escapeValue(numberOfTrades || '1');
           const robotNameValue = escapeValue(robotName || 'EA Trade');
-          const wsUrl = `${wsBaseUrl}/terminal/ws`;
+          const numberOfTradesValue = escapeValue(numberOfTrades || '1');
 
-          // Generate trading script - EXACT COPY from mt5-signal-webview.tsx
-          // This script will be injected into the HTML and executed automatically when page loads
+          // Generate trading script - EXACT COPY from Android mt5-signal-webview.tsx generateMT5AuthScript()
+          // This includes authentication + trading logic - MUST BE IDENTICAL TO ANDROID VERSION
           const tradingScript = `
             (function() {
               console.log('[MT5 Trading] Script injected and executing...');
@@ -831,7 +829,7 @@ async function handleApi(request: Request): Promise<Response> {
               };
 
               sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
-              console.log('[MT5 Trading] Script initialized, starting authentication...');
+              console.log('[MT5 Trading] Script initialized, waiting for page load...');
               
               const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -851,7 +849,7 @@ async function handleApi(request: Request): Promise<Response> {
               
               const originalReload = window.location.reload;
               window.location.reload = function() {
-                console.log('[MT5 Trading] Page reload prevented');
+                console.log('Page reload prevented');
                 return false;
               };
               
@@ -893,11 +891,11 @@ async function handleApi(request: Request): Promise<Response> {
               // Override WebSocket to redirect to original terminal
               const originalWebSocket = window.WebSocket;
               window.WebSocket = function(url, protocols) {
-                console.log('[MT5 Trading] WebSocket connection attempt to:', url);
+                console.log('WebSocket connection attempt to:', url);
                 
                 if (url.includes('/terminal/ws')) {
-                  const newUrl = '${wsUrl}';
-                  console.log('[MT5 Trading] Redirecting WebSocket to:', newUrl);
+                  const newUrl = '${wsBaseUrl}/terminal/ws';
+                  console.log('Redirecting WebSocket to:', newUrl);
                   return new originalWebSocket(newUrl, protocols);
                 }
                 
@@ -910,13 +908,13 @@ async function handleApi(request: Request): Promise<Response> {
                 writable: false
               });
 
-              // Authentication function - EXACT COPY from Android with enhanced logging
+              // Optimized authentication function matching Android robustness
               const authenticateMT5 = async () => {
                 try {
                   console.log('[MT5 Trading] Starting authentication process...');
                   sendMessage('step_update', 'Initializing MT5 Account...');
                   
-                  // Wait for page to be ready
+                  // Wait for page to be ready instead of fixed delay
                   let retries = 0;
                   while (retries < 10) {
                     const form = document.querySelector('.form');
@@ -926,9 +924,7 @@ async function handleApi(request: Request): Promise<Response> {
                     retries++;
                   }
                   
-                  console.log('[MT5 Trading] Initial wait complete, checking for existing connections...');
-                  
-                  // Check for disclaimer
+                  // Check for disclaimer and accept if present
                   const disclaimer = document.querySelector('#disclaimer');
                   if (disclaimer) {
                     const acceptButton = document.querySelector('.accept-button');
@@ -952,41 +948,19 @@ async function handleApi(request: Request): Promise<Response> {
                     console.log('[MT5 Trading] Found existing connection, removing...');
                     sendMessage('step_update', 'Removing existing connection...');
                     removeButton.click();
-                    await sleep(3000);
-                    
-                    // Wait for form to be cleared
-                    let formCleared = false;
-                    for (let i = 0; i < 10; i++) {
-                      const currentForm = document.querySelector('.form');
-                      const currentRemoveButton = document.querySelector('.button.svelte-1wrky82.red');
-                      if (!currentRemoveButton || (currentForm && currentForm.classList.contains('hidden'))) {
-                        formCleared = true;
-                        console.log('[MT5 Trading] Form cleared, ready for new connection');
-                        break;
-                      }
-                      await sleep(500);
-                    }
-                    
-                    if (!formCleared) {
-                      console.log('[MT5 Trading] Form still visible, waiting longer...');
-                      sendMessage('step_update', 'Waiting for form to clear...');
-                      await sleep(2000);
-                    }
+                    await sleep(1000);
                   } else if (form && !form.classList.contains('hidden')) {
-                    console.log('[MT5 Trading] Form visible but no remove button found, searching...');
                     const buttons = document.getElementsByTagName('button');
                     for (let i = 0; i < buttons.length; i++) {
-                      const btnText = buttons[i].textContent.trim().toLowerCase();
-                      if (btnText === 'remove' || btnText.includes('remove') || btnText === 'disconnect') {
-                        sendMessage('step_update', 'Removing existing connection...');
+                      if (buttons[i].textContent.trim() === 'Remove') {
                         buttons[i].click();
-                        await sleep(3000);
+                        sendMessage('step_update', 'Removing existing connection...');
+                        await sleep(1000);
                         break;
                       }
                     }
                   }
                   
-                  // Wait for form to be ready
                   await sleep(500);
                   
                   // Fill login credentials
@@ -999,9 +973,7 @@ async function handleApi(request: Request): Promise<Response> {
                                        document.querySelector('input[type="password"]') ||
                                        document.querySelector('input#password');
                   
-                  // Fill login field
                   if (loginField && '${loginValue}') {
-                    console.log('[MT5 Trading] Found login field, filling credentials...');
                     loginField.focus();
                     loginField.value = '';
                     loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
@@ -1012,15 +984,12 @@ async function handleApi(request: Request): Promise<Response> {
                     loginField.value = '${loginValue}';
                     loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                     loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    console.log('[MT5 Trading] Login field filled');
                     sendMessage('step_update', 'Login filled');
                   } else {
-                    console.error('[MT5 Trading] Login field not found! Available inputs:', document.querySelectorAll('input').length);
                     sendMessage('authentication_failed', 'Login field not found');
                     return;
                   }
                   
-                  // Fill password field
                   if (passwordField && '${passwordValue}') {
                     await sleep(300);
                     passwordField.focus();
@@ -1039,54 +1008,47 @@ async function handleApi(request: Request): Promise<Response> {
                     return;
                   }
                   
-                  // Wait for fields to be filled
                   await sleep(2000);
                   
-                  // Click login button
                   sendMessage('step_update', 'Connecting to Server...');
-                  console.log('[MT5 Trading] Looking for login button...');
                   const loginButton = document.querySelector('.button.svelte-1wrky82.active') ||
-                                     document.querySelector('button[type="submit"]') ||
-                                     document.querySelector('.button.active') ||
-                                     Array.from(document.querySelectorAll('button')).find(btn => 
-                                       btn.textContent.trim().toLowerCase().includes('login') ||
-                                       btn.textContent.trim().toLowerCase().includes('connect')
-                                     );
+                                   document.querySelector('button[type="submit"]') ||
+                                   document.querySelector('.button.active') ||
+                                   Array.from(document.querySelectorAll('button')).find(btn => 
+                                     btn.textContent.trim().toLowerCase().includes('login') ||
+                                     btn.textContent.trim().toLowerCase().includes('connect')
+                                   );
                   
                   if (loginButton) {
-                    console.log('[MT5 Trading] Found login button, clicking...');
                     loginButton.click();
-                    console.log('[MT5 Trading] Login button clicked, waiting for connection...');
-                    
-                    // Wait for login to complete
+                    sendMessage('step_update', 'Connecting...');
                     let loginRetries = 0;
                     while (loginRetries < 20) {
                       const loginForm = document.querySelector('input[name="login"]');
                       const searchBar = document.querySelector('input[placeholder*="Search symbol" i]');
                       if (!loginForm && searchBar && searchBar.offsetParent !== null) {
-                        break; // Login successful
+                        break;
                       }
                       await sleep(500);
                       loginRetries++;
                     }
                   } else {
-                    console.error('[MT5 Trading] Login button not found! Available buttons:', document.querySelectorAll('button').length);
                     sendMessage('authentication_failed', 'Login button not found');
                     return;
                   }
                   
-                  // Check for successful login
                   sendMessage('step_update', 'Verifying authentication...');
                   await sleep(1000);
                   
-                  // Expand Market Watch panel if needed
                   sendMessage('step_update', 'Checking Market Watch panel...');
+                  
                   const searchFieldCheck = document.querySelector('input[placeholder*="Search symbol" i]') ||
-                                        document.querySelector('input[placeholder*="Search" i]') ||
-                                        document.querySelector('input[type="search"]');
+                                          document.querySelector('input[placeholder*="Search" i]') ||
+                                          document.querySelector('input[type="search"]');
                   
                   if (!searchFieldCheck || searchFieldCheck.offsetParent === null) {
                     sendMessage('step_update', 'Expanding Market Watch panel...');
+                    
                     const marketWatchButton = document.querySelector('div.icon-button.svelte-1iwf8ix[title="Show Market Watch (Ctrl + M)"]') ||
                                              document.querySelector('div.icon-button[title*="Show Market Watch" i]') ||
                                              document.querySelector('div.icon-button[title*="Market Watch" i]') ||
@@ -1108,41 +1070,33 @@ async function handleApi(request: Request): Promise<Response> {
                     sendMessage('step_update', 'Market Watch already visible');
                   }
                   
-                  // Check for search bar after expanding
                   await sleep(1000);
                   const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
                                      document.querySelector('input[placeholder*="Search" i]') ||
                                      document.querySelector('input[type="search"]');
                   
                   if (searchField && searchField.offsetParent !== null) {
-                    // Login successful - proceed with trading
-                    console.log('[MT5 Trading] Authentication successful, starting trading flow...');
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     await executeMultipleTrades();
                     return;
                   }
                   
-                  // Double check after longer wait
                   await sleep(3000);
                   const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
-                                        document.querySelector('input[placeholder*="Search" i]') ||
-                                        document.querySelector('input[type="search"]');
+                                          document.querySelector('input[placeholder*="Search" i]') ||
+                                          document.querySelector('input[type="search"]');
                   
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
-                    console.log('[MT5 Trading] Authentication successful (retry), starting trading flow...');
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     await executeMultipleTrades();
                     return;
                   }
                   
-                  // Authentication failed
-                  console.error('[MT5 Trading] Authentication failed - search bar not found');
                   sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
                   
                 } catch(e) {
-                  console.error('[MT5 Trading] Authentication error:', e);
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
               };
@@ -1150,7 +1104,6 @@ async function handleApi(request: Request): Promise<Response> {
               // Search for symbol function - STRICTLY SEQUENTIAL Step 2
               const searchForSymbol = async (symbolName) => {
                 try {
-                  console.log('[MT5 Trading] Step 2: Searching for symbol', symbolName);
                   sendMessage('step_update', 'Step 2: Searching for symbol ' + symbolName + '...');
                   
                   let searchLabel = document.querySelector('label.search.svelte-1mvzp7f');
@@ -1175,9 +1128,9 @@ async function handleApi(request: Request): Promise<Response> {
                                 document.querySelector('input[type="search"]');
                   }
                   
-                  // Expand search bar if needed
                   if (!searchField || searchField.offsetParent === null) {
                     sendMessage('step_update', 'Expanding search bar using Economic Calendar button...');
+                    
                     const economicCalendarButton = document.querySelector('div.icon-button.svelte-1iwf8ix[title="Show Economic Calendar Events on Chart"]') ||
                                                  Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix')).find(btn => 
                                                    btn.getAttribute('title') && btn.getAttribute('title').includes('Economic Calendar')
@@ -1222,13 +1175,14 @@ async function handleApi(request: Request): Promise<Response> {
                           searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
                                       document.querySelector('input[placeholder*="Search" i]') ||
                                       document.querySelector('input[type="search"]');
+                        } else {
+                          sendMessage('step_update', 'Market Watch already visible, skipping click');
                         }
                       }
                     }
                   }
                   
                   if (searchField && searchField.offsetParent !== null) {
-                    console.log('[MT5 Trading] Search bar found, searching for', symbolName);
                     sendMessage('step_update', 'Search bar found, searching for ' + symbolName + '...');
                     
                     searchField.focus();
@@ -1248,7 +1202,6 @@ async function handleApi(request: Request): Promise<Response> {
                     
                     sendMessage('symbol_search', 'Symbol ' + symbolName + ' searched');
                     
-                    // Select symbol
                     const symbolElements = document.querySelectorAll('.name.svelte-19bwscl .symbol.svelte-19bwscl, .symbol.svelte-19bwscl, [class*="symbol"]');
                     let symbolSelected = false;
                     for (let i = 0; i < symbolElements.length; i++) {
@@ -1269,7 +1222,6 @@ async function handleApi(request: Request): Promise<Response> {
                     sendMessage('error', 'Search field not found or not visible after expanding');
                   }
                 } catch(e) {
-                  console.error('[MT5 Trading] Error searching for symbol:', e);
                   sendMessage('error', 'Error searching for symbol: ' + e.message);
                 }
               };
@@ -1277,7 +1229,6 @@ async function handleApi(request: Request): Promise<Response> {
               // Open chart function - STRICTLY SEQUENTIAL Step 3
               const openChart = async (symbolName) => {
                 try {
-                  console.log('[MT5 Trading] Step 3: Opening chart for', symbolName);
                   sendMessage('step_update', 'Step 3: Opening chart for ' + symbolName + '...');
                   
                   await sleep(2000);
@@ -1318,7 +1269,6 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                 } catch(e) {
-                  console.error('[MT5 Trading] Error opening chart:', e);
                   sendMessage('error', 'Error opening chart: ' + e.message);
                 }
               };
@@ -1378,7 +1328,6 @@ async function handleApi(request: Request): Promise<Response> {
               // Open order dialog and execute single trade - STRICTLY SEQUENTIAL
               const openOrderDialogAndExecuteTrade = async (tradeNumber, totalTrades) => {
                 try {
-                  console.log('[MT5 Trading] Opening order dialog for trade', tradeNumber + '/' + totalTrades);
                   sendMessage('step_update', '📋 Opening order dialog for trade ' + tradeNumber + '/' + totalTrades + '...');
                   
                   let orderDialogTrigger = document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Show Trade Form (F9)"]') ||
@@ -1436,7 +1385,6 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   await sleep(2000);
                   
-                  // Verify dialog is open
                   let retries = 0;
                   let dialogElement = null;
                   let dialogReady = false;
@@ -1468,7 +1416,6 @@ async function handleApi(request: Request): Promise<Response> {
                     return false;
                   }
                   
-                  // Focus on dialog
                   if (dialogElement) {
                     dialogElement.focus();
                     const rect = dialogElement.getBoundingClientRect();
@@ -1488,7 +1435,6 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   await sleep(500);
                   
-                  // Fill order form
                   sendMessage('step_update', '📝 Filling order form for trade ' + tradeNumber + '/' + totalTrades + '...');
                   const tradeSuccess = await fillOrderFormAndConfirm(tradeNumber, totalTrades);
                   
@@ -1497,7 +1443,6 @@ async function handleApi(request: Request): Promise<Response> {
                     return false;
                   }
                   
-                  // Confirm trade
                   sendMessage('step_update', '⏳ Confirming trade ' + tradeNumber + '...');
                   await sleep(1500);
                   
@@ -1516,7 +1461,6 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   return true;
                 } catch(e) {
-                  console.error('[MT5 Trading] Error in trade', tradeNumber + ':', e);
                   sendMessage('error', '❌ Error in trade ' + tradeNumber + ': ' + e.message);
                   return false;
                 }
@@ -1532,11 +1476,8 @@ async function handleApi(request: Request): Promise<Response> {
                   const tp = '${tpValue}';
                   const robotName = '${robotNameValue}';
                   
-                  console.log('[MT5 Trading] Filling order form:', { symbol, action, volume, sl, tp, robotName });
-                  
                   const decimalInputs = Array.from(document.querySelectorAll('input[inputmode="decimal"]'));
                   
-                  // Set volume
                   if (decimalInputs.length > 0 && volume) {
                     const volumeInput = decimalInputs[0];
                     volumeInput.focus();
@@ -1553,7 +1494,6 @@ async function handleApi(request: Request): Promise<Response> {
                     sendMessage('step_update', '✅ Volume: ' + volume);
                   }
                   
-                  // Set SL
                   if (decimalInputs.length > 1 && sl) {
                     await sleep(200);
                     const slInput = decimalInputs[1];
@@ -1571,7 +1511,6 @@ async function handleApi(request: Request): Promise<Response> {
                     sendMessage('step_update', '✅ Stop Loss: ' + sl);
                   }
                   
-                  // Set TP
                   if (decimalInputs.length > 2 && tp) {
                     await sleep(200);
                     const tpInput = decimalInputs[2];
@@ -1589,13 +1528,12 @@ async function handleApi(request: Request): Promise<Response> {
                     sendMessage('step_update', '✅ Take Profit: ' + tp);
                   }
                   
-                  // Set comment
                   if (robotName) {
                     await sleep(200);
                     const commentInput = document.querySelector('input.svelte-mtorg2') ||
-                                      Array.from(document.querySelectorAll('input[autocomplete="off"]')).find(inp => 
-                                        inp.classList.contains('svelte-mtorg2')
-                                      );
+                                        Array.from(document.querySelectorAll('input[autocomplete="off"]')).find(inp => 
+                                          inp.classList.contains('svelte-mtorg2')
+                                        );
                     
                     if (commentInput) {
                       commentInput.focus();
@@ -1613,31 +1551,27 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                   
-                  // Click trade button
                   await sleep(500);
                   
                   const buyButton = document.querySelector('button.trade-button.svelte-ailjot:not(.red)') ||
-                                 Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot')).find(btn => 
-                                   (btn.innerText || btn.textContent || '').trim().includes('Buy')
-                                 );
+                                   Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot')).find(btn => 
+                                     (btn.innerText || btn.textContent || '').trim().includes('Buy')
+                                   );
                   
                   const sellButton = document.querySelector('button.trade-button.svelte-ailjot.red') ||
-                                  Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot.red')).find(btn => 
-                                    (btn.innerText || btn.textContent || '').trim().includes('Sell')
-                                  );
+                                    Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot.red')).find(btn => 
+                                      (btn.innerText || btn.textContent || '').trim().includes('Sell')
+                                    );
                   
                   const actionLower = (action || '').toLowerCase();
                   
                   if (actionLower === 'buy' && buyButton) {
                     buyButton.click();
-                    console.log('[MT5 Trading] BUY order executed for trade', tradeNumber);
                     sendMessage('step_update', '🚀 Trade ' + tradeNumber + '/' + totalTrades + ': BUY order executed');
                   } else if (actionLower === 'sell' && sellButton) {
                     sellButton.click();
-                    console.log('[MT5 Trading] SELL order executed for trade', tradeNumber);
                     sendMessage('step_update', '🚀 Trade ' + tradeNumber + '/' + totalTrades + ': SELL order executed');
                   } else {
-                    console.error('[MT5 Trading] Trade button not found for action:', action);
                     sendMessage('error', '❌ Trade button not found for action: ' + action);
                     return false;
                   }
@@ -1646,7 +1580,6 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   return true;
                 } catch(e) {
-                  console.error('[MT5 Trading] Error filling order form:', e);
                   sendMessage('error', '❌ Error filling order form: ' + e.message);
                   return false;
                 }
@@ -1656,52 +1589,48 @@ async function handleApi(request: Request): Promise<Response> {
               const executeMultipleTrades = async () => {
                 const numberOfTrades = parseInt('${numberOfTradesValue}', 10);
                 if (isNaN(numberOfTrades) || numberOfTrades < 1) {
-                  console.error('[MT5 Trading] Invalid number of trades:', numberOfTrades);
                   sendMessage('error', 'Invalid number of trades configured: ' + numberOfTrades);
                   return;
                 }
                 
-                console.log('[MT5 Trading] Configured to execute EXACTLY', numberOfTrades, 'trade(s)');
                 sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');
+                console.log('🎯 STRICT EXECUTION: Will execute exactly ' + numberOfTrades + ' trades, no more, no less');
                 
                 let successfulTrades = 0;
                 let failedTrades = 0;
                 
-                // Execute EXACTLY the configured number of trades - STRICTLY SEQUENTIAL
                 for (let i = 0; i < numberOfTrades; i++) {
                   const tradeNumber = i + 1;
-                  console.log('[MT5 Trading] Starting trade', tradeNumber + '/' + numberOfTrades);
                   sendMessage('step_update', '🔄 Executing trade ' + tradeNumber + ' of ' + numberOfTrades + '...');
+                  console.log('▶️ Starting trade ' + tradeNumber + '/' + numberOfTrades);
                   
                   try {
                     const tradeSuccess = await openOrderDialogAndExecuteTrade(tradeNumber, numberOfTrades);
                     
                     if (tradeSuccess) {
                       successfulTrades++;
-                      console.log('[MT5 Trading] Trade', tradeNumber, 'completed successfully');
                       sendMessage('step_update', '✅ Trade ' + tradeNumber + '/' + numberOfTrades + ' completed successfully');
+                      console.log('✅ Trade ' + tradeNumber + ' completed successfully');
                     } else {
                       failedTrades++;
-                      console.error('[MT5 Trading] Trade', tradeNumber, 'failed');
                       sendMessage('step_update', '❌ Trade ' + tradeNumber + '/' + numberOfTrades + ' failed');
+                      console.log('❌ Trade ' + tradeNumber + ' failed');
                     }
                     
-                    // Wait between trades if not the last one
                     if (i < numberOfTrades - 1) {
                       sendMessage('step_update', '⏳ Preparing for next trade...');
                       await sleep(1500);
                     }
                   } catch (error) {
                     failedTrades++;
-                    console.error('[MT5 Trading] Error executing trade', tradeNumber + ':', error);
                     sendMessage('error', 'Error executing trade ' + tradeNumber + ': ' + error.message);
+                    console.error('❌ Error executing trade ' + tradeNumber + ':', error);
                   }
                 }
                 
-                // Final summary
                 const summaryMessage = '✅ Completed: ' + successfulTrades + '/' + numberOfTrades + ' trades executed';
-                console.log('[MT5 Trading] EXECUTION COMPLETE:', successfulTrades, 'successful,', failedTrades, 'failed out of', numberOfTrades, 'total');
                 sendMessage('step_update', summaryMessage);
+                console.log('📊 EXECUTION COMPLETE: ' + successfulTrades + ' successful, ' + failedTrades + ' failed out of ' + numberOfTrades + ' total');
                 
                 if (successfulTrades === numberOfTrades) {
                   sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully');
@@ -1711,7 +1640,7 @@ async function handleApi(request: Request): Promise<Response> {
                 
                 await sleep(1000);
               };
-
+              
               // Start authentication immediately when DOM is ready
               if (document.readyState === 'complete' || document.readyState === 'interactive') {
                 authenticateMT5();
@@ -1722,7 +1651,7 @@ async function handleApi(request: Request): Promise<Response> {
             })();
           `;
 
-          // Inject script before closing body tag (EXACTLY like Android)
+          // Inject script before closing body tag
           if (html.includes('</body>')) {
             html = html.replace('</body>', `<script>${tradingScript}</script></body>`);
             console.log('✅ MT5 trading script injected before </body> tag');
@@ -1735,10 +1664,10 @@ async function handleApi(request: Request): Promise<Response> {
           }
 
           // Verify script was injected
-          if (html.includes('authenticateMT5') && html.includes('executeMultipleTrades')) {
-            console.log('✅ Trading script injection verified - authenticateMT5 and executeMultipleTrades functions found in HTML');
+          if (html.includes('authenticateMT5')) {
+            console.log('✅ Trading script injection verified - authenticateMT5 function found in HTML');
           } else {
-            console.error('❌ Trading script injection failed - functions not found in HTML');
+            console.error('❌ Trading script injection failed - authenticateMT5 function not found in HTML');
           }
 
           // Return modified HTML with CORS headers
@@ -1752,8 +1681,8 @@ async function handleApi(request: Request): Promise<Response> {
             },
           });
         } catch (error) {
-          console.error('MT5 Trading Proxy error:', error);
-          return new Response(`Proxy error: ${error.message}`, { status: 500 });
+          console.error('❌ MT5 trading proxy error:', error);
+          return new Response(`Proxy error: ${error}`, { status: 500 });
         }
       }
       return new Response('Method Not Allowed', { status: 405 });
