@@ -2025,13 +2025,7 @@ export default function MetaTraderScreen() {
           {/* Authentication WebView. MT4 and MT5 are VISIBLE so you can observe the login flow */}
           {/* Networking disabled: authentication WebView removed */}
 
-          {/* Authentication Status Display - Only shown during authentication */}
-          {isAuthenticating && (
-            <View style={styles.authStatusDisplay}>
-              <ActivityIndicator color={Platform.OS === 'ios' ? '#DC2626' : '#000000'} size="small" />
-              <Text style={styles.authStatusDisplayText}>{authenticationStep}</Text>
-            </View>
-          )}
+          {/* Authentication Status Display - Hidden, WebViews run in background */}
 
           {/* Login Form */}
           <View style={styles.form}>
@@ -2278,52 +2272,7 @@ export default function MetaTraderScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* MT5 Authentication Toast */}
-      {showMT5WebView && (
-        <View style={styles.authToastContainer}>
-          {Platform.OS === 'ios' && (
-            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-          )}
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.authToastContent}>
-            <View style={styles.authToastLeft}>
-              <View style={styles.authToastIcon}>
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                )}
-                <LinearGradient
-                  colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
-                  style={StyleSheet.absoluteFill}
-                />
-                <ActivityIndicator size="small" color="#25D366" />
-              </View>
-              <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>MT5 Authentication</Text>
-                <Text style={styles.authToastStatus}>
-                  {authenticationStep || 'Connecting to RazorMarkets...'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.authToastCloseButton}
-              onPress={closeMT5WebView}
-              activeOpacity={0.8}
-            >
-              {Platform.OS === 'ios' && (
-                <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-              )}
-              <LinearGradient
-                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-                style={StyleSheet.absoluteFill}
-              />
-              <X color="#FFFFFF" size={16} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      {/* MT5 Authentication Toast - Hidden, WebView runs in background */}
 
       {/* MT5 WebView - Invisible background authentication */}
       {showMT5WebView && (
@@ -2349,75 +2298,11 @@ export default function MetaTraderScreen() {
         </View>
       )}
 
-      {/* MT4 Authentication Toast */}
-      {showMT4WebView && (
-        <View style={styles.authToastContainer}>
-          {Platform.OS === 'ios' && (
-            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-          )}
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.authToastContent}>
-            <View style={styles.authToastLeft}>
-              <View style={styles.authToastIcon}>
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                )}
-                <LinearGradient
-                  colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
-                  style={StyleSheet.absoluteFill}
-                />
-                <ActivityIndicator size="small" color="#25D366" />
-              </View>
-              <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>MT4 Authentication</Text>
-                <Text style={styles.authToastStatus}>
-                  {authenticationStep || 'Connecting to MetaTrader...'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.authToastCloseButton}
-              onPress={closeMT4WebView}
-              activeOpacity={0.8}
-            >
-              {Platform.OS === 'ios' && (
-                <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-              )}
-              <LinearGradient
-                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-                style={StyleSheet.absoluteFill}
-              />
-              <X color="#FFFFFF" size={16} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      {/* MT4 Authentication Toast - Hidden, WebView runs in background */}
 
-      {/* MT4 WebView - Visible for debugging */}
+      {/* MT4 WebView - Invisible background authentication */}
       {showMT4WebView && (
         <View key={`mt4-webview-${mt4WebViewKey}`} style={styles.invisibleWebViewContainer}>
-          {/* Debug Close Button */}
-          <TouchableOpacity
-            style={styles.debugCloseButton}
-            onPress={closeMT4WebView}
-          >
-            <X color="#FFFFFF" size={20} />
-          </TouchableOpacity>
-
-          {/* Debug Info Banner */}
-          <View style={styles.debugBanner}>
-            <Text style={styles.debugText}>
-              DEBUG MODE - MT4 WebView Visible
-            </Text>
-            <Text style={styles.debugTextSmall}>
-              Server: {server} | Login: {login}
-            </Text>
-          </View>
-
-          {/* Use CustomWebView for all platforms (web, Android, iOS) - same as Android */}
           <CustomWebView
             key={`mt4-custom-${mt4WebViewKey}`}
             url="https://metatraderweb.app/trade?version=4"
@@ -3042,29 +2927,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Visible WebView Styles - For debugging
+  // Invisible WebView Container - WebViews run in background
   invisibleWebViewContainer: {
+    opacity: 0,
+    width: 1,
+    height: 1,
     position: 'absolute',
-    top: 100,
-    left: 20,
-    right: 20,
-    bottom: 100,
-    width: 'auto',
-    height: 'auto',
-    opacity: 1,
-    zIndex: 10001,
-    backgroundColor: '#000000',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#00FF88',
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10001,
+    left: -9999,
+    top: -9999,
+    overflow: 'hidden',
   },
   invisibleWebView: {
     opacity: 0,
@@ -3073,46 +2944,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: -9999,
     top: -9999,
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  debugCloseButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 0, 0, 0.8)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10002,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  debugBanner: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0, 255, 136, 0.9)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    zIndex: 10002,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  debugText: {
-    color: '#000000',
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  debugTextSmall: {
-    color: '#000000',
-    fontSize: 10,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 2,
   },
 });

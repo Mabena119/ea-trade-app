@@ -1,10 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, Modal, Text, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
-import colors from '@/constants/colors';
-import { X } from 'lucide-react-native';
 
 interface MT5SignalWebViewProps {
   visible: boolean;
@@ -1122,160 +1120,90 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     : null;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={false}
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>MT5 Trading</Text>
-            <Text style={styles.headerSubtitle}>{signal.asset}</Text>
-          </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <X color={colors.text} size={24} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.statusBar}>
-          <Text style={styles.statusText}>{currentStep}</Text>
-          {loading && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
-        </View>
-
-        {Platform.OS === 'web' ? (
-          <WebWebView
-            key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
-            url={proxyUrl || ''}
-            onMessage={handleWebViewMessage}
-            onLoadEnd={() => {
-              setLoading(false);
-              setCurrentStep('MT5 Terminal loaded');
-              console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-            }}
-            style={styles.webview}
-          />
-        ) : (
-          <WebView
-            key={`${webViewKey}-${signal.id || 'no-signal'}`}
-            ref={webViewRef}
-            source={{ uri: mt5Url }}
-            style={styles.webview}
-            userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            onMessage={handleWebViewMessage}
-            onLoadStart={() => {
-              setLoading(true);
-              setCurrentStep('Loading MT5 Terminal...');
-              console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
-            }}
-            onLoadEnd={() => {
-              setLoading(false);
-              setCurrentStep('MT5 Terminal loaded');
-              console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-              // Inject script when page loads (Android only - script is pre-injected for web via proxy)
-              const script = generateMT5AuthScript();
-              if (script && webViewRef.current) {
-                setTimeout(() => {
-                  if (webViewRef.current) {
-                    webViewRef.current.injectJavaScript(script);
-                  }
-                }, 1000);
-              }
-            }}
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.error('❌ WebView error for signal:', signal.asset, 'ID:', signal.id, nativeEvent);
-              setCurrentStep('Error loading MT5 Terminal');
-              setLoading(false);
-            }}
-            onShouldStartLoadWithRequest={(request) => {
-              // Prevent navigation away from the terminal URL
-              if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
-                console.log('🚫 Navigation prevented:', request.url);
-                return false;
-              }
-              return true;
-            }}
-            onNavigationStateChange={(navState) => {
-              // Prevent reloads and navigation away
-              if (navState.loading) {
-                // Only allow navigation if it's the initial load or same URL
-                if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
-                  console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
-                  if (webViewRef.current) {
-                    webViewRef.current.stopLoading();
-                  }
+    // Trading WebView runs invisibly in background - no UI shown
+    <>
+      {Platform.OS === 'web' ? (
+        <WebWebView
+          key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
+          url={proxyUrl || ''}
+          onMessage={handleWebViewMessage}
+          onLoadEnd={() => {
+            setLoading(false);
+            setCurrentStep('MT5 Terminal loaded');
+            console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+          }}
+          style={styles.webview}
+        />
+      ) : (
+        <WebView
+          key={`${webViewKey}-${signal.id || 'no-signal'}`}
+          ref={webViewRef}
+          source={{ uri: mt5Url }}
+          style={styles.webview}
+          userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          onMessage={handleWebViewMessage}
+          onLoadStart={() => {
+            setLoading(true);
+            setCurrentStep('Loading MT5 Terminal...');
+            console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
+          }}
+          onLoadEnd={() => {
+            setLoading(false);
+            setCurrentStep('MT5 Terminal loaded');
+            console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+            // Inject script when page loads (Android only - script is pre-injected for web via proxy)
+            const script = generateMT5AuthScript();
+            if (script && webViewRef.current) {
+              setTimeout(() => {
+                if (webViewRef.current) {
+                  webViewRef.current.injectJavaScript(script);
+                }
+              }, 1000);
+            }
+          }}
+          onError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.error('❌ WebView error for signal:', signal.asset, 'ID:', signal.id, nativeEvent);
+            setCurrentStep('Error loading MT5 Terminal');
+            setLoading(false);
+          }}
+          onShouldStartLoadWithRequest={(request) => {
+            // Prevent navigation away from the terminal URL
+            if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
+              console.log('🚫 Navigation prevented:', request.url);
+              return false;
+            }
+            return true;
+          }}
+          onNavigationStateChange={(navState) => {
+            // Prevent reloads and navigation away
+            if (navState.loading) {
+              // Only allow navigation if it's the initial load or same URL
+              if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
+                console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
+                if (webViewRef.current) {
+                  webViewRef.current.stopLoading();
                 }
               }
-            }}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-            scalesPageToFit={false}
-            mixedContentMode="always"
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            cacheEnabled={false}
-            incognito={true}
-          />
-        )}
-      </View>
-    </Modal>
+            }
+          }}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={true}
+          scalesPageToFit={false}
+          mixedContentMode="always"
+          allowsInlineMediaPlayback={true}
+          mediaPlaybackRequiresUserAction={false}
+          cacheEnabled={false}
+          incognito={true}
+        />
+      )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 16,
-    backgroundColor: colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  closeButton: {
-    padding: 8,
-  },
-  statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  statusText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  loader: {
-    marginLeft: 8,
-  },
   webview: {
-    flex: 1,
     opacity: 0,
     width: 1,
     height: 1,
