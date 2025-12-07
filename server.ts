@@ -323,41 +323,41 @@ async function handleApi(request: Request): Promise<Response> {
             ? `https://${url.hostname}${url.port ? `:${url.port}` : ''}`
             : url.origin;
 
-          // For terminal assets, use absolute URLs pointing to broker domain
-          // This allows assets to load directly from broker (same-origin from HTML's perspective)
-          // The HTML is served from proxy but assets load from broker, avoiding CORS
+          // For terminal assets, route through proxy to avoid CORS issues
+          // Proxy will fetch from broker and serve with correct MIME types
           html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              // Use absolute URL to broker domain
-              return `href="${baseUrl}/${path}"`;
+              // Route through proxy with broker parameter
+              return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
             return `href="${baseUrl}/${path}"`;
           });
           html = html.replace(/src="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              // Use absolute URL to broker domain  
-              return `src="${baseUrl}/${path}"`;
+              // Route through proxy with broker parameter
+              return `src="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
             return `src="${baseUrl}/${path}"`;
           });
           html = html.replace(/url\("\/\/([^"]+)"\)/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              // Use absolute URL to broker domain for CSS url() references
-              return `url("${baseUrl}/${path}")`;
+              // Route through proxy for CSS url() references
+              return `url("${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}")`;
             }
             return `url("${baseUrl}/${path}")`;
           });
           html = html.replace(/url\('\/\/([^']+)'\)/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              // Use absolute URL to broker domain for CSS url() references
-              return `url('${baseUrl}/${path}')`;
+              // Route through proxy for CSS url() references
+              return `url('${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}')`;
             }
             return `url('${baseUrl}/${path}')`;
           });
-
-          // Ensure all terminal asset URLs point to broker (not proxy)
-          // This allows assets to load directly from broker, avoiding proxy MIME type issues
-          html = html.replace(new RegExp(`${proxyOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/`, 'g'), `${baseUrl}/terminal/`);
+          
+          // Also fix any absolute broker URLs in the HTML to use proxy
+          html = html.replace(new RegExp(`${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/([^"'>\\s]+)`, 'g'), (match, assetPath) => {
+            return `${proxyOrigin}/terminal/${assetPath}?broker=${encodeURIComponent(broker)}`;
+          });
 
           // Fix WebSocket URLs - replace proxy domain with broker domain
           const proxyDomain = url.origin; // e.g., https://ea-trade-app.onrender.com
