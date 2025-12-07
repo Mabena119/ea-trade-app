@@ -176,7 +176,7 @@ async function handleApi(request: Request): Promise<Response> {
       const route = await import('./app/api/check-email/route.ts');
       if (request.method === 'POST' && typeof route.POST === 'function') {
         return route.POST(request) as Promise<Response>;
-  }
+      }
       if (request.method === 'GET' && typeof route.GET === 'function') {
         return route.GET() as Promise<Response>;
       }
@@ -218,7 +218,7 @@ async function handleApi(request: Request): Promise<Response> {
           status: (code: number) => ({
             json: (data: any) => new Response(JSON.stringify(data), {
               status: code,
-      headers: { 'Content-Type': 'application/json' }
+              headers: { 'Content-Type': 'application/json' }
             }),
             send: (data: string) => new Response(data, {
               status: code,
@@ -292,24 +292,25 @@ async function handleApi(request: Request): Promise<Response> {
         const login = url.searchParams.get('login');
         const password = url.searchParams.get('password');
         const broker = url.searchParams.get('broker') || '';
+        const server = broker; // Server name is the broker name
 
         if (!terminalUrl) {
           return new Response('Missing terminal URL', { status: 400 });
         }
 
-  try {
+        try {
           // Fetch the MT5 terminal page
           const response = await fetch(terminalUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+          });
 
-    if (!response.ok) {
+          if (!response.ok) {
             return new Response(`Failed to fetch terminal: ${response.statusText}`, { status: response.status });
-    }
+          }
 
-    let html = await response.text();
+          let html = await response.text();
 
           // Get base URL for fixing relative URLs
           const baseUrlObj = new URL(terminalUrl);
@@ -353,7 +354,7 @@ async function handleApi(request: Request): Promise<Response> {
             }
             return `url('${baseUrl}/${path}')`;
           });
-          
+
           // Also fix any absolute broker URLs in the HTML to use proxy
           html = html.replace(new RegExp(`${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/terminal/([^"'>\\s]+)`, 'g'), (match, assetPath) => {
             return `${proxyOrigin}/terminal/${assetPath}?broker=${encodeURIComponent(broker)}`;
@@ -410,21 +411,22 @@ async function handleApi(request: Request): Promise<Response> {
             html = `<script>${wsOverrideScript}</script>` + html;
           }
 
-          // Escape credentials for safe injection
+          // Escape credentials for safe injection (same as Android)
           const escapeValue = (value: string) => {
             return (value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
           };
 
           const loginValue = escapeValue(login || '');
           const passwordValue = escapeValue(password || '');
+          const serverValue = escapeValue(server || '');
 
-          // Generate authentication script (same as getMT5Script)
+          // Generate authentication script - EXACT COPY from Android getMT5Script()
           const authScript = `
             (function() {
               const sendMessage = (type, message) => {
                 try { 
                   if (window.parent && window.parent !== window) {
-                  window.parent.postMessage(JSON.stringify({ type, message }), '*'); 
+                    window.parent.postMessage(JSON.stringify({ type, message }), '*');
                   }
                   if (window.ReactNativeWebView) {
                     window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
@@ -436,36 +438,15 @@ async function handleApi(request: Request): Promise<Response> {
               
               const sleep = (ms) => new Promise(r => setTimeout(r, ms));
               
+              // Store credentials
               const loginCredential = '${loginValue}';
               const passwordCredential = '${passwordValue}';
+              const serverCredential = '${escapeValue(server || '')}';
               
               const authenticateMT5 = async () => {
                 try {
-                  sendMessage('step_update', 'Waiting for page to load...');
-                  
-                  // Wait for DOM to be fully ready
-                  let retries = 0;
-                  while (retries < 20) {
-                    if (document.readyState === 'complete' && document.body) {
-                      const loginField = document.querySelector('input[name="login"]') || 
-                                        document.querySelector('input[type="text"][placeholder*="login" i]') ||
-                                        document.querySelector('input[type="number"]') ||
-                                        document.querySelector('input#login');
-                      if (loginField) {
-                        break; // Login field found, proceed
-                      }
-                    }
-                    await sleep(500);
-                    retries++;
-                  }
-                  
-                  if (retries >= 20) {
-                    sendMessage('authentication_failed', 'Page did not load properly - login field not found after waiting');
-                    return;
-                  }
-                  
                   sendMessage('step_update', 'Initializing MT5 Account...');
-                  await sleep(2000);
+                  await sleep(5500);
                   
                   // Check for disclaimer and accept if present
                   const disclaimer = document.querySelector('#disclaimer');
@@ -479,29 +460,54 @@ async function handleApi(request: Request): Promise<Response> {
                   }
                   
                   // Check if form is visible and remove any existing connections
+                  // Always check for existing connections and remove them first
                   const form = document.querySelector('.form');
-                  if (form && !form.classList.contains('hidden')) {
-                    const removeButton = document.querySelector('.button.svelte-1wrky82.red');
-                    if (removeButton) {
-                      removeButton.click();
-                      sendMessage('step_update', 'Removing existing connection...');
-                      await sleep(3000);
-                    } else {
-                      const buttons = document.getElementsByTagName('button');
-                      for (let i = 0; i < buttons.length; i++) {
-                        if (buttons[i].textContent.trim() === 'Remove') {
-                          buttons[i].click();
-                          sendMessage('step_update', 'Removing existing connection...');
-                          await sleep(3000);
-                          break;
-                        }
+                  const removeButton = document.querySelector('.button.svelte-1wrky82.red') ||
+                                     document.querySelector('button.red') ||
+                                     Array.from(document.querySelectorAll('button')).find(btn => 
+                                       btn.textContent.trim() === 'Remove' ||
+                                       btn.textContent.trim().toLowerCase().includes('remove')
+                                     );
+                  
+                  if (removeButton) {
+                    sendMessage('step_update', 'Removing existing connection...');
+                    removeButton.click();
+                    await sleep(3000);
+                    
+                    // Wait for form to be cleared and ready for new connection
+                    let formCleared = false;
+                    for (let i = 0; i < 10; i++) {
+                      const currentForm = document.querySelector('.form');
+                      const currentRemoveButton = document.querySelector('.button.svelte-1wrky82.red');
+                      if (!currentRemoveButton || (currentForm && currentForm.classList.contains('hidden'))) {
+                        formCleared = true;
+                        break;
+                      }
+                      await sleep(500);
+                    }
+                    
+                    if (!formCleared) {
+                      sendMessage('step_update', 'Waiting for form to clear...');
+                      await sleep(2000);
+                    }
+                  } else if (form && !form.classList.contains('hidden')) {
+                    // Form is visible but no remove button - try to find it by other means
+                    const buttons = document.getElementsByTagName('button');
+                    for (let i = 0; i < buttons.length; i++) {
+                      const btnText = buttons[i].textContent.trim().toLowerCase();
+                      if (btnText === 'remove' || btnText.includes('remove') || btnText === 'disconnect') {
+                        sendMessage('step_update', 'Removing existing connection...');
+                        buttons[i].click();
+                        await sleep(3000);
+                        break;
                       }
                     }
                   }
                   
+                  // Wait for form to be ready
                   await sleep(2000);
                   
-                  // Fill login credentials
+                  // Fill login credentials with enhanced field detection
                   const loginField = document.querySelector('input[name="login"]') || 
                                     document.querySelector('input[type="text"][placeholder*="login" i]') ||
                                     document.querySelector('input[type="number"]') ||
@@ -511,6 +517,7 @@ async function handleApi(request: Request): Promise<Response> {
                                        document.querySelector('input[type="password"]') ||
                                        document.querySelector('input#password');
                   
+                  // Fill login field
                   if (loginField && loginCredential) {
                     loginField.focus();
                     loginField.value = '';
@@ -518,30 +525,31 @@ async function handleApi(request: Request): Promise<Response> {
                     loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
                     
                     setTimeout(() => {
-                    loginField.focus();
+                      loginField.focus();
                       loginField.value = loginCredential;
-                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    sendMessage('step_update', 'Login filled');
+                      loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                      loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                      sendMessage('step_update', 'Login filled');
                     }, 100);
                   } else {
                     sendMessage('authentication_failed', 'Login field not found');
                     return;
                   }
                   
+                  // Fill password field
                   if (passwordField && passwordCredential) {
                     setTimeout(() => {
-                    passwordField.focus();
+                      passwordField.focus();
                       passwordField.value = '';
-                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    
+                      passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                      passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                      
                       setTimeout(() => {
-                    passwordField.focus();
+                        passwordField.focus();
                         passwordField.value = passwordCredential;
-                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    sendMessage('step_update', 'Password filled');
+                        passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                        passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                        sendMessage('step_update', 'Password filled');
                       }, 100);
                     }, 300);
                   } else {
@@ -549,6 +557,7 @@ async function handleApi(request: Request): Promise<Response> {
                     return;
                   }
                   
+                  // Wait for fields to be filled
                   await sleep(2000);
                   
                   // Click login button
@@ -569,6 +578,7 @@ async function handleApi(request: Request): Promise<Response> {
                     return;
                   }
                   
+                  // Check for search bar - this is the most reliable indicator of successful login
                   sendMessage('step_update', 'Verifying authentication...');
                   await sleep(3000);
                   
@@ -577,10 +587,12 @@ async function handleApi(request: Request): Promise<Response> {
                                      document.querySelector('input[type="search"]');
                   
                   if (searchField && searchField.offsetParent !== null) {
+                    // Search bar is present and visible - login successful!
                     sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
                     return;
                   }
                   
+                  // Double check after a longer wait
                   await sleep(3000);
                   const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
                                           document.querySelector('input[placeholder*="Search" i]') ||
@@ -591,37 +603,38 @@ async function handleApi(request: Request): Promise<Response> {
                     return;
                   }
                   
+                  // No search bar found - authentication failed
                   sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
               };
-               
+              
               // Start authentication after page loads
               setTimeout(authenticateMT5, 3000);
             })();
         `;
 
           // Inject script before closing body tag
-    if (html.includes('</body>')) {
+          if (html.includes('</body>')) {
             html = html.replace('</body>', `<script>${authScript}</script></body>`);
-    } else {
+          } else {
             html += `<script>${authScript}</script>`;
-    }
+          }
 
           // Return modified HTML with CORS headers
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+          return new Response(html, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
               'X-Frame-Options': 'SAMEORIGIN',
-      },
-    });
-  } catch (error) {
-    console.error('MT5 Proxy error:', error);
+            },
+          });
+        } catch (error) {
+          console.error('MT5 Proxy error:', error);
           return new Response(`Proxy error: ${error.message}`, { status: 500 });
         }
       }
@@ -719,12 +732,12 @@ const server = Bun.serve({
     if (url.pathname.startsWith('/terminal/')) {
       try {
         const assetPath = url.pathname.replace('/terminal/', '');
-        
+
         // Determine broker URL from referer header, query param, or default to RazorMarkets
         const referer = request.headers.get('referer') || '';
         const brokerParam = url.searchParams.get('broker');
         let brokerBaseUrl = 'https://webtrader.razormarkets.co.za';
-        
+
         // Map of broker names to their base URLs (matching MT5_BROKER_URLS from metatrader.tsx)
         const brokerUrlMap: Record<string, string> = {
           'razormarkets-live': 'https://webtrader.razormarkets.co.za',
@@ -765,7 +778,7 @@ const server = Bun.serve({
             }
           }
         }
-        
+
         // Fallback: Check referer for broker domain
         if (brokerBaseUrl === 'https://webtrader.razormarkets.co.za') {
           for (const [key, brokerUrl] of Object.entries(brokerUrlMap)) {
@@ -773,7 +786,7 @@ const server = Bun.serve({
             if (referer.includes(domain)) {
               brokerBaseUrl = brokerUrl;
               break;
-        }
+            }
           }
         }
 
@@ -790,11 +803,11 @@ const server = Bun.serve({
 
         if (response.ok) {
           const content = await response.arrayBuffer();
-          
+
           // Always infer content type from file extension (more reliable than server response)
           const ext = assetPath.split('.').pop()?.toLowerCase();
           let contentType: string;
-          
+
           if (ext === 'js' || assetPath.includes('.js')) {
             contentType = 'application/javascript; charset=utf-8';
           } else if (ext === 'css' || assetPath.includes('.css')) {
@@ -817,22 +830,22 @@ const server = Bun.serve({
               contentType = 'application/octet-stream';
             }
           }
-          
+
           // Check if we got HTML instead of the actual asset (some brokers return error pages)
           const contentStr = new TextDecoder().decode(content.slice(0, 500));
-          const isHtml = contentStr.trim().startsWith('<!') || 
-                        contentStr.includes('<html') || 
-                        contentStr.includes('<!DOCTYPE') ||
-                        contentStr.includes('<sprite>') ||
-                        response.headers.get('content-type')?.includes('text/html');
-          
+          const isHtml = contentStr.trim().startsWith('<!') ||
+            contentStr.includes('<html') ||
+            contentStr.includes('<!DOCTYPE') ||
+            contentStr.includes('<sprite>') ||
+            response.headers.get('content-type')?.includes('text/html');
+
           // If we got HTML but expected an asset, try fetching directly from broker (bypass proxy)
           if (isHtml && (ext === 'js' || ext === 'css')) {
             console.error(`⚠️ Got HTML instead of ${ext.toUpperCase()} for asset: ${targetUrl}`);
             console.error(`Broker: ${brokerParam || 'unknown'}, BrokerBaseUrl: ${brokerBaseUrl}`);
             console.error(`Response preview: ${contentStr.substring(0, 300)}`);
             console.error(`Attempting direct fetch from broker...`);
-            
+
             // Return a redirect or fetch directly - but for now, return the broker URL directly
             // The browser will fetch it directly, bypassing CORS issues if possible
             // Actually, better to return 302 redirect to original broker URL
