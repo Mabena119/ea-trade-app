@@ -285,6 +285,225 @@ async function handleApi(request: Request): Promise<Response> {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
+    // MT5 Proxy endpoint - fetches MT5 terminal and injects authentication script
+    if (pathname === '/api/mt5-proxy') {
+      if (request.method === 'GET') {
+        const terminalUrl = url.searchParams.get('url');
+        const login = url.searchParams.get('login');
+        const password = url.searchParams.get('password');
+
+        if (!terminalUrl) {
+          return new Response('Missing terminal URL', { status: 400 });
+        }
+
+        try {
+          // Fetch the MT5 terminal page
+          const response = await fetch(terminalUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+          });
+
+          if (!response.ok) {
+            return new Response(`Failed to fetch terminal: ${response.statusText}`, { status: response.status });
+          }
+
+          let html = await response.text();
+
+          // Escape credentials for safe injection
+          const escapeValue = (value: string) => {
+            return (value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+          };
+
+          const loginValue = escapeValue(login || '');
+          const passwordValue = escapeValue(password || '');
+
+          // Generate authentication script (same as getMT5Script)
+          const authScript = `
+            (function() {
+              const sendMessage = (type, message) => {
+                try { 
+                  if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(JSON.stringify({ type, message }), '*');
+                  }
+                  if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+                  }
+                } catch(e) {}
+              };
+
+              sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
+              
+              const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+              
+              const loginCredential = '${loginValue}';
+              const passwordCredential = '${passwordValue}';
+              
+              const authenticateMT5 = async () => {
+                try {
+                  sendMessage('step_update', 'Initializing MT5 Account...');
+                  await sleep(5500);
+                  
+                  // Check for disclaimer and accept if present
+                  const disclaimer = document.querySelector('#disclaimer');
+                  if (disclaimer) {
+                    const acceptButton = document.querySelector('.accept-button');
+                    if (acceptButton) {
+                      acceptButton.click();
+                      sendMessage('step_update', 'Accepting disclaimer...');
+                      await sleep(2000);
+                    }
+                  }
+                  
+                  // Check if form is visible and remove any existing connections
+                  const form = document.querySelector('.form');
+                  if (form && !form.classList.contains('hidden')) {
+                    const removeButton = document.querySelector('.button.svelte-1wrky82.red');
+                    if (removeButton) {
+                      removeButton.click();
+                      sendMessage('step_update', 'Removing existing connection...');
+                      await sleep(3000);
+                    } else {
+                      const buttons = document.getElementsByTagName('button');
+                      for (let i = 0; i < buttons.length; i++) {
+                        if (buttons[i].textContent.trim() === 'Remove') {
+                          buttons[i].click();
+                          sendMessage('step_update', 'Removing existing connection...');
+                          await sleep(3000);
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  
+                  await sleep(2000);
+                  
+                  // Fill login credentials
+                  const loginField = document.querySelector('input[name="login"]') || 
+                                    document.querySelector('input[type="text"][placeholder*="login" i]') ||
+                                    document.querySelector('input[type="number"]') ||
+                                    document.querySelector('input#login');
+                  
+                  const passwordField = document.querySelector('input[name="password"]') || 
+                                       document.querySelector('input[type="password"]') ||
+                                       document.querySelector('input#password');
+                  
+                  if (loginField && loginCredential) {
+                    loginField.focus();
+                    loginField.value = '';
+                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    
+                    setTimeout(() => {
+                      loginField.focus();
+                      loginField.value = loginCredential;
+                      loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                      loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                      sendMessage('step_update', 'Login filled');
+                    }, 100);
+                  } else {
+                    sendMessage('authentication_failed', 'Login field not found');
+                    return;
+                  }
+                  
+                  if (passwordField && passwordCredential) {
+                    setTimeout(() => {
+                      passwordField.focus();
+                      passwordField.value = '';
+                      passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                      passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                      
+                      setTimeout(() => {
+                        passwordField.focus();
+                        passwordField.value = passwordCredential;
+                        passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                        passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                        sendMessage('step_update', 'Password filled');
+                      }, 100);
+                    }, 300);
+                  } else {
+                    sendMessage('authentication_failed', 'Password field not found');
+                    return;
+                  }
+                  
+                  await sleep(2000);
+                  
+                  // Click login button
+                  sendMessage('step_update', 'Connecting to Server...');
+                  const loginButton = document.querySelector('.button.svelte-1wrky82.active') ||
+                                     document.querySelector('button[type="submit"]') ||
+                                     document.querySelector('.button.active') ||
+                                     Array.from(document.querySelectorAll('button')).find(btn => 
+                                       btn.textContent.trim().toLowerCase().includes('login') ||
+                                       btn.textContent.trim().toLowerCase().includes('connect')
+                                     );
+                  
+                  if (loginButton) {
+                    loginButton.click();
+                    await sleep(8000);
+                  } else {
+                    sendMessage('authentication_failed', 'Login button not found');
+                    return;
+                  }
+                  
+                  sendMessage('step_update', 'Verifying authentication...');
+                  await sleep(3000);
+                  
+                  const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                     document.querySelector('input[placeholder*="Search" i]') ||
+                                     document.querySelector('input[type="search"]');
+                  
+                  if (searchField && searchField.offsetParent !== null) {
+                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+                    return;
+                  }
+                  
+                  await sleep(3000);
+                  const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                          document.querySelector('input[placeholder*="Search" i]') ||
+                                          document.querySelector('input[type="search"]');
+                  
+                  if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+                    return;
+                  }
+                  
+                  sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
+                  
+                } catch(e) {
+                  sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
+                }
+              };
+              
+              // Start authentication after page loads
+              setTimeout(authenticateMT5, 3000);
+            })();
+          `;
+
+          // Inject script before closing body tag
+          if (html.includes('</body>')) {
+            html = html.replace('</body>', `<script>${authScript}</script></body>`);
+          } else {
+            html += `<script>${authScript}</script>`;
+          }
+
+          // Return modified HTML with CORS headers
+          return new Response(html, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
+            },
+          });
+        } catch (error) {
+          console.error('MT5 Proxy error:', error);
+          return new Response(`Proxy error: ${error.message}`, { status: 500 });
+        }
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
     // Get new signals for EA since a specific time
     if (pathname === '/api/get-new-signals') {
       if (request.method === 'GET') {
