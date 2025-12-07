@@ -783,32 +783,46 @@ const server = Bun.serve({
         });
 
         if (response.ok) {
-          // Get content type from response or infer from file extension
-          let contentType = response.headers.get('content-type');
-
-          if (!contentType || contentType.includes('text/html')) {
-            // Infer content type from file extension
-            const ext = assetPath.split('.').pop()?.toLowerCase();
-            if (ext === 'js' || assetPath.includes('.js')) {
-              contentType = 'application/javascript; charset=utf-8';
-            } else if (ext === 'css' || assetPath.includes('.css')) {
-              contentType = 'text/css; charset=utf-8';
-            } else if (ext === 'json') {
-              contentType = 'application/json; charset=utf-8';
-            } else if (ext === 'png') {
-              contentType = 'image/png';
-            } else if (ext === 'jpg' || ext === 'jpeg') {
-              contentType = 'image/jpeg';
-            } else if (ext === 'svg') {
-              contentType = 'image/svg+xml';
-            } else if (ext === 'woff' || ext === 'woff2') {
-              contentType = `font/${ext}`;
-            } else {
+          const content = await response.arrayBuffer();
+          
+          // Always infer content type from file extension (more reliable than server response)
+          const ext = assetPath.split('.').pop()?.toLowerCase();
+          let contentType: string;
+          
+          if (ext === 'js' || assetPath.includes('.js')) {
+            contentType = 'application/javascript; charset=utf-8';
+          } else if (ext === 'css' || assetPath.includes('.css')) {
+            contentType = 'text/css; charset=utf-8';
+          } else if (ext === 'json') {
+            contentType = 'application/json; charset=utf-8';
+          } else if (ext === 'png') {
+            contentType = 'image/png';
+          } else if (ext === 'jpg' || ext === 'jpeg') {
+            contentType = 'image/jpeg';
+          } else if (ext === 'svg') {
+            contentType = 'image/svg+xml';
+          } else if (ext === 'woff' || ext === 'woff2') {
+            contentType = `font/${ext}`;
+          } else {
+            // Fallback to response content type or default
+            contentType = response.headers.get('content-type') || 'application/octet-stream';
+            // But never allow text/html for assets
+            if (contentType.includes('text/html')) {
               contentType = 'application/octet-stream';
             }
           }
-
-          const content = await response.arrayBuffer();
+          
+          // Check if we got HTML instead of the actual asset (some brokers return error pages)
+          const contentStr = new TextDecoder().decode(content.slice(0, 200));
+          const isHtml = contentStr.trim().startsWith('<!') || contentStr.includes('<html') || contentStr.includes('<!DOCTYPE');
+          
+          // If we got HTML but expected an asset, log error and try to return error response
+          if (isHtml && (ext === 'js' || ext === 'css')) {
+            console.error(`⚠️ Got HTML instead of ${ext.toUpperCase()} for asset: ${targetUrl}`);
+            console.error(`Broker: ${brokerParam || 'unknown'}, BrokerBaseUrl: ${brokerBaseUrl}`);
+            console.error(`Response preview: ${contentStr.substring(0, 300)}`);
+            // Still return the content but with correct MIME type - browser might handle it
+          }
 
           return new Response(content, {
             headers: {
