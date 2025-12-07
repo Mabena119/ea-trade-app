@@ -1131,14 +1131,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       transparent={true}
       onRequestClose={onClose}
     >
-      {/* Hidden WebView Container - Completely invisible, only status bar visible */}
-      <View style={styles.hiddenWebViewContainer}>
-        {/* Status Bar - Only visible UI element */}
-        <View style={styles.statusBar}>
-          <Text style={styles.statusText}>{currentStep}</Text>
-          {loading && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
-        </View>
+      {/* Status Bar - Only visible UI element (like MT5 auth toast) */}
+      <View style={styles.statusBar}>
+        <Text style={styles.statusText}>{currentStep}</Text>
+        {loading && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
+      </View>
 
+      {/* Hidden WebView Container - Completely invisible */}
+      <View style={styles.hiddenWebViewContainer}>
         {/* WebView - Completely hidden */}
         {Platform.OS === 'web' ? (
           <WebWebView
@@ -1253,7 +1253,31 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 8,
   },
-  // Hidden WebView Container - Same as MT5 auth
+  // Status Bar - Only visible UI element (like MT5 auth toast)
+  statusBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 20,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 10000,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  // Hidden WebView Container - Completely invisible
   hiddenWebViewContainer: {
     position: 'absolute',
     top: -10000,
@@ -1264,25 +1288,11 @@ const styles = StyleSheet.create({
     zIndex: -1,
     pointerEvents: 'none',
   },
-  // Status Bar - Only visible UI element (positioned absolutely at top)
-  statusBar: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 20,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    zIndex: 10000,
-  },
   statusText: {
     flex: 1,
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#FFFFFF',
+    fontWeight: '500',
   },
   loader: {
     marginLeft: 8,
