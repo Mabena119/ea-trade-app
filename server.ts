@@ -323,15 +323,19 @@ async function handleApi(request: Request): Promise<Response> {
             ? `https://${url.hostname}${url.port ? `:${url.port}` : ''}`
             : url.origin;
 
+          // For terminal assets, load directly from broker (not through proxy) to avoid CORS and MIME type issues
+          // Only proxy the main HTML page to inject our script
           html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
+              // Load directly from broker - no proxy needed for assets
+              return `href="${baseUrl}/${path}"`;
             }
             return `href="${baseUrl}/${path}"`;
           });
           html = html.replace(/src="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              return `src="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
+              // Load directly from broker - no proxy needed for assets
+              return `src="${baseUrl}/${path}"`;
             }
             return `src="${baseUrl}/${path}"`;
           });
