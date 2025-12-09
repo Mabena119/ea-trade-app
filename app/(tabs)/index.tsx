@@ -175,35 +175,57 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
-            <View style={styles.heroContent}>
-              {/* Beautiful gradient background with glass effect */}
-              <LinearGradient
-                colors={['#8B5CF6', '#EC4899', '#F97316']}
-                style={styles.gradientBackground}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
-              
-              {/* Glass overlay effect */}
-              {Platform.OS === 'ios' && (
-                <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
-              )}
-              
-              {/* Fading edges */}
-              <LinearGradient
-                colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-                style={styles.edgeFadeTop}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-              />
-              <LinearGradient
-                colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-                style={styles.edgeFadeBottom}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-              />
+          <View style={styles.heroContent}>
+            {/* Beautiful gradient background with glass effect */}
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              style={styles.gradientBackground}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
 
-              <View style={styles.topSection}>
+            {/* Glass overlay effect */}
+            {Platform.OS === 'ios' && (
+              <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
+            )}
+
+            {/* Glossy shine effect at top */}
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']}
+              style={styles.glossShine}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
+
+            {/* Subtle side highlights for depth */}
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+              style={styles.leftHighlight}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+            />
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.15)']}
+              style={styles.rightHighlight}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+            />
+
+            {/* Fading edges */}
+            <LinearGradient
+              colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
+              style={styles.edgeFadeTop}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
+            <LinearGradient
+              colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
+              style={styles.edgeFadeBottom}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
+
+            <View style={styles.topSection}>
               {/* Circular logo display */}
               <View style={styles.circularLogoContainer}>
                 <View style={styles.circularLogoRing}>
@@ -436,7 +458,33 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 40,
     zIndex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  glossShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    zIndex: 2,
+  },
+  leftHighlight: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    width: 2,
+    height: 200,
+    zIndex: 2,
+  },
+  rightHighlight: {
+    position: 'absolute',
+    top: 60,
+    right: 0,
+    width: 2,
+    height: 200,
+    zIndex: 2,
   },
   edgeFadeTop: {
     position: 'absolute',
@@ -446,7 +494,7 @@ const styles = StyleSheet.create({
     height: 60,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
-    zIndex: 2,
+    zIndex: 3,
   },
   edgeFadeBottom: {
     position: 'absolute',
@@ -456,7 +504,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
-    zIndex: 2,
+    zIndex: 3,
   },
   circularLogoContainer: {
     width: 180,
@@ -502,18 +550,20 @@ const styles = StyleSheet.create({
     zIndex: 10,
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.5,
-    shadowRadius: 50,
-    elevation: 25,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowOpacity: 0.6,
+    shadowRadius: 60,
+    elevation: 30,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
   },
   topSection: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingTop: 12,
-    zIndex: 3,
+    zIndex: 4,
   },
 
   titleBlock: {
@@ -590,7 +640,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 8,
     marginTop: 12,
-    zIndex: 3,
+    zIndex: 4,
   },
   actionButton: {
     flex: 1,
