@@ -8,7 +8,7 @@ import colors from "@/constants/colors";
 
 export default function TabLayout() {
   const { isFirstTime } = useApp();
-  
+
   return (
     <Tabs
       screenOptions={{
@@ -87,9 +87,9 @@ export default function TabLayout() {
               styles.iconContainer,
               focused && styles.iconContainerActive
             ]}>
-              <Home 
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
-                size={25} 
+              <Home
+                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
+                size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
             </View>
@@ -105,8 +105,8 @@ export default function TabLayout() {
               styles.iconContainer,
               focused && styles.iconContainerActive
             ]}>
-              <Activity 
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
+              <Activity
+                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
@@ -123,8 +123,8 @@ export default function TabLayout() {
               styles.iconContainer,
               focused && styles.iconContainerActive
             ]}>
-              <Wallet 
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
+              <Wallet
+                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />

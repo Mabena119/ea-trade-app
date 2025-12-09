@@ -175,16 +175,35 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
-          <View style={styles.heroContent}>
-            {/* Beautiful gradient background */}
-            <LinearGradient
-              colors={['#8B5CF6', '#EC4899', '#F97316']}
-              style={styles.gradientBackground}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
+            <View style={styles.heroContent}>
+              {/* Beautiful gradient background with glass effect */}
+              <LinearGradient
+                colors={['#8B5CF6', '#EC4899', '#F97316']}
+                style={styles.gradientBackground}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              
+              {/* Glass overlay effect */}
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
+              )}
+              
+              {/* Fading edges */}
+              <LinearGradient
+                colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
+                style={styles.edgeFadeTop}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+              <LinearGradient
+                colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
+                style={styles.edgeFadeBottom}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
 
-            <View style={styles.topSection}>
+              <View style={styles.topSection}>
               {/* Circular logo display */}
               <View style={styles.circularLogoContainer}>
                 <View style={styles.circularLogoRing}>
@@ -230,35 +249,26 @@ export default function HomeScreen() {
                     console.error('Error changing bot state:', error);
                   }
                 }}
-                activeOpacity={0.7}
+                activeOpacity={0.6}
               >
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                )}
-                  <View style={styles.tradeButtonContent}>
+                <View style={styles.tradeButtonContent}>
                   {isBotActive ? (
                     <Square color="#FFFFFF" size={28} strokeWidth={2.5} />
                   ) : (
                     <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />
                   )}
                   <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
-                  </View>
+                </View>
               </TouchableOpacity>
 
-              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.7}>
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                )}
+              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
                 <View style={styles.secondaryButtonContent}>
                   <TrendingUp color="#FFFFFF" size={24} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>Quotes</Text>
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.7}>
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                )}
+              <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
                 <View style={styles.secondaryButtonContent}>
                   <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>Remove</Text>
@@ -270,73 +280,73 @@ export default function HomeScreen() {
         </View>
 
         {/* Scrollable Connected Bots Section */}
-        <ScrollView 
+        <ScrollView
           style={styles.connectedBotsScrollView}
           contentContainerStyle={styles.connectedBotsScrollContent}
           showsVerticalScrollIndicator={false}
           bounces={true}
         >
           <View style={styles.connectedBotsSection}>
-          {otherEAs.length > 0 && (
-            <>
-              <View testID="connected-bots-header" style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>CONNECTED BOTS</Text>
-                <View testID="connected-bots-count" style={styles.sectionBadge}>
-                  <Text style={styles.sectionBadgeText}>{eas.length}</Text>
-                </View>
-              </View>
-              {otherEAs.map((ea, index) => (
-                <TouchableOpacity
-                  key={`${ea.id}-${index}`}
-                  style={styles.botCard}
-                  onPress={async () => {
-                    try {
-                      console.log('Switching active EA to:', ea.name, ea.id);
-                      await setActiveEA(ea.id);
-                    } catch (error) {
-                      console.error('Failed to switch active EA:', error);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  {Platform.OS === 'ios' && (
-                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
-                  )}
-                  <View style={styles.botCardContent}>
-                    <View style={styles.botIcon}>
-                      {getEAImageUrl(ea as unknown as EA) ? (
-                        <Image
-                          testID={`ea-logo-small-${index}`}
-                          source={{ uri: getEAImageUrl(ea as unknown as EA) as string }}
-                          style={styles.smallLogo}
-                        />
-                      ) : (
-                        <View style={styles.robotFace}>
-                          <View style={styles.robotEye} />
-                          <View style={styles.robotEye} />
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+            {otherEAs.length > 0 && (
+              <>
+                <View testID="connected-bots-header" style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>CONNECTED BOTS</Text>
+                  <View testID="connected-bots-count" style={styles.sectionBadge}>
+                    <Text style={styles.sectionBadgeText}>{eas.length}</Text>
                   </View>
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
-
-
-
-
-          <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
-            {Platform.OS === 'ios' && (
-              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                </View>
+                {otherEAs.map((ea, index) => (
+                  <TouchableOpacity
+                    key={`${ea.id}-${index}`}
+                    style={styles.botCard}
+                    onPress={async () => {
+                      try {
+                        console.log('Switching active EA to:', ea.name, ea.id);
+                        await setActiveEA(ea.id);
+                      } catch (error) {
+                        console.error('Failed to switch active EA:', error);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    {Platform.OS === 'ios' && (
+                      <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                    )}
+                    <View style={styles.botCardContent}>
+                      <View style={styles.botIcon}>
+                        {getEAImageUrl(ea as unknown as EA) ? (
+                          <Image
+                            testID={`ea-logo-small-${index}`}
+                            source={{ uri: getEAImageUrl(ea as unknown as EA) as string }}
+                            style={styles.smallLogo}
+                          />
+                        ) : (
+                          <View style={styles.robotFace}>
+                            <View style={styles.robotEye} />
+                            <View style={styles.robotEye} />
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
             )}
-            <Plus color="#FFFFFF" size={24} strokeWidth={2.5} />
-            <View style={styles.addEATextContainer}>
-              <Text style={styles.addEATitle}>ADD ROBOT</Text>
-              <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
-            </View>
-          </TouchableOpacity>
+
+
+
+
+            <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              )}
+              <Plus color="#FFFFFF" size={24} strokeWidth={2.5} />
+              <View style={styles.addEATextContainer}>
+                <Text style={styles.addEATitle}>ADD ROBOT</Text>
+                <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
@@ -416,7 +426,37 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 40,
     zIndex: 0,
-    opacity: 0.95,
+    opacity: 0.9,
+  },
+  glassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 40,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  edgeFadeTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    zIndex: 2,
+  },
+  edgeFadeBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    zIndex: 2,
   },
   circularLogoContainer: {
     width: 180,
@@ -462,15 +502,18 @@ const styles = StyleSheet.create({
     zIndex: 10,
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.4,
-    shadowRadius: 40,
-    elevation: 20,
+    shadowOpacity: 0.5,
+    shadowRadius: 50,
+    elevation: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   topSection: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingTop: 12,
+    zIndex: 3,
   },
 
   titleBlock: {
@@ -547,6 +590,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 8,
     marginTop: 12,
+    zIndex: 3,
   },
   actionButton: {
     flex: 1,
@@ -561,15 +605,9 @@ const styles = StyleSheet.create({
   },
   tradeButton: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    backdropFilter: 'blur(20px)',
+    backgroundColor: 'transparent',
     paddingVertical: 16,
     position: 'relative',
-    shadowColor: 'rgba(255, 255, 255, 0.5)',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
   },
   tradeButtonContent: {
     flexDirection: 'column',
@@ -580,14 +618,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   secondaryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    backdropFilter: 'blur(10px)',
+    backgroundColor: 'transparent',
     position: 'relative',
-    shadowColor: 'rgba(255, 255, 255, 0.3)',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
   },
   secondaryButtonContent: {
     flexDirection: 'column',
