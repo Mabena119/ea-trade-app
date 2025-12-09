@@ -172,7 +172,12 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
           <View style={styles.mainEAContainer}>
             <View style={styles.heroContent}>
               {/* Beautiful gradient background */}
@@ -388,6 +393,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 120,
+  },
   mainEAContainer: {
     paddingTop: 0,
     paddingBottom: 20,
@@ -598,6 +606,7 @@ const styles = StyleSheet.create({
   connectedBotsSection: {
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 20,
     position: 'relative',
     marginTop: 0,
     backgroundColor: '#000000',
