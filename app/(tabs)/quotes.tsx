@@ -234,15 +234,11 @@ export default function QuotesScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
           {Platform.OS === 'ios' && (
-            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
           )}
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-            style={StyleSheet.absoluteFill}
-          />
-          <ArrowLeft color="#FFFFFF" size={20} />
+          <ArrowLeft color="#FFFFFF" size={22} strokeWidth={2.5} />
         </TouchableOpacity>
 
         <View style={styles.headerContent}>
@@ -251,9 +247,9 @@ export default function QuotesScreen() {
             {primaryEA && (
               <View style={styles.statusContainer}>
                 <Circle
-                  color={hasActiveQuotes ? '#00FF00' : '#666666'}
-                  fill={hasActiveQuotes ? '#00FF00' : 'transparent'}
-                  size={8}
+                  color={hasActiveQuotes ? '#8B5CF6' : '#666666'}
+                  fill={hasActiveQuotes ? '#8B5CF6' : 'transparent'}
+                  size={10}
                 />
                 <Text style={styles.botName} numberOfLines={1} ellipsizeMode="tail">{primaryEA.name}</Text>
               </View>
@@ -269,12 +265,8 @@ export default function QuotesScreen() {
             activeOpacity={refreshing ? 1 : 0.7}
           >
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
             )}
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-              style={StyleSheet.absoluteFill}
-            />
             <Animated.View
               style={{
                 transform: [{
@@ -287,7 +279,8 @@ export default function QuotesScreen() {
             >
               <RefreshCw
                 color={refreshing ? '#666666' : '#FFFFFF'}
-                size={18}
+                size={20}
+                strokeWidth={2.5}
               />
             </Animated.View>
           </TouchableOpacity>
@@ -298,32 +291,24 @@ export default function QuotesScreen() {
       <View style={styles.content}>
         {loading && !refreshing ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator testID="quotes-loading" size="large" color="#00FF00" />
+            <ActivityIndicator testID="quotes-loading" size="large" color="#8B5CF6" />
             <Text style={styles.loadingText}>Loading symbols...</Text>
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
             {hasConnectedEA ? (
-              <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.7}>
                 {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
                 )}
-                <LinearGradient
-                  colors={['rgba(37, 211, 102, 0.3)', 'rgba(37, 211, 102, 0.15)']}
-                  style={StyleSheet.absoluteFill}
-                />
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/license')} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/license')} activeOpacity={0.7}>
                 {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
                 )}
-                <LinearGradient
-                  colors={['rgba(37, 211, 102, 0.3)', 'rgba(37, 211, 102, 0.15)']}
-                  style={StyleSheet.absoluteFill}
-                />
                 <Text style={styles.retryButtonText}>Connect EA</Text>
               </TouchableOpacity>
             )}
@@ -345,23 +330,19 @@ export default function QuotesScreen() {
                     quote.isActive && styles.activeQuoteCard
                   ]}
                   onPress={() => handleQuoteTap(quote.symbol)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
                   )}
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-                    style={StyleSheet.absoluteFill}
-                  />
                   <View style={styles.quoteHeader}>
                     <View style={styles.symbolContainer}>
                       <Text style={styles.symbol}>{quote.symbol}</Text>
                       {quote.isActive && (
                         <Circle
-                          color={colors.primary}
-                          fill={colors.primary}
-                          size={8}
+                          color="#8B5CF6"
+                          fill="#8B5CF6"
+                          size={10}
                           style={styles.activeIndicator}
                         />
                       )}
@@ -415,12 +396,17 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 16,
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 10,
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   headerContent: {
     flex: 1,
@@ -454,17 +440,17 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   refreshButton: {
-    padding: 8,
+    padding: 10,
     marginLeft: 8,
-    borderRadius: 20,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     elevation: 6,
   },
   refreshButtonDisabled: {
@@ -497,23 +483,24 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   retryButton: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 0.3,
-    borderColor: 'rgba(37, 211, 102, 0.3)',
+    backgroundColor: 'rgba(139, 92, 246, 0.25)',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
     elevation: 10,
   },
   retryButtonText: {
-    color: '#000000',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   emptyContainer: {
     flex: 1,
@@ -533,18 +520,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quoteCard: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.7,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   quoteHeader: {
     flexDirection: 'row',
@@ -558,16 +545,17 @@ const styles = StyleSheet.create({
   },
   symbol: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   activeIndicator: {
     marginLeft: 8,
   },
   activeQuoteCard: {
-    borderColor: colors.primary,
-    borderWidth: 0.5,
+    borderColor: '#8B5CF6',
+    borderWidth: 2,
+    backgroundColor: 'rgba(139, 92, 246, 0.25)',
     shadowColor: colors.primary,
     shadowOpacity: 0.4,
   },
