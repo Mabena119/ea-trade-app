@@ -27,7 +27,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const checkAuthenticationStatus = async () => {
       try {
-          const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
+        const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
 
         // If first time, show start page (don't redirect)
         if (isFirstTime) {
@@ -36,24 +36,24 @@ export default function HomeScreen() {
           setHasCheckedAuth(true);
           return;
         }
-        
+
         // If not authenticated and not first time, redirect to login
-          if (!emailAuthenticated || emailAuthenticated !== 'true') {
+        if (!emailAuthenticated || emailAuthenticated !== 'true') {
           console.log('❌ Not authenticated - redirecting to login');
           setIsAuthenticated(false);
-            router.replace('/login');
+          router.replace('/login');
           return;
         }
 
         // Authenticated
         console.log('✅ Authenticated - checking EA status');
         setIsAuthenticated(true);
-        
+
         // If authenticated but no EAs, redirect to license immediately
         if (eas.length === 0) {
           console.log('Authenticated but no EA added, redirecting to license...');
           // Don't render home screen, go straight to license
-            router.replace('/license');
+          router.replace('/license');
           return; // Stop here, don't set hasCheckedAuth
         }
 
@@ -172,108 +172,111 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
-        style={styles.content} 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={true}
-      >
-          <View style={styles.mainEAContainer}>
-            <View style={styles.heroContent}>
-              {/* Beautiful gradient background */}
-              <LinearGradient
-                colors={['#8B5CF6', '#EC4899', '#F97316']}
-                style={styles.gradientBackground}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
-              
-              <View style={styles.topSection}>
-                {/* Circular logo display */}
-                <View style={styles.circularLogoContainer}>
-                  <View style={styles.circularLogoRing}>
-                    {primaryEAImage && !logoError ? (
-                      <Image
-                        testID="ea-logo-circular"
-                        source={{ uri: primaryEAImage }}
-                        style={styles.circularLogo}
-                        resizeMode="cover"
-                        onError={() => setLogoError(true)}
-                      />
-                    ) : (
-                      <Image
-                        testID="fallback-logo-circular"
-                        source={require('../../assets/images/icon.png')}
-                        style={styles.circularLogo}
-                        resizeMode="contain"
-                      />
-                    )}
-                  </View>
-                </View>
-                <View style={styles.titleBlock}>
-                  <View style={styles.botNameContainer}>
-                  <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
-                    <View style={[
-                      styles.botStatusDot,
-                      isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
-                    ]} />
-                  </View>
+      <View style={styles.content}>
+        {/* Fixed Active Bot at Top */}
+        <View style={styles.mainEAContainer}>
+          <View style={styles.heroContent}>
+            {/* Beautiful gradient background */}
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              style={styles.gradientBackground}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+
+            <View style={styles.topSection}>
+              {/* Circular logo display */}
+              <View style={styles.circularLogoContainer}>
+                <View style={styles.circularLogoRing}>
+                  {primaryEAImage && !logoError ? (
+                    <Image
+                      testID="ea-logo-circular"
+                      source={{ uri: primaryEAImage }}
+                      style={styles.circularLogo}
+                      resizeMode="cover"
+                      onError={() => setLogoError(true)}
+                    />
+                  ) : (
+                    <Image
+                      testID="fallback-logo-circular"
+                      source={require('../../assets/images/icon.png')}
+                      style={styles.circularLogo}
+                      resizeMode="contain"
+                    />
+                  )}
                 </View>
               </View>
+              <View style={styles.titleBlock}>
+                <View style={styles.botNameContainer}>
+                  <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
+                  <View style={[
+                    styles.botStatusDot,
+                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
+                  ]} />
+                </View>
+              </View>
+            </View>
 
-              <View style={styles.bottomActions}>
-                <TouchableOpacity
-                  testID="action-start"
-                  style={[styles.actionButton, styles.tradeButton]}
-                  onPress={() => {
-                    console.log('Start/Stop button pressed, current state:', isBotActive);
-                    try {
-                      setBotActive(!isBotActive);
-                      console.log('Bot active state changed to:', !isBotActive);
-                    } catch (error) {
-                      console.error('Error changing bot state:', error);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  {Platform.OS === 'ios' && (
-                    <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                  )}
-                  <View style={styles.tradeButtonContent}>
+            <View style={styles.bottomActions}>
+              <TouchableOpacity
+                testID="action-start"
+                style={[styles.actionButton, styles.tradeButton]}
+                onPress={() => {
+                  console.log('Start/Stop button pressed, current state:', isBotActive);
+                  try {
+                    setBotActive(!isBotActive);
+                    console.log('Bot active state changed to:', !isBotActive);
+                  } catch (error) {
+                    console.error('Error changing bot state:', error);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                )}
+                <View style={styles.tradeButtonContent}>
                   {isBotActive ? (
-                      <Square color="#FFFFFF" size={26} strokeWidth={2.5} />
+                    <Square color="#FFFFFF" size={26} strokeWidth={2.5} />
                   ) : (
-                      <Play color="#FFFFFF" size={26} strokeWidth={2.5} fill="#FFFFFF" />
+                    <Play color="#FFFFFF" size={26} strokeWidth={2.5} fill="#FFFFFF" />
                   )}
                   <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
-                  </View>
-                </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
 
-                <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.7}>
-                  {Platform.OS === 'ios' && (
-                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                  )}
-                  <View style={styles.secondaryButtonContent}>
+              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.7}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                )}
+                <View style={styles.secondaryButtonContent}>
                   <TrendingUp color="#FFFFFF" size={22} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>QUOTES</Text>
-                  </View>
-                </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
 
-                <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.7}>
-                  {Platform.OS === 'ios' && (
-                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                  )}
-                  <View style={styles.secondaryButtonContent}>
+              <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.7}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                )}
+                <View style={styles.secondaryButtonContent}>
                   <Trash2 color="#FFFFFF" size={22} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>REMOVE</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-
+                </View>
+              </TouchableOpacity>
             </View>
-          </View>
 
-        <View style={styles.connectedBotsSection}>
+          </View>
+        </View>
+
+        {/* Scrollable Connected Bots Section */}
+        <ScrollView 
+          style={styles.connectedBotsScrollView}
+          contentContainerStyle={styles.connectedBotsScrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+        >
+          <View style={styles.connectedBotsSection}>
           {otherEAs.length > 0 && (
             <>
               <View testID="connected-bots-header" style={styles.sectionHeader}>
@@ -334,9 +337,9 @@ export default function HomeScreen() {
               <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
             </View>
           </TouchableOpacity>
-        </View>
-
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -393,13 +396,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 120,
-  },
   mainEAContainer: {
     paddingTop: 0,
-    paddingBottom: 20,
-    position: 'relative',
+    paddingBottom: 16,
   },
   gradientBackground: {
     position: 'absolute',
@@ -411,16 +410,16 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   circularLogoContainer: {
-    width: 220,
-    height: 220,
+    width: 180,
+    height: 180,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   circularLogoRing: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 165,
+    height: 165,
+    borderRadius: 82.5,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -433,9 +432,9 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   circularLogo: {
-    width: 165,
-    height: 165,
-    borderRadius: 82.5,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   botInfoContainer: {
@@ -445,14 +444,12 @@ const styles = StyleSheet.create({
   },
   heroContent: {
     marginHorizontal: 20,
-    marginTop: 40,
-    marginBottom: 20,
+    marginTop: 20,
     borderRadius: 32,
     overflow: 'hidden',
-    minHeight: 480,
     justifyContent: 'space-between',
-    paddingTop: 32,
-    paddingBottom: 28,
+    paddingTop: 28,
+    paddingBottom: 24,
     zIndex: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 16 },
@@ -464,7 +461,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 12,
   },
 
   titleBlock: {
@@ -477,7 +474,7 @@ const styles = StyleSheet.create({
   },
   botMainName: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     letterSpacing: 0.5,
     marginBottom: 6,
@@ -487,7 +484,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flexWrap: 'wrap',
     paddingHorizontal: 24,
-    lineHeight: 34,
+    lineHeight: 30,
   },
   botStatusDot: {
     position: 'absolute',
@@ -539,8 +536,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    gap: 12,
-    marginTop: 16,
+    gap: 10,
+    marginTop: 12,
   },
   actionButton: {
     flex: 1,
@@ -603,12 +600,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
+  connectedBotsScrollView: {
+    flex: 1,
+  },
+  connectedBotsScrollContent: {
+    paddingBottom: 100,
+  },
   connectedBotsSection: {
     paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 20,
-    position: 'relative',
-    marginTop: 0,
+    paddingTop: 16,
     backgroundColor: '#000000',
     overflow: 'hidden',
     zIndex: 10,
