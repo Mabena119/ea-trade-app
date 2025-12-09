@@ -332,9 +332,27 @@ export default function QuotesScreen() {
                   onPress={() => handleQuoteTap(quote.symbol)}
                   activeOpacity={0.7}
                 >
+                  {/* Gradient background */}
+                  <LinearGradient
+                    colors={['#8B5CF6', '#EC4899', '#F97316']}
+                    style={styles.quoteGradientBackground}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
+                  
+                  {/* Glass overlay */}
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                    <BlurView intensity={40} tint="light" style={styles.quoteGlassOverlay} />
                   )}
+                  
+                  {/* Glossy shine */}
+                  <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                    style={styles.quoteGlossShine}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                  />
+                  
                   <View style={styles.quoteHeader}>
                     <View style={styles.symbolContainer}>
                       <Text style={styles.symbol}>{quote.symbol}</Text>
@@ -520,24 +538,58 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quoteCard: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderRadius: 24,
+    backgroundColor: 'transparent',
+    borderRadius: 32,
     padding: 20,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'hidden',
     shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 15,
+    position: 'relative',
+  },
+  quoteGradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    zIndex: 0,
+    opacity: 0.9,
+  },
+  quoteGlassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  quoteGlossShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    zIndex: 2,
   },
   quoteHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    zIndex: 3,
   },
   symbolContainer: {
     flexDirection: 'row',
@@ -545,17 +597,22 @@ const styles = StyleSheet.create({
   },
   symbol: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   activeIndicator: {
     marginLeft: 8,
   },
   activeQuoteCard: {
-    borderColor: '#8B5CF6',
+    borderColor: 'rgba(139, 92, 246, 0.6)',
     borderWidth: 2,
-    backgroundColor: 'rgba(139, 92, 246, 0.25)',
+    borderTopWidth: 2.5,
+    shadowOpacity: 0.7,
+    shadowRadius: 30,
     shadowColor: colors.primary,
     shadowOpacity: 0.4,
   },
@@ -564,33 +621,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
+    zIndex: 3,
   },
   priceColumn: {
     alignItems: 'center',
     flex: 1,
   },
   priceLabel: {
-    color: '#888888',
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 10,
-    fontWeight: '500',
-    marginBottom: 4,
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   priceValue: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
     fontFamily: 'monospace',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   platformValue: {
-    color: '#CCCCCC',
-    fontSize: 14,
-    fontWeight: '500',
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
     fontFamily: 'monospace',
   },
   directionValue: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
     fontFamily: 'monospace',
   },
 
