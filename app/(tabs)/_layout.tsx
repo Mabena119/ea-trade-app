@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, Settings, TrendingUp } from "lucide-react-native";
+import { Home, Wallet, Activity } from "lucide-react-native";
 import React from "react";
 import { useApp } from "@/providers/app-provider";
 import { Platform, View, StyleSheet } from "react-native";
@@ -105,7 +105,7 @@ export default function TabLayout() {
               styles.iconContainer,
               focused && styles.iconContainerActive
             ]}>
-              <TrendingUp 
+              <Activity 
                 color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
@@ -123,7 +123,7 @@ export default function TabLayout() {
               styles.iconContainer,
               focused && styles.iconContainerActive
             ]}>
-              <Settings 
+              <Wallet 
                 color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}

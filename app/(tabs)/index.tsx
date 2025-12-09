@@ -235,14 +235,14 @@ export default function HomeScreen() {
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
                 )}
-                <View style={styles.tradeButtonContent}>
+                  <View style={styles.tradeButtonContent}>
                   {isBotActive ? (
-                    <Square color="#FFFFFF" size={26} strokeWidth={2.5} />
+                    <Square color="#FFFFFF" size={28} strokeWidth={2.5} />
                   ) : (
-                    <Play color="#FFFFFF" size={26} strokeWidth={2.5} fill="#FFFFFF" />
+                    <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />
                   )}
-                  <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
-                </View>
+                  <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
+                  </View>
               </TouchableOpacity>
 
               <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.7}>
@@ -250,8 +250,8 @@ export default function HomeScreen() {
                   <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
                 )}
                 <View style={styles.secondaryButtonContent}>
-                  <TrendingUp color="#FFFFFF" size={22} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
+                  <TrendingUp color="#FFFFFF" size={24} strokeWidth={2.5} />
+                  <Text style={styles.secondaryButtonText}>Quotes</Text>
                 </View>
               </TouchableOpacity>
 
@@ -260,8 +260,8 @@ export default function HomeScreen() {
                   <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
                 )}
                 <View style={styles.secondaryButtonContent}>
-                  <Trash2 color="#FFFFFF" size={22} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>REMOVE</Text>
+                  <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
+                  <Text style={styles.secondaryButtonText}>Remove</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -414,8 +414,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 32,
+    borderRadius: 40,
     zIndex: 0,
+    opacity: 0.95,
   },
   circularLogoContainer: {
     width: 180,
@@ -451,19 +452,19 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   heroContent: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 32,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 40,
     overflow: 'hidden',
     justifyContent: 'space-between',
     paddingTop: 28,
     paddingBottom: 24,
     zIndex: 10,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.25,
-    shadowRadius: 32,
-    elevation: 16,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.4,
+    shadowRadius: 40,
+    elevation: 20,
   },
   topSection: {
     alignItems: 'center',
@@ -543,70 +544,72 @@ const styles = StyleSheet.create({
   bottomActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    gap: 10,
+    paddingHorizontal: 20,
+    gap: 8,
     marginTop: 12,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 24,
+    paddingVertical: 14,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
+    flexDirection: 'column',
+    gap: 4,
     overflow: 'hidden',
     borderWidth: 0,
   },
   tradeButton: {
-    flex: 1.5,
+    flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     backdropFilter: 'blur(20px)',
-    paddingVertical: 18,
+    paddingVertical: 16,
     position: 'relative',
     shadowColor: 'rgba(255, 255, 255, 0.5)',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   tradeButtonContent: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     zIndex: 1,
     position: 'relative',
   },
   secondaryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     backdropFilter: 'blur(10px)',
     position: 'relative',
     shadowColor: 'rgba(255, 255, 255, 0.3)',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 4,
+    elevation: 6,
   },
   secondaryButtonContent: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     zIndex: 1,
     position: 'relative',
   },
   tradeButtonText: {
     color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   secondaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   connectedBotsScrollView: {
     flex: 1,
