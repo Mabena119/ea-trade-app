@@ -187,7 +187,7 @@ export default function HomeScreen() {
         end={{ x: 0.5, y: 1 }}
         pointerEvents="none"
       />
-      
+
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
@@ -327,7 +327,7 @@ export default function HomeScreen() {
             end={{ x: 0.5, y: 1 }}
             pointerEvents="none"
           />
-          
+
           <ScrollView
             style={styles.connectedBotsScrollView}
             contentContainerStyle={styles.connectedBotsScrollContent}
@@ -335,68 +335,69 @@ export default function HomeScreen() {
             bounces={true}
           >
             <View style={styles.connectedBotsSection}>
-            {otherEAs.length > 0 && (
-              <>
-                <View testID="connected-bots-header" style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>CONNECTED BOTS</Text>
-                  <View testID="connected-bots-count" style={styles.sectionBadge}>
-                    <Text style={styles.sectionBadgeText}>{eas.length}</Text>
-                  </View>
-                </View>
-                {otherEAs.map((ea, index) => (
-                  <TouchableOpacity
-                    key={`${ea.id}-${index}`}
-                    style={styles.botCard}
-                    onPress={async () => {
-                      try {
-                        console.log('Switching active EA to:', ea.name, ea.id);
-                        await setActiveEA(ea.id);
-                      } catch (error) {
-                        console.error('Failed to switch active EA:', error);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    {Platform.OS === 'ios' && (
-                      <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
-                    )}
-                    <View style={styles.botCardContent}>
-                      <View style={styles.botIcon}>
-                        {getEAImageUrl(ea as unknown as EA) ? (
-                          <Image
-                            testID={`ea-logo-small-${index}`}
-                            source={{ uri: getEAImageUrl(ea as unknown as EA) as string }}
-                            style={styles.smallLogo}
-                          />
-                        ) : (
-                          <View style={styles.robotFace}>
-                            <View style={styles.robotEye} />
-                            <View style={styles.robotEye} />
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+              {otherEAs.length > 0 && (
+                <>
+                  <View testID="connected-bots-header" style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>CONNECTED BOTS</Text>
+                    <View testID="connected-bots-count" style={styles.sectionBadge}>
+                      <Text style={styles.sectionBadgeText}>{eas.length}</Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
-
-
-
-
-            <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
-              {Platform.OS === 'ios' && (
-                <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                  </View>
+                  {otherEAs.map((ea, index) => (
+                    <TouchableOpacity
+                      key={`${ea.id}-${index}`}
+                      style={styles.botCard}
+                      onPress={async () => {
+                        try {
+                          console.log('Switching active EA to:', ea.name, ea.id);
+                          await setActiveEA(ea.id);
+                        } catch (error) {
+                          console.error('Failed to switch active EA:', error);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      {Platform.OS === 'ios' && (
+                        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                      )}
+                      <View style={styles.botCardContent}>
+                        <View style={styles.botIcon}>
+                          {getEAImageUrl(ea as unknown as EA) ? (
+                            <Image
+                              testID={`ea-logo-small-${index}`}
+                              source={{ uri: getEAImageUrl(ea as unknown as EA) as string }}
+                              style={styles.smallLogo}
+                            />
+                          ) : (
+                            <View style={styles.robotFace}>
+                              <View style={styles.robotEye} />
+                              <View style={styles.robotEye} />
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </>
               )}
-              <Plus color="#FFFFFF" size={24} strokeWidth={2.5} />
-              <View style={styles.addEATextContainer}>
-                <Text style={styles.addEATitle}>ADD ROBOT</Text>
-                <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+
+
+
+
+              <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                )}
+                <Plus color="#FFFFFF" size={24} strokeWidth={2.5} />
+                <View style={styles.addEATextContainer}>
+                  <Text style={styles.addEATitle}>ADD ROBOT</Text>
+                  <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
       </View>
     </SafeAreaView>
   );
