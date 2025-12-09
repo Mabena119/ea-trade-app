@@ -386,11 +386,29 @@ export default function HomeScreen() {
 
 
               <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
+                {/* Gradient background */}
+                <LinearGradient
+                  colors={['#8B5CF6', '#EC4899', '#F97316']}
+                  style={styles.addEAGradientBackground}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+                
+                {/* Glass overlay */}
                 {Platform.OS === 'ios' && (
-                  <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={40} tint="light" style={styles.addEAGlassOverlay} />
                 )}
-                <Plus color="#FFFFFF" size={24} strokeWidth={2.5} />
-                <View style={styles.addEATextContainer}>
+                
+                {/* Glossy shine */}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                  style={styles.addEAGlossShine}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                />
+                
+                <Plus color="#FFFFFF" size={24} strokeWidth={2.5} style={{ zIndex: 3 }} />
+                <View style={[styles.addEATextContainer, { zIndex: 3 }]}>
                   <Text style={styles.addEATitle}>ADD ROBOT</Text>
                   <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
                 </View>
@@ -861,38 +879,76 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   addEAButton: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderRadius: 24,
+    backgroundColor: 'transparent',
+    borderRadius: 32,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 22,
     paddingHorizontal: 24,
     marginBottom: 24,
-    borderWidth: 1,
-    borderTopWidth: 1.5,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    borderTopColor: 'rgba(139, 92, 246, 0.5)',
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'hidden',
     shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 15,
+    position: 'relative',
+  },
+  addEAGradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    zIndex: 0,
+    opacity: 0.9,
+  },
+  addEAGlassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  addEAGlossShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    zIndex: 2,
   },
   addEATextContainer: {
     marginLeft: 12,
   },
   addEATitle: {
     color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   addEASubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 
 });
