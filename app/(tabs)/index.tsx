@@ -172,6 +172,22 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Full page gloss overlay */}
+      <LinearGradient
+        colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
+        style={styles.pageGlossTop}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
+        style={styles.pageGlossBottom}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+      />
+      
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
@@ -302,13 +318,23 @@ export default function HomeScreen() {
         </View>
 
         {/* Scrollable Connected Bots Section */}
-        <ScrollView
-          style={styles.connectedBotsScrollView}
-          contentContainerStyle={styles.connectedBotsScrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-        >
-          <View style={styles.connectedBotsSection}>
+        <View style={styles.connectedBotsWrapper}>
+          {/* Gloss effect for connected bots section */}
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0)']}
+            style={styles.sectionGloss}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            pointerEvents="none"
+          />
+          
+          <ScrollView
+            style={styles.connectedBotsScrollView}
+            contentContainerStyle={styles.connectedBotsScrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+          >
+            <View style={styles.connectedBotsSection}>
             {otherEAs.length > 0 && (
               <>
                 <View testID="connected-bots-header" style={styles.sectionHeader}>
@@ -432,6 +458,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+    position: 'relative',
+  },
+  pageGlossTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    zIndex: 100,
+  },
+  pageGlossBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    zIndex: 100,
   },
   content: {
     flex: 1,
@@ -693,6 +736,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
+  connectedBotsWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  sectionGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+    zIndex: 1,
+  },
   connectedBotsScrollView: {
     flex: 1,
   },
@@ -724,15 +779,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: 'rgba(139, 92, 246, 0.25)',
     borderWidth: 1,
+    borderTopWidth: 1.5,
     borderColor: 'rgba(139, 92, 246, 0.4)',
+    borderTopColor: 'rgba(139, 92, 246, 0.6)',
     minWidth: 36,
     alignItems: 'center',
     overflow: 'hidden',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
   },
   sectionBadgeText: {
     color: '#FFFFFF',
@@ -746,12 +803,14 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     overflow: 'hidden',
     borderWidth: 1,
+    borderTopWidth: 1.5,
     borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderTopColor: 'rgba(139, 92, 246, 0.5)',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
   },
   botCardContent: {
     flexDirection: 'row',
@@ -809,13 +868,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginBottom: 24,
     borderWidth: 1,
+    borderTopWidth: 1.5,
     borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderTopColor: 'rgba(139, 92, 246, 0.5)',
     overflow: 'hidden',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
   },
   addEATextContainer: {
     marginLeft: 12,
