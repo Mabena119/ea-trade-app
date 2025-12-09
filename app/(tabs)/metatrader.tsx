@@ -2037,8 +2037,30 @@ export default function MetaTraderScreen() {
           )}
 
           {/* Login Form */}
-          <View style={styles.form}>
-            <View style={styles.inputContainer} pointerEvents="box-none">
+          <View style={styles.formCard}>
+            {/* Gradient background */}
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              style={styles.formGradientBackground}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            
+            {/* Glass overlay */}
+            {Platform.OS === 'ios' && (
+              <BlurView intensity={40} tint="light" style={styles.formGlassOverlay} />
+            )}
+            
+            {/* Glossy shine */}
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+              style={styles.formGlossShine}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
+            
+            <View style={styles.form}>
+            <View style={[styles.inputContainer, { zIndex: 3 }]} pointerEvents="box-none">
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
               )}
@@ -2061,7 +2083,7 @@ export default function MetaTraderScreen() {
               />
             </View>
 
-            <View style={styles.passwordContainer} pointerEvents="box-none">
+            <View style={[styles.passwordContainer, { zIndex: 3 }]} pointerEvents="box-none">
               {Platform.OS === 'ios' && (
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
               )}
@@ -2098,7 +2120,7 @@ export default function MetaTraderScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.serverContainer}>
+            <View style={[styles.serverContainer, { zIndex: 3 }]}>
               <View style={styles.serverInputContainer} pointerEvents="box-none">
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -2258,7 +2280,8 @@ export default function MetaTraderScreen() {
               style={[
                 styles.linkButton,
                 isAuthenticating && styles.linkButtonDisabled,
-                activeTab === 'MT4' && styles.linkButtonComingSoon
+                activeTab === 'MT4' && styles.linkButtonComingSoon,
+                { zIndex: 3 }
               ]}
               onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
               disabled={isAuthenticating || activeTab === 'MT4'}
@@ -2298,6 +2321,7 @@ export default function MetaTraderScreen() {
                 </View>
               )}
             </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -2542,8 +2566,58 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
+  formCard: {
+    marginHorizontal: 20,
+    marginTop: 30,
+    marginBottom: 30,
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 15,
+    position: 'relative',
+    backgroundColor: 'transparent',
+  },
+  formGradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    zIndex: 0,
+    opacity: 0.9,
+  },
+  formGlassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  formGlossShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    zIndex: 2,
+  },
   form: {
     paddingHorizontal: 20,
+    paddingVertical: 30,
+    zIndex: 3,
   },
   inputContainer: {
     marginBottom: 16,
