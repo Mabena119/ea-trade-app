@@ -174,39 +174,37 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.mainEAContainer}>
-            {primaryEAImage && !logoError ? (
-              <ImageBackground
-                testID="ea-hero-bg"
-                source={{ uri: primaryEAImage }}
-                style={styles.hero}
-                onError={() => setLogoError(true)}
-                resizeMode="cover"
-              >
-                <View style={styles.heroOverlay}>
-                  <View style={styles.gradientOverlay} />
-                </View>
-              </ImageBackground>
-            ) : (
-              <View style={styles.heroFallback}>
-                <Image
-                  testID="fallback-app-icon"
-                  source={require('../../assets/images/icon.png')}
-                  style={styles.fallbackIcon}
-                  resizeMode="contain"
-                />
-                <View style={styles.gradientOverlay} />
-              </View>
-            )}
-
             <View style={styles.heroContent}>
-              {/* Gradient overlay for transition effect */}
+              {/* Beautiful gradient background */}
               <LinearGradient
-                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.8)', '#000000']}
-                style={styles.fadeGradient}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
+                colors={['#8B5CF6', '#EC4899', '#F97316']}
+                style={styles.gradientBackground}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               />
+              
               <View style={styles.topSection}>
+                {/* Circular logo display */}
+                <View style={styles.circularLogoContainer}>
+                  <View style={styles.circularLogoRing}>
+                    {primaryEAImage && !logoError ? (
+                      <Image
+                        testID="ea-logo-circular"
+                        source={{ uri: primaryEAImage }}
+                        style={styles.circularLogo}
+                        resizeMode="cover"
+                        onError={() => setLogoError(true)}
+                      />
+                    ) : (
+                      <Image
+                        testID="fallback-logo-circular"
+                        source={require('../../assets/images/icon.png')}
+                        style={styles.circularLogo}
+                        resizeMode="contain"
+                      />
+                    )}
+                  </View>
+                </View>
                 <View style={styles.titleBlock}>
                   <View style={styles.botNameContainer}>
                   <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
@@ -231,52 +229,37 @@ export default function HomeScreen() {
                       console.error('Error changing bot state:', error);
                     }
                   }}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={120} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                    <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
-                  <LinearGradient
-                    colors={Platform.OS === 'ios' ? ['rgba(255, 255, 255, 0.25)', 'rgba(255, 255, 255, 0.15)'] : ['#FFFFFF', '#FFFFFF']}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                  />
                   <View style={styles.tradeButtonContent}>
                   {isBotActive ? (
-                      <Square color="#000000" size={24} />
+                      <Square color="#FFFFFF" size={26} strokeWidth={2.5} />
                   ) : (
-                      <Play color="#000000" size={24} />
+                      <Play color="#FFFFFF" size={26} strokeWidth={2.5} fill="#FFFFFF" />
                   )}
                   <Text style={styles.tradeButtonText}>{isBotActive ? 'STOP' : 'TRADE'}</Text>
                   </View>
                 </TouchableOpacity>
 
-                <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.8}>
+                <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.7}>
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                  />
                   <View style={styles.secondaryButtonContent}>
-                  <TrendingUp color="#FFFFFF" size={20} />
+                  <TrendingUp color="#FFFFFF" size={22} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>QUOTES</Text>
                   </View>
                 </TouchableOpacity>
 
-                <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.8}>
+                <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.7}>
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
                   )}
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                  />
                   <View style={styles.secondaryButtonContent}>
-                  <Trash2 color="#FFFFFF" size={20} />
+                  <Trash2 color="#FFFFFF" size={22} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>REMOVE</Text>
                   </View>
                 </TouchableOpacity>
@@ -306,15 +289,11 @@ export default function HomeScreen() {
                       console.error('Failed to switch active EA:', error);
                     }
                   }}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   {Platform.OS === 'ios' && (
-                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
                   )}
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-                    style={StyleSheet.absoluteFill}
-                  />
                   <View style={styles.botCardContent}>
                     <View style={styles.botIcon}>
                       {getEAImageUrl(ea as unknown as EA) ? (
@@ -340,15 +319,11 @@ export default function HomeScreen() {
 
 
 
-          <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
             )}
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-              style={StyleSheet.absoluteFill}
-            />
-            <Plus color="#FFFFFF" size={20} />
+            <Plus color="#FFFFFF" size={24} strokeWidth={2.5} />
             <View style={styles.addEATextContainer}>
               <Text style={styles.addEATitle}>ADD ROBOT</Text>
               <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
@@ -414,47 +389,46 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainEAContainer: {
-    alignItems: 'center',
     paddingTop: 0,
     paddingBottom: 20,
     position: 'relative',
-    overflow: 'hidden',
   },
-  hero: {
-    width: '100%',
-    height: 500,
-  },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  gradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    ...(Platform.OS === 'web' && {
-      backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%)',
-    }),
-  },
-  fadeGradient: {
+  gradientBackground: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    height: 120,
-    width: width,
-    zIndex: -1,
+    bottom: 0,
+    borderRadius: 32,
+    zIndex: 0,
   },
-  heroFallback: {
-    width: '100%',
-    height: 500,
-    backgroundColor: '#1a1a1a',
+  circularLogoContainer: {
+    width: 240,
+    height: 240,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    marginBottom: 32,
   },
-  fallbackIcon: {
-    width: 160,
-    height: 160,
-    borderRadius: 32,
+  circularLogoRing: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  circularLogo: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   botInfoContainer: {
     alignItems: 'center',
@@ -462,21 +436,27 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   heroContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 350,
-    justifyContent: 'flex-end',
+    marginHorizontal: 20,
+    marginTop: 60,
+    marginBottom: 20,
+    borderRadius: 32,
+    overflow: 'hidden',
+    minHeight: 520,
+    justifyContent: 'space-between',
     paddingTop: 40,
-    paddingBottom: 30,
+    paddingBottom: 32,
     zIndex: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 16,
   },
   topSection: {
     alignItems: 'center',
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 20,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 20,
   },
 
   titleBlock: {
@@ -489,37 +469,32 @@ const styles = StyleSheet.create({
   },
   botMainName: {
     color: '#FFFFFF',
-    fontSize: 38,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
     textAlign: 'center',
     flexWrap: 'wrap',
-    fontFamily: Platform.select({
-      ios: 'Arial Rounded MT Bold',
-      android: 'sans-serif-condensed',
-      web: '"Arial Rounded MT Bold", "Helvetica Rounded", "Comic Sans MS", "Arial", sans-serif',
-    }),
-    transform: [{ scaleY: 1.15 }],
-    paddingHorizontal: 8,
+    paddingHorizontal: 24,
+    lineHeight: 40,
   },
   botStatusDot: {
     position: 'absolute',
-    top: -4,
-    right: -8,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: '#000000',
+    top: -8,
+    right: -12,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   botStatusDotActive: {
     backgroundColor: '#25D366',
@@ -555,31 +530,32 @@ const styles = StyleSheet.create({
   bottomActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 30,
+    paddingHorizontal: 24,
     gap: 12,
+    marginTop: 20,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 18,
+    paddingVertical: 18,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     overflow: 'hidden',
-    borderWidth: 0.3,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 12,
+    borderWidth: 0,
   },
   tradeButton: {
-    flex: 1.4,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(255, 255, 255, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    paddingVertical: 24,
+    flex: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backdropFilter: 'blur(20px)',
+    paddingVertical: 20,
     position: 'relative',
+    shadowColor: 'rgba(255, 255, 255, 0.5)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
   tradeButtonContent: {
     flexDirection: 'row',
@@ -590,9 +566,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   secondaryButton: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backdropFilter: 'blur(10px)',
     position: 'relative',
+    shadowColor: 'rgba(255, 255, 255, 0.3)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
   },
   secondaryButtonContent: {
     flexDirection: 'row',
@@ -603,15 +584,15 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tradeButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   secondaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
   connectedBotsSection: {
@@ -631,65 +612,70 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 1,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
   sectionBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255,255,255,0.08)',
-    minWidth: 28,
+    backgroundColor: 'rgba(139, 92, 246, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    minWidth: 36,
     alignItems: 'center',
     overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowRadius: 10,
+    elevation: 6,
   },
   sectionBadgeText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   botCard: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderRadius: 20,
-    marginBottom: 12,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderRadius: 24,
+    marginBottom: 14,
     overflow: 'hidden',
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    shadowColor: '#000000',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.7,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   botCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
   },
   botIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
     overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   smallLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
   },
   robotFace: {
     flexDirection: 'row',
@@ -704,42 +690,45 @@ const styles = StyleSheet.create({
   },
   botName: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     flex: 1,
     flexWrap: 'wrap',
     numberOfLines: 2,
-    textAlign: 'center',
+    textAlign: 'left',
+    letterSpacing: 0.3,
   },
   addEAButton: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderRadius: 20,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: 22,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.7,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   addEATextContainer: {
     marginLeft: 12,
   },
   addEATitle: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   addEASubtitle: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    opacity: 0.8,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
 
 });

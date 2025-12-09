@@ -17,33 +17,30 @@ export default function TabLayout() {
           display: 'none',
         } : {
           position: 'absolute',
-          bottom: 20,
-          left: 20,
-          right: 20,
-          height: 65,
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(17, 27, 33, 0.35)',
-          borderRadius: 32,
-          borderWidth: 0.2,
-          borderColor: 'rgba(255, 255, 255, 0.06)',
-          borderTopWidth: 0.2,
-          borderTopColor: 'rgba(255, 255, 255, 0.06)',
-          paddingBottom: 6,
-          paddingTop: 6,
-          paddingHorizontal: 12,
+          bottom: 16,
+          left: 16,
+          right: 16,
+          height: 72,
+          backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0, 0, 0, 0.9)',
+          borderRadius: 36,
+          borderWidth: 0,
+          paddingBottom: 8,
+          paddingTop: 8,
+          paddingHorizontal: 16,
           shadowColor: '#000000',
           shadowOffset: {
             width: 0,
-            height: 12,
+            height: 16,
           },
-          shadowOpacity: 0.8,
-          shadowRadius: 24,
-          elevation: 25,
+          shadowOpacity: 0.4,
+          shadowRadius: 32,
+          elevation: 20,
           overflow: 'hidden',
         },
         tabBarBackground: () => (
           Platform.OS === 'ios' ? (
             <BlurView
-              intensity={130}
+              intensity={100}
               tint="dark"
               style={{
                 position: 'absolute',
@@ -51,9 +48,9 @@ export default function TabLayout() {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                borderRadius: 32,
+                borderRadius: 36,
                 overflow: 'hidden',
-                backgroundColor: 'rgba(17, 27, 33, 0.25)',
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
               }}
             />
           ) : (
@@ -63,8 +60,8 @@ export default function TabLayout() {
               left: 0,
               right: 0,
               bottom: 0,
-              borderRadius: 32,
-              backgroundColor: 'rgba(17, 27, 33, 0.35)',
+              borderRadius: 36,
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
             }} />
           )
         ),
@@ -91,9 +88,9 @@ export default function TabLayout() {
               focused && styles.iconContainerActive
             ]}>
               <Home 
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.45)'} 
-                size={23} 
-                strokeWidth={focused ? 2.5 : 2}
+                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
+                size={25} 
+                strokeWidth={focused ? 2.8 : 2.2}
               />
             </View>
           ),
@@ -109,9 +106,9 @@ export default function TabLayout() {
               focused && styles.iconContainerActive
             ]}>
               <TrendingUp 
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.45)'} 
-                size={23}
-                strokeWidth={focused ? 2.5 : 2}
+                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
+                size={25}
+                strokeWidth={focused ? 2.8 : 2.2}
               />
             </View>
           ),
@@ -127,9 +124,9 @@ export default function TabLayout() {
               focused && styles.iconContainerActive
             ]}>
               <Settings 
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.45)'} 
-                size={23}
-                strokeWidth={focused ? 2.5 : 2}
+                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'} 
+                size={25}
+                strokeWidth={focused ? 2.8 : 2.2}
               />
             </View>
           ),
@@ -141,22 +138,24 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 0,
   },
   iconContainerActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    shadowColor: '#FFFFFF',
+    backgroundColor: 'rgba(139, 92, 246, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.5)',
+    shadowColor: '#8B5CF6',
     shadowOffset: {
       width: 0,
-      height: 0,
+      height: 6,
     },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 10,
   },
 });
