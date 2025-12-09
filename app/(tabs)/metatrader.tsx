@@ -2209,7 +2209,28 @@ export default function MetaTraderScreen() {
                             setShowBrokerList(false);
                           }}
                         >
-                          <View style={styles.brokerItemContent}>
+                          {/* Gradient background */}
+                          <LinearGradient
+                            colors={['#8B5CF6', '#EC4899', '#F97316']}
+                            style={styles.brokerGradientBackground}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          />
+                          
+                          {/* Glass overlay */}
+                          {Platform.OS === 'ios' && (
+                            <BlurView intensity={40} tint="light" style={styles.brokerGlassOverlay} />
+                          )}
+                          
+                          {/* Glossy shine */}
+                          <LinearGradient
+                            colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                            style={styles.brokerGlossShine}
+                            start={{ x: 0.5, y: 0 }}
+                            end={{ x: 0.5, y: 1 }}
+                          />
+                          
+                          <View style={[styles.brokerItemContent, { zIndex: 3 }]}>
                             <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
                             <Text style={styles.brokerItemText}>
                               {item}
@@ -2741,39 +2762,99 @@ const styles = StyleSheet.create({
   },
   brokerItem: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.3,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    paddingVertical: 14,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+    position: 'relative',
+    backgroundColor: 'transparent',
+  },
+  brokerGradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    zIndex: 0,
+    opacity: 0.85,
+  },
+  brokerGlassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  brokerGlossShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    zIndex: 2,
   },
   brokerItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   brokerStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginRight: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   liveBrokerDot: {
-    backgroundColor: '#16A34A',
+    backgroundColor: '#10B981',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   demoBrokerDot: {
     backgroundColor: '#F59E0B',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   brokerItemText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '700',
     color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   brokerItemType: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#999999',
-    backgroundColor: '#2A2A2A',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   noBrokersContainer: {
     alignItems: 'center',
