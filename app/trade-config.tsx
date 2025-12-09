@@ -194,15 +194,11 @@ export default function TradeConfigScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
           {Platform.OS === 'ios' && (
-            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
           )}
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-            style={StyleSheet.absoluteFill}
-          />
-          <ArrowLeft color="#FFFFFF" size={20} />
+          <ArrowLeft color="#FFFFFF" size={22} strokeWidth={2.5} />
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
@@ -211,28 +207,47 @@ export default function TradeConfigScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView 
-          style={styles.content} 
+        <ScrollView
+          style={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Gradient Card Wrapper */}
+          <View style={styles.heroCard}>
+            {/* Beautiful gradient background with glass effect */}
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              style={styles.gradientBackground}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            
+            {/* Glass overlay effect */}
+            {Platform.OS === 'ios' && (
+              <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
+            )}
+            
+            {/* Glossy shine effect at top */}
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']}
+              style={styles.glossShine}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
+            
+            <View style={styles.cardContent}>
         {/* Lot Size */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>LOT SIZE</Text>
           <View style={styles.inputContainer} pointerEvents="box-none">
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
           <TextInput
             style={styles.input}
             value={config.lotSize}
@@ -251,40 +266,32 @@ export default function TradeConfigScreen() {
         {/* Direction */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>DIRECTION</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.picker}
             onPress={() => setShowDirectionModal(true)}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
             )}
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
-              style={StyleSheet.absoluteFill}
-            />
             <Text style={styles.pickerText}>{config.direction}</Text>
-            <ChevronDown color="#FFFFFF" size={18} />
+            <ChevronDown color="#FFFFFF" size={20} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
         {/* Platform */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>PLATFORM</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.picker}
             onPress={() => setShowPlatformModal(true)}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
             )}
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
-              style={StyleSheet.absoluteFill}
-            />
             <Text style={styles.pickerText}>{config.platform}</Text>
-            <ChevronDown color="#FFFFFF" size={18} />
+            <ChevronDown color="#FFFFFF" size={20} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
@@ -293,13 +300,8 @@ export default function TradeConfigScreen() {
           <Text style={styles.sectionTitle}>NUMBER OF TRADES</Text>
           <View style={styles.inputContainer} pointerEvents="box-none">
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
           <TextInput
             style={styles.input}
             value={config.numberOfTrades}
@@ -317,33 +319,27 @@ export default function TradeConfigScreen() {
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.executeButton} onPress={handleSetSymbol} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.executeButton} onPress={handleSetSymbol} activeOpacity={0.7}>
             {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
             )}
-            <LinearGradient
-              colors={['rgba(37, 211, 102, 0.15)', 'rgba(37, 211, 102, 0.08)']}
-              style={StyleSheet.absoluteFill}
-            />
             <Text style={styles.executeButtonText}>
               {(isSymbolActive || legacySymbolActive) ? 'UPDATE SYMBOL' : 'SET SYMBOL'}
             </Text>
           </TouchableOpacity>
           
           {(isSymbolActive || legacySymbolActive) && (
-            <TouchableOpacity style={styles.removeButton} onPress={handleRemoveSymbol} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.removeButton} onPress={handleRemoveSymbol} activeOpacity={0.7}>
               {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               )}
-              <LinearGradient
-                colors={['rgba(220, 38, 38, 0.12)', 'rgba(220, 38, 38, 0.06)']}
-                style={StyleSheet.absoluteFill}
-              />
-              <Trash2 color="rgba(220, 38, 38, 0.9)" size={18} />
+              <Trash2 color="#FFFFFF" size={20} strokeWidth={2.5} />
               <Text style={styles.removeButtonText}>REMOVE</Text>
             </TouchableOpacity>
           )}
         </View>
+            </View>
+          </View>
       </ScrollView>
       </KeyboardAvoidingView>
 
@@ -465,12 +461,17 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 16,
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 10,
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   headerContent: {
     flex: 1,
@@ -489,63 +490,115 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  heroCard: {
+    marginBottom: 24,
+    borderRadius: 40,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.6,
+    shadowRadius: 60,
+    elevation: 30,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    position: 'relative',
+  },
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 40,
+    zIndex: 0,
+    opacity: 0.9,
+  },
+  glassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 40,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  glossShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    zIndex: 2,
+  },
+  cardContent: {
+    padding: 24,
+    zIndex: 3,
   },
   configSection: {
     marginBottom: 24,
   },
   sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 10,
+    textTransform: 'uppercase',
   },
   inputContainer: {
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     position: 'relative',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: 'rgba(255, 255, 255, 0.3)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
   input: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 4,
+    fontSize: 18,
+    fontWeight: '700',
     zIndex: 1,
     position: 'relative',
   },
   picker: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: 'rgba(255, 255, 255, 0.3)',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
     elevation: 4,
   },
   pickerText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 18,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -607,46 +660,44 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   executeButton: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderRadius: 16,
-    paddingVertical: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 24,
+    paddingVertical: 18,
     alignItems: 'center',
-    borderWidth: 0.3,
-    borderColor: 'rgba(37, 211, 102, 0.2)',
+    borderWidth: 0,
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: 'rgba(255, 255, 255, 0.5)',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.7,
+    shadowOpacity: 0.4,
     shadowRadius: 16,
-    elevation: 12,
+    elevation: 10,
   },
   executeButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   removeButton: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
-    borderWidth: 0.3,
-    borderColor: 'rgba(220, 38, 38, 0.2)',
-    borderRadius: 16,
-    paddingVertical: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 0,
+    borderRadius: 24,
+    paddingVertical: 18,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
     overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.7,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowColor: 'rgba(255, 255, 255, 0.3)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   removeButtonText: {
-    color: 'rgba(220, 38, 38, 0.9)',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 });
