@@ -355,13 +355,14 @@ export default function TradeConfigScreen() {
           onPress={() => setShowDirectionModal(false)}
         >
           <View style={styles.modalContent}>
-            {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-            )}
+            {/* Subtle gradient overlay */}
             <LinearGradient
-              colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-              style={StyleSheet.absoluteFill}
+              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              style={[StyleSheet.absoluteFill, { opacity: 0.15 }]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             />
+            
             <Text style={styles.modalTitle}>Select Direction</Text>
             {['BUY', 'SELL', 'BOTH'].map((direction) => (
               <TouchableOpacity
@@ -403,13 +404,14 @@ export default function TradeConfigScreen() {
           onPress={() => setShowPlatformModal(false)}
         >
           <View style={styles.modalContent}>
-            {Platform.OS === 'ios' && (
-              <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-            )}
+            {/* Subtle gradient overlay */}
             <LinearGradient
-              colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-              style={StyleSheet.absoluteFill}
+              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              style={[StyleSheet.absoluteFill, { opacity: 0.15 }]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             />
+            
             <Text style={styles.modalTitle}>Select Platform</Text>
             {['MT4', 'MT5'].map((platform) => (
               <TouchableOpacity
@@ -608,15 +610,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   modalContent: {
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
-    borderRadius: 20,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#000000',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.5)',
+    borderTopColor: 'rgba(139, 92, 246, 0.7)',
     paddingVertical: 20,
     width: '100%',
     maxWidth: 300,
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#8B5CF6',
     shadowOffset: {
       width: 0,
       height: 12,
@@ -636,23 +640,31 @@ const styles = StyleSheet.create({
   modalOption: {
     paddingHorizontal: 24,
     paddingVertical: 16,
-    borderBottomWidth: 0.3,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(139, 92, 246, 0.2)',
     overflow: 'hidden',
+    position: 'relative',
   },
   selectedModalOption: {
-    backgroundColor: 'rgba(37, 211, 102, 0.12)',
-    borderColor: 'rgba(37, 211, 102, 0.2)',
+    backgroundColor: 'rgba(37, 211, 102, 0.2)',
+    borderBottomColor: 'rgba(37, 211, 102, 0.4)',
   },
   modalOptionText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '700',
     textAlign: 'center',
+    zIndex: 3,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   selectedModalOptionText: {
-    color: 'rgba(37, 211, 102, 0.9)',
-    fontWeight: '700',
+    color: '#00FF88',
+    fontWeight: '900',
+    textShadowColor: 'rgba(0, 255, 136, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   buttonContainer: {
     marginTop: 32,
