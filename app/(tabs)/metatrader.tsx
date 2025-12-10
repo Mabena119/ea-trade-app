@@ -2045,12 +2045,12 @@ export default function MetaTraderScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
-            
+
             {/* Glass overlay */}
             {Platform.OS === 'ios' && (
               <BlurView intensity={40} tint="light" style={styles.formGlassOverlay} />
             )}
-            
+
             {/* Glossy shine */}
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
@@ -2058,70 +2058,9 @@ export default function MetaTraderScreen() {
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
             />
-            
+
             <View style={styles.form}>
-            <View style={[styles.inputContainer, { zIndex: 3 }]} pointerEvents="box-none">
-              {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
-              )}
-              <LinearGradient
-                colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Login"
-                placeholderTextColor="#999999"
-                value={login}
-                onChangeText={(text) => {
-                  console.log('Login input changed:', text);
-                  setLogin(text);
-                }}
-                keyboardType="numeric"
-                editable={true}
-              />
-            </View>
-
-            <View style={[styles.passwordContainer, { zIndex: 3 }]} pointerEvents="box-none">
-              {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
-              )}
-              <LinearGradient
-                colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-              />
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Password"
-                placeholderTextColor="#999999"
-                value={password}
-                onChangeText={(text) => {
-                  console.log('Password input changed:', text);
-                  setPassword(text);
-                }}
-                secureTextEntry={!showPassword}
-                editable={true}
-              />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
-                activeOpacity={0.8}
-              >
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                )}
-                {showPassword ? (
-                  <EyeOff color="#999999" size={18} />
-                ) : (
-                  <Eye color="#999999" size={18} />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.serverContainer, { zIndex: 3 }]}>
-              <View style={styles.serverInputContainer} pointerEvents="box-none">
+              <View style={[styles.inputContainer, { zIndex: 3 }]} pointerEvents="box-none">
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
                 )}
@@ -2130,190 +2069,251 @@ export default function MetaTraderScreen() {
                   style={StyleSheet.absoluteFill}
                   pointerEvents="none"
                 />
-                <Server color="#999999" size={18} style={styles.serverIcon} />
                 <TextInput
-                  style={styles.serverInput}
-                  placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
+                  style={styles.input}
+                  placeholder="Login"
                   placeholderTextColor="#999999"
-                  value={server}
+                  value={login}
                   onChangeText={(text) => {
-                    console.log('Server input changed:', text);
-                    setServer(text);
-                    setShowBrokerList(true);
+                    console.log('Login input changed:', text);
+                    setLogin(text);
                   }}
-                  onFocus={() => {
-                    setShowBrokerList(true);
-                  }}
-                  autoCapitalize="none"
+                  keyboardType="numeric"
                   editable={true}
                 />
-                {server.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.clearButton}
-                    onPress={() => {
-                      setServer('');
-                      setShowBrokerList(false);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    {Platform.OS === 'ios' && (
-                      <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                    )}
-                    <Text style={styles.clearButtonText}>×</Text>
-                  </TouchableOpacity>
-                )}
               </View>
 
-              {showBrokerList && (
-                <View style={styles.brokerListContainer}>
-                  <View style={styles.brokerListHeader}>
-                    <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
-                    <View style={styles.brokerListActions}>
-                      {activeTab === 'MT4' && (
+              <View style={[styles.passwordContainer, { zIndex: 3 }]} pointerEvents="box-none">
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                )}
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Password"
+                  placeholderTextColor="#999999"
+                  value={password}
+                  onChangeText={(text) => {
+                    console.log('Password input changed:', text);
+                    setPassword(text);
+                  }}
+                  secureTextEntry={!showPassword}
+                  editable={true}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                  activeOpacity={0.8}
+                >
+                  {Platform.OS === 'ios' && (
+                    <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                  )}
+                  {showPassword ? (
+                    <EyeOff color="#999999" size={18} />
+                  ) : (
+                    <Eye color="#999999" size={18} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.serverContainer, { zIndex: 3 }]}>
+                <View style={styles.serverInputContainer} pointerEvents="box-none">
+                  {Platform.OS === 'ios' && (
+                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                  )}
+                  <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                  />
+                  <Server color="#999999" size={18} style={styles.serverIcon} />
+                  <TextInput
+                    style={styles.serverInput}
+                    placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
+                    placeholderTextColor="#999999"
+                    value={server}
+                    onChangeText={(text) => {
+                      console.log('Server input changed:', text);
+                      setServer(text);
+                      setShowBrokerList(true);
+                    }}
+                    onFocus={() => {
+                      setShowBrokerList(true);
+                    }}
+                    autoCapitalize="none"
+                    editable={true}
+                  />
+                  {server.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.clearButton}
+                      onPress={() => {
+                        setServer('');
+                        setShowBrokerList(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      {Platform.OS === 'ios' && (
+                        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                      )}
+                      <Text style={styles.clearButtonText}>×</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {showBrokerList && (
+                  <View style={styles.brokerListContainer}>
+                    <View style={styles.brokerListHeader}>
+                      <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
+                      <View style={styles.brokerListActions}>
+                        {activeTab === 'MT4' && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              console.log('Manual broker refresh requested');
+                              fetchMT4Brokers();
+                            }}
+                            style={styles.refreshButton}
+                            disabled={isLoadingBrokers}
+                            activeOpacity={0.8}
+                          >
+                            {Platform.OS === 'ios' && (
+                              <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                            )}
+                            <RefreshCw
+                              color={Platform.OS === 'ios' ? '#FFFFFF' : '#FFFFFF'}
+                              size={16}
+                              style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
+                            />
+                          </TouchableOpacity>
+                        )}
                         <TouchableOpacity
-                          onPress={() => {
-                            console.log('Manual broker refresh requested');
-                            fetchMT4Brokers();
-                          }}
-                          style={styles.refreshButton}
-                          disabled={isLoadingBrokers}
+                          onPress={() => setShowBrokerList(false)}
+                          style={styles.closeBrokerList}
                           activeOpacity={0.8}
                         >
                           {Platform.OS === 'ios' && (
                             <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                           )}
-                          <RefreshCw
-                            color={Platform.OS === 'ios' ? '#FFFFFF' : '#FFFFFF'}
-                            size={16}
-                            style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
-                          />
+                          <Text style={styles.closeBrokerListText}>×</Text>
                         </TouchableOpacity>
-                      )}
-                      <TouchableOpacity
-                        onPress={() => setShowBrokerList(false)}
-                        style={styles.closeBrokerList}
-                        activeOpacity={0.8}
-                      >
-                        {Platform.OS === 'ios' && (
-                          <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                        )}
-                        <Text style={styles.closeBrokerListText}>×</Text>
-                      </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                  {brokerFetchError && (
-                    <View style={styles.errorContainer}>
-                      <Text style={styles.errorText}>{brokerFetchError}</Text>
-                    </View>
-                  )}
-                  {isLoadingBrokers && (
-                    <View style={styles.loadingBrokersContainer}>
-                      <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
-                      <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
-                    </View>
-                  )}
-                  <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
-                    {filteredBrokers.map((item, index) => {
-                      return (
-                        <TouchableOpacity
-                          key={`${item}-${index}`}
-                          style={styles.brokerItem}
-                          onPress={() => {
-                            console.log('Broker selected:', item);
-                            setServer(item); // Allow selection of any broker from the list
-                            setShowBrokerList(false);
-                          }}
-                        >
-                          {/* Gradient background */}
-                          <LinearGradient
-                            colors={['#8B5CF6', '#EC4899', '#F97316']}
-                            style={styles.brokerGradientBackground}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                          />
-                          
-                          {/* Glass overlay */}
-                          {Platform.OS === 'ios' && (
-                            <BlurView intensity={40} tint="light" style={styles.brokerGlassOverlay} />
-                          )}
-                          
-                          {/* Glossy shine */}
-                          <LinearGradient
-                            colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
-                            style={styles.brokerGlossShine}
-                            start={{ x: 0.5, y: 0 }}
-                            end={{ x: 0.5, y: 1 }}
-                          />
-                          
-                          <View style={[styles.brokerItemContent, { zIndex: 3 }]}>
-                            <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
-                            <Text style={styles.brokerItemText}>
-                              {item}
-                            </Text>
-                            <Text style={styles.brokerItemType}>
-                              {item.includes('Demo') ? 'DEMO' : 'LIVE'}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                  {filteredBrokers.length === 0 && (
-                    <View style={styles.noBrokersContainer}>
-                      <Search color="#999999" size={24} />
-                      <Text style={styles.noBrokersText}>No brokers found</Text>
-                      <Text style={styles.noBrokersSubtext}>Try a different search term</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
+                    {brokerFetchError && (
+                      <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{brokerFetchError}</Text>
+                      </View>
+                    )}
+                    {isLoadingBrokers && (
+                      <View style={styles.loadingBrokersContainer}>
+                        <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
+                        <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
+                      </View>
+                    )}
+                    <ScrollView style={styles.brokerList} nestedScrollEnabled={true}>
+                      {filteredBrokers.map((item, index) => {
+                        return (
+                          <TouchableOpacity
+                            key={`${item}-${index}`}
+                            style={styles.brokerItem}
+                            onPress={() => {
+                              console.log('Broker selected:', item);
+                              setServer(item); // Allow selection of any broker from the list
+                              setShowBrokerList(false);
+                            }}
+                          >
+                            {/* Gradient background */}
+                            <LinearGradient
+                              colors={['#8B5CF6', '#EC4899', '#F97316']}
+                              style={styles.brokerGradientBackground}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                            />
 
-            <TouchableOpacity
-              style={[
-                styles.linkButton,
-                isAuthenticating && styles.linkButtonDisabled,
-                activeTab === 'MT4' && styles.linkButtonComingSoon,
-                { zIndex: 1 }
-              ]}
-              onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
-              disabled={isAuthenticating || activeTab === 'MT4'}
-              activeOpacity={0.8}
-            >
-              {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-              )}
-              <LinearGradient
-                colors={activeTab === 'MT4'
-                  ? ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.02)']
-                  : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-                style={StyleSheet.absoluteFill}
-              />
-              {isAuthenticating ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                  <Text style={styles.linkButtonText}>
-                    AUTHENTICATING...
-                  </Text>
-                </View>
-              ) : activeTab === 'MT4' ? (
-                <View style={styles.buttonContent}>
-                  <Shield color="#999999" size={16} style={styles.buttonIcon} />
-                  <Text style={styles.linkButtonText}>
-                    LINK MT4 ACCOUNT DETAILS
-                  </Text>
-                  <Text style={styles.comingSoonText}>
-                    COMING SOON
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.buttonContent}>
-                  <Text style={styles.linkButtonText}>
-                    CONNECT
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+                            {/* Glass overlay */}
+                            {Platform.OS === 'ios' && (
+                              <BlurView intensity={40} tint="light" style={styles.brokerGlassOverlay} />
+                            )}
+
+                            {/* Glossy shine */}
+                            <LinearGradient
+                              colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                              style={styles.brokerGlossShine}
+                              start={{ x: 0.5, y: 0 }}
+                              end={{ x: 0.5, y: 1 }}
+                            />
+
+                            <View style={[styles.brokerItemContent, { zIndex: 3 }]}>
+                              <View style={[styles.brokerStatusDot, styles.liveBrokerDot]} />
+                              <Text style={styles.brokerItemText}>
+                                {item}
+                              </Text>
+                              <Text style={styles.brokerItemType}>
+                                {item.includes('Demo') ? 'DEMO' : 'LIVE'}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                    {filteredBrokers.length === 0 && (
+                      <View style={styles.noBrokersContainer}>
+                        <Search color="#999999" size={24} />
+                        <Text style={styles.noBrokersText}>No brokers found</Text>
+                        <Text style={styles.noBrokersSubtext}>Try a different search term</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.linkButton,
+                  isAuthenticating && styles.linkButtonDisabled,
+                  activeTab === 'MT4' && styles.linkButtonComingSoon,
+                  { zIndex: 1 }
+                ]}
+                onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
+                disabled={isAuthenticating || activeTab === 'MT4'}
+                activeOpacity={0.8}
+              >
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={activeTab === 'MT4'
+                    ? ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.02)']
+                    : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                {isAuthenticating ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={styles.linkButtonText}>
+                      AUTHENTICATING...
+                    </Text>
+                  </View>
+                ) : activeTab === 'MT4' ? (
+                  <View style={styles.buttonContent}>
+                    <Shield color="#999999" size={16} style={styles.buttonIcon} />
+                    <Text style={styles.linkButtonText}>
+                      LINK MT4 ACCOUNT DETAILS
+                    </Text>
+                    <Text style={styles.comingSoonText}>
+                      COMING SOON
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.buttonContent}>
+                    <Text style={styles.linkButtonText}>
+                      CONNECT
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -2782,11 +2782,11 @@ const styles = StyleSheet.create({
     top: 62,
     left: 0,
     right: 0,
+    bottom: -250,
     backgroundColor: '#000000',
     borderWidth: 1,
     borderColor: 'rgba(139, 92, 246, 0.5)',
     borderRadius: 20,
-    maxHeight: 300,
     overflow: 'hidden',
     shadowColor: '#8B5CF6',
     shadowOffset: {
