@@ -2782,7 +2782,7 @@ const styles = StyleSheet.create({
     top: 62,
     left: 0,
     right: 0,
-    bottom: -250,
+    height: 500,
     backgroundColor: '#000000',
     borderWidth: 1,
     borderColor: 'rgba(139, 92, 246, 0.5)',
@@ -2826,7 +2826,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   brokerList: {
-    maxHeight: 240,
+    flex: 1,
   },
   brokerItem: {
     paddingHorizontal: 16,
