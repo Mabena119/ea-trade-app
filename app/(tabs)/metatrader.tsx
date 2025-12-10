@@ -2519,7 +2519,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    marginBottom: 30,
+    marginBottom: 16,
   },
   statusDot: {
     width: 12,
@@ -2548,18 +2548,18 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 16,
   },
   mtLogoImageContainer: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   mtLogoImage: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
   },
   formTitle: {
     fontSize: 16,
@@ -2568,7 +2568,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     marginHorizontal: 20,
-    marginTop: 30,
+    marginTop: 12,
     marginBottom: 30,
     borderRadius: 32,
     borderWidth: 1.5,
