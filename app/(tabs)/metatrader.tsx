@@ -2274,7 +2274,7 @@ export default function MetaTraderScreen() {
                 styles.linkButton,
                 isAuthenticating && styles.linkButtonDisabled,
                 activeTab === 'MT4' && styles.linkButtonComingSoon,
-                { zIndex: 3 }
+                { zIndex: 1 }
               ]}
               onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
               disabled={isAuthenticating || activeTab === 'MT4'}
@@ -2779,7 +2779,7 @@ const styles = StyleSheet.create({
   },
   brokerListContainer: {
     position: 'absolute',
-    top: 50,
+    top: 62,
     left: 0,
     right: 0,
     backgroundColor: '#000000',
@@ -2796,6 +2796,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 24,
     elevation: 20,
+    zIndex: 1001,
   },
   brokerListHeader: {
     flexDirection: 'row',
