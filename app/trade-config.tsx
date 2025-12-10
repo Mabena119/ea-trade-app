@@ -207,13 +207,13 @@ export default function TradeConfigScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
+      <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView
-          style={styles.content}
+        <ScrollView 
+          style={styles.content} 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -266,7 +266,7 @@ export default function TradeConfigScreen() {
         {/* Direction */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>DIRECTION</Text>
-          <TouchableOpacity
+          <TouchableOpacity 
             style={styles.picker}
             onPress={() => setShowDirectionModal(true)}
             activeOpacity={0.7}
@@ -282,7 +282,7 @@ export default function TradeConfigScreen() {
         {/* Platform */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>PLATFORM</Text>
-          <TouchableOpacity
+          <TouchableOpacity 
             style={styles.picker}
             onPress={() => setShowPlatformModal(true)}
             activeOpacity={0.7}
@@ -339,7 +339,7 @@ export default function TradeConfigScreen() {
           )}
         </View>
             </View>
-          </View>
+        </View>
       </ScrollView>
       </KeyboardAvoidingView>
 

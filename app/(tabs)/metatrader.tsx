@@ -2031,8 +2031,21 @@ export default function MetaTraderScreen() {
           {/* Authentication Status Display - Only shown during authentication */}
           {isAuthenticating && (
             <View style={styles.authStatusDisplay}>
-              <ActivityIndicator color={Platform.OS === 'ios' ? '#DC2626' : '#000000'} size="small" />
-              <Text style={styles.authStatusDisplayText}>{authenticationStep}</Text>
+              {/* Gradient background */}
+              <LinearGradient
+                colors={['#8B5CF6', '#EC4899', '#F97316']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              
+              {/* Glass overlay */}
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={40} tint="light" style={[StyleSheet.absoluteFill, { opacity: 0.3 }]} />
+              )}
+              
+              <ActivityIndicator color="#FFFFFF" size="small" style={{ zIndex: 3 }} />
+              <Text style={[styles.authStatusDisplayText, { zIndex: 3 }]}>{authenticationStep}</Text>
             </View>
           )}
 
@@ -2322,13 +2335,14 @@ export default function MetaTraderScreen() {
       {/* MT5 Authentication Toast */}
       {showMT5WebView && (
         <View style={styles.authToastContainer}>
-          {Platform.OS === 'ios' && (
-            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-          )}
+          {/* Gradient background for toast */}
           <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-            style={StyleSheet.absoluteFill}
+            colors={['#8B5CF6', '#EC4899', '#F97316']}
+            style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           />
+          
           <View style={styles.authToastContent}>
             <View style={styles.authToastLeft}>
               <View style={styles.authToastIcon}>
@@ -2393,13 +2407,14 @@ export default function MetaTraderScreen() {
       {/* MT4 Authentication Toast */}
       {showMT4WebView && (
         <View style={styles.authToastContainer}>
-          {Platform.OS === 'ios' && (
-            <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-          )}
+          {/* Gradient background for toast */}
           <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-            style={StyleSheet.absoluteFill}
+            colors={['#8B5CF6', '#EC4899', '#F97316']}
+            style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           />
+          
           <View style={styles.authToastContent}>
             <View style={styles.authToastLeft}>
               <View style={styles.authToastIcon}>
@@ -2948,17 +2963,29 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     marginBottom: 20,
-    backgroundColor: '#1A1A1A',
-    borderRadius: 8,
+    backgroundColor: 'transparent',
+    borderRadius: 20,
     marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: '#333333',
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    borderTopColor: 'rgba(139, 92, 246, 0.6)',
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+    position: 'relative',
   },
   authStatusDisplayText: {
     marginLeft: 12,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '700',
     color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   brokerListActions: {
     flexDirection: 'row',
@@ -3126,16 +3153,18 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 50 : 30,
     left: 20,
     right: 20,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    backgroundColor: '#000000',
     borderRadius: 20,
-    borderWidth: 0.3,
-    borderColor: colors.glass.border,
-    shadowColor: '#000000',
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.5)',
+    borderTopColor: 'rgba(139, 92, 246, 0.7)',
+    shadowColor: '#8B5CF6',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 12,
     },
-    shadowOpacity: 0.7,
+    shadowOpacity: 0.8,
     shadowRadius: 24,
     elevation: 10000,
     zIndex: 10000,
