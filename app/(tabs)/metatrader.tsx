@@ -2568,7 +2568,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.25)',
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
-    overflow: 'hidden',
+    overflow: 'visible',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.5,
@@ -2729,7 +2729,8 @@ const styles = StyleSheet.create({
   serverContainer: {
     marginBottom: 16,
     position: 'relative',
-    zIndex: 1000,
+    zIndex: 10000,
+    overflow: 'visible',
   },
   serverInputContainer: {
     flexDirection: 'row',
@@ -2780,9 +2781,9 @@ const styles = StyleSheet.create({
   brokerListContainer: {
     position: 'absolute',
     top: 62,
-    left: 0,
-    right: 0,
-    height: 500,
+    left: -20,
+    right: -20,
+    bottom: -420,
     backgroundColor: '#000000',
     borderWidth: 1,
     borderColor: 'rgba(139, 92, 246, 0.5)',
@@ -2796,7 +2797,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 24,
     elevation: 20,
-    zIndex: 1001,
+    zIndex: 10001,
   },
   brokerListHeader: {
     flexDirection: 'row',
