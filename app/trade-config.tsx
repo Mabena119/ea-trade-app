@@ -646,8 +646,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   selectedModalOption: {
-    backgroundColor: 'rgba(37, 211, 102, 0.2)',
-    borderBottomColor: 'rgba(37, 211, 102, 0.4)',
+    backgroundColor: 'rgba(139, 92, 246, 0.3)',
+    borderBottomColor: 'rgba(139, 92, 246, 0.6)',
   },
   modalOptionText: {
     color: '#FFFFFF',
@@ -660,9 +660,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   selectedModalOptionText: {
-    color: '#00FF88',
+    color: '#FFFFFF',
     fontWeight: '900',
-    textShadowColor: 'rgba(0, 255, 136, 0.3)',
+    textShadowColor: 'rgba(139, 92, 246, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
