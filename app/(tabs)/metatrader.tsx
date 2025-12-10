@@ -2166,13 +2166,6 @@ export default function MetaTraderScreen() {
 
               {showBrokerList && (
                 <View style={styles.brokerListContainer}>
-                  {Platform.OS === 'ios' && (
-                    <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
-                  )}
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-                    style={StyleSheet.absoluteFill}
-                  />
                   <View style={styles.brokerListHeader}>
                     <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
                     <View style={styles.brokerListActions}>
@@ -2789,13 +2782,13 @@ const styles = StyleSheet.create({
     top: 50,
     left: 0,
     right: 0,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundStrong,
-    borderWidth: 0.3,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.5)',
     borderRadius: 20,
     maxHeight: 300,
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#8B5CF6',
     shadowOffset: {
       width: 0,
       height: 12,
