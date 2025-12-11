@@ -1518,6 +1518,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (nextAppState === 'active' && isBotActive) {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
         if (primaryEA && primaryEA.licenseKey) {
+          // IMPORTANT: Update React context in native service so pending signals can be sent
+          // This is crucial when app is brought to foreground by native service
+          if (Platform.OS === 'android') {
+            console.log('📱 App active - updating React context in native service...');
+            try {
+              await backgroundMonitoringService.updateReactContext();
+            } catch (error) {
+              console.error('Error updating React context:', error);
+            }
+          }
+          
           // If polling is paused but bot is active, check if we should resume
           // (but respect the 35-second cooldown after trade execution)
           if (isPollingPaused) {

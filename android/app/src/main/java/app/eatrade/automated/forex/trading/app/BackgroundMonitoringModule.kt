@@ -74,6 +74,24 @@ class BackgroundMonitoringModule(reactContext: ReactApplicationContext) : ReactC
     }
 
     @ReactMethod
+    fun updateReactContext(promise: Promise) {
+        try {
+            val service = BackgroundMonitoringService.getInstance()
+            if (service != null) {
+                service.setReactContext(context)
+                Log.d("BackgroundMonitoring", "✅ React context updated in service")
+                promise.resolve(true)
+            } else {
+                Log.d("BackgroundMonitoring", "⚠️ Service not running, no context to update")
+                promise.resolve(false)
+            }
+        } catch (e: Exception) {
+            Log.e("BackgroundMonitoring", "❌ Error updating React context", e)
+            promise.reject("ERROR", "Failed to update React context: ${e.message}", e)
+        }
+    }
+
+    @ReactMethod
     fun bringAppToForeground(promise: Promise) {
         try {
             Log.d("BackgroundMonitoring", "📱 Bringing app to foreground (called from React Native)")

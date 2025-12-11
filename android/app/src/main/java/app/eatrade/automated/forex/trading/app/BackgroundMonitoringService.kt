@@ -24,11 +24,51 @@ class BackgroundMonitoringService : Service() {
     private var licenseKey: String? = null
     private var reactContext: ReactApplicationContext? = null
     private var lastPollTime: String? = null
+    private val pendingSignals = mutableListOf<Map<String, Any>>()
+    private val MAX_SIGNAL_AGE_SECONDS = 30 // Only process signals less than 30 seconds old
     
     private fun getCurrentISOTime(): String {
         val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
         format.timeZone = java.util.TimeZone.getTimeZone("UTC")
         return format.format(java.util.Date())
+    }
+    
+    private fun parseISOTime(isoString: String): Long {
+        return try {
+            val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+            format.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            format.parse(isoString)?.time ?: 0L
+        } catch (e: Exception) {
+            try {
+                val format = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+                format.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                format.parse(isoString)?.time ?: 0L
+            } catch (e2: Exception) {
+                0L
+            }
+        }
+    }
+    
+    private fun isSignalRecent(signal: Map<String, Any>): Pair<Boolean, Double> {
+        val latestUpdate = signal["latestupdate"] as? String ?: ""
+        val signalTime = signal["time"] as? String ?: ""
+        
+        // Use latestupdate if available, otherwise use time
+        val timeToCheck = if (latestUpdate.isNotEmpty()) latestUpdate else signalTime
+        
+        if (timeToCheck.isEmpty()) {
+            return Pair(false, -1.0)
+        }
+        
+        val signalTimestamp = parseISOTime(timeToCheck)
+        if (signalTimestamp == 0L) {
+            return Pair(false, -1.0)
+        }
+        
+        val now = System.currentTimeMillis()
+        val ageInSeconds = (now - signalTimestamp) / 1000.0
+        
+        return Pair(ageInSeconds <= MAX_SIGNAL_AGE_SECONDS, ageInSeconds)
     }
 
     companion object {
@@ -97,7 +137,26 @@ class BackgroundMonitoringService : Service() {
     }
 
     fun setReactContext(context: ReactApplicationContext) {
+        Log.d(TAG, "📱 React context set/updated")
         this.reactContext = context
+        
+        // Send any pending signals now that context is available
+        if (pendingSignals.isNotEmpty()) {
+            Log.d(TAG, "📤 Sending ${pendingSignals.size} pending signals to React Native")
+            val signalsToSend = pendingSignals.toList()
+            pendingSignals.clear()
+            
+            for (signal in signalsToSend) {
+                // Recheck if signal is still recent
+                val (isRecent, ageInSeconds) = isSignalRecent(signal)
+                if (isRecent) {
+                    Log.d(TAG, "📤 Sending pending signal: ${signal["asset"]} (${ageInSeconds.toInt()}s old)")
+                    sendSignalToReactNativeInternal(signal)
+                } else {
+                    Log.d(TAG, "⏰ Pending signal too old now, skipping: ${signal["asset"]} (${ageInSeconds.toInt()}s old)")
+                }
+            }
+        }
     }
 
     private fun createNotificationChannel() {
@@ -242,13 +301,45 @@ class BackgroundMonitoringService : Service() {
     }
 
     private fun sendSignalToReactNative(signal: Map<String, Any>) {
-        Log.d(TAG, "📤 Sending signal to React Native for processing: ${signal["asset"]}")
+        Log.d(TAG, "📤 Processing signal: ${signal["asset"]}")
         
-        // DON'T bring app to foreground here - let React Native decide
-        // React Native will check if signal should be executed and bring app to foreground only if needed
-        // This prevents unnecessary foreground switches for ignored/old/duplicate signals
-
-        // Send signal to React Native for processing
+        // First check if signal is recent enough (basic filtering in native)
+        val (isRecent, ageInSeconds) = isSignalRecent(signal)
+        
+        if (!isRecent) {
+            if (ageInSeconds < 0) {
+                Log.d(TAG, "⏰ Signal has invalid timestamp, skipping: ${signal["asset"]}")
+            } else {
+                Log.d(TAG, "⏰ Signal too old (${ageInSeconds.toInt()}s), NOT bringing app to foreground: ${signal["asset"]}")
+            }
+            return
+        }
+        
+        Log.d(TAG, "✅ Signal is recent (${ageInSeconds.toInt()}s old): ${signal["asset"]}")
+        
+        // Check if React context is available
+        val context = reactContext
+        if (context != null) {
+            // React context available - send signal directly
+            // React Native will do full validation (duplicates, cooldown, symbol config)
+            // and decide whether to bring app to foreground
+            Log.d(TAG, "📤 Sending signal to React Native for full validation: ${signal["asset"]}")
+            sendSignalToReactNativeInternal(signal)
+        } else {
+            // React context NOT available (app is in background)
+            // We need to bring app to foreground first, then send signal
+            Log.d(TAG, "📱 React context not available - bringing app to foreground first: ${signal["asset"]}")
+            
+            // Store signal to send when context becomes available
+            pendingSignals.add(signal)
+            Log.d(TAG, "📥 Signal queued (${pendingSignals.size} pending): ${signal["asset"]}")
+            
+            // Bring app to foreground
+            bringAppToForeground()
+        }
+    }
+    
+    private fun sendSignalToReactNativeInternal(signal: Map<String, Any>) {
         reactContext?.let { context ->
             try {
                 val params = Arguments.createMap().apply {
@@ -265,16 +356,17 @@ class BackgroundMonitoringService : Service() {
                     putString("results", signal["results"] as? String ?: "")
                 }
 
-                // Send signal to React Native - it will decide if app should come to foreground
+                // Send signal to React Native - it will do full validation
+                // and decide if signal should be executed (duplicates, cooldown, symbol config)
                 context
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     .emit("backgroundSignalFound", params)
 
-                Log.d(TAG, "✅ Signal sent to React Native for processing: ${signal["asset"]}")
+                Log.d(TAG, "✅ Signal sent to React Native: ${signal["asset"]}")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error sending signal to React Native", e)
             }
-        } ?: Log.w(TAG, "⚠️ React context not available, signal cannot be processed")
+        } ?: Log.w(TAG, "⚠️ React context became unavailable")
     }
     
     // Function to bring app to foreground - called from React Native when signal will be executed

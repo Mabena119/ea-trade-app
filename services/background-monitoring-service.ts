@@ -5,6 +5,7 @@ interface BackgroundMonitoringModuleInterface {
   stopMonitoring(): Promise<boolean>;
   isRunning(): Promise<boolean>;
   bringAppToForeground(): Promise<boolean>;
+  updateReactContext(): Promise<boolean>;
 }
 
 // Lazy access to native module to prevent web initialization errors
@@ -129,6 +130,29 @@ class BackgroundMonitoringService {
       return result;
     } catch (error) {
       console.error('[BackgroundMonitoring] ❌ Error bringing app to foreground:', error);
+      return false;
+    }
+  }
+
+  async updateReactContext(): Promise<boolean> {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+
+    const BackgroundMonitoringModule = getBackgroundMonitoringModule();
+    if (!BackgroundMonitoringModule) {
+      return false;
+    }
+
+    try {
+      console.log('[BackgroundMonitoring] 📱 Updating React context in native service...');
+      const result = await BackgroundMonitoringModule.updateReactContext();
+      if (result) {
+        console.log('[BackgroundMonitoring] ✅ React context updated - pending signals will be processed');
+      }
+      return result;
+    } catch (error) {
+      console.error('[BackgroundMonitoring] ❌ Error updating React context:', error);
       return false;
     }
   }
