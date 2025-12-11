@@ -43,6 +43,14 @@ export default function QuotesScreen() {
   // Fetch symbols from API - only show symbols from connected robot
   const fetchSymbols = useCallback(async (showRefreshIndicator = false) => {
     try {
+      console.log('Fetching symbols for active bot:', {
+        botId: primaryEA?.id,
+        botName: primaryEA?.name,
+        licenseKey: primaryEA?.licenseKey,
+        hasConnectedEA,
+        hasPhoneSecret: !!primaryEA?.phoneSecretKey
+      });
+
       if (showRefreshIndicator) {
         setRefreshing(true);
       } else {
@@ -53,10 +61,16 @@ export default function QuotesScreen() {
       // Only fetch from API if we have a connected EA with phone secret
       let response: { data: ApiSymbol[] } = { data: [] };
       if (hasConnectedEA && primaryEA?.phoneSecretKey) {
+        console.log('Fetching symbols from API for bot:', primaryEA.name);
         const apiRes = await apiService.getSymbols(primaryEA.phoneSecretKey);
         if (apiRes.message === 'accept' && Array.isArray(apiRes.data)) {
           response = { data: apiRes.data };
+          console.log(`API returned ${apiRes.data.length} symbols for bot:`, primaryEA.name);
+        } else {
+          console.log('API returned no symbols or error for bot:', primaryEA.name);
         }
+      } else {
+        console.log('No connected EA or missing phone secret - quotes will be empty');
       }
       // If no connected EA or API returns empty, keep quotes empty
 
@@ -111,12 +125,16 @@ export default function QuotesScreen() {
       });
 
       setQuotes(newQuotes);
+      console.log(`Quotes updated for bot "${primaryEA?.name}":`, {
+        quotesCount: newQuotes.length,
+        symbols: newQuotes.map(q => q.symbol)
+      });
     } catch (error) {
       console.error('Error fetching symbols:', error);
       setError('Failed to load symbols (offline)');
 
       // Keep quotes empty if API fails - don't fallback to mock data
-      console.log('API failed, keeping quotes empty');
+      console.log(`API failed for bot "${primaryEA?.name}", keeping quotes empty`);
       setQuotes([]);
     } finally {
       // Add a small delay to make the refresh feel more natural
@@ -125,24 +143,29 @@ export default function QuotesScreen() {
         setRefreshing(false);
       }, showRefreshIndicator ? 300 : 0);
     }
-  }, [activeSymbols, mt4Symbols, mt5Symbols, quotes.length]);
+  }, [hasConnectedEA, primaryEA, activeSymbols, mt4Symbols, mt5Symbols]);
 
-  // Initial load and refresh when symbols change
+  // Initial load and refresh when symbols change or active bot switches
   useEffect(() => {
-    console.log('Symbols changed, refreshing quotes...', {
+    console.log('Bot or symbols changed, refreshing quotes...', {
+      botId: primaryEA?.id,
+      botName: primaryEA?.name,
+      hasConnectedEA,
       activeSymbols: activeSymbols.length,
       mt4Symbols: mt4Symbols.length,
       mt5Symbols: mt5Symbols.length
     });
 
-    // Only do a full refresh if we don't have quotes yet, otherwise do a gentle refresh
-    if (quotes.length === 0) {
-      fetchSymbols(false);
-    } else {
-      // Gentle refresh to update the active status without disrupting the UI
-      fetchSymbols(true);
-    }
-  }, [hasConnectedEA, primaryEA?.phoneSecretKey, activeSymbols.length, mt4Symbols.length, mt5Symbols.length, quotes.length]);
+    // Always fetch to ensure quotes reflect current active bot's symbols
+    fetchSymbols(quotes.length > 0);
+  }, [
+    hasConnectedEA, 
+    primaryEA?.id, 
+    primaryEA?.phoneSecretKey, 
+    activeSymbols.length, 
+    mt4Symbols.length, 
+    mt5Symbols.length
+  ]);
 
   // Smooth rotation animation for refresh button
   useEffect(() => {
@@ -170,13 +193,10 @@ export default function QuotesScreen() {
   // Refresh when screen comes into focus (e.g., returning from trade-config)
   useFocusEffect(
     useCallback(() => {
-      console.log('Quotes screen focused, refreshing (offline)...');
-      if (quotes.length > 0) {
-        setTimeout(() => fetchSymbols(true), 100);
-      } else {
-        fetchSymbols(false);
-      }
-    }, [fetchSymbols, quotes.length])
+      console.log('Quotes screen focused, refreshing to sync active bot symbols...');
+      // Always refresh with indicator since we're coming back to focus
+      setTimeout(() => fetchSymbols(true), 100);
+    }, [fetchSymbols])
   );
 
   // Refresh function
@@ -316,12 +336,12 @@ export default function QuotesScreen() {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   />
-                  
+
                   {/* Glass overlay */}
                   {Platform.OS === 'ios' && (
                     <BlurView intensity={40} tint="light" style={styles.quoteGlassOverlay} />
                   )}
-                  
+
                   {/* Glossy shine */}
                   <LinearGradient
                     colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
@@ -329,7 +349,7 @@ export default function QuotesScreen() {
                     start={{ x: 0.5, y: 0 }}
                     end={{ x: 0.5, y: 1 }}
                   />
-                  
+
                   <View style={styles.quoteHeader}>
                     <View style={styles.symbolContainer}>
                       <Text style={styles.symbol}>{quote.symbol}</Text>
