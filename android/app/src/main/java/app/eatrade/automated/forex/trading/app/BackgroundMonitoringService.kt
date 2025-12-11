@@ -24,7 +24,9 @@ class BackgroundMonitoringService : Service() {
     private var licenseKey: String? = null
     private var reactContext: ReactApplicationContext? = null
     private var lastPollTime: String? = null
-    private val pendingSignals = mutableListOf<Map<String, Any>>()
+    // Thread-safe list for pending signals (accessed from polling thread and main thread)
+    private val pendingSignals = Collections.synchronizedList(mutableListOf<Map<String, Any>>())
+    private val pendingSignalsLock = Any() // Lock for atomic operations on pendingSignals
     private val MAX_SIGNAL_AGE_SECONDS = 30 // Only process signals less than 30 seconds old
     
     private fun getCurrentISOTime(): String {
@@ -68,7 +70,10 @@ class BackgroundMonitoringService : Service() {
         val now = System.currentTimeMillis()
         val ageInSeconds = (now - signalTimestamp) / 1000.0
         
-        return Pair(ageInSeconds <= MAX_SIGNAL_AGE_SECONDS, ageInSeconds)
+        // Fix: Reject future-dated signals (negative age) and signals older than threshold
+        // A signal is only valid if: 0 <= ageInSeconds <= MAX_SIGNAL_AGE_SECONDS
+        val isRecent = ageInSeconds >= 0 && ageInSeconds <= MAX_SIGNAL_AGE_SECONDS
+        return Pair(isRecent, ageInSeconds)
     }
 
     companion object {
@@ -141,20 +146,25 @@ class BackgroundMonitoringService : Service() {
         this.reactContext = context
         
         // Send any pending signals now that context is available
-        if (pendingSignals.isNotEmpty()) {
+        // Use synchronized block to prevent race condition with polling thread
+        val signalsToSend: List<Map<String, Any>>
+        synchronized(pendingSignalsLock) {
+            if (pendingSignals.isEmpty()) {
+                return
+            }
             Log.d(TAG, "📤 Sending ${pendingSignals.size} pending signals to React Native")
-            val signalsToSend = pendingSignals.toList()
+            signalsToSend = pendingSignals.toList()
             pendingSignals.clear()
-            
-            for (signal in signalsToSend) {
-                // Recheck if signal is still recent
-                val (isRecent, ageInSeconds) = isSignalRecent(signal)
-                if (isRecent) {
-                    Log.d(TAG, "📤 Sending pending signal: ${signal["asset"]} (${ageInSeconds.toInt()}s old)")
-                    sendSignalToReactNativeInternal(signal)
-                } else {
-                    Log.d(TAG, "⏰ Pending signal too old now, skipping: ${signal["asset"]} (${ageInSeconds.toInt()}s old)")
-                }
+        }
+        
+        for (signal in signalsToSend) {
+            // Recheck if signal is still recent
+            val (isRecent, ageInSeconds) = isSignalRecent(signal)
+            if (isRecent) {
+                Log.d(TAG, "📤 Sending pending signal: ${signal["asset"]} (${ageInSeconds.toInt()}s old)")
+                sendSignalToReactNativeInternal(signal)
+            } else {
+                Log.d(TAG, "⏰ Pending signal too old now, skipping: ${signal["asset"]} (${ageInSeconds.toInt()}s old)")
             }
         }
     }
@@ -307,10 +317,19 @@ class BackgroundMonitoringService : Service() {
         val (isRecent, ageInSeconds) = isSignalRecent(signal)
         
         if (!isRecent) {
-            if (ageInSeconds < 0) {
-                Log.d(TAG, "⏰ Signal has invalid timestamp, skipping: ${signal["asset"]}")
-            } else {
-                Log.d(TAG, "⏰ Signal too old (${ageInSeconds.toInt()}s), NOT bringing app to foreground: ${signal["asset"]}")
+            when {
+                ageInSeconds < -1.0 -> {
+                    // Future-dated signal (timestamp ahead of current time)
+                    Log.d(TAG, "⏰ Signal has future timestamp (${(-ageInSeconds).toInt()}s ahead), skipping: ${signal["asset"]}")
+                }
+                ageInSeconds < 0 -> {
+                    // Invalid timestamp
+                    Log.d(TAG, "⏰ Signal has invalid timestamp, skipping: ${signal["asset"]}")
+                }
+                else -> {
+                    // Signal is too old
+                    Log.d(TAG, "⏰ Signal too old (${ageInSeconds.toInt()}s), NOT bringing app to foreground: ${signal["asset"]}")
+                }
             }
             return
         }
@@ -330,9 +349,11 @@ class BackgroundMonitoringService : Service() {
             // We need to bring app to foreground first, then send signal
             Log.d(TAG, "📱 React context not available - bringing app to foreground first: ${signal["asset"]}")
             
-            // Store signal to send when context becomes available
-            pendingSignals.add(signal)
-            Log.d(TAG, "📥 Signal queued (${pendingSignals.size} pending): ${signal["asset"]}")
+            // Store signal to send when context becomes available (thread-safe)
+            synchronized(pendingSignalsLock) {
+                pendingSignals.add(signal)
+                Log.d(TAG, "📥 Signal queued (${pendingSignals.size} pending): ${signal["asset"]}")
+            }
             
             // Bring app to foreground
             bringAppToForeground()
