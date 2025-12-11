@@ -27,6 +27,7 @@ export default function QuotesScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const [error, setError] = useState<string | null>(null);
+  const previousBotIdRef = useRef<string | undefined>(undefined);
 
   const primaryEA = eas.length > 0 ? eas[0] : null;
   const hasActiveQuotes = activeSymbols.length > 0 || mt4Symbols.length > 0 || mt5Symbols.length > 0;
@@ -143,28 +144,45 @@ export default function QuotesScreen() {
         setRefreshing(false);
       }, showRefreshIndicator ? 300 : 0);
     }
-  }, [hasConnectedEA, primaryEA, activeSymbols, mt4Symbols, mt5Symbols]);
+  }, [hasConnectedEA, primaryEA?.id, primaryEA?.phoneSecretKey, primaryEA?.name, activeSymbols, mt4Symbols, mt5Symbols]);
 
   // Initial load and refresh when symbols change or active bot switches
   useEffect(() => {
+    const currentBotId = primaryEA?.id;
+    const previousBotId = previousBotIdRef.current;
+    const botChanged = currentBotId !== previousBotId;
+
     console.log('Bot or symbols changed, refreshing quotes...', {
-      botId: primaryEA?.id,
+      botId: currentBotId,
       botName: primaryEA?.name,
       hasConnectedEA,
+      previousBotId,
+      botChanged,
       activeSymbols: activeSymbols.length,
       mt4Symbols: mt4Symbols.length,
       mt5Symbols: mt5Symbols.length
     });
 
-    // Always fetch to ensure quotes reflect current active bot's symbols
-    fetchSymbols(quotes.length > 0);
+    // Update the ref
+    previousBotIdRef.current = currentBotId;
+
+    // If bot changed or no quotes yet, do full refresh
+    // Otherwise, do gentle refresh for symbol changes
+    if (botChanged || quotes.length === 0) {
+      console.log('Bot changed or first load - doing full refresh');
+      fetchSymbols(false);
+    } else {
+      console.log('Only symbols changed - doing gentle refresh');
+      fetchSymbols(true);
+    }
   }, [
-    hasConnectedEA, 
-    primaryEA?.id, 
-    primaryEA?.phoneSecretKey, 
-    activeSymbols.length, 
-    mt4Symbols.length, 
-    mt5Symbols.length
+    hasConnectedEA,
+    primaryEA?.id,
+    primaryEA?.phoneSecretKey,
+    activeSymbols.length,
+    mt4Symbols.length,
+    mt5Symbols.length,
+    fetchSymbols
   ]);
 
   // Smooth rotation animation for refresh button
