@@ -3,7 +3,11 @@ package app.eatrade.automated.forex.trading.app
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.Shader
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -272,8 +276,30 @@ class OverlayService private constructor() {
         
         // Load image in background thread
         Thread {
-            val bitmap = if (botImageURL != null && botImageURL!!.isNotEmpty()) {
+            var bitmap = if (botImageURL != null && botImageURL!!.isNotEmpty()) {
                 loadImageFromURL(botImageURL!!)
+            } else {
+                null
+            }
+            
+            // If no bitmap from URL, load default launcher icon
+            if (bitmap == null) {
+                try {
+                    val ctx = getContext()
+                    bitmap = BitmapFactory.decodeResource(ctx.resources, R.mipmap.ic_launcher)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            
+            // Convert to circular bitmap
+            val circularBitmap = if (bitmap != null) {
+                try {
+                    getCircularBitmap(bitmap)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    bitmap // Fallback to non-circular if error
+                }
             } else {
                 null
             }
@@ -286,10 +312,10 @@ class OverlayService private constructor() {
                     val currentImageView = currentView.findViewById<ImageView>(R.id.overlay_bot_image)
                     if (currentImageView != null) {
                         try {
-                            if (bitmap != null) {
-                                currentImageView.setImageBitmap(bitmap)
+                            if (circularBitmap != null) {
+                                currentImageView.setImageBitmap(circularBitmap)
                             } else {
-                                // Use app logo as default
+                                // Last resort: Use app logo resource directly
                                 currentImageView.setImageResource(R.mipmap.ic_launcher)
                             }
                         } catch (e: Exception) {
@@ -329,6 +355,31 @@ class OverlayService private constructor() {
             e.printStackTrace()
             return null
         }
+    }
+    
+    private fun getCircularBitmap(bitmap: Bitmap): Bitmap {
+        val size = Math.min(bitmap.width, bitmap.height)
+        val x = (bitmap.width - size) / 2
+        val y = (bitmap.height - size) / 2
+        
+        val squaredBitmap = Bitmap.createBitmap(bitmap, x, y, size, size)
+        if (squaredBitmap != bitmap) {
+            bitmap.recycle()
+        }
+        
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        
+        val paint = Paint()
+        paint.isAntiAlias = true
+        paint.shader = BitmapShader(squaredBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        
+        val radius = size / 2f
+        canvas.drawCircle(radius, radius, radius, paint)
+        
+        squaredBitmap.recycle()
+        
+        return output
     }
     
     private fun updateBotInfoSync() {
