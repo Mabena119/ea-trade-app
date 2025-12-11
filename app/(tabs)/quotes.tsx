@@ -19,19 +19,6 @@ interface Quote {
 
 
 
-const mockQuotes: Quote[] = [
-  { symbol: 'EURUSD', lotSize: 0.1, platform: 'MT5', direction: 'BUY' },
-  { symbol: 'GBPUSD', lotSize: 0.2, platform: 'MT4', direction: 'SELL' },
-  { symbol: 'USDJPY', lotSize: 0.15, platform: 'MT5', direction: 'BUY' },
-  { symbol: 'AUDUSD', lotSize: 0.1, platform: 'MT5', direction: 'BUY' },
-  { symbol: 'USDCAD', lotSize: 0.25, platform: 'MT4', direction: 'SELL' },
-  { symbol: 'NZDUSD', lotSize: 0.1, platform: 'MT5', direction: 'BUY' },
-  { symbol: 'USDCHF', lotSize: 0.2, platform: 'MT4', direction: 'SELL' },
-  { symbol: 'EURGBP', lotSize: 0.1, platform: 'MT5', direction: 'BUY' },
-  { symbol: 'EURJPY', lotSize: 0.15, platform: 'MT5', direction: 'BUY' },
-  { symbol: 'GBPJPY', lotSize: 0.2, platform: 'MT4', direction: 'SELL' },
-];
-
 export default function QuotesScreen() {
   const { eas, activeSymbols, mt4Symbols, mt5Symbols } = useApp();
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -53,7 +40,7 @@ export default function QuotesScreen() {
       mt5Symbols.some(mt5Symbol => mt5Symbol.symbol === quote.symbol)
   }));
 
-  // Fetch symbols from API when connected; fallback to mock offline
+  // Fetch symbols from API - only show symbols from connected robot
   const fetchSymbols = useCallback(async (showRefreshIndicator = false) => {
     try {
       if (showRefreshIndicator) {
@@ -63,7 +50,7 @@ export default function QuotesScreen() {
       }
       setError(null);
 
-      // If we have a connected EA with phone secret, fetch from API
+      // Only fetch from API if we have a connected EA with phone secret
       let response: { data: ApiSymbol[] } = { data: [] };
       if (hasConnectedEA && primaryEA?.phoneSecretKey) {
         const apiRes = await apiService.getSymbols(primaryEA.phoneSecretKey);
@@ -71,15 +58,7 @@ export default function QuotesScreen() {
           response = { data: apiRes.data };
         }
       }
-      // Fallback mock if API not available or no connected EA
-      if (response.data.length === 0) {
-        response.data = [
-          { id: '1', name: 'EURUSD' },
-          { id: '2', name: 'GBPUSD' },
-          { id: '3', name: 'XAUUSD' },
-          { id: '4', name: 'USDJPY' },
-        ];
-      }
+      // If no connected EA or API returns empty, keep quotes empty
 
       setApiSymbols(response.data);
       // Convert API symbols to quotes with actual saved data or defaults
@@ -136,11 +115,9 @@ export default function QuotesScreen() {
       console.error('Error fetching symbols:', error);
       setError('Failed to load symbols (offline)');
 
-      // Fallback to mock data if API fails
-      if (quotes.length === 0) {
-        console.log('Using fallback mock data');
-        setQuotes(mockQuotes);
-      }
+      // Keep quotes empty if API fails - don't fallback to mock data
+      console.log('API failed, keeping quotes empty');
+      setQuotes([]);
     } finally {
       // Add a small delay to make the refresh feel more natural
       setTimeout(() => {
@@ -317,8 +294,8 @@ export default function QuotesScreen() {
           <ScrollView showsVerticalScrollIndicator={false}>
             {quotesWithActiveStatus.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No symbols available</Text>
-                <Text style={styles.emptySubtext}>Connect an EA to view trading symbols</Text>
+                <Text style={styles.emptyText}>No symbols configured</Text>
+                <Text style={styles.emptySubtext}>Configure symbols in your connected robot to see them here</Text>
               </View>
             ) : (
               quotesWithActiveStatus.map((quote, index) => (
