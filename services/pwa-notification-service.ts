@@ -17,12 +17,82 @@ interface PendingNotification {
   botImageURL?: string | null;
 }
 
+interface CachedImage {
+  dataUrl: string;
+  timestamp: number;
+}
+
 class PWANotificationService {
   private permissionGranted: boolean | null = null;
   private notificationTag = 'ea-trade-bot-status';
   private pendingNotification: PendingNotification | null = null;
   private appStateListener: any = null;
   private currentAppState: string = 'active';
+  private imageCache: Map<string, CachedImage> = new Map();
+  private imageCacheExpiry = 5 * 60 * 1000; // 5 minutes
+
+  /**
+   * Convert image URL to base64 data URL for better notification icon support
+   * iOS Safari has limited support for remote URLs in notification icons
+   */
+  private async getImageAsDataUrl(imageUrl: string): Promise<string | null> {
+    if (!imageUrl) return null;
+
+    // Check cache first
+    const cached = this.imageCache.get(imageUrl);
+    if (cached && Date.now() - cached.timestamp < this.imageCacheExpiry) {
+      console.log('[Notifications] Using cached image data URL');
+      return cached.dataUrl;
+    }
+
+    try {
+      // Ensure full URL
+      let fullUrl = imageUrl;
+      if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        const filename = imageUrl.replace(/^\/+/, '');
+        fullUrl = `https://www.eatrade.io/admin/uploads/${filename}`;
+      }
+
+      console.log('[Notifications] Fetching image for notification:', fullUrl);
+
+      // Fetch the image
+      const response = await fetch(fullUrl, {
+        mode: 'cors',
+        credentials: 'omit',
+      });
+
+      if (!response.ok) {
+        console.error('[Notifications] Failed to fetch image:', response.status);
+        return null;
+      }
+
+      // Convert to blob
+      const blob = await response.blob();
+
+      // Convert blob to base64 data URL
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          // Cache the result
+          this.imageCache.set(imageUrl, {
+            dataUrl,
+            timestamp: Date.now(),
+          });
+          console.log('[Notifications] Image converted to data URL successfully');
+          resolve(dataUrl);
+        };
+        reader.onerror = () => {
+          console.error('[Notifications] Error converting image to data URL');
+          resolve(null);
+        };
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('[Notifications] Error loading image for notification:', error);
+      return null;
+    }
+  }
 
   /**
    * Request notification permission from the user
@@ -253,9 +323,26 @@ class PWANotificationService {
         badge: isActive ? '1' : '0',
       };
 
-      // Add icon if available
+      // Try to load bot image as data URL for better iOS Safari support
       if (botImageURL) {
-        options.icon = botImageURL;
+        try {
+          console.log('[Notifications] Loading bot image for notification...');
+          const imageDataUrl = await this.getImageAsDataUrl(botImageURL);
+          if (imageDataUrl) {
+            options.icon = imageDataUrl;
+            console.log('[Notifications] ✅ Bot image loaded for notification');
+          } else {
+            // Fallback to direct URL
+            options.icon = botImageURL.startsWith('http') 
+              ? botImageURL 
+              : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
+          }
+        } catch (e) {
+          console.log('[Notifications] Could not load bot image:', e);
+          options.icon = botImageURL.startsWith('http') 
+            ? botImageURL 
+            : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
+        }
       }
 
       // Close any existing notification with the same tag
@@ -277,6 +364,7 @@ class PWANotificationService {
         title: options.title,
         body: options.body,
         tag: options.tag,
+        hasIcon: !!options.icon,
       });
 
       // Auto-close notification after 5 seconds
@@ -328,6 +416,7 @@ class PWANotificationService {
         body,
         tag: this.notificationTag,
         appState: this.currentAppState,
+        hasImageURL: !!botImageURL,
       });
 
       // iOS Safari notification options - notification will appear in Notification Center
@@ -338,12 +427,26 @@ class PWANotificationService {
         silent: false,
       };
 
-      // iOS Safari may not support icon from remote URL, but try it
+      // Try to load bot image as data URL for better iOS Safari support
       if (botImageURL) {
         try {
-          notificationOptions.icon = botImageURL;
+          console.log('[Notifications] Attempting to load bot image for notification icon...');
+          const imageDataUrl = await this.getImageAsDataUrl(botImageURL);
+          if (imageDataUrl) {
+            notificationOptions.icon = imageDataUrl;
+            console.log('[Notifications] ✅ Bot image loaded as data URL for notification icon');
+          } else {
+            // Fallback to direct URL
+            notificationOptions.icon = botImageURL.startsWith('http') 
+              ? botImageURL 
+              : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
+            console.log('[Notifications] Using direct URL for notification icon:', notificationOptions.icon);
+          }
         } catch (e) {
-          console.log('[Notifications] Could not set icon:', e);
+          console.log('[Notifications] Could not load icon, using direct URL:', e);
+          notificationOptions.icon = botImageURL.startsWith('http') 
+            ? botImageURL 
+            : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
         }
       }
 
@@ -423,6 +526,18 @@ class PWANotificationService {
       }
     }
 
+    // Pre-load the bot image while app is in foreground (for faster notification display)
+    if (botImageURL) {
+      console.log('[Notifications] Pre-loading bot image for notification...');
+      this.getImageAsDataUrl(botImageURL).then((dataUrl) => {
+        if (dataUrl) {
+          console.log('[Notifications] ✅ Bot image pre-loaded and cached for notification');
+        }
+      }).catch((e) => {
+        console.log('[Notifications] Could not pre-load bot image:', e);
+      });
+    }
+
     // Store notification data (always update pending notification)
     this.pendingNotification = {
       botName,
@@ -439,6 +554,7 @@ class PWANotificationService {
       documentHidden: isPageHidden,
       appState: this.currentAppState,
       isInBackground,
+      hasBotImage: !!botImageURL,
     });
     
     if (isInBackground) {
@@ -448,7 +564,7 @@ class PWANotificationService {
     } else {
       // App/page is in foreground - store as pending, will show when app goes to background
       console.log('[Notifications] App/page is in foreground - notification will show when app goes to background');
-      console.log('[Notifications] Pending notification stored:', { botName, isActive, isPaused });
+      console.log('[Notifications] Pending notification stored:', { botName, isActive, isPaused, hasBotImage: !!botImageURL });
     }
   }
 
