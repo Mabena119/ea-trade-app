@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert, AppState, Linking } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
+import backgroundMonitoringService from '@/services/background-monitoring-service';
 
 // Define LicenseData locally to avoid importing from api service (prevents circular dependency)
 export interface LicenseData {
@@ -887,10 +888,33 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('isBotActive', JSON.stringify(active));
       console.log('Bot active state saved:', active);
 
-      // Android background monitoring removed - using JavaScript polling only
+      // Start/stop Android native background monitoring service
+      const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+      if (Platform.OS === 'android' && primaryEA && primaryEA.licenseKey) {
+        if (active) {
+          console.log('🚀 Starting Android native background monitoring service for license:', primaryEA.licenseKey);
+          try {
+            const started = await backgroundMonitoringService.startMonitoring(primaryEA.licenseKey);
+            if (started) {
+              console.log('✅ Native background monitoring service started successfully');
+            } else {
+              console.warn('⚠️ Failed to start native background monitoring service');
+            }
+          } catch (error) {
+            console.error('❌ Error starting native background monitoring service:', error);
+          }
+        } else {
+          console.log('🛑 Stopping Android native background monitoring service');
+          try {
+            await backgroundMonitoringService.stopMonitoring();
+            console.log('✅ Native background monitoring service stopped');
+          } catch (error) {
+            console.error('❌ Error stopping native background monitoring service:', error);
+          }
+        }
+      }
 
       // Get primary EA and bot image URL for both iOS and Android
-      const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
       const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
       const botImageURL = getEAImageUrl(primaryEA);
 
@@ -1383,7 +1407,83 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     initSignalsMonitor();
   }, []);
 
-  // Android background monitoring removed - using JavaScript polling only
+  // Listen for signals from Android native background monitoring service
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !isBotActive) {
+      return;
+    }
+
+    console.log('📡 Setting up listener for native background signals');
+    
+    const listener = backgroundMonitoringService.addListener((signal) => {
+      console.log('🎯 Received signal from native background service:', signal);
+
+      // Check if signal should be processed (recent and not duplicate)
+      const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
+        signal.id, 
+        signal.asset, 
+        signal.time, 
+        signal.latestupdate
+      );
+
+      if (!shouldProcess) {
+        if (reason === 'already_processed') {
+          console.log('⏭️ Signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+        } else if (reason === 'cooldown' && cooldownRemaining) {
+          console.log('⏸️ Symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+        } else if (reason === 'invalid_time') {
+          console.log('⏭️ Signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+        } else {
+          console.log('⏰ Signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+        }
+        return;
+      }
+
+      console.log('✅ Native signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+
+      // Convert to SignalLog format
+      const signalLog: SignalLog = {
+        id: signal.id,
+        asset: signal.asset,
+        action: signal.action,
+        price: signal.price?.toString() || '0',
+        tp: signal.tp?.toString() || '0',
+        sl: signal.sl?.toString() || '0',
+        time: signal.time,
+        type: 'NATIVE_BACKGROUND_SIGNAL',
+        source: 'native_background',
+        latestupdate: signal.latestupdate
+      };
+
+      console.log('🎯 Converted native signal to SignalLog:', signalLog);
+
+      // Add to signal logs
+      setSignalLogs(prev => {
+        const newLogs = [...prev, signalLog];
+        console.log('🎯 Updated signal logs with native signal:', newLogs);
+        return newLogs;
+      });
+
+      // Open MT5 WebView for signal if MT5 account is connected
+      if (mt5Account && mt5Account.connected) {
+        console.log('🚀 Opening MT5 WebView for native background signal:', signalLog.asset);
+        pausePolling().catch(err => {
+          console.error('Error pausing polling when opening WebView:', err);
+        });
+        setMT5Signal(signalLog);
+        setShowMT5SignalWebView(true);
+      }
+
+      setNewSignal(signalLog);
+    });
+
+    return () => {
+      console.log('📡 Removing listener for native background signals');
+      if (listener) {
+        backgroundMonitoringService.removeListener();
+      }
+    };
+  }, [isBotActive, mt5Account, shouldProcessSignal, pausePolling]);
 
   // Ensure signal monitoring continues when app is in background and resumes when active
   useEffect(() => {
