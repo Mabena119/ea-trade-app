@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Animated, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Circle, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Circle, RotateCw } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
@@ -292,7 +292,7 @@ export default function QuotesScreen() {
                 }]
               }}
             >
-              <RefreshCw
+              <RotateCw
                 color={refreshing ? '#666666' : '#FFFFFF'}
                 size={20}
                 strokeWidth={2.5}

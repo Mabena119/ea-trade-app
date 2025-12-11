@@ -8,7 +8,7 @@ import WebWebView from '../../components/web-webview';
 import SimpleWebView from '../../components/simple-webview';
 import InjectableWebView from '../../components/injectable-webview';
 import FallbackWebView from '../../components/fallback-webview';
-import { Eye, EyeOff, Search, Server, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
+import { Eye, EyeOff, Search, Database, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 import colors from '@/constants/colors';
 
@@ -2143,7 +2143,7 @@ export default function MetaTraderScreen() {
                   style={StyleSheet.absoluteFill}
                   pointerEvents="none"
                 />
-                <Server color="#999999" size={18} style={styles.serverIcon} />
+                <Database color="#999999" size={18} style={styles.serverIcon} />
               <TextInput
                 style={styles.serverInput}
                 placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Play, Square, TrendingUp, Trash2, Plus } from 'lucide-react-native';
+import { Play, Square, Activity, Trash2, Plus } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -301,8 +301,8 @@ export default function HomeScreen() {
 
               <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
                   <View style={styles.secondaryButtonContent}>
-                  <TrendingUp color="#FFFFFF" size={24} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>Quotes</Text>
+                  <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
+                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
                   </View>
                 </TouchableOpacity>
 
