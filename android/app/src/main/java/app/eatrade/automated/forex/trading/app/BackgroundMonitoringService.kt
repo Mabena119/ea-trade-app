@@ -242,6 +242,34 @@ class BackgroundMonitoringService : Service() {
     }
 
     private fun sendSignalToReactNative(signal: Map<String, Any>) {
+        Log.d(TAG, "📱 Processing signal to bring app to foreground: ${signal["asset"]}")
+        
+        // ALWAYS bring app to foreground when signal is found (independent of React context)
+        try {
+            val mainIntent = Intent(this@BackgroundMonitoringService, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                action = Intent.ACTION_MAIN
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            startActivity(mainIntent)
+            Log.d(TAG, "✅ App brought to foreground successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error bringing app to foreground: ${e.message}", e)
+            // Fallback: try with application context
+            try {
+                val fallbackIntent = Intent(applicationContext, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    action = Intent.ACTION_MAIN
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                }
+                applicationContext.startActivity(fallbackIntent)
+                Log.d(TAG, "✅ App brought to foreground using fallback (applicationContext)")
+            } catch (fallbackError: Exception) {
+                Log.e(TAG, "❌ Fallback also failed: ${fallbackError.message}", fallbackError)
+            }
+        }
+
+        // Then send signal to React Native if context is available
         reactContext?.let { context ->
             try {
                 val params = Arguments.createMap().apply {
@@ -258,21 +286,6 @@ class BackgroundMonitoringService : Service() {
                     putString("results", signal["results"] as? String ?: "")
                 }
 
-                Log.d(TAG, "📱 Bringing app to foreground for signal: ${signal["asset"]}")
-                
-                // Bring app to foreground when signal is found
-                try {
-                    val mainIntent = Intent(context, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        action = Intent.ACTION_VIEW
-                        data = android.net.Uri.parse("myapp://trade-signal")
-                    }
-                    context.startActivity(mainIntent)
-                    Log.d(TAG, "✅ App brought to foreground successfully")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error bringing app to foreground", e)
-                }
-
                 // Send signal to React Native
                 context
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -282,7 +295,7 @@ class BackgroundMonitoringService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error sending signal to React Native", e)
             }
-        } ?: Log.w(TAG, "⚠️ React context not available, cannot send signal")
+        } ?: Log.w(TAG, "⚠️ React context not available, but app was still brought to foreground")
     }
 
 }
