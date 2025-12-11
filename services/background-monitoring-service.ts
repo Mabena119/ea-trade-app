@@ -4,6 +4,7 @@ interface BackgroundMonitoringModuleInterface {
   startMonitoring(licenseKey: string): Promise<boolean>;
   stopMonitoring(): Promise<boolean>;
   isRunning(): Promise<boolean>;
+  bringAppToForeground(): Promise<boolean>;
 }
 
 // Lazy access to native module to prevent web initialization errors
@@ -104,6 +105,30 @@ class BackgroundMonitoringService {
       return await BackgroundMonitoringModule.isRunning();
     } catch (error) {
       console.error('[BackgroundMonitoring] Error checking if running:', error);
+      return false;
+    }
+  }
+
+  async bringAppToForeground(): Promise<boolean> {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+
+    const BackgroundMonitoringModule = getBackgroundMonitoringModule();
+    if (!BackgroundMonitoringModule) {
+      console.error('[BackgroundMonitoring] ❌ Cannot bring app to foreground - module not available');
+      return false;
+    }
+
+    try {
+      console.log('[BackgroundMonitoring] 📱 Bringing app to foreground...');
+      const result = await BackgroundMonitoringModule.bringAppToForeground();
+      if (result) {
+        console.log('[BackgroundMonitoring] ✅ App brought to foreground');
+      }
+      return result;
+    } catch (error) {
+      console.error('[BackgroundMonitoring] ❌ Error bringing app to foreground:', error);
       return false;
     }
   }

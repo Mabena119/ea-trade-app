@@ -73,4 +73,32 @@ class BackgroundMonitoringModule(reactContext: ReactApplicationContext) : ReactC
         promise.resolve(isRunning)
     }
 
+    @ReactMethod
+    fun bringAppToForeground(promise: Promise) {
+        try {
+            Log.d("BackgroundMonitoring", "📱 Bringing app to foreground (called from React Native)")
+            
+            val service = BackgroundMonitoringService.getInstance()
+            if (service != null) {
+                service.bringAppToForeground()
+                promise.resolve(true)
+                Log.d("BackgroundMonitoring", "✅ App brought to foreground via service")
+            } else {
+                // Service not running, try direct intent
+                Log.d("BackgroundMonitoring", "⚠️ Service not running, using direct intent")
+                val mainIntent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    action = Intent.ACTION_MAIN
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                }
+                context.startActivity(mainIntent)
+                promise.resolve(true)
+                Log.d("BackgroundMonitoring", "✅ App brought to foreground via direct intent")
+            }
+        } catch (e: Exception) {
+            Log.e("BackgroundMonitoring", "❌ Error bringing app to foreground", e)
+            promise.reject("ERROR", "Failed to bring app to foreground: ${e.message}", e)
+        }
+    }
+
 }

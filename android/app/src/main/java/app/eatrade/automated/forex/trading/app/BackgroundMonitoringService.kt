@@ -242,9 +242,44 @@ class BackgroundMonitoringService : Service() {
     }
 
     private fun sendSignalToReactNative(signal: Map<String, Any>) {
-        Log.d(TAG, "📱 Processing signal to bring app to foreground: ${signal["asset"]}")
+        Log.d(TAG, "📤 Sending signal to React Native for processing: ${signal["asset"]}")
         
-        // ALWAYS bring app to foreground when signal is found (independent of React context)
+        // DON'T bring app to foreground here - let React Native decide
+        // React Native will check if signal should be executed and bring app to foreground only if needed
+        // This prevents unnecessary foreground switches for ignored/old/duplicate signals
+
+        // Send signal to React Native for processing
+        reactContext?.let { context ->
+            try {
+                val params = Arguments.createMap().apply {
+                    putInt("id", signal["id"] as? Int ?: 0)
+                    putInt("ea", signal["ea"] as? Int ?: 0)
+                    putString("asset", signal["asset"] as? String ?: "")
+                    putString("latestupdate", signal["latestupdate"] as? String ?: "")
+                    putString("type", signal["type"] as? String ?: "")
+                    putString("action", signal["action"] as? String ?: "")
+                    putDouble("price", (signal["price"] as? Double) ?: 0.0)
+                    putDouble("tp", (signal["tp"] as? Double) ?: 0.0)
+                    putDouble("sl", (signal["sl"] as? Double) ?: 0.0)
+                    putString("time", signal["time"] as? String ?: "")
+                    putString("results", signal["results"] as? String ?: "")
+                }
+
+                // Send signal to React Native - it will decide if app should come to foreground
+                context
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    .emit("backgroundSignalFound", params)
+
+                Log.d(TAG, "✅ Signal sent to React Native for processing: ${signal["asset"]}")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error sending signal to React Native", e)
+            }
+        } ?: Log.w(TAG, "⚠️ React context not available, signal cannot be processed")
+    }
+    
+    // Function to bring app to foreground - called from React Native when signal will be executed
+    fun bringAppToForeground() {
+        Log.d(TAG, "📱 Bringing app to foreground (requested by React Native)")
         try {
             val mainIntent = Intent(this@BackgroundMonitoringService, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -268,34 +303,6 @@ class BackgroundMonitoringService : Service() {
                 Log.e(TAG, "❌ Fallback also failed: ${fallbackError.message}", fallbackError)
             }
         }
-
-        // Then send signal to React Native if context is available
-        reactContext?.let { context ->
-            try {
-                val params = Arguments.createMap().apply {
-                    putInt("id", signal["id"] as? Int ?: 0)
-                    putInt("ea", signal["ea"] as? Int ?: 0)
-                    putString("asset", signal["asset"] as? String ?: "")
-                    putString("latestupdate", signal["latestupdate"] as? String ?: "")
-                    putString("type", signal["type"] as? String ?: "")
-                    putString("action", signal["action"] as? String ?: "")
-                    putDouble("price", (signal["price"] as? Double) ?: 0.0)
-                    putDouble("tp", (signal["tp"] as? Double) ?: 0.0)
-                    putDouble("sl", (signal["sl"] as? Double) ?: 0.0)
-                    putString("time", signal["time"] as? String ?: "")
-                    putString("results", signal["results"] as? String ?: "")
-                }
-
-                // Send signal to React Native
-                context
-                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit("backgroundSignalFound", params)
-
-                Log.d(TAG, "✅ Signal sent to React Native: ${signal["asset"]}")
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ Error sending signal to React Native", e)
-            }
-        } ?: Log.w(TAG, "⚠️ React context not available, but app was still brought to foreground")
     }
 
 }

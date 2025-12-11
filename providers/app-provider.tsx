@@ -1415,7 +1415,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     console.log('📡 Setting up listener for native background signals');
     
-    const listener = backgroundMonitoringService.addListener((signal) => {
+    const listener = backgroundMonitoringService.addListener(async (signal) => {
       console.log('🎯 Received signal from native background service:', signal);
 
       // Check if signal should be processed (recent and not duplicate)
@@ -1428,18 +1428,44 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       if (!shouldProcess) {
         if (reason === 'already_processed') {
-          console.log('⏭️ Signal already processed, ignoring:', signal.asset, 'ID:', signal.id);
+          console.log('⏭️ Signal already processed, NOT bringing app to foreground:', signal.asset, 'ID:', signal.id);
         } else if (reason === 'cooldown' && cooldownRemaining) {
-          console.log('⏸️ Symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), ignoring:', signal.asset, 'ID:', signal.id);
+          console.log('⏸️ Symbol in cooldown (' + cooldownRemaining.toFixed(1) + 's remaining), NOT bringing app to foreground:', signal.asset, 'ID:', signal.id);
         } else if (reason === 'invalid_time') {
-          console.log('⏭️ Signal has invalid time, ignoring:', signal.asset, 'ID:', signal.id);
+          console.log('⏭️ Signal has invalid time, NOT bringing app to foreground:', signal.asset, 'ID:', signal.id);
         } else {
-          console.log('⏰ Signal too old (' + ageInSeconds.toFixed(1) + 's), ignoring:', signal.asset, 'ID:', signal.id);
+          console.log('⏰ Signal too old (' + ageInSeconds.toFixed(1) + 's), NOT bringing app to foreground:', signal.asset, 'ID:', signal.id);
         }
+        // Don't bring app to foreground - signal won't be executed
         return;
       }
 
-      console.log('✅ Native signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
+      // Check if MT5 account is connected - if not, don't bring to foreground
+      if (!mt5Account || !mt5Account.connected) {
+        console.log('⚠️ MT5 account not connected, NOT bringing app to foreground:', signal.asset);
+        return;
+      }
+
+      // Check if symbol is configured for trading
+      const symbolConfigured = 
+        activeSymbols.some(s => s.symbol === signal.asset) ||
+        mt4Symbols.some(s => s.symbol === signal.asset) ||
+        mt5Symbols.some(s => s.symbol === signal.asset);
+
+      if (!symbolConfigured) {
+        console.log('⚠️ Symbol not configured for trading, NOT bringing app to foreground:', signal.asset);
+        return;
+      }
+
+      console.log('✅ Signal will be executed (' + ageInSeconds.toFixed(1) + 's old), bringing app to foreground:', signal.asset, 'ID:', signal.id);
+
+      // ONLY NOW bring app to foreground - signal will actually be executed
+      try {
+        await backgroundMonitoringService.bringAppToForeground();
+        console.log('📱 App brought to foreground for trade execution');
+      } catch (error) {
+        console.error('❌ Error bringing app to foreground:', error);
+      }
 
       // Convert to SignalLog format
       const signalLog: SignalLog = {
@@ -1464,15 +1490,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         return newLogs;
       });
 
-      // Open MT5 WebView for signal if MT5 account is connected
-      if (mt5Account && mt5Account.connected) {
-        console.log('🚀 Opening MT5 WebView for native background signal:', signalLog.asset);
-        pausePolling().catch(err => {
-          console.error('Error pausing polling when opening WebView:', err);
-        });
-        setMT5Signal(signalLog);
-        setShowMT5SignalWebView(true);
-      }
+      // Open MT5 WebView for signal
+      console.log('🚀 Opening MT5 WebView for native background signal:', signalLog.asset);
+      pausePolling().catch(err => {
+        console.error('Error pausing polling when opening WebView:', err);
+      });
+      setMT5Signal(signalLog);
+      setShowMT5SignalWebView(true);
 
       setNewSignal(signalLog);
     });
@@ -1483,7 +1507,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         backgroundMonitoringService.removeListener();
       }
     };
-  }, [isBotActive, mt5Account, shouldProcessSignal, pausePolling]);
+  }, [isBotActive, mt5Account, activeSymbols, mt4Symbols, mt5Symbols, shouldProcessSignal, pausePolling]);
 
   // Ensure signal monitoring continues when app is in background and resumes when active
   useEffect(() => {

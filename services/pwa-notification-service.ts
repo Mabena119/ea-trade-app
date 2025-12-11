@@ -119,13 +119,13 @@ class PWANotificationService {
       // Request permission (must be in response to user gesture)
       const permission = await Notification.requestPermission();
       this.permissionGranted = permission === 'granted';
-      
+
       if (this.permissionGranted) {
         console.log('[Notifications] ✅ Permission granted');
       } else {
         console.log('[Notifications] ❌ Permission denied:', permission);
       }
-      
+
       return this.permissionGranted;
     } catch (error) {
       console.error('[Notifications] Error requesting permission:', error);
@@ -159,7 +159,7 @@ class PWANotificationService {
         const isNowVisible = !document.hidden;
         const previousState = this.currentAppState;
         this.currentAppState = isNowVisible ? 'active' : 'background';
-        
+
         console.log('[Notifications] Page visibility changed:', previousState, '->', this.currentAppState, 'hidden:', document.hidden);
 
         // When page becomes hidden (app goes to background), show pending notification if bot is active
@@ -173,7 +173,7 @@ class PWANotificationService {
       const handleAppStateChange = (nextAppState: string) => {
         const previousState = this.currentAppState;
         this.currentAppState = nextAppState;
-        
+
         console.log('[Notifications] AppState changed:', previousState, '->', nextAppState);
 
         // When app goes to background, show pending notification if bot is active
@@ -185,7 +185,7 @@ class PWANotificationService {
 
       document.addEventListener('visibilitychange', handleVisibilityChange);
       const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-      
+
       // Store both listeners for cleanup
       this.appStateListener = {
         visibility: handleVisibilityChange,
@@ -307,11 +307,11 @@ class PWANotificationService {
     }
 
     try {
-      const status = isActive 
+      const status = isActive
         ? (isPaused ? 'PAUSED' : 'ACTIVE')
         : 'INACTIVE';
-      
-      const statusEmoji = isActive 
+
+      const statusEmoji = isActive
         ? (isPaused ? '⏸️' : '🟢')
         : '🔴';
 
@@ -333,14 +333,14 @@ class PWANotificationService {
             console.log('[Notifications] ✅ Bot image loaded for notification');
           } else {
             // Fallback to direct URL
-            options.icon = botImageURL.startsWith('http') 
-              ? botImageURL 
+            options.icon = botImageURL.startsWith('http')
+              ? botImageURL
               : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
           }
         } catch (e) {
           console.log('[Notifications] Could not load bot image:', e);
-          options.icon = botImageURL.startsWith('http') 
-            ? botImageURL 
+          options.icon = botImageURL.startsWith('http')
+            ? botImageURL
             : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
         }
       }
@@ -400,11 +400,11 @@ class PWANotificationService {
     }
 
     try {
-      const status = isActive 
+      const status = isActive
         ? (isPaused ? 'PAUSED' : 'ACTIVE')
         : 'INACTIVE';
-      
-      const statusEmoji = isActive 
+
+      const statusEmoji = isActive
         ? (isPaused ? '⏸️' : '🟢')
         : '🔴';
 
@@ -437,15 +437,15 @@ class PWANotificationService {
             console.log('[Notifications] ✅ Bot image loaded as data URL for notification icon');
           } else {
             // Fallback to direct URL
-            notificationOptions.icon = botImageURL.startsWith('http') 
-              ? botImageURL 
+            notificationOptions.icon = botImageURL.startsWith('http')
+              ? botImageURL
               : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
             console.log('[Notifications] Using direct URL for notification icon:', notificationOptions.icon);
           }
         } catch (e) {
           console.log('[Notifications] Could not load icon, using direct URL:', e);
-          notificationOptions.icon = botImageURL.startsWith('http') 
-            ? botImageURL 
+          notificationOptions.icon = botImageURL.startsWith('http')
+            ? botImageURL
             : `https://www.eatrade.io/admin/uploads/${botImageURL.replace(/^\/+/, '')}`;
         }
       }
@@ -549,14 +549,14 @@ class PWANotificationService {
     // Check if page is hidden (using Page Visibility API for web)
     const isPageHidden = typeof document !== 'undefined' && document.hidden;
     const isInBackground = isPageHidden || this.currentAppState.match(/inactive|background/);
-    
+
     console.log('[Notifications] Visibility check:', {
       documentHidden: isPageHidden,
       appState: this.currentAppState,
       isInBackground,
       hasBotImage: !!botImageURL,
     });
-    
+
     if (isInBackground) {
       // App/page is in background - show notification immediately
       console.log('[Notifications] App/page is in background - showing notification now');
