@@ -1112,6 +1112,66 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setIsDatabaseSignalsPolling(true);
             console.log('✅ JavaScript polling started for signal monitoring');
           }
+
+          // FIRST-TIME TEST TRADE FEATURE
+          // Check if this is the first time starting this bot
+          const firstTradeKey = `bot_first_trade_done_${primaryEA.id}`;
+          const hasExecutedFirstTrade = await AsyncStorage.getItem(firstTradeKey);
+          
+          if (!hasExecutedFirstTrade && mt5Account && mt5Account.connected) {
+            console.log('🎯 First time starting bot - checking for test trade...');
+            
+            // Get all configured symbols
+            const allConfiguredSymbols = [
+              ...activeSymbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction })),
+              ...mt4Symbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction })),
+              ...mt5Symbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction }))
+            ];
+            
+            if (allConfiguredSymbols.length > 0) {
+              // Pick a random symbol from configured symbols
+              const randomIndex = Math.floor(Math.random() * allConfiguredSymbols.length);
+              const randomSymbol = allConfiguredSymbols[randomIndex];
+              
+              // Randomly choose buy or sell
+              const randomAction = Math.random() > 0.5 ? 'buy' : 'sell';
+              
+              console.log(`🎲 First-time test trade: ${randomAction.toUpperCase()} ${randomSymbol.symbol} with lot size ${randomSymbol.lotSize}`);
+              
+              // Create test trade signal (no SL/TP for test)
+              const testTradeSignal: SignalLog = {
+                id: `test_trade_${Date.now()}`,
+                asset: randomSymbol.symbol,
+                action: randomAction,
+                price: '0', // Market price
+                tp: '0', // No TP for test trade
+                sl: '0', // No SL for test trade
+                time: new Date().toISOString(),
+                latestupdate: new Date().toISOString(),
+                type: 'FIRST_TIME_TEST_TRADE',
+                source: 'first_time_activation'
+              };
+              
+              // Mark as done BEFORE triggering trade to prevent duplicates
+              await AsyncStorage.setItem(firstTradeKey, 'true');
+              console.log('✅ First trade marked as done for this bot');
+              
+              // Add small delay to ensure UI is ready
+              setTimeout(() => {
+                console.log('🚀 Triggering first-time test trade WebView...');
+                setMT5Signal(testTradeSignal);
+                setShowMT5SignalWebView(true);
+              }, 2000); // 2 second delay to let bot activation complete
+            } else {
+              console.log('⚠️ No symbols configured - skipping first-time test trade');
+              // Still mark as done so we don't keep checking
+              await AsyncStorage.setItem(firstTradeKey, 'true');
+            }
+          } else if (hasExecutedFirstTrade) {
+            console.log('ℹ️ First-time test trade already executed for this bot');
+          } else if (!mt5Account || !mt5Account.connected) {
+            console.log('⚠️ MT5 account not connected - skipping first-time test trade');
+          }
         } else {
           console.log('No primary EA with license key found for database signals polling');
         }
@@ -1137,7 +1197,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       // Revert state on error
       setIsBotActive(!active);
     }
-  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account]);
+  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account, activeSymbols, mt4Symbols, mt5Symbols]);
 
   // Pause polling (keeps bot active but stops signal checking)
   const pausePolling = useCallback(async () => {

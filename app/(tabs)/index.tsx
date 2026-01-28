@@ -27,7 +27,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const checkAuthenticationStatus = async () => {
       try {
-          const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
+        const emailAuthenticated = await AsyncStorage.getItem('emailAuthenticated');
 
         // If first time, show start page (don't redirect)
         if (isFirstTime) {
@@ -36,24 +36,24 @@ export default function HomeScreen() {
           setHasCheckedAuth(true);
           return;
         }
-        
+
         // If not authenticated and not first time, redirect to login
-          if (!emailAuthenticated || emailAuthenticated !== 'true') {
+        if (!emailAuthenticated || emailAuthenticated !== 'true') {
           console.log('❌ Not authenticated - redirecting to login');
           setIsAuthenticated(false);
-            router.replace('/login');
+          router.replace('/login');
           return;
         }
 
         // Authenticated
         console.log('✅ Authenticated - checking EA status');
         setIsAuthenticated(true);
-        
+
         // If authenticated but no EAs, redirect to license immediately
         if (eas.length === 0) {
           console.log('Authenticated but no EA added, redirecting to license...');
           // Don't render home screen, go straight to license
-            router.replace('/license');
+          router.replace('/license');
           return; // Stop here, don't set hasCheckedAuth
         }
 
@@ -190,7 +190,7 @@ export default function HomeScreen() {
 
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
-          <View style={styles.mainEAContainer}>
+        <View style={styles.mainEAContainer}>
           <View style={styles.heroContent}>
             {/* Beautiful gradient background with glass effect */}
             <LinearGradient
@@ -219,7 +219,7 @@ export default function HomeScreen() {
               style={styles.leftHighlight}
               start={{ x: 0, y: 0.5 }}
               end={{ x: 1, y: 0.5 }}
-                />
+            />
             <LinearGradient
               colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.15)']}
               style={styles.rightHighlight}
@@ -234,14 +234,14 @@ export default function HomeScreen() {
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
             />
-              <LinearGradient
+            <LinearGradient
               colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
               style={styles.edgeFadeBottom}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-              />
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
 
-              <View style={styles.topSection}>
+            <View style={styles.topSection}>
               {/* Circular logo display */}
               <View style={styles.circularLogoContainer}>
                 <View style={styles.circularLogoRing}>
@@ -263,59 +263,59 @@ export default function HomeScreen() {
                   )}
                 </View>
               </View>
-                <View style={styles.titleBlock}>
-                  <View style={styles.botNameContainer}>
+              <View style={styles.titleBlock}>
+                <View style={styles.botNameContainer}>
                   <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
-                    <View style={[
-                      styles.botStatusDot,
-                      isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
-                    ]} />
-                  </View>
+                  <View style={[
+                    styles.botStatusDot,
+                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
+                  ]} />
                 </View>
               </View>
+            </View>
 
-              <View style={styles.bottomActions}>
-                <TouchableOpacity
-                  testID="action-start"
-                  style={[styles.actionButton, styles.tradeButton]}
-                  onPress={() => {
-                    console.log('Start/Stop button pressed, current state:', isBotActive);
-                    try {
-                      setBotActive(!isBotActive);
-                      console.log('Bot active state changed to:', !isBotActive);
-                    } catch (error) {
-                      console.error('Error changing bot state:', error);
-                    }
-                  }}
+            <View style={styles.bottomActions}>
+              <TouchableOpacity
+                testID="action-start"
+                style={[styles.actionButton, styles.tradeButton]}
+                onPress={() => {
+                  console.log('Start/Stop button pressed, current state:', isBotActive);
+                  try {
+                    setBotActive(!isBotActive);
+                    console.log('Bot active state changed to:', !isBotActive);
+                  } catch (error) {
+                    console.error('Error changing bot state:', error);
+                  }
+                }}
                 activeOpacity={0.6}
-                >
-                  <View style={styles.tradeButtonContent}>
+              >
+                <View style={styles.tradeButtonContent}>
                   {isBotActive ? (
                     <Square color="#FFFFFF" size={28} strokeWidth={2.5} />
                   ) : (
                     <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />
                   )}
                   <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
-                  </View>
-                </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
 
               <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
-                  <View style={styles.secondaryButtonContent}>
+                <View style={styles.secondaryButtonContent}>
                   <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>QUOTES</Text>
-                  </View>
-                </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
 
               <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
-                  <View style={styles.secondaryButtonContent}>
+                <View style={styles.secondaryButtonContent}>
                   <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>Remove</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-
+                </View>
+              </TouchableOpacity>
             </View>
+
           </View>
+        </View>
 
         {/* Scrollable Connected Bots Section */}
         <View style={styles.connectedBotsWrapper}>
@@ -334,53 +334,53 @@ export default function HomeScreen() {
             showsVerticalScrollIndicator={false}
             bounces={true}
           >
-        <View style={styles.connectedBotsSection}>
-          {otherEAs.length > 0 && (
-            <>
-              <View testID="connected-bots-header" style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>CONNECTED BOTS</Text>
-                <View testID="connected-bots-count" style={styles.sectionBadge}>
-                  <Text style={styles.sectionBadgeText}>{eas.length}</Text>
-                </View>
-              </View>
-              {otherEAs.map((ea, index) => (
-                <TouchableOpacity
-                  key={`${ea.id}-${index}`}
-                  style={styles.botCard}
-                  onPress={async () => {
-                    try {
-                      console.log('Switching active EA to:', ea.name, ea.id);
-                      await setActiveEA(ea.id);
-                    } catch (error) {
-                      console.error('Failed to switch active EA:', error);
-                    }
-                  }}
-                      activeOpacity={0.7}
-                >
-                  {Platform.OS === 'ios' && (
-                        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
-                  )}
-                  <View style={styles.botCardContent}>
-                    <View style={styles.botIcon}>
-                      {getEAImageUrl(ea as unknown as EA) ? (
-                        <Image
-                          testID={`ea-logo-small-${index}`}
-                          source={{ uri: getEAImageUrl(ea as unknown as EA) as string }}
-                          style={styles.smallLogo}
-                        />
-                      ) : (
-                        <View style={styles.robotFace}>
-                          <View style={styles.robotEye} />
-                          <View style={styles.robotEye} />
-                        </View>
-                      )}
+            <View style={styles.connectedBotsSection}>
+              {otherEAs.length > 0 && (
+                <>
+                  <View testID="connected-bots-header" style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>CONNECTED BOTS</Text>
+                    <View testID="connected-bots-count" style={styles.sectionBadge}>
+                      <Text style={styles.sectionBadgeText}>{eas.length}</Text>
                     </View>
-                    <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
                   </View>
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
+                  {otherEAs.map((ea, index) => (
+                    <TouchableOpacity
+                      key={`${ea.id}-${index}`}
+                      style={styles.botCard}
+                      onPress={async () => {
+                        try {
+                          console.log('Switching active EA to:', ea.name, ea.id);
+                          await setActiveEA(ea.id);
+                        } catch (error) {
+                          console.error('Failed to switch active EA:', error);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      {Platform.OS === 'ios' && (
+                        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                      )}
+                      <View style={styles.botCardContent}>
+                        <View style={styles.botIcon}>
+                          {getEAImageUrl(ea as unknown as EA) ? (
+                            <Image
+                              testID={`ea-logo-small-${index}`}
+                              source={{ uri: getEAImageUrl(ea as unknown as EA) as string }}
+                              style={styles.smallLogo}
+                            />
+                          ) : (
+                            <View style={styles.robotFace}>
+                              <View style={styles.robotEye} />
+                              <View style={styles.robotEye} />
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
 
 
 
@@ -393,28 +393,28 @@ export default function HomeScreen() {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 />
-                
+
                 {/* Glass overlay */}
-            {Platform.OS === 'ios' && (
+                {Platform.OS === 'ios' && (
                   <BlurView intensity={40} tint="light" style={styles.addEAGlassOverlay} />
-            )}
-                
+                )}
+
                 {/* Glossy shine */}
-            <LinearGradient
+                <LinearGradient
                   colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
                   style={styles.addEAGlossShine}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
-            />
-                
+                />
+
                 <Plus color="#FFFFFF" size={24} strokeWidth={2.5} style={{ zIndex: 3 }} />
                 <View style={[styles.addEATextContainer, { zIndex: 3 }]}>
-              <Text style={styles.addEATitle}>ADD ROBOT</Text>
-              <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
+                  <Text style={styles.addEATitle}>ADD ROBOT</Text>
+                  <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
+                </View>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          </ScrollView>
         </View>
       </View>
     </SafeAreaView>
