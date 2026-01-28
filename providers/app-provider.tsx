@@ -1137,11 +1137,22 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 
                 console.log('🎲 Selected random symbol for first trade:', selectedSymbol);
                 
+                // Determine trade action - if direction is 'BOTH' or invalid, randomly pick buy/sell
+                const direction = selectedSymbol.direction?.toLowerCase();
+                let tradeAction: string;
+                if (direction === 'buy' || direction === 'sell') {
+                  tradeAction = direction;
+                } else {
+                  // Direction is 'BOTH', empty, or invalid - randomly select buy or sell
+                  tradeAction = Math.random() > 0.5 ? 'buy' : 'sell';
+                  console.log(`🎲 Direction was "${selectedSymbol.direction}", randomly selected: ${tradeAction}`);
+                }
+                
                 // Create a test signal
                 const firstTradeSignal: SignalLog = {
                   id: Date.now(),
                   asset: selectedSymbol.symbol,
-                  action: selectedSymbol.direction || 'buy',
+                  action: tradeAction,
                   price: '0',
                   tp: '0',
                   sl: '0',
