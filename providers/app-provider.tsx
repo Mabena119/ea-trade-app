@@ -1215,7 +1215,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       // Revert state on error
       setIsBotActive(!active);
     }
-  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account, activeSymbols, mt4Symbols, mt5Symbols, pausePolling]);
+  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account, activeSymbols, mt4Symbols, mt5Symbols]);
+  // Note: pausePolling is intentionally not in deps - it's defined after this callback
+  // and is only used in setTimeout callbacks which will have the correct reference
 
   // Pause polling (keeps bot active but stops signal checking)
   const pausePolling = useCallback(async () => {
