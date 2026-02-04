@@ -1727,8 +1727,9 @@ async function handleApi(request: Request): Promise<Response> {
             console.log(`📊 Fetching signals for EA ${eaId} since ${mysqlTimestamp} (original: ${since})`);
             
             // Get signals since a specific time
+            // Note: 'type' column doesn't exist in signals table
             query = `
-              SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
+              SELECT id, ea, asset, latestupdate, action, price, tp, sl, time, results
               FROM \`signals\` 
               WHERE ea = ? AND latestupdate > ? AND results = 'active'
               ORDER BY latestupdate DESC
@@ -1737,7 +1738,7 @@ async function handleApi(request: Request): Promise<Response> {
           } else {
             // Get all active signals for EA
             query = `
-              SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
+              SELECT id, ea, asset, latestupdate, action, price, tp, sl, time, results
               FROM \`signals\` 
               WHERE ea = ? AND results = 'active'
               ORDER BY latestupdate DESC
