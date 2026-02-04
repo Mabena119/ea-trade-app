@@ -1710,6 +1710,22 @@ async function handleApi(request: Request): Promise<Response> {
           let params: any[];
 
           if (since) {
+            // Convert ISO timestamp to MySQL-compatible format
+            // Remove 'Z' suffix and replace 'T' with space for MySQL DATETIME compatibility
+            let mysqlTimestamp = since;
+            try {
+              // Parse the ISO timestamp and convert to MySQL format
+              const date = new Date(since);
+              if (!isNaN(date.getTime())) {
+                // Format: YYYY-MM-DD HH:MM:SS
+                mysqlTimestamp = date.toISOString().slice(0, 19).replace('T', ' ');
+              }
+            } catch (parseError) {
+              console.warn('⚠️ Could not parse timestamp, using as-is:', since);
+            }
+            
+            console.log(`📊 Fetching signals for EA ${eaId} since ${mysqlTimestamp} (original: ${since})`);
+            
             // Get signals since a specific time
             query = `
               SELECT id, ea, asset, latestupdate, type, action, price, tp, sl, time, results
@@ -1717,7 +1733,7 @@ async function handleApi(request: Request): Promise<Response> {
               WHERE ea = ? AND latestupdate > ? AND results = 'active'
               ORDER BY latestupdate DESC
             `;
-            params = [eaId, since];
+            params = [eaId, mysqlTimestamp];
           } else {
             // Get all active signals for EA
             query = `
@@ -1732,16 +1748,27 @@ async function handleApi(request: Request): Promise<Response> {
           const [rows] = await conn.execute(query, params);
 
           const result = rows as any[];
-          console.log(`Found ${result.length} new signals for EA ${eaId} since ${since || 'beginning'}`);
+          console.log(`✅ Found ${result.length} new signals for EA ${eaId} since ${since || 'beginning'}`);
 
           return new Response(JSON.stringify({ signals: result }), {
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
           });
-        } catch (error) {
-          console.error('❌ Database error in get-new-signals:', error);
-          return new Response(JSON.stringify({ error: 'Database error' }), {
+        } catch (error: any) {
+          console.error('❌ Database error in get-new-signals:', error?.message || error);
+          console.error('❌ Error details:', { eaId, since, stack: error?.stack });
+          return new Response(JSON.stringify({ 
+            error: 'Database error', 
+            message: error?.message || 'Unknown error',
+            details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+          }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
           });
         } finally {
           if (conn) {
