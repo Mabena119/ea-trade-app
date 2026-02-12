@@ -8,10 +8,12 @@ import { ArrowLeft, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Networking disabled: avoid external browser/payment flows
 import { useApp } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import { apiService } from '@/services/api';
 import colors from '@/constants/colors';
 
 export default function LoginScreen() {
+  const { theme } = useTheme();
   const [mentorId, setMentorId] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);

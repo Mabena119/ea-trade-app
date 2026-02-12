@@ -6,6 +6,7 @@ import { ArrowLeft, Circle, RotateCw } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
 
@@ -21,6 +22,7 @@ interface Quote {
 
 export default function QuotesScreen() {
   const { eas, activeSymbols, mt4Symbols, mt5Symbols } = useApp();
+  const { theme } = useTheme();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [apiSymbols, setApiSymbols] = useState<ApiSymbol[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -262,8 +264,8 @@ export default function QuotesScreen() {
             {primaryEA && (
               <View style={styles.statusContainer}>
                 <Circle
-                  color={hasActiveQuotes ? '#8B5CF6' : '#666666'}
-                  fill={hasActiveQuotes ? '#8B5CF6' : 'transparent'}
+                  color={hasActiveQuotes ? theme.colors.accent : '#666666'}
+                  fill={hasActiveQuotes ? theme.colors.accent : 'transparent'}
                   size={10}
                 />
                 <Text style={styles.botName} numberOfLines={1} ellipsizeMode="tail">{primaryEA.name}</Text>
@@ -306,7 +308,7 @@ export default function QuotesScreen() {
       <View style={styles.content}>
         {loading && !refreshing ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator testID="quotes-loading" size="large" color="#8B5CF6" />
+            <ActivityIndicator testID="quotes-loading" size="large" color={theme.colors.accent} />
             <Text style={styles.loadingText}>Loading symbols...</Text>
           </View>
         ) : error ? (
@@ -349,7 +351,7 @@ export default function QuotesScreen() {
                 >
                   {/* Gradient background */}
                   <LinearGradient
-                    colors={['#8B5CF6', '#EC4899', '#F97316']}
+                    colors={theme.colors.primaryGradient as [string, string, ...string[]]}
                     style={styles.quoteGradientBackground}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
@@ -373,8 +375,8 @@ export default function QuotesScreen() {
                       <Text style={styles.symbol}>{quote.symbol}</Text>
                       {quote.isActive && (
                         <Circle
-                          color="#8B5CF6"
-                          fill="#8B5CF6"
+                          color={theme.colors.accent}
+                          fill={theme.colors.accent}
                           size={10}
                           style={styles.activeIndicator}
                         />

@@ -10,6 +10,7 @@ import InjectableWebView from '../../components/injectable-webview';
 import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Database, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 
 // Default MT4 Brokers (will be updated from web terminal)
@@ -510,6 +511,7 @@ const MT5_BROKER_URLS: Record<string, string> = {
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 
 export default function MetaTraderScreen() {
+  const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<'MT5' | 'MT4'>('MT5');
   const [login, setLogin] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -2033,7 +2035,7 @@ export default function MetaTraderScreen() {
             <View style={styles.authStatusDisplay}>
               {/* Gradient background */}
               <LinearGradient
-                colors={['#8B5CF6', '#EC4899', '#F97316']}
+                colors={theme.colors.primaryGradient as [string, string, ...string[]]}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -2053,7 +2055,7 @@ export default function MetaTraderScreen() {
           <View style={styles.formCard}>
             {/* Gradient background */}
             <LinearGradient
-              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
               style={styles.formGradientBackground}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -2239,7 +2241,7 @@ export default function MetaTraderScreen() {
                           >
                             {/* Gradient background */}
                             <LinearGradient
-                              colors={['#8B5CF6', '#EC4899', '#F97316']}
+                              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
                               style={styles.brokerGradientBackground}
                               start={{ x: 0, y: 0 }}
                               end={{ x: 1, y: 1 }}
@@ -2337,7 +2339,7 @@ export default function MetaTraderScreen() {
         <View style={styles.authToastContainer}>
           {/* Gradient background for toast */}
           <LinearGradient
-            colors={['#8B5CF6', '#EC4899', '#F97316']}
+            colors={theme.colors.primaryGradient as [string, string, ...string[]]}
             style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -2409,7 +2411,7 @@ export default function MetaTraderScreen() {
         <View style={styles.authToastContainer}>
           {/* Gradient background for toast */}
           <LinearGradient
-            colors={['#8B5CF6', '#EC4899', '#F97316']}
+            colors={theme.colors.primaryGradient as [string, string, ...string[]]}
             style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}

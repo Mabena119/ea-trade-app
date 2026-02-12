@@ -7,11 +7,13 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
 
 export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA } = useApp();
+  const { theme, themeName } = useTheme();
 
   // Safely get the primary EA (first one in the list)
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -171,7 +173,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Full page gloss overlay */}
       <LinearGradient
         colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
@@ -191,10 +193,10 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
-          <View style={styles.heroContent}>
+          <View style={[styles.heroContent, { shadowColor: theme.colors.accent }]}>
             {/* Beautiful gradient background with glass effect */}
             <LinearGradient
-              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
               style={styles.gradientBackground}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -388,7 +390,7 @@ export default function HomeScreen() {
               <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
                 {/* Gradient background */}
                 <LinearGradient
-                  colors={['#8B5CF6', '#EC4899', '#F97316']}
+                  colors={theme.colors.primaryGradient as [string, string, ...string[]]}
                   style={styles.addEAGradientBackground}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}

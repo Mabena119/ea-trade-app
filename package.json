@@ -34,6 +34,7 @@
     "expo-location": "~18.1.6",
     "expo-modules-core": "~2.5.0",
     "expo-router": "~5.1.7",
+    "expo-sensors": "~14.1.4",
     "expo-splash-screen": "~0.30.10",
     "expo-status-bar": "~2.2.3",
     "expo-symbols": "~0.4.5",

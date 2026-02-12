@@ -4,6 +4,7 @@ import React, { useEffect, useState, Component, ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
+import { ThemeProvider, useTheme } from "@/providers/theme-provider";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { RobotLogo } from "@/components/robot-logo";
@@ -303,10 +304,12 @@ function RootLayoutNav() {
     return () => subscription.remove();
   }, [eas, isBotActive]);
 
+  const { theme } = useTheme();
+
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient
-        colors={[colors.background, colors.backgroundSecondary, colors.background]}
+        colors={[theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
@@ -449,12 +452,14 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-          <StatusBar style="light" backgroundColor={colors.background} translucent={false} />
-          <RootLayoutNav />
-        </GestureHandlerRootView>
-      </AppProvider>
+      <ThemeProvider>
+        <AppProvider>
+          <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style="light" backgroundColor={colors.background} translucent={false} />
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </AppProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

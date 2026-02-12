@@ -2,12 +2,14 @@ import { Tabs } from "expo-router";
 import { Home, Wallet, Activity } from "lucide-react-native";
 import React from "react";
 import { useApp } from "@/providers/app-provider";
+import { useTheme } from "@/providers/theme-provider";
 import { Platform, View, StyleSheet } from "react-native";
 import { BlurView } from 'expo-blur';
 import colors from "@/constants/colors";
 
 export default function TabLayout() {
   const { isFirstTime } = useApp();
+  const { theme } = useTheme();
 
   return (
     <Tabs
@@ -21,7 +23,7 @@ export default function TabLayout() {
           left: 16,
           right: 16,
           height: 72,
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0, 0, 0, 0.9)',
+          backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.colors.navBackground,
           borderRadius: 36,
           borderWidth: 0,
           paddingBottom: 8,
@@ -50,7 +52,7 @@ export default function TabLayout() {
                 bottom: 0,
                 borderRadius: 36,
                 overflow: 'hidden',
-                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                backgroundColor: theme.colors.navBackground,
               }}
             />
           ) : (
@@ -61,12 +63,12 @@ export default function TabLayout() {
               right: 0,
               bottom: 0,
               borderRadius: 36,
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              backgroundColor: theme.colors.navBackground,
             }} />
           )
         ),
-        tabBarActiveTintColor: '#FFFFFF',
-        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.45)',
+        tabBarActiveTintColor: theme.colors.textPrimary,
+        tabBarInactiveTintColor: theme.colors.navInactiveColor,
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '500',
@@ -85,10 +87,19 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <View style={[
               styles.iconContainer,
-              focused && styles.iconContainerActive
+              focused && {
+                backgroundColor: `${theme.colors.accent}33`,
+                borderWidth: 2,
+                borderColor: `${theme.colors.accent}80`,
+                shadowColor: theme.colors.accent,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.5,
+                shadowRadius: 12,
+                elevation: 10,
+              }
             ]}>
               <Home
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
+                color={focused ? theme.colors.textPrimary : theme.colors.navInactiveColor}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
@@ -103,10 +114,19 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <View style={[
               styles.iconContainer,
-              focused && styles.iconContainerActive
+              focused && {
+                backgroundColor: `${theme.colors.accent}33`,
+                borderWidth: 2,
+                borderColor: `${theme.colors.accent}80`,
+                shadowColor: theme.colors.accent,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.5,
+                shadowRadius: 12,
+                elevation: 10,
+              }
             ]}>
               <Activity
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
+                color={focused ? theme.colors.textPrimary : theme.colors.navInactiveColor}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
@@ -121,10 +141,19 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <View style={[
               styles.iconContainer,
-              focused && styles.iconContainerActive
+              focused && {
+                backgroundColor: `${theme.colors.accent}33`,
+                borderWidth: 2,
+                borderColor: `${theme.colors.accent}80`,
+                shadowColor: theme.colors.accent,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.5,
+                shadowRadius: 12,
+                elevation: 10,
+              }
             ]}>
               <Wallet
-                color={focused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
+                color={focused ? theme.colors.textPrimary : theme.colors.navInactiveColor}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
@@ -144,18 +173,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 0,
-  },
-  iconContainerActive: {
-    backgroundColor: 'rgba(139, 92, 246, 0.3)',
-    borderWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.5)',
-    shadowColor: '#8B5CF6',
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
   },
 });
