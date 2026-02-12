@@ -211,7 +211,125 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
   }, [toggleTheme]);
 
-  // Shake detection (mobile only)
+  // Web shake detection using DeviceMotion API (for iOS PWA)
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isShakeEnabled) return;
+    if (typeof window === 'undefined') return;
+
+    const WEB_SHAKE_THRESHOLD = 25; // Higher threshold for web (acceleration includes gravity)
+    const WEB_SHAKE_TIMEOUT = 500; // Time window for counting shakes (ms)
+    const WEB_REQUIRED_SHAKES = 3; // Number of shakes required
+    
+    let webLastShakeTime = 0;
+    let webShakeCount = 0;
+    let lastX = 0, lastY = 0, lastZ = 0;
+    let hasRequestedPermission = false;
+
+    const handleDeviceMotion = (event: DeviceMotionEvent) => {
+      const acceleration = event.accelerationIncludingGravity;
+      if (!acceleration || acceleration.x === null || acceleration.y === null || acceleration.z === null) {
+        return;
+      }
+
+      const x = acceleration.x || 0;
+      const y = acceleration.y || 0;
+      const z = acceleration.z || 0;
+
+      // Calculate change in acceleration (delta)
+      const deltaX = Math.abs(x - lastX);
+      const deltaY = Math.abs(y - lastY);
+      const deltaZ = Math.abs(z - lastZ);
+      
+      lastX = x;
+      lastY = y;
+      lastZ = z;
+
+      const totalDelta = deltaX + deltaY + deltaZ;
+      const now = Date.now();
+
+      if (totalDelta > WEB_SHAKE_THRESHOLD) {
+        if (now - webLastShakeTime > WEB_SHAKE_TIMEOUT) {
+          // Reset shake count if too much time has passed
+          webShakeCount = 0;
+        }
+        
+        webShakeCount += 1;
+        webLastShakeTime = now;
+
+        console.log(`📱 Web shake detected! Count: ${webShakeCount}/${WEB_REQUIRED_SHAKES}, Delta: ${totalDelta.toFixed(1)}`);
+
+        if (webShakeCount >= WEB_REQUIRED_SHAKES) {
+          console.log('📱 Web shake threshold reached! Toggling theme...');
+          toggleTheme();
+          webShakeCount = 0;
+          
+          // Vibrate if supported (iOS 13+)
+          if ('vibrate' in navigator) {
+            try {
+              navigator.vibrate([50, 50, 50]);
+            } catch (e) {
+              // Vibration not supported
+            }
+          }
+        }
+      }
+    };
+
+    const requestPermissionAndListen = async () => {
+      // Check if DeviceMotionEvent is available
+      if (!('DeviceMotionEvent' in window)) {
+        console.log('📱 DeviceMotion not supported on this device');
+        return;
+      }
+
+      // iOS 13+ requires permission request
+      const DeviceMotionEventWithPermission = DeviceMotionEvent as any;
+      if (typeof DeviceMotionEventWithPermission.requestPermission === 'function' && !hasRequestedPermission) {
+        try {
+          const permission = await DeviceMotionEventWithPermission.requestPermission();
+          hasRequestedPermission = true;
+          if (permission === 'granted') {
+            console.log('📱 DeviceMotion permission granted');
+            window.addEventListener('devicemotion', handleDeviceMotion);
+          } else {
+            console.log('📱 DeviceMotion permission denied');
+          }
+        } catch (error) {
+          console.error('Error requesting DeviceMotion permission:', error);
+        }
+      } else {
+        // Non-iOS or permission already granted
+        console.log('📱 Adding DeviceMotion listener for web shake detection');
+        window.addEventListener('devicemotion', handleDeviceMotion);
+      }
+    };
+
+    // Request permission on first user interaction (required for iOS)
+    const handleFirstInteraction = () => {
+      requestPermissionAndListen();
+      document.removeEventListener('touchstart', handleFirstInteraction);
+      document.removeEventListener('click', handleFirstInteraction);
+    };
+
+    // Try to add listener immediately (works on Android and non-iOS)
+    if (!('DeviceMotionEvent' in window) || typeof (DeviceMotionEvent as any).requestPermission !== 'function') {
+      window.addEventListener('devicemotion', handleDeviceMotion);
+      console.log('📱 DeviceMotion listener added (no permission required)');
+    } else {
+      // iOS requires user gesture to request permission
+      document.addEventListener('touchstart', handleFirstInteraction, { once: true });
+      document.addEventListener('click', handleFirstInteraction, { once: true });
+      console.log('📱 Waiting for user interaction to request DeviceMotion permission (iOS)');
+    }
+
+    return () => {
+      window.removeEventListener('devicemotion', handleDeviceMotion);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+      document.removeEventListener('click', handleFirstInteraction);
+    };
+  }, [isShakeEnabled, toggleTheme]);
+
+  // Native shake detection (Android/iOS native app)
   useEffect(() => {
     if (!isShakeEnabled || Platform.OS === 'web') {
       return;
