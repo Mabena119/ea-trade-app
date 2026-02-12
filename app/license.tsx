@@ -5,11 +5,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import { apiService } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '@/constants/colors';
 
 export default function LicenseScreen() {
+  const { theme } = useTheme();
   const [licenseKey, setLicenseKey] = useState<string>('');
   const [isActivating, setIsActivating] = useState<boolean>(false);
   const { addEA, eas, setIsFirstTime } = useApp();
@@ -132,7 +134,7 @@ export default function LicenseScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {hasActiveBots && (
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
