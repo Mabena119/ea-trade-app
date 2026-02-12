@@ -13,7 +13,6 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      sceneContainerStyle={{ backgroundColor: theme.colors.background }}
       screenOptions={{
         headerShown: false,
         tabBarStyle: isFirstTime ? {

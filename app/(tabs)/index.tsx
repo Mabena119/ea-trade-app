@@ -192,8 +192,29 @@ export default function HomeScreen() {
     );
   }
 
+  // Dynamic styles based on theme
+  const dynamicStyles = {
+    container: {
+      backgroundColor: theme.colors.background,
+    },
+    sectionTitle: {
+      color: theme.colors.textPrimary,
+    },
+    botName: {
+      color: theme.colors.textPrimary,
+    },
+    connectedBotsSection: {
+      backgroundColor: theme.colors.background,
+    },
+    sectionBadge: {
+      backgroundColor: `${theme.colors.accent}40`,
+      borderColor: `${theme.colors.accent}66`,
+      borderTopColor: `${theme.colors.accent}99`,
+    },
+  };
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, dynamicStyles.container]}>
       {/* Full page gloss overlay */}
       <LinearGradient
         colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
@@ -360,13 +381,13 @@ export default function HomeScreen() {
             showsVerticalScrollIndicator={false}
             bounces={true}
           >
-            <View style={styles.connectedBotsSection}>
+            <View style={[styles.connectedBotsSection, dynamicStyles.connectedBotsSection]}>
               {otherEAs.length > 0 && (
                 <>
                   <View testID="connected-bots-header" style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>CONNECTED BOTS</Text>
-                    <View testID="connected-bots-count" style={styles.sectionBadge}>
-                      <Text style={styles.sectionBadgeText}>{eas.length}</Text>
+                    <Text style={[styles.sectionTitle, dynamicStyles.sectionTitle]}>CONNECTED BOTS</Text>
+                    <View testID="connected-bots-count" style={[styles.sectionBadge, dynamicStyles.sectionBadge]}>
+                      <Text style={[styles.sectionBadgeText, dynamicStyles.sectionTitle]}>{eas.length}</Text>
                     </View>
                   </View>
                   {otherEAs.map((ea, index) => (
@@ -401,7 +422,7 @@ export default function HomeScreen() {
                             </View>
                           )}
                         </View>
-                        <Text style={styles.botName} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+                        <Text style={[styles.botName, dynamicStyles.botName]} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}

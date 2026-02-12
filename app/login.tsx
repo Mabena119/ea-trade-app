@@ -108,7 +108,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={styles.container}>
       {/* Back Button */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBackToStart}>

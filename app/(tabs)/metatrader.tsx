@@ -1930,7 +1930,7 @@ export default function MetaTraderScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
+        style={[styles.keyboardAvoidingView, { backgroundColor: theme.colors.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >

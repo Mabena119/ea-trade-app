@@ -253,9 +253,9 @@ export default function QuotesScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
           {Platform.OS === 'ios' && (
-            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={60} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
           )}
-          <ArrowLeft color="#FFFFFF" size={22} strokeWidth={2.5} />
+          <ArrowLeft color={theme.colors.textPrimary} size={22} strokeWidth={2.5} />
         </TouchableOpacity>
 
         <View style={styles.headerContent}>
@@ -295,7 +295,7 @@ export default function QuotesScreen() {
               }}
             >
               <RotateCw
-                color={refreshing ? '#666666' : '#FFFFFF'}
+                color={refreshing ? '#666666' : theme.colors.textPrimary}
                 size={20}
                 strokeWidth={2.5}
               />
