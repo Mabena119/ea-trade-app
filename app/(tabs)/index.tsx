@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -13,7 +13,7 @@ import colors from '@/constants/colors';
 
 export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA } = useApp();
-  const { theme, themeName } = useTheme();
+  const { theme, themeName, toggleTheme } = useTheme();
 
   // Safely get the primary EA (first one in the list)
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -24,6 +24,26 @@ export default function HomeScreen() {
   const [logoError, setLogoError] = useState<boolean>(false);
   const [hasCheckedAuth, setHasCheckedAuth] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  
+  // Triple-tap to toggle theme (for iOS PWA where shake doesn't work)
+  const tapCountRef = useRef<number>(0);
+  const lastTapTimeRef = useRef<number>(0);
+  const TRIPLE_TAP_DELAY = 400; // ms between taps
+  
+  const handleLogoTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapTimeRef.current < TRIPLE_TAP_DELAY) {
+      tapCountRef.current += 1;
+      if (tapCountRef.current >= 3) {
+        console.log('🎨 Triple-tap detected! Toggling theme...');
+        toggleTheme();
+        tapCountRef.current = 0;
+      }
+    } else {
+      tapCountRef.current = 1;
+    }
+    lastTapTimeRef.current = now;
+  }, [toggleTheme]);
 
   // STRICT authentication check - runs on every mount
   useEffect(() => {
@@ -244,8 +264,12 @@ export default function HomeScreen() {
             />
 
             <View style={styles.topSection}>
-              {/* Circular logo display */}
-              <View style={styles.circularLogoContainer}>
+              {/* Circular logo display - Triple tap to change theme */}
+              <TouchableOpacity 
+                style={styles.circularLogoContainer}
+                onPress={handleLogoTap}
+                activeOpacity={0.9}
+              >
                 <View style={styles.circularLogoRing}>
                   {primaryEAImage && !logoError ? (
                     <Image
@@ -264,7 +288,7 @@ export default function HomeScreen() {
                     />
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
               <View style={styles.titleBlock}>
                 <View style={styles.botNameContainer}>
                   <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
