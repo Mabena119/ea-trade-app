@@ -120,13 +120,128 @@ export const cyberTheme: Theme = {
   },
 };
 
+// ============ LIGHT POPPY THEMES ============
+
+// Sunrise - Warm Orange/Yellow/Pink bright theme
+export const sunriseTheme: Theme = {
+  name: 'sunrise',
+  isDark: false,
+  colors: {
+    background: '#FFF7ED',
+    backgroundSecondary: '#FFEDD5',
+    cardBackground: 'rgba(251, 146, 60, 0.15)',
+    
+    primaryGradient: ['#F97316', '#FBBF24', '#F472B6'],
+    cardGradient: ['rgba(249, 115, 22, 0.3)', 'rgba(251, 191, 36, 0.2)', 'rgba(244, 114, 182, 0.15)'],
+    glowGradient: ['rgba(249, 115, 22, 0.5)', 'rgba(251, 191, 36, 0.3)', 'transparent'],
+    
+    textPrimary: '#1C1917',
+    textSecondary: 'rgba(28, 25, 23, 0.8)',
+    textMuted: 'rgba(28, 25, 23, 0.5)',
+    
+    accent: '#F97316',
+    accentSecondary: '#FBBF24',
+    success: '#22C55E',
+    error: '#EF4444',
+    warning: '#F59E0B',
+    
+    borderColor: 'rgba(249, 115, 22, 0.3)',
+    glowColor: 'rgba(249, 115, 22, 0.4)',
+    overlayColor: 'rgba(255, 247, 237, 0.9)',
+    
+    statusActive: '#22C55E',
+    statusInactive: '#9CA3AF',
+    
+    navBackground: 'rgba(255, 247, 237, 0.98)',
+    navActiveColor: '#F97316',
+    navInactiveColor: 'rgba(28, 25, 23, 0.4)',
+  },
+};
+
+// Ocean - Fresh Blue/Cyan/Teal bright theme
+export const oceanTheme: Theme = {
+  name: 'ocean',
+  isDark: false,
+  colors: {
+    background: '#ECFEFF',
+    backgroundSecondary: '#CFFAFE',
+    cardBackground: 'rgba(6, 182, 212, 0.15)',
+    
+    primaryGradient: ['#0891B2', '#06B6D4', '#2DD4BF'],
+    cardGradient: ['rgba(8, 145, 178, 0.3)', 'rgba(6, 182, 212, 0.2)', 'rgba(45, 212, 191, 0.15)'],
+    glowGradient: ['rgba(6, 182, 212, 0.5)', 'rgba(45, 212, 191, 0.3)', 'transparent'],
+    
+    textPrimary: '#134E4A',
+    textSecondary: 'rgba(19, 78, 74, 0.8)',
+    textMuted: 'rgba(19, 78, 74, 0.5)',
+    
+    accent: '#0891B2',
+    accentSecondary: '#06B6D4',
+    success: '#10B981',
+    error: '#EF4444',
+    warning: '#F59E0B',
+    
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+    glowColor: 'rgba(6, 182, 212, 0.4)',
+    overlayColor: 'rgba(236, 254, 255, 0.9)',
+    
+    statusActive: '#10B981',
+    statusInactive: '#9CA3AF',
+    
+    navBackground: 'rgba(236, 254, 255, 0.98)',
+    navActiveColor: '#0891B2',
+    navInactiveColor: 'rgba(19, 78, 74, 0.4)',
+  },
+};
+
+// Mint - Fresh Green/Lime bright theme
+export const mintTheme: Theme = {
+  name: 'mint',
+  isDark: false,
+  colors: {
+    background: '#F0FDF4',
+    backgroundSecondary: '#DCFCE7',
+    cardBackground: 'rgba(34, 197, 94, 0.15)',
+    
+    primaryGradient: ['#16A34A', '#22C55E', '#4ADE80'],
+    cardGradient: ['rgba(22, 163, 74, 0.3)', 'rgba(34, 197, 94, 0.2)', 'rgba(74, 222, 128, 0.15)'],
+    glowGradient: ['rgba(34, 197, 94, 0.5)', 'rgba(74, 222, 128, 0.3)', 'transparent'],
+    
+    textPrimary: '#14532D',
+    textSecondary: 'rgba(20, 83, 45, 0.8)',
+    textMuted: 'rgba(20, 83, 45, 0.5)',
+    
+    accent: '#16A34A',
+    accentSecondary: '#22C55E',
+    success: '#10B981',
+    error: '#EF4444',
+    warning: '#F59E0B',
+    
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    glowColor: 'rgba(34, 197, 94, 0.4)',
+    overlayColor: 'rgba(240, 253, 244, 0.9)',
+    
+    statusActive: '#10B981',
+    statusInactive: '#9CA3AF',
+    
+    navBackground: 'rgba(240, 253, 244, 0.98)',
+    navActiveColor: '#16A34A',
+    navInactiveColor: 'rgba(20, 83, 45, 0.4)',
+  },
+};
+
+// All themes array for cycling
+export const ALL_THEMES: Theme[] = [purpleTheme, cyberTheme, sunriseTheme, oceanTheme, mintTheme];
+export type ThemeName = 'purple' | 'cyber' | 'sunrise' | 'ocean' | 'mint';
+
 interface ThemeContextType {
   theme: Theme;
   themeName: string;
   toggleTheme: () => void;
-  setTheme: (themeName: 'purple' | 'cyber') => void;
+  setTheme: (themeName: ThemeName) => void;
   isShakeEnabled: boolean;
   setShakeEnabled: (enabled: boolean) => void;
+  allThemes: Theme[];
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -153,10 +268,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   useEffect(() => {
     const loadSavedTheme = async () => {
       try {
-        const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-        if (savedTheme === 'cyber') {
-          setCurrentTheme(cyberTheme);
-          console.log('🎨 Loaded saved theme: cyber');
+        const savedThemeName = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+        if (savedThemeName) {
+          const savedTheme = ALL_THEMES.find(t => t.name === savedThemeName);
+          if (savedTheme) {
+            setCurrentTheme(savedTheme);
+            console.log(`🎨 Loaded saved theme: ${savedThemeName}`);
+          }
         }
       } catch (error) {
         console.error('Error loading saved theme:', error);
@@ -167,8 +285,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   const toggleTheme = useCallback(async () => {
     setCurrentTheme(prev => {
-      const newTheme = prev.name === 'purple' ? cyberTheme : purpleTheme;
-      console.log(`🎨 Theme switched to: ${newTheme.name}`);
+      // Find current theme index and cycle to next
+      const currentIndex = ALL_THEMES.findIndex(t => t.name === prev.name);
+      const nextIndex = (currentIndex + 1) % ALL_THEMES.length;
+      const newTheme = ALL_THEMES[nextIndex];
+      
+      console.log(`🎨 Theme switched to: ${newTheme.name} (${nextIndex + 1}/${ALL_THEMES.length})`);
       
       // Save theme preference
       AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme.name).catch(err => {
@@ -183,8 +305,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     });
   }, []);
 
-  const setTheme = useCallback(async (themeName: 'purple' | 'cyber') => {
-    const newTheme = themeName === 'purple' ? purpleTheme : cyberTheme;
+  const setTheme = useCallback(async (themeName: ThemeName) => {
+    const newTheme = ALL_THEMES.find(t => t.name === themeName) || purpleTheme;
     setCurrentTheme(newTheme);
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, themeName);
@@ -377,6 +499,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     setTheme,
     isShakeEnabled,
     setShakeEnabled,
+    allThemes: ALL_THEMES,
   };
 
   return (
