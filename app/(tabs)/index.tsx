@@ -393,7 +393,7 @@ export default function HomeScreen() {
                   {otherEAs.map((ea, index) => (
                     <TouchableOpacity
                       key={`${ea.id}-${index}`}
-                      style={styles.botCard}
+                      style={[styles.botCard, { borderColor: `${theme.colors.accent}4D`, borderTopColor: `${theme.colors.accent}80` }]}
                       onPress={async () => {
                         try {
                           console.log('Switching active EA to:', ea.name, ea.id);
@@ -404,8 +404,15 @@ export default function HomeScreen() {
                       }}
                       activeOpacity={0.7}
                     >
+                      {/* Gradient background for bot card */}
+                      <LinearGradient
+                        colors={theme.colors.cardGradient as [string, string, ...string[]]}
+                        style={StyleSheet.absoluteFill}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      />
                       {Platform.OS === 'ios' && (
-                        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                        <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
                       )}
                       <View style={styles.botCardContent}>
                         <View style={styles.botIcon}>
@@ -422,7 +429,7 @@ export default function HomeScreen() {
                             </View>
                           )}
                         </View>
-                        <Text style={[styles.botName, dynamicStyles.botName]} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+                        <Text style={[styles.botName, { color: theme.isDark ? '#FFFFFF' : theme.colors.textPrimary }]} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
