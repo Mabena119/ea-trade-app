@@ -5,11 +5,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import { apiService } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '@/constants/colors';
 
 export default function LicenseScreen() {
+  const { theme } = useTheme();
   const [licenseKey, setLicenseKey] = useState<string>('');
   const [isActivating, setIsActivating] = useState<boolean>(false);
   const { addEA, eas, setIsFirstTime } = useApp();
@@ -132,11 +134,11 @@ export default function LicenseScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {hasActiveBots && (
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <ArrowLeft size={24} color="#FFFFFF" />
+          <TouchableOpacity style={[styles.backButton, { backgroundColor: `${theme.colors.accent}1A` }]} onPress={handleBack}>
+            <ArrowLeft size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
         </View>
       )}
@@ -157,31 +159,31 @@ export default function LicenseScreen() {
                 style={[styles.appIcon, { width: 140, height: 140 }]}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>ENTER ROBOT KEY</Text>
+              <Text style={[styles.title, { color: theme.colors.textPrimary }]}>ENTER ROBOT KEY</Text>
             </View>
 
             <View style={styles.form}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: `${theme.colors.accent}26`, borderColor: `${theme.colors.accent}4D`, color: theme.colors.textPrimary, shadowColor: theme.colors.accent }]}
                 placeholder="ROBOT KEY"
-                placeholderTextColor="#999999"
+                placeholderTextColor={theme.colors.textMuted}
                 value={licenseKey}
                 onChangeText={setLicenseKey}
                 autoCapitalize="characters"
               />
 
               <TouchableOpacity
-                style={[styles.activateButton, isActivating && styles.activateButtonDisabled]}
+                style={[styles.activateButton, { backgroundColor: `${theme.colors.accent}4D`, borderColor: `${theme.colors.accent}80`, shadowColor: theme.colors.accent }, isActivating && styles.activateButtonDisabled]}
                 onPress={handleActivate}
                 disabled={isActivating}
               >
                 {isActivating ? (
                   <View style={styles.activatingContainer}>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.activatingText}>ACTIVATING...</Text>
+                    <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+                    <Text style={[styles.activatingText, { color: theme.colors.textPrimary }]}>ACTIVATING...</Text>
                   </View>
                 ) : (
-                  <Text style={styles.activateButtonText}>ACTIVATE</Text>
+                  <Text style={[styles.activateButtonText, { color: theme.colors.textPrimary }]}>ACTIVATE</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -189,35 +191,35 @@ export default function LicenseScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
       {modalVisible && (
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)' }]}>
           <TouchableOpacity 
             style={styles.modalOverlayTouchable}
             activeOpacity={1}
             onPress={() => setModalVisible(false)}
           >
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.colors.backgroundSecondary }]}>
               {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={130} tint={theme.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
               )}
               <LinearGradient
-                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                colors={theme.colors.cardGradient as [string, string, ...string[]]}
                 style={StyleSheet.absoluteFill}
               />
-            <Text style={styles.modalTitle}>{modalTitle}</Text>
-              {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
+            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>{modalTitle}</Text>
+              {modalMessage ? <Text style={[styles.modalMessage, { color: theme.colors.textSecondary }]}>{modalMessage}</Text> : null}
             <TouchableOpacity
-              style={styles.modalButton}
+              style={[styles.modalButton, { backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.colors.backgroundSecondary }]}
               onPress={() => setModalVisible(false)}
                 activeOpacity={0.8}
               >
                 {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={100} tint={theme.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
                 )}
                 <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+                  colors={theme.colors.cardGradient as [string, string, ...string[]]}
                   style={StyleSheet.absoluteFill}
                 />
-              <Text style={styles.modalButtonText}>OK</Text>
+              <Text style={[styles.modalButtonText, { color: theme.colors.textPrimary }]}>OK</Text>
             </TouchableOpacity>
           </View>
           </TouchableOpacity>

@@ -230,9 +230,83 @@ export const mintTheme: Theme = {
   },
 };
 
+// ============ PLAIN THEMES ============
+
+// Pure Black - Sleek dark AMOLED theme
+export const blackTheme: Theme = {
+  name: 'black',
+  isDark: true,
+  colors: {
+    background: '#000000',
+    backgroundSecondary: '#0A0A0A',
+    cardBackground: 'rgba(255, 255, 255, 0.05)',
+    
+    primaryGradient: ['#333333', '#1A1A1A', '#000000'],
+    cardGradient: ['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0.02)'],
+    glowGradient: ['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)', 'transparent'],
+    
+    textPrimary: '#FFFFFF',
+    textSecondary: 'rgba(255, 255, 255, 0.7)',
+    textMuted: 'rgba(255, 255, 255, 0.4)',
+    
+    accent: '#FFFFFF',
+    accentSecondary: '#E5E5E5',
+    success: '#22C55E',
+    error: '#EF4444',
+    warning: '#FBBF24',
+    
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    glowColor: 'rgba(255, 255, 255, 0.3)',
+    overlayColor: 'rgba(0, 0, 0, 0.9)',
+    
+    statusActive: '#22C55E',
+    statusInactive: '#4B5563',
+    
+    navBackground: 'rgba(0, 0, 0, 0.98)',
+    navActiveColor: '#FFFFFF',
+    navInactiveColor: 'rgba(255, 255, 255, 0.4)',
+  },
+};
+
+// Pure White - Clean minimal light theme
+export const whiteTheme: Theme = {
+  name: 'white',
+  isDark: false,
+  colors: {
+    background: '#FFFFFF',
+    backgroundSecondary: '#F5F5F5',
+    cardBackground: 'rgba(0, 0, 0, 0.03)',
+    
+    primaryGradient: ['#E5E5E5', '#F0F0F0', '#FFFFFF'],
+    cardGradient: ['rgba(0, 0, 0, 0.06)', 'rgba(0, 0, 0, 0.03)', 'rgba(0, 0, 0, 0.01)'],
+    glowGradient: ['rgba(0, 0, 0, 0.15)', 'rgba(0, 0, 0, 0.08)', 'transparent'],
+    
+    textPrimary: '#000000',
+    textSecondary: 'rgba(0, 0, 0, 0.7)',
+    textMuted: 'rgba(0, 0, 0, 0.4)',
+    
+    accent: '#000000',
+    accentSecondary: '#333333',
+    success: '#16A34A',
+    error: '#DC2626',
+    warning: '#D97706',
+    
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    glowColor: 'rgba(0, 0, 0, 0.2)',
+    overlayColor: 'rgba(255, 255, 255, 0.95)',
+    
+    statusActive: '#16A34A',
+    statusInactive: '#9CA3AF',
+    
+    navBackground: 'rgba(255, 255, 255, 0.98)',
+    navActiveColor: '#000000',
+    navInactiveColor: 'rgba(0, 0, 0, 0.4)',
+  },
+};
+
 // All themes array for cycling
-export const ALL_THEMES: Theme[] = [purpleTheme, cyberTheme, sunriseTheme, oceanTheme, mintTheme];
-export type ThemeName = 'purple' | 'cyber' | 'sunrise' | 'ocean' | 'mint';
+export const ALL_THEMES: Theme[] = [purpleTheme, cyberTheme, sunriseTheme, oceanTheme, mintTheme, blackTheme, whiteTheme];
+export type ThemeName = 'purple' | 'cyber' | 'sunrise' | 'ocean' | 'mint' | 'black' | 'white';
 
 interface ThemeContextType {
   theme: Theme;

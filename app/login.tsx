@@ -108,11 +108,11 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Back Button */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackToStart}>
-          <ArrowLeft size={24} color="#FFFFFF" />
+        <TouchableOpacity style={[styles.backButton, { backgroundColor: `${theme.colors.accent}1A` }]} onPress={handleBackToStart}>
+          <ArrowLeft size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -133,14 +133,14 @@ export default function LoginScreen() {
                 style={[styles.appIcon, { width: 140, height: 140 }]}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>LOGIN</Text>
+              <Text style={[styles.title, { color: theme.colors.textPrimary }]}>LOGIN</Text>
             </View>
 
             <View style={styles.form}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: `${theme.colors.accent}26`, borderColor: `${theme.colors.accent}4D`, color: theme.colors.textPrimary, shadowColor: theme.colors.accent }]}
                 placeholder="EMAIL"
-                placeholderTextColor="#999999"
+                placeholderTextColor={theme.colors.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -148,22 +148,22 @@ export default function LoginScreen() {
               />
 
               <TouchableOpacity
-                style={[styles.proceedButton, (isLoading || isPaymentProcessing) && styles.proceedButtonDisabled]}
+                style={[styles.proceedButton, { backgroundColor: `${theme.colors.accent}4D`, borderColor: `${theme.colors.accent}80`, shadowColor: theme.colors.accent }, (isLoading || isPaymentProcessing) && styles.proceedButtonDisabled]}
                 onPress={handleProceed}
                 disabled={isLoading || isPaymentProcessing}
               >
                 {isLoading ? (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={styles.proceedButtonText}>CHECKING...</Text>
+                    <ActivityIndicator color={theme.colors.textPrimary} size="small" />
+                    <Text style={[styles.proceedButtonText, { color: theme.colors.textPrimary }]}>CHECKING...</Text>
                   </View>
                 ) : isPaymentProcessing ? (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={styles.proceedButtonText}>PROCESSING PAYMENT...</Text>
+                    <ActivityIndicator color={theme.colors.textPrimary} size="small" />
+                    <Text style={[styles.proceedButtonText, { color: theme.colors.textPrimary }]}>PROCESSING PAYMENT...</Text>
                   </View>
                 ) : (
-                  <Text style={styles.proceedButtonText}>PROCEED</Text>
+                  <Text style={[styles.proceedButtonText, { color: theme.colors.textPrimary }]}>PROCEED</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -171,51 +171,51 @@ export default function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
       {modalVisible && (
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)' }]}>
           <TouchableOpacity 
             style={styles.modalOverlayTouchable}
             activeOpacity={1}
             onPress={() => setModalVisible(false)}
           >
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.colors.backgroundSecondary }]}>
               {Platform.OS === 'ios' && (
-                <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={130} tint={theme.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
               )}
               <LinearGradient
-                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                colors={theme.colors.cardGradient as [string, string, ...string[]]}
                 style={StyleSheet.absoluteFill}
               />
-            <Text style={styles.modalTitle}>{modalTitle}</Text>
-              {modalMessage ? <Text style={styles.modalMessage}>{modalMessage}</Text> : null}
+            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>{modalTitle}</Text>
+              {modalMessage ? <Text style={[styles.modalMessage, { color: theme.colors.textSecondary }]}>{modalMessage}</Text> : null}
             <TouchableOpacity
-              style={styles.modalButton}
+              style={[styles.modalButton, { backgroundColor: `${theme.colors.accent}40`, borderColor: `${theme.colors.accent}66`, shadowColor: theme.colors.accent }]}
               onPress={() => setModalVisible(false)}
                 activeOpacity={0.8}
               >
                 {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={100} tint={theme.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
                 )}
                 <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+                  colors={theme.colors.cardGradient as [string, string, ...string[]]}
                   style={StyleSheet.absoluteFill}
                 />
-              <Text style={styles.modalButtonText}>OK</Text>
+              <Text style={[styles.modalButtonText, { color: theme.colors.textPrimary }]}>OK</Text>
             </TouchableOpacity>
           </View>
           </TouchableOpacity>
         </View>
       )}
       {paymentVisible && (
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%' }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)' }]}>
+          <View style={[styles.modalCard, { width: '100%', maxWidth: 800, height: '80%', backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.colors.backgroundSecondary }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={styles.modalTitle}>Pay for App</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>Pay for App</Text>
               <TouchableOpacity 
                 onPress={() => setPaymentVisible(false)}
-                style={styles.closeButton}
+                style={[styles.closeButton, { backgroundColor: `${theme.colors.accent}33`, borderColor: `${theme.colors.accent}66`, shadowColor: theme.colors.accent }]}
                 activeOpacity={0.8}
               >
-                <X color="#FFFFFF" size={24} />
+                <X color={theme.colors.textPrimary} size={24} />
               </TouchableOpacity>
             </View>
             {Platform.OS === 'web' ? (

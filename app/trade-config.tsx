@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, ChevronDown, Trash2 } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 
 interface TradeConfig {
@@ -17,6 +18,7 @@ interface TradeConfig {
 export default function TradeConfigScreen() {
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const { activeSymbols, activateSymbol, deactivateSymbol, mt4Symbols, mt5Symbols, activateMT4Symbol, activateMT5Symbol, deactivateMT4Symbol, deactivateMT5Symbol } = useApp();
+  const { theme } = useTheme();
   
   const [config, setConfig] = useState<TradeConfig>({
     lotSize: '0.01',
@@ -191,19 +193,19 @@ export default function TradeConfigScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+      <View style={[styles.header, { borderBottomColor: `${theme.colors.accent}15` }]}>
+        <TouchableOpacity style={[styles.backButton, { backgroundColor: `${theme.colors.accent}33`, borderColor: `${theme.colors.accent}66` }]} onPress={handleBack} activeOpacity={0.7}>
           {Platform.OS === 'ios' && (
-            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={60} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
           )}
-          <ArrowLeft color="#FFFFFF" size={22} strokeWidth={2.5} />
+          <ArrowLeft color={theme.colors.textPrimary} size={22} strokeWidth={2.5} />
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>TRADE CONFIG</Text>
-          <Text style={styles.symbolText}>{symbol}</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>TRADE CONFIG</Text>
+          <Text style={[styles.symbolText, { color: theme.colors.textSecondary }]}>{symbol}</Text>
         </View>
       </View>
 
@@ -218,10 +220,10 @@ export default function TradeConfigScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Gradient Card Wrapper */}
-          <View style={styles.heroCard}>
+          <View style={[styles.heroCard, { shadowColor: theme.colors.accent, borderColor: `${theme.colors.accent}40`, borderTopColor: `${theme.colors.accent}66` }]}>
             {/* Beautiful gradient background with glass effect */}
             <LinearGradient
-              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
               style={styles.gradientBackground}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -229,12 +231,12 @@ export default function TradeConfigScreen() {
             
             {/* Glass overlay effect */}
             {Platform.OS === 'ios' && (
-              <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
+              <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={styles.glassOverlay} />
             )}
             
             {/* Glossy shine effect at top */}
             <LinearGradient
-              colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']}
+              colors={theme.isDark ? ['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)'] : ['rgba(255, 255, 255, 0.6)', 'rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0)']}
               style={styles.glossShine}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
@@ -243,13 +245,13 @@ export default function TradeConfigScreen() {
             <View style={styles.cardContent}>
         {/* Lot Size */}
         <View style={styles.configSection}>
-          <Text style={styles.sectionTitle}>LOT SIZE</Text>
-          <View style={styles.inputContainer} pointerEvents="box-none">
+          <Text style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}>LOT SIZE</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)', borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' }]} pointerEvents="box-none">
             {Platform.OS === 'ios' && (
-              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+              <BlurView intensity={30} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}
             value={config.lotSize}
               onChangeText={(value) => {
                 console.log('Lot size input changed:', value);
@@ -257,7 +259,7 @@ export default function TradeConfigScreen() {
               }}
             keyboardType="decimal-pad"
             placeholder="0.01"
-            placeholderTextColor="#666666"
+            placeholderTextColor={theme.isDark ? '#666666' : '#999999'}
               editable={true}
           />
           </View>
@@ -265,45 +267,45 @@ export default function TradeConfigScreen() {
 
         {/* Direction */}
         <View style={styles.configSection}>
-          <Text style={styles.sectionTitle}>DIRECTION</Text>
+          <Text style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}>DIRECTION</Text>
           <TouchableOpacity 
-            style={styles.picker}
+            style={[styles.picker, { backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)', borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' }]}
             onPress={() => setShowDirectionModal(true)}
             activeOpacity={0.7}
           >
             {Platform.OS === 'ios' && (
-              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={30} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
             )}
-            <Text style={styles.pickerText}>{config.direction}</Text>
-            <ChevronDown color="#FFFFFF" size={20} strokeWidth={2.5} />
+            <Text style={[styles.pickerText, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}>{config.direction}</Text>
+            <ChevronDown color={theme.isDark ? '#FFFFFF' : '#000000'} size={20} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
         {/* Platform */}
         <View style={styles.configSection}>
-          <Text style={styles.sectionTitle}>PLATFORM</Text>
+          <Text style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}>PLATFORM</Text>
           <TouchableOpacity 
-            style={styles.picker}
+            style={[styles.picker, { backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)', borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' }]}
             onPress={() => setShowPlatformModal(true)}
             activeOpacity={0.7}
           >
             {Platform.OS === 'ios' && (
-              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={30} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
             )}
-            <Text style={styles.pickerText}>{config.platform}</Text>
-            <ChevronDown color="#FFFFFF" size={20} strokeWidth={2.5} />
+            <Text style={[styles.pickerText, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}>{config.platform}</Text>
+            <ChevronDown color={theme.isDark ? '#FFFFFF' : '#000000'} size={20} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
         {/* Number of Trades */}
         <View style={styles.configSection}>
-          <Text style={styles.sectionTitle}>NUMBER OF TRADES</Text>
-          <View style={styles.inputContainer} pointerEvents="box-none">
+          <Text style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}>NUMBER OF TRADES</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)', borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' }]} pointerEvents="box-none">
             {Platform.OS === 'ios' && (
-              <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+              <BlurView intensity={30} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} pointerEvents="none" />
             )}
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}
             value={config.numberOfTrades}
               onChangeText={(value) => {
                 console.log('Number of trades input changed:', value);
@@ -311,7 +313,7 @@ export default function TradeConfigScreen() {
               }}
             keyboardType="number-pad"
             placeholder="1"
-            placeholderTextColor="#666666"
+            placeholderTextColor={theme.isDark ? '#666666' : '#999999'}
               editable={true}
           />
           </View>
@@ -319,22 +321,22 @@ export default function TradeConfigScreen() {
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.executeButton} onPress={handleSetSymbol} activeOpacity={0.7}>
+          <TouchableOpacity style={[styles.executeButton, { backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.15)' }]} onPress={handleSetSymbol} activeOpacity={0.7}>
             {Platform.OS === 'ios' && (
-              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={60} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
             )}
-            <Text style={styles.executeButtonText}>
+            <Text style={[styles.executeButtonText, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}>
               {(isSymbolActive || legacySymbolActive) ? 'UPDATE SYMBOL' : 'SET SYMBOL'}
             </Text>
           </TouchableOpacity>
           
           {(isSymbolActive || legacySymbolActive) && (
-            <TouchableOpacity style={styles.removeButton} onPress={handleRemoveSymbol} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.removeButton, { backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.12)' }]} onPress={handleRemoveSymbol} activeOpacity={0.7}>
               {Platform.OS === 'ios' && (
-                <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={60} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
               )}
-              <Trash2 color="#FFFFFF" size={20} strokeWidth={2.5} />
-              <Text style={styles.removeButtonText}>REMOVE</Text>
+              <Trash2 color={theme.isDark ? '#FFFFFF' : '#000000'} size={20} strokeWidth={2.5} />
+              <Text style={[styles.removeButtonText, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}>REMOVE</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -351,25 +353,26 @@ export default function TradeConfigScreen() {
         onRequestClose={() => setShowDirectionModal(false)}
       >
         <Pressable 
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { backgroundColor: theme.isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)' }]}
           onPress={() => setShowDirectionModal(false)}
         >
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.background, borderColor: `${theme.colors.accent}80`, borderTopColor: `${theme.colors.accent}B3` }]}>
             {/* Subtle gradient overlay */}
             <LinearGradient
-              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
               style={[StyleSheet.absoluteFill, { opacity: 0.15 }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
             
-            <Text style={styles.modalTitle}>Select Direction</Text>
+            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>Select Direction</Text>
             {['BUY', 'SELL', 'BOTH'].map((direction) => (
               <TouchableOpacity
                 key={direction}
                 style={[
                   styles.modalOption,
-                  config.direction === direction && styles.selectedModalOption
+                  { borderBottomColor: `${theme.colors.accent}33` },
+                  config.direction === direction && { backgroundColor: `${theme.colors.accent}4D`, borderBottomColor: `${theme.colors.accent}99` }
                 ]}
                 onPress={() => {
                   updateConfig('direction', direction as 'BUY' | 'SELL' | 'BOTH');
@@ -378,11 +381,12 @@ export default function TradeConfigScreen() {
                 activeOpacity={0.8}
               >
                 {config.direction === direction && Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={100} tint={theme.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
                 )}
                 <Text style={[
                   styles.modalOptionText,
-                  config.direction === direction && styles.selectedModalOptionText
+                  { color: theme.colors.textPrimary },
+                  config.direction === direction && { fontWeight: '900', textShadowColor: `${theme.colors.accent}80` }
                 ]}>
                   {direction}
                 </Text>
@@ -400,25 +404,26 @@ export default function TradeConfigScreen() {
         onRequestClose={() => setShowPlatformModal(false)}
       >
         <Pressable 
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { backgroundColor: theme.isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)' }]}
           onPress={() => setShowPlatformModal(false)}
         >
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.background, borderColor: `${theme.colors.accent}80`, borderTopColor: `${theme.colors.accent}B3` }]}>
             {/* Subtle gradient overlay */}
             <LinearGradient
-              colors={['#8B5CF6', '#EC4899', '#F97316']}
+              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
               style={[StyleSheet.absoluteFill, { opacity: 0.15 }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
             
-            <Text style={styles.modalTitle}>Select Platform</Text>
+            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>Select Platform</Text>
             {['MT4', 'MT5'].map((platform) => (
               <TouchableOpacity
                 key={platform}
                 style={[
                   styles.modalOption,
-                  config.platform === platform && styles.selectedModalOption
+                  { borderBottomColor: `${theme.colors.accent}33` },
+                  config.platform === platform && { backgroundColor: `${theme.colors.accent}4D`, borderBottomColor: `${theme.colors.accent}99` }
                 ]}
                 onPress={() => {
                   updateConfig('platform', platform as 'MT4' | 'MT5');
@@ -427,11 +432,12 @@ export default function TradeConfigScreen() {
                 activeOpacity={0.8}
               >
                 {config.platform === platform && Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={100} tint={theme.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
                 )}
                 <Text style={[
                   styles.modalOptionText,
-                  config.platform === platform && styles.selectedModalOptionText
+                  { color: theme.colors.textPrimary },
+                  config.platform === platform && { fontWeight: '900', textShadowColor: `${theme.colors.accent}80` }
                 ]}>
                   {platform}
                 </Text>

@@ -151,9 +151,9 @@ export default function HomeScreen() {
   // Block rendering if not authenticated
   if (!isAuthenticated) {
     return (
-      <View style={styles.splashContainer}>
+      <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
         <View style={styles.splashContent}>
-          <Text style={styles.title}>Checking authentication...</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Checking authentication...</Text>
         </View>
       </View>
     );
@@ -162,7 +162,7 @@ export default function HomeScreen() {
   // Show splash screen for first-time users
   if (isFirstTime) {
     return (
-      <View style={styles.splashContainer}>
+      <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
         <View style={styles.splashContent}>
           <View style={styles.logoContainer}>
             <Image
@@ -173,8 +173,8 @@ export default function HomeScreen() {
             />
           </View>
 
-          <TouchableOpacity style={styles.splashStartButton} onPress={handleStartNow}>
-            <Text style={styles.startButtonText}>START</Text>
+          <TouchableOpacity style={[styles.splashStartButton, { backgroundColor: `${theme.colors.accent}4D`, borderColor: `${theme.colors.accent}80`, shadowColor: theme.colors.accent }]} onPress={handleStartNow}>
+            <Text style={[styles.startButtonText, { color: theme.colors.textPrimary }]}>START</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -184,9 +184,9 @@ export default function HomeScreen() {
   // If no EA, don't render (should have been redirected to license)
   if (!primaryEA) {
     return (
-      <View style={styles.splashContainer}>
+      <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
         <View style={styles.splashContent}>
-          <Text style={styles.title}>Loading...</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Loading...</Text>
         </View>
       </View>
     );
