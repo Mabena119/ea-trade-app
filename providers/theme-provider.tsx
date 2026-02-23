@@ -268,22 +268,22 @@ export const blackTheme: Theme = {
   },
 };
 
-// Pure White - Clean minimal light theme
+// Pure White - Clean minimal light theme with strong black outlines
 export const whiteTheme: Theme = {
   name: 'white',
   isDark: false,
   colors: {
     background: '#FFFFFF',
-    backgroundSecondary: '#F5F5F5',
-    cardBackground: 'rgba(0, 0, 0, 0.03)',
+    backgroundSecondary: '#F8F8F8',
+    cardBackground: 'rgba(0, 0, 0, 0.05)',
     
-    primaryGradient: ['#E5E5E5', '#F0F0F0', '#FFFFFF'],
-    cardGradient: ['rgba(0, 0, 0, 0.06)', 'rgba(0, 0, 0, 0.03)', 'rgba(0, 0, 0, 0.01)'],
-    glowGradient: ['rgba(0, 0, 0, 0.15)', 'rgba(0, 0, 0, 0.08)', 'transparent'],
+    primaryGradient: ['#2D2D2D', '#4A4A4A', '#6B6B6B'],
+    cardGradient: ['rgba(0, 0, 0, 0.12)', 'rgba(0, 0, 0, 0.08)', 'rgba(0, 0, 0, 0.04)'],
+    glowGradient: ['rgba(0, 0, 0, 0.25)', 'rgba(0, 0, 0, 0.15)', 'transparent'],
     
     textPrimary: '#000000',
-    textSecondary: 'rgba(0, 0, 0, 0.7)',
-    textMuted: 'rgba(0, 0, 0, 0.4)',
+    textSecondary: 'rgba(0, 0, 0, 0.75)',
+    textMuted: 'rgba(0, 0, 0, 0.5)',
     
     accent: '#000000',
     accentSecondary: '#333333',
@@ -291,16 +291,16 @@ export const whiteTheme: Theme = {
     error: '#DC2626',
     warning: '#D97706',
     
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    glowColor: 'rgba(0, 0, 0, 0.2)',
+    borderColor: 'rgba(0, 0, 0, 0.25)',
+    glowColor: 'rgba(0, 0, 0, 0.35)',
     overlayColor: 'rgba(255, 255, 255, 0.95)',
     
     statusActive: '#16A34A',
-    statusInactive: '#9CA3AF',
+    statusInactive: '#6B7280',
     
     navBackground: 'rgba(255, 255, 255, 0.98)',
     navActiveColor: '#000000',
-    navInactiveColor: 'rgba(0, 0, 0, 0.4)',
+    navInactiveColor: 'rgba(0, 0, 0, 0.5)',
   },
 };
 
