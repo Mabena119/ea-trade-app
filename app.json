@@ -113,7 +113,11 @@
       "typedRoutes": true
     },
     "extra": {
-      "EXPO_PUBLIC_API_BASE_URL": "https://ea-trade-app.onrender.com"
+      "EXPO_PUBLIC_API_BASE_URL": "https://ea-trade-app.onrender.com",
+      "router": {},
+      "eas": {
+        "projectId": "49a96077-6637-4dc1-8d2f-fef4b743808b"
+      }
     },
     "owner": "justvino"
   }
