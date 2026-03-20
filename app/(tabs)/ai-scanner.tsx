@@ -316,6 +316,25 @@ export default function AIScannerScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
+            {(result.symbol || result.timeframe || result.currentPrice) ? (
+              <View style={[styles.chartMeta, { borderBottomColor: theme.colors.borderColor }]}>
+                {result.symbol ? (
+                  <Text style={[styles.chartMetaText, { color: theme.colors.textPrimary }]}>
+                    {result.symbol}
+                  </Text>
+                ) : null}
+                {result.timeframe ? (
+                  <Text style={[styles.chartMetaText, { color: theme.colors.textMuted }]}>
+                    {result.timeframe}
+                  </Text>
+                ) : null}
+                {result.currentPrice ? (
+                  <Text style={[styles.chartMetaText, styles.chartMetaPrice, { color: theme.colors.accent }]}>
+                    {result.currentPrice}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
             <View style={styles.signalHeader}>
               <SignalIcon color={signalColor} size={32} strokeWidth={2.5} />
               <View>
@@ -563,6 +582,22 @@ const styles = StyleSheet.create({
   },
   errorCard: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  chartMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 12,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+  },
+  chartMetaText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  chartMetaPrice: {
+    marginLeft: 'auto',
+    fontFamily: 'monospace',
   },
   errorText: {
     fontSize: 15,

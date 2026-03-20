@@ -92,6 +92,9 @@ export interface LicenseAuthResponse {
 }
 
 export interface ChartAnalysisResult {
+  symbol?: string;
+  timeframe?: string;
+  currentPrice?: string;
   signal: 'BUY' | 'SELL' | 'NEUTRAL';
   confidence: 'high' | 'medium' | 'low';
   summary: string;

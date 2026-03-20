@@ -8,12 +8,12 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
-const CHART_ANALYSIS_PROMPT = `You are a technical analyst. Analyze this trading chart image. Respond with ONLY a single JSON object, no markdown, no extra text.
+const CHART_ANALYSIS_PROMPT = `You are a technical analyst. Analyze this trading chart image. Read the symbol, timeframe, and current price from the chart header/labels (e.g. MetaTrader, TradingView). Respond with ONLY a single JSON object, no markdown, no extra text.
 
 Required format:
-{"signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on key patterns","reasoning":"Brief description of how you concluded: mention indicators (e.g. RSI, MACD, moving averages), chart patterns (support/resistance, trend lines), and what led to your signal","suggestion":"actionable trade advice","entryPrice":"price or empty","stopLoss":"price or empty","takeProfit1":"price or empty","takeProfit2":"price or empty","takeProfit3":"price or empty"}
+{"symbol":"e.g. EURUSD, GBPUSD, XAUUSD","timeframe":"e.g. M1, M5, M15, H1, H4, D1, W1, MN","currentPrice":"last visible price on chart","signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on key patterns","reasoning":"Brief description of how you concluded: mention indicators, chart patterns, and what led to your signal","suggestion":"actionable trade advice","entryPrice":"price or empty","stopLoss":"price or empty","takeProfit1":"price or empty","takeProfit2":"price or empty","takeProfit3":"price or empty"}
 
-Extract price levels from the chart scale. Use "" for prices if NEUTRAL. Add takeProfit2/3 only when multiple targets exist. If not a trading chart, return signal:NEUTRAL with empty price strings. Always explain your reasoning so the user understands how you reached the conclusion.`;
+Extract symbol and timeframe from the chart title/header. Extract currentPrice from the price scale or last candle. Use "" if not visible. Extract price levels from the chart scale. Add takeProfit2/3 only when multiple targets exist. If not a trading chart, return signal:NEUTRAL with empty price strings. Always explain your reasoning.`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -160,6 +160,9 @@ export async function POST(request: Request): Promise<Response> {
       };
       const sig = text.match(/"signal"\s*:\s*"(BUY|SELL|NEUTRAL)"/i)?.[1]?.toUpperCase() || 'NEUTRAL';
       parsed = {
+        symbol: extract('symbol') || '',
+        timeframe: extract('timeframe') || '',
+        currentPrice: extract('currentPrice') || '',
         signal: ['BUY', 'SELL'].includes(sig) ? sig : 'NEUTRAL',
         confidence: extract('confidence') || 'medium',
         summary: extract('summary') || 'Chart analysis completed.',
@@ -177,6 +180,9 @@ export async function POST(request: Request): Promise<Response> {
       {
         message: 'accept',
         data: {
+          symbol: parsed.symbol || '',
+          timeframe: parsed.timeframe || '',
+          currentPrice: parsed.currentPrice || '',
           signal: parsed.signal || 'NEUTRAL',
           confidence: parsed.confidence || 'low',
           summary: parsed.summary || '',
