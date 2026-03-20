@@ -237,6 +237,9 @@ async function handleApi(request: Request): Promise<Response> {
       if (request.method === 'GET' && typeof route.GET === 'function') {
         return route.GET(request) as Promise<Response>;
       }
+      if (request.method === 'POST' && typeof route.POST === 'function') {
+        return route.POST(request) as Promise<Response>;
+      }
       return new Response('Method Not Allowed', { status: 405 });
     }
 

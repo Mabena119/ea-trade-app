@@ -228,6 +228,19 @@ class ApiService {
     }
   }
 
+  async revokeScannerAccess(email: string): Promise<void> {
+    if (!email || !BASE_URL) return;
+    try {
+      await fetch(`${BASE_URL}/api/scanner-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch (e) {
+      console.error('revokeScannerAccess error:', e);
+    }
+  }
+
   async analyzeChart(imageBase64: string, mimeType = 'image/jpeg'): Promise<ChartAnalysisResponse> {
     if (!imageBase64) return { message: 'error', error: 'No image provided' };
     const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/analyze-chart`;

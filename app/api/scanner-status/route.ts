@@ -36,6 +36,37 @@ export async function GET(request: Request): Promise<Response> {
   }
 }
 
-export async function POST(): Promise<Response> {
-  return Response.json({ error: 'Use GET with email param' }, { status: 405 });
+/**
+ * POST /api/scanner-status
+ * Body: { email: string }
+ * Sets members.scanner = 0 for the given email (revokes scanner access when limit reached).
+ */
+export async function POST(request: Request): Promise<Response> {
+  let conn = null;
+  try {
+    const body = await request.json().catch(() => ({}));
+    const email = (typeof body?.email === 'string' ? body.email : '').trim().toLowerCase();
+    if (!email) {
+      return Response.json({ error: 'Email required' }, { status: 400 });
+    }
+    const pool = await getPool();
+    conn = await pool.getConnection();
+    const [result] = await conn.execute(
+      'UPDATE members SET scanner = 0 WHERE email = ?',
+      [email]
+    );
+    const affected = (result as { affectedRows?: number })?.affectedRows ?? 0;
+    return Response.json({ ok: true, updated: affected > 0 }, { status: 200 });
+  } catch (error) {
+    console.error('scanner-status POST error:', error);
+    return Response.json({ error: 'Failed to update' }, { status: 500 });
+  } finally {
+    if (conn) {
+      try {
+        conn.release();
+      } catch (e) {
+        console.error('Failed to release connection:', e);
+      }
+    }
+  }
 }

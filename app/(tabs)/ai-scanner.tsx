@@ -63,7 +63,7 @@ export default function AIScannerScreen() {
   }, []);
 
   const saveToHistory = useCallback(
-    async (imageUri: string, imageBase64: string | null, result: ChartAnalysisResult) => {
+    async (imageUri: string, imageBase64: string | null, result: ChartAnalysisResult): Promise<number> => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const item: ScannerHistoryItem = {
         id,
@@ -77,6 +77,7 @@ export default function AIScannerScreen() {
       const next = [item, ...(Array.isArray(current) ? current : [])].slice(0, MAX_HISTORY);
       setHistory(next);
       await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
+      return next.length;
     },
     []
   );
@@ -238,6 +239,22 @@ export default function AIScannerScreen() {
     }
     if (history.length >= MAX_HISTORY) {
       setError(`Limit of ${MAX_HISTORY} scans reached. Delete one from history to add another.`);
+      let email = user?.email;
+      if (!email) {
+        try {
+          const stored = await AsyncStorage.getItem('user');
+          if (stored) {
+            const parsed = JSON.parse(stored) as { email?: string };
+            email = parsed?.email;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (email) {
+        await apiService.revokeScannerAccess(email);
+        setScannerUnlocked(false);
+      }
       return;
     }
     // Client-side size check to avoid 502 (Render limits)
@@ -252,7 +269,27 @@ export default function AIScannerScreen() {
       const response = await apiService.analyzeChart(imageBase64, mimeType);
       if (response.message === 'accept' && response.data) {
         setResult(response.data);
-        if (imageUri) await saveToHistory(imageUri, imageBase64, response.data);
+        if (imageUri) {
+          const newCount = await saveToHistory(imageUri, imageBase64, response.data);
+          if (newCount >= MAX_HISTORY) {
+            let email = user?.email;
+            if (!email) {
+              try {
+                const stored = await AsyncStorage.getItem('user');
+                if (stored) {
+                  const parsed = JSON.parse(stored) as { email?: string };
+                  email = parsed?.email;
+                }
+              } catch {
+                /* ignore */
+              }
+            }
+            if (email) {
+              await apiService.revokeScannerAccess(email);
+              setScannerUnlocked(false);
+            }
+          }
+        }
       } else {
         setError(response.error || 'Analysis failed. Please try again.');
       }
