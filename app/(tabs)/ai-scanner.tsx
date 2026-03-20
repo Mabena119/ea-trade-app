@@ -15,6 +15,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useTheme } from '@/providers/theme-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
@@ -30,6 +31,32 @@ export default function AIScannerScreen() {
 
   const handleBack = () => router.back();
 
+  // Resize and compress to keep payload small (avoids Render 502 with large requests)
+  const compressForAnalysis = async (
+    uri: string,
+    existingBase64: string | undefined,
+    existingMime: string | undefined
+  ): Promise<{ uri: string; base64: string | null; mimeType: string }> => {
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 800 } }],
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+      return {
+        uri: manipulated.uri,
+        base64: manipulated.base64 ?? existingBase64 ?? null,
+        mimeType: 'image/jpeg',
+      };
+    } catch {
+      return {
+        uri,
+        base64: existingBase64 ?? null,
+        mimeType: existingMime || 'image/jpeg',
+      };
+    }
+  };
+
   const pickImage = async () => {
     setError(null);
     setResult(null);
@@ -42,14 +69,15 @@ export default function AIScannerScreen() {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.8,
+      quality: 0.5,
       base64: true,
     });
     if (pickerResult.canceled) return;
     const asset = pickerResult.assets[0];
-    setImageUri(asset.uri);
-    setImageBase64(asset.base64 || null);
-    setMimeType(asset.mimeType || 'image/jpeg');
+    const { uri, base64, mimeType } = await compressForAnalysis(asset.uri, asset.base64, asset.mimeType);
+    setImageUri(uri);
+    setImageBase64(base64);
+    setMimeType(mimeType || 'image/jpeg');
   };
 
   const takePhoto = async () => {
@@ -63,14 +91,15 @@ export default function AIScannerScreen() {
     const pickerResult = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.8,
+      quality: 0.5,
       base64: true,
     });
     if (pickerResult.canceled) return;
     const asset = pickerResult.assets[0];
-    setImageUri(asset.uri);
-    setImageBase64(asset.base64 || null);
-    setMimeType(asset.mimeType || 'image/jpeg');
+    const { uri, base64, mimeType } = await compressForAnalysis(asset.uri, asset.base64, asset.mimeType);
+    setImageUri(uri);
+    setImageBase64(base64);
+    setMimeType(mimeType || 'image/jpeg');
   };
 
   const analyzeChart = async () => {

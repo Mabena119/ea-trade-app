@@ -4,8 +4,9 @@
  */
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const MODEL = 'gemini-2.5-flash'; // Stable vision-capable model
-const GEMINI_TIMEOUT_MS = 45000; // Under Render's typical 50s limit
+const MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'] as const;
+const GEMINI_TIMEOUT_MS = 25000; // Stay under Render timeout
+const MAX_BASE64_BYTES = 1_500_000; // ~1.1MB image to avoid 502 with large body
 
 const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this trading chart image and provide a clear, concise recommendation.
 
@@ -55,10 +56,9 @@ export async function POST(request: Request): Promise<Response> {
     // Strip data URL prefix if present (e.g. "data:image/jpeg;base64,...")
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
 
-    // Limit size to avoid timeouts (base64 ~1.33x raw size; 3MB raw ≈ 4MB base64)
-    if (base64Data.length > 5_000_000) {
+    if (base64Data.length > MAX_BASE64_BYTES) {
       return Response.json(
-        { message: 'error', error: 'Image too large. Please use a smaller chart screenshot.' },
+        { message: 'error', error: 'Image too large. Use a smaller chart screenshot.' },
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -87,46 +87,54 @@ export async function POST(request: Request): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
-    let res: Response;
-    try {
-      res = await fetch(
-        `${GEMINI_API_BASE}/models/${MODEL}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(geminiPayload),
-          signal: controller.signal,
+    let res: Response | undefined;
+    let lastErr: string | null = null;
+
+    for (const model of MODELS) {
+      try {
+        res = await fetch(
+          `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(geminiPayload),
+            signal: controller.signal,
+          }
+        );
+        if (res.ok) {
+          clearTimeout(timeoutId);
+          break;
         }
-      );
-    } catch (fetchErr: unknown) {
-      clearTimeout(timeoutId);
-      const msg = fetchErr instanceof Error ? fetchErr.message : 'Unknown error';
-      console.error('Gemini fetch error:', msg);
-      const isTimeout = msg.includes('abort') || msg.includes('timeout');
-      return Response.json(
-        {
-          message: 'error',
-          error: isTimeout
-            ? 'Request timed out. Try a smaller image.'
-            : 'AI service unavailable. Please try again.',
-        },
-        { status: 502, headers: { 'Content-Type': 'application/json' } }
-      );
+        lastErr = await res.text();
+        if (res.status === 404) {
+          console.warn(`Model ${model} not found, trying next...`);
+          continue;
+        }
+        clearTimeout(timeoutId);
+        console.error('Gemini API error:', res.status, lastErr.slice(0, 500));
+        let hint = 'Please try again.';
+        if (res.status === 401 || res.status === 403) hint = 'Check API key in Render Environment.';
+        return Response.json(
+          { message: 'error', error: `AI analysis failed. ${hint}` },
+          { status: 502, headers: { 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchErr: unknown) {
+        if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+          clearTimeout(timeoutId);
+          return Response.json(
+            { message: 'error', error: 'Request timed out. Try a smaller image.' },
+            { status: 502, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        lastErr = fetchErr instanceof Error ? fetchErr.message : 'Unknown';
+      }
     }
     clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('Gemini API error:', res.status, errText.slice(0, 500));
-      // Surface sanitized hint for common issues (no API key in response)
-      let hint = 'Please try again.';
-      if (res.status === 401 || res.status === 403) hint = 'Check API key in Render Environment.';
-      if (res.status === 404) hint = 'Model may have changed.';
+    if (!res?.ok) {
+      console.error('All Gemini models failed:', lastErr?.slice(0, 300));
       return Response.json(
-        {
-          message: 'error',
-          error: `AI analysis failed. ${hint}`,
-        },
+        { message: 'error', error: 'AI analysis failed. Please try again.' },
         { status: 502, headers: { 'Content-Type': 'application/json' } }
       );
     }
