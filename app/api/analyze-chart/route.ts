@@ -8,12 +8,14 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
-const CHART_ANALYSIS_PROMPT = `You are a technical analyst. Analyze this trading chart image. Read the symbol, timeframe, and current price from the chart header/labels (e.g. MetaTrader, TradingView). Respond with ONLY a single JSON object, no markdown, no extra text.
+const CHART_ANALYSIS_PROMPT = `You are an institutional-grade technical analyst using advanced multi-indicator confluence. ONLY analyze if the image shows a real trading chart (candlestick, bar, or line chart from MetaTrader, TradingView, or similar). If the image is NOT a trading chart (e.g. photo, meme, random image), set "chartDetected":false and leave other fields minimal.
 
 Required format:
-{"symbol":"e.g. EURUSD, GBPUSD, XAUUSD","timeframe":"e.g. M1, M5, M15, H1, H4, D1, W1, MN","currentPrice":"last visible price on chart","signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on key patterns","reasoning":"Brief description of how you concluded: mention indicators, chart patterns, and what led to your signal","suggestion":"actionable trade advice","entryPrice":"price or empty","stopLoss":"price or empty","takeProfit1":"price or empty","takeProfit2":"price or empty","takeProfit3":"price or empty"}
+{"chartDetected":true|false,"symbol":"e.g. EURUSD, XAUUSD","timeframe":"e.g. M1, H1, D1","currentPrice":"last visible price","signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences","reasoning":"How you concluded","suggestion":"actionable advice","entryPrice":"","stopLoss":"","takeProfit1":"","takeProfit2":"","takeProfit3":""}
 
-Extract symbol and timeframe from the chart title/header. Extract currentPrice from the price scale or last candle. Use "" if not visible. Extract price levels from the chart scale. Add takeProfit2/3 only when multiple targets exist. If not a trading chart, return signal:NEUTRAL with empty price strings. Always explain your reasoning.`;
+When chartDetected is true: Apply a professional multi-indicator confluence strategy. Combine RSI (overbought/oversold), MACD (momentum), moving averages (trend), support/resistance levels, and volume/price action. Use institutional risk/reward assessment. Extract symbol, timeframe, currentPrice from chart header. Extract entry, SL, TP from price scale. Always explain your reasoning.
+
+When chartDetected is false: The image is not a trading chart. Set chartDetected:false, symbol:"", timeframe:"", currentPrice:"", signal:"NEUTRAL", and a brief summary explaining the image is not a valid chart.`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -139,7 +141,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Parse JSON from response (may be wrapped in markdown, have extra text)
-    let parsed: Record<string, string>;
+    let parsed: Record<string, string | boolean>;
     try {
       let cleaned = text
         .replace(/```json\s*/gi, '')
@@ -158,8 +160,11 @@ export async function POST(request: Request): Promise<Response> {
         const m = text.match(re);
         return m ? m[1].trim() : '';
       };
+      const chartDetMatch = text.match(/"chartDetected"\s*:\s*(true|false)/i)?.[1]?.toLowerCase();
+      const chartDet = chartDetMatch !== 'false'; // default true if not found (backward compat)
       const sig = text.match(/"signal"\s*:\s*"(BUY|SELL|NEUTRAL)"/i)?.[1]?.toUpperCase() || 'NEUTRAL';
       parsed = {
+        chartDetected: chartDet,
         symbol: extract('symbol') || '',
         timeframe: extract('timeframe') || '',
         currentPrice: extract('currentPrice') || '',
@@ -174,6 +179,17 @@ export async function POST(request: Request): Promise<Response> {
         takeProfit2: extract('takeProfit2') || '',
         takeProfit3: extract('takeProfit3') || '',
       };
+    }
+
+    const chartDetected = parsed.chartDetected !== false;
+    if (!chartDetected) {
+      return Response.json(
+        {
+          message: 'error',
+          error: 'Please upload a chart image. The image does not appear to be a trading chart (candlestick, bar, or line chart from a trading platform).',
+        },
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     return Response.json(

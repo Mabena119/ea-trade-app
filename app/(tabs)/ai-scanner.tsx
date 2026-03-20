@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus, Lock } from 'lucide-react-native';
+import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus, Lock, Trash2, History } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +22,16 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/providers/theme-provider';
 import { useApp } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
+
+const SCANNER_HISTORY_KEY = 'ai-scanner-history';
+const MAX_HISTORY = 5;
+
+export interface ScannerHistoryItem {
+  id: string;
+  timestamp: number;
+  imageUri: string;
+  result: ChartAnalysisResult;
+}
 
 export default function AIScannerScreen() {
   const { theme } = useTheme();
@@ -33,6 +43,54 @@ export default function AIScannerScreen() {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<ChartAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<ScannerHistoryItem[]>([]);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(SCANNER_HISTORY_KEY);
+      const items = raw ? (JSON.parse(raw) as ScannerHistoryItem[]) : [];
+      setHistory(Array.isArray(items) ? items.slice(0, MAX_HISTORY) : []);
+    } catch {
+      setHistory([]);
+    }
+  }, []);
+
+  const saveToHistory = useCallback(async (imageUri: string, result: ChartAnalysisResult) => {
+    const item: ScannerHistoryItem = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      timestamp: Date.now(),
+      imageUri,
+      result,
+    };
+    const raw = await AsyncStorage.getItem(SCANNER_HISTORY_KEY);
+    const current = raw ? (JSON.parse(raw) as ScannerHistoryItem[]) : [];
+    const next = [item, ...(Array.isArray(current) ? current : [])].slice(0, MAX_HISTORY);
+    setHistory(next);
+    await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
+  }, []);
+
+  const clearAllHistory = useCallback(async () => {
+    Alert.alert('Clear history', 'Remove all scan results from history?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear all',
+        style: 'destructive',
+        onPress: async () => {
+          setHistory([]);
+          await AsyncStorage.removeItem(SCANNER_HISTORY_KEY);
+        },
+      },
+    ]);
+  }, []);
+
+  const removeHistoryItem = useCallback(
+    async (id: string) => {
+      const next = history.filter((h) => h.id !== id);
+      setHistory(next);
+      await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
+    },
+    [history]
+  );
 
   const handleBack = () => router.back();
 
@@ -59,12 +117,14 @@ export default function AIScannerScreen() {
 
   useEffect(() => {
     checkScanner();
-  }, [checkScanner]);
+    loadHistory();
+  }, [checkScanner, loadHistory]);
 
   useFocusEffect(
     useCallback(() => {
       checkScanner();
-    }, [checkScanner])
+      loadHistory();
+    }, [checkScanner, loadHistory])
   );
 
   const handleUnlockPress = async () => {
@@ -174,6 +234,7 @@ export default function AIScannerScreen() {
       const response = await apiService.analyzeChart(imageBase64, mimeType);
       if (response.message === 'accept' && response.data) {
         setResult(response.data);
+        if (imageUri) await saveToHistory(imageUri, response.data);
       } else {
         setError(response.error || 'Analysis failed. Please try again.');
       }
@@ -261,7 +322,7 @@ export default function AIScannerScreen() {
                 Tap to upload chart
               </Text>
               <Text style={[styles.uploadHint, { color: theme.colors.textMuted }]}>
-                Screenshot from MetaTrader or any trading platform
+                Charts only — MetaTrader, TradingView, or similar
               </Text>
             </View>
           )}
@@ -382,6 +443,70 @@ export default function AIScannerScreen() {
             <Text style={[styles.suggestionText, { color: theme.colors.textPrimary }]}>
               {result.suggestion || 'Review the chart and trade levels above.'}
             </Text>
+          </View>
+        )}
+
+        {/* History */}
+        {history.length > 0 && (
+          <View style={[styles.historySection, { borderColor: theme.colors.borderColor }]}>
+            <View style={styles.historyHeader}>
+              <History color={theme.colors.textMuted} size={20} strokeWidth={2} />
+              <Text style={[styles.historyTitle, { color: theme.colors.textPrimary }]}>Scan history</Text>
+              <TouchableOpacity
+                style={[styles.clearAllButton, { backgroundColor: `${theme.colors.error}22` }]}
+                onPress={clearAllHistory}
+                activeOpacity={0.7}
+              >
+                <Trash2 color={theme.colors.error} size={16} strokeWidth={2} />
+                <Text style={[styles.clearAllText, { color: theme.colors.error }]}>Clear all</Text>
+              </TouchableOpacity>
+            </View>
+            {history.map((item, idx) => {
+              const itemSignalColor =
+                item.result.signal === 'BUY'
+                  ? theme.colors.success
+                  : item.result.signal === 'SELL'
+                    ? theme.colors.error
+                    : theme.colors.warning;
+              const ItemIcon =
+                item.result.signal === 'BUY' ? TrendingUp : item.result.signal === 'SELL' ? TrendingDown : Minus;
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.historyItem,
+                    { borderColor: theme.colors.borderColor },
+                    idx === history.length - 1 && { marginBottom: 0 },
+                  ]}
+                >
+                  <Image source={{ uri: item.imageUri }} style={styles.historyThumb} resizeMode="cover" />
+                  <View style={styles.historyItemContent}>
+                    <View style={styles.historyItemRow}>
+                      <Text style={[styles.historySymbol, { color: theme.colors.textPrimary }]}>
+                        {item.result.symbol || 'Chart'}
+                      </Text>
+                      <Text style={[styles.historyTimeframe, { color: theme.colors.textMuted }]}>
+                        {item.result.timeframe || ''}
+                      </Text>
+                    </View>
+                    <View style={styles.historyItemRow}>
+                      <ItemIcon color={itemSignalColor} size={18} strokeWidth={2.5} />
+                      <Text style={[styles.historySignal, { color: itemSignalColor }]}>{item.result.signal}</Text>
+                      <Text style={[styles.historyDate, { color: theme.colors.textMuted }]}>
+                        {new Date(item.timestamp).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.historyDeleteBtn, { backgroundColor: `${theme.colors.error}22` }]}
+                    onPress={() => removeHistoryItem(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Trash2 color={theme.colors.error} size={18} strokeWidth={2} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -683,6 +808,80 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     fontFamily: 'monospace',
+  },
+  historySection: {
+    marginTop: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  clearAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  clearAllText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  historyThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  historyItemContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  historyItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  historySymbol: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  historyTimeframe: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  historySignal: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  historyDate: {
+    fontSize: 11,
+    marginLeft: 'auto',
+  },
+  historyDeleteBtn: {
+    padding: 10,
+    borderRadius: 12,
   },
   disclaimer: {
     fontSize: 11,
