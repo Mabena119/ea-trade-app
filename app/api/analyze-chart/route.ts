@@ -8,14 +8,20 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
-const CHART_ANALYSIS_PROMPT = `You are an institutional-grade technical analyst using advanced multi-indicator confluence. ONLY analyze if the image shows a real trading chart (candlestick, bar, or line chart from MetaTrader, TradingView, or similar). If the image is NOT a trading chart (e.g. photo, meme, random image), set "chartDetected":false and leave other fields minimal.
+const CHART_ANALYSIS_PROMPT = `You are an institutional-grade technical analyst. ONLY analyze if the image shows a real trading chart (candlestick, bar, or line chart from MetaTrader, TradingView, or similar). If NOT a trading chart, set "chartDetected":false.
 
 Required format:
-{"chartDetected":true|false,"symbol":"e.g. EURUSD, XAUUSD","timeframe":"e.g. M1, H1, D1","currentPrice":"last visible price","signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences","reasoning":"How you concluded","suggestion":"actionable advice","entryPrice":"","stopLoss":"","takeProfit1":"","takeProfit2":"","takeProfit3":""}
+{"chartDetected":true|false,"symbol":"e.g. EURUSD, XAUUSD","timeframe":"e.g. M1, H1, D1","currentPrice":"last visible price","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on key patterns","reasoning":"2-4 sentences: describe RSI, MACD, moving averages, support/resistance, trend. Explain what led to your signal.","suggestion":"Specific actionable advice (e.g. Enter at X, SL at Y, TP at Z)","entryPrice":"","stopLoss":"","takeProfit1":"","takeProfit2":"","takeProfit3":""}
 
-When chartDetected is true: Apply a professional multi-indicator confluence strategy. Combine RSI (overbought/oversold), MACD (momentum), moving averages (trend), support/resistance levels, and volume/price action. Use institutional risk/reward assessment. Extract symbol, timeframe, currentPrice from chart header. Extract entry, SL, TP from price scale. Always explain your reasoning.
+CRITICAL RULES when chartDetected is true:
+1. signal MUST be "BUY" or "SELL" only. Never "NEUTRAL". Pick the direction with more technical evidence.
+2. entryPrice, stopLoss, takeProfit1 MUST be filled with actual numbers from the chart. Use current price or last candle close for entry. Use support/resistance for SL and TP. Never leave empty.
+3. reasoning MUST be 2-4 substantive sentences. Mention specific indicators and levels.
+4. suggestion MUST be specific actionable advice with price levels.
 
-When chartDetected is false: The image is not a trading chart. Set chartDetected:false, symbol:"", timeframe:"", currentPrice:"", signal:"NEUTRAL", and a brief summary explaining the image is not a valid chart.`;
+Apply multi-indicator confluence: RSI, MACD, MAs, S/R, trend. Extract symbol, timeframe, currentPrice from chart header. Extract entry, SL, TP from price scale.
+
+When chartDetected is false: Set chartDetected:false, symbol:"", timeframe:"", currentPrice:"", signal:"SELL", and brief summary.`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -67,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
         },
       ],
       generationConfig: {
-        temperature: 0.3,
+        temperature: 0.2,
         maxOutputTokens: 1024,
         responseMimeType: 'application/json',
       },
@@ -192,21 +198,33 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    // Force BUY or SELL only - convert NEUTRAL based on reasoning/summary
+    let signal = (parsed.signal || 'BUY').toUpperCase();
+    if (signal === 'NEUTRAL') {
+      const text = `${parsed.reasoning || ''} ${parsed.summary || ''}`.toLowerCase();
+      signal = text.includes('bearish') || text.includes('sell') || text.includes('down') || text.includes('short') ? 'SELL' : 'BUY';
+    }
+
+    const currentPrice = parsed.currentPrice || '';
+    const entryPrice = parsed.entryPrice || currentPrice;
+    const stopLoss = parsed.stopLoss || '';
+    const takeProfit1 = parsed.takeProfit1 || '';
+
     return Response.json(
       {
         message: 'accept',
         data: {
           symbol: parsed.symbol || '',
           timeframe: parsed.timeframe || '',
-          currentPrice: parsed.currentPrice || '',
-          signal: parsed.signal || 'NEUTRAL',
+          currentPrice,
+          signal: signal as 'BUY' | 'SELL',
           confidence: parsed.confidence || 'low',
           summary: parsed.summary || '',
           reasoning: parsed.reasoning || '',
           suggestion: parsed.suggestion || '',
-          entryPrice: parsed.entryPrice || '',
-          stopLoss: parsed.stopLoss || '',
-          takeProfit1: parsed.takeProfit1 || '',
+          entryPrice,
+          stopLoss,
+          takeProfit1,
           takeProfit2: parsed.takeProfit2 || '',
           takeProfit3: parsed.takeProfit3 || '',
         },

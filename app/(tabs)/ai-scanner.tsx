@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,11 @@ export default function AIScannerScreen() {
   const [result, setResult] = useState<ChartAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<ScannerHistoryItem[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const scrollToHistory = useCallback(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -258,7 +263,7 @@ export default function AIScannerScreen() {
       ? theme.colors.success
       : result?.signal === 'SELL'
         ? theme.colors.error
-        : theme.colors.warning;
+        : theme.colors.textMuted;
 
   const isLocked = scannerUnlocked === false;
 
@@ -278,6 +283,16 @@ export default function AIScannerScreen() {
             Upload a chart for AI analysis
           </Text>
         </View>
+        {history.length > 0 && (
+          <TouchableOpacity
+            style={[styles.historyHeaderBtn, { backgroundColor: `${theme.colors.accent}33`, borderColor: theme.colors.accent }]}
+            onPress={scrollToHistory}
+            activeOpacity={0.7}
+          >
+            <History color={theme.colors.accent} size={20} strokeWidth={2} />
+            <Text style={[styles.historyHeaderBtnText, { color: theme.colors.accent }]}>History</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.contentWrapper}>
@@ -291,6 +306,7 @@ export default function AIScannerScreen() {
           />
         )}
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -400,7 +416,9 @@ export default function AIScannerScreen() {
               <SignalIcon color={signalColor} size={32} strokeWidth={2.5} />
               <View>
                 <Text style={[styles.signalLabel, { color: theme.colors.textMuted }]}>RECOMMENDATION</Text>
-                <Text style={[styles.signalValue, { color: signalColor }]}>{result.signal}</Text>
+                <Text style={[styles.signalValue, { color: signalColor }]}>
+                  {result.signal === 'NEUTRAL' ? '—' : result.signal}
+                </Text>
               </View>
               <View style={[styles.confidenceBadge, { backgroundColor: `${signalColor}33` }]}>
                 <Text style={[styles.confidenceText, { color: signalColor }]}>
@@ -467,7 +485,7 @@ export default function AIScannerScreen() {
                   ? theme.colors.success
                   : item.result.signal === 'SELL'
                     ? theme.colors.error
-                    : theme.colors.warning;
+                    : theme.colors.textMuted;
               const ItemIcon =
                 item.result.signal === 'BUY' ? TrendingUp : item.result.signal === 'SELL' ? TrendingDown : Minus;
               return (
@@ -491,7 +509,9 @@ export default function AIScannerScreen() {
                     </View>
                     <View style={styles.historyItemRow}>
                       <ItemIcon color={itemSignalColor} size={18} strokeWidth={2.5} />
-                      <Text style={[styles.historySignal, { color: itemSignalColor }]}>{item.result.signal}</Text>
+                      <Text style={[styles.historySignal, { color: itemSignalColor }]}>
+                        {item.result.signal === 'NEUTRAL' ? '—' : item.result.signal}
+                      </Text>
                       <Text style={[styles.historyDate, { color: theme.colors.textMuted }]}>
                         {new Date(item.timestamp).toLocaleDateString()}
                       </Text>
@@ -558,6 +578,19 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
+  },
+  historyHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 6,
+  },
+  historyHeaderBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   headerTitle: {
     fontSize: 18,
