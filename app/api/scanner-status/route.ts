@@ -17,13 +17,27 @@ export async function GET(request: Request): Promise<Response> {
     }
     const pool = await getPool();
     conn = await pool.getConnection();
-    const [rows] = await conn.execute(
-      'SELECT scanner, IFNULL(scanner_uploads_used, 0) AS uploads_used FROM members WHERE email = ? LIMIT 1',
-      [email]
-    );
-    const row = Array.isArray(rows) && rows.length > 0 ? (rows[0] as { scanner?: number; uploads_used?: number }) : null;
-    const scanner = row ? Boolean(Number(row.scanner ?? 0)) : false;
-    const uploadsUsed = row ? Math.min(Number(row.uploads_used ?? 0), MAX_UPLOADS) : 0;
+    let scanner = false;
+    let uploadsUsed = 0;
+    try {
+      const [rows] = await conn.execute(
+        'SELECT scanner, IFNULL(scanner_uploads_used, 0) AS uploads_used FROM members WHERE email = ? LIMIT 1',
+        [email]
+      );
+      const row = Array.isArray(rows) && rows.length > 0 ? (rows[0] as { scanner?: number; uploads_used?: number }) : null;
+      scanner = row ? Boolean(Number(row.scanner ?? 0)) : false;
+      uploadsUsed = row ? Math.min(Number(row.uploads_used ?? 0), MAX_UPLOADS) : 0;
+    } catch (colErr) {
+      const errMsg = String(colErr);
+      if (errMsg.includes('scanner_uploads_used') || errMsg.includes('Unknown column')) {
+        const [rows] = await conn.execute('SELECT scanner FROM members WHERE email = ? LIMIT 1', [email]);
+        const row = Array.isArray(rows) && rows.length > 0 ? (rows[0] as { scanner?: number }) : null;
+        scanner = row ? Boolean(Number(row.scanner ?? 0)) : false;
+        uploadsUsed = 0;
+      } else {
+        throw colErr;
+      }
+    }
     const remaining = scanner ? Math.max(0, MAX_UPLOADS - uploadsUsed) : 0;
     return Response.json({ scanner, uploadsUsed, remaining }, { status: 200 });
   } catch (error) {

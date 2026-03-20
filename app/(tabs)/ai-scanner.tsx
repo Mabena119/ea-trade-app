@@ -129,7 +129,7 @@ export default function AIScannerScreen() {
     }
     const { scanner, remaining } = await apiService.getScannerStatus(email);
     setRemainingScans(remaining);
-    setScannerUnlocked(scanner && remaining > 0);
+    setScannerUnlocked(scanner);
   }, [user?.email]);
 
   useEffect(() => {
