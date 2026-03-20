@@ -222,7 +222,7 @@ export default function AIScannerScreen() {
       <View style={styles.contentWrapper}>
         {isLocked && (
           <BlurView
-            intensity={35}
+            intensity={70}
             tint={theme.isDark ? 'dark' : 'light'}
             style={StyleSheet.absoluteFill}
           />
