@@ -10,10 +10,9 @@ import {
   loadSubscriptions,
   setOnSubscriptionRemoved,
   getVapidPublicKey,
-  getSubscriptions,
   isPushConfigured,
-  sendSignalPush,
 } from './services/push-service';
+import { startWebPushSignalsPolling, pollWebPushSignalsNow } from './services/web-push-signals-polling';
 // Declare Bun global for TypeScript linting in non-Bun tooling contexts
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 declare const Bun: any;
@@ -1846,6 +1845,8 @@ async function handleApi(request: Request): Promise<Response> {
           } catch (dbErr) {
             console.warn('[Push] Failed to persist subscription:', dbErr);
           }
+          // Immediate poll so new subscriber gets any recent signals right away
+          pollWebPushSignalsNow(getPool).catch(() => {});
           return new Response(JSON.stringify({ ok: true }), {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
           });
@@ -1889,46 +1890,6 @@ async function handleApi(request: Request): Promise<Response> {
     console.error('API handler error:', error);
     return new Response('Internal Server Error', { status: 500 });
   }
-}
-
-// Background job: poll for new signals and send Web Push to iOS PWA subscribers
-const pushLastCheck = new Map<string, string>();
-function startPushBackgroundJob() {
-  if (!isPushConfigured()) return;
-  setInterval(async () => {
-    const subs = getSubscriptions();
-    const eaIds = [...new Set(subs.map((s: any) => s.eaId))];
-    if (eaIds.length === 0) return;
-
-    const pool = getPool();
-    for (const eaId of eaIds) {
-      const since = pushLastCheck.get(eaId) || new Date(Date.now() - 60000).toISOString().slice(0, 19).replace('T', ' ');
-      try {
-        const [rows] = await pool.execute(
-          'SELECT id, ea, asset, latestupdate, action, price, tp, sl, time FROM `signals` WHERE ea = ? AND latestupdate > ? ORDER BY latestupdate DESC LIMIT 20',
-          [eaId, since]
-        );
-        const signals = rows as any[];
-        for (const s of signals) {
-          await sendSignalPush({
-            id: s.id,
-            ea: s.ea,
-            asset: s.asset,
-            action: s.action,
-            sl: s.sl,
-            tp: s.tp,
-            time: s.time || s.latestupdate,
-          });
-        }
-        if (signals.length > 0) {
-          const latest = signals[0]?.latestupdate;
-          if (latest) pushLastCheck.set(eaId, latest.slice(0, 19).replace('T', ' '));
-        }
-      } catch (e) {
-        console.warn('[Push] Background check failed for EA', eaId, e);
-      }
-    }
-  }, 5000);
 }
 
 const server = Bun.serve({
@@ -2180,7 +2141,7 @@ async function initPushSubscriptions() {
 }
 
 initPushSubscriptions().then(() => {
-  startPushBackgroundJob();
+  startWebPushSignalsPolling(getPool);
   if (isPushConfigured()) {
     console.log('✅ Web Push enabled for iOS PWA background notifications');
   }
