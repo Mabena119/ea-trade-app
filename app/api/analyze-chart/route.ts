@@ -8,20 +8,18 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
-const CHART_ANALYSIS_PROMPT = `You are an institutional-grade technical analyst. ONLY analyze if the image shows a real trading chart (candlestick, bar, or line chart from MetaTrader, TradingView, or similar). If NOT a trading chart, set "chartDetected":false.
+const CHART_ANALYSIS_PROMPT = `You are an institutional technical analyst. Analyze ONLY real trading charts (candlestick/bar/line from MetaTrader, TradingView). If NOT a chart, set "chartDetected":false.
 
-Required format:
-{"chartDetected":true|false,"symbol":"e.g. EURUSD, XAUUSD","timeframe":"e.g. M1, H1, D1","currentPrice":"last visible price","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on key patterns","reasoning":"2-4 sentences: describe RSI, MACD, moving averages, support/resistance, trend. Explain what led to your signal.","suggestion":"Specific actionable advice (e.g. Enter at X, SL at Y, TP at Z)","entryPrice":"","stopLoss":"","takeProfit1":"","takeProfit2":"","takeProfit3":""}
+STEP 1 - Read from the chart image: Look at the price scale (Y-axis) and the chart header. Extract: symbol (e.g. EURUSD), timeframe (e.g. H1, D1), currentPrice (last candle close or visible price). These MUST come from the image.
 
-CRITICAL RULES when chartDetected is true:
-1. signal MUST be "BUY" or "SELL" only. Never "NEUTRAL". Pick the direction with more technical evidence.
-2. entryPrice, stopLoss, takeProfit1 MUST be filled with actual numbers from the chart. Use current price or last candle close for entry. Use support/resistance for SL and TP. Never leave empty.
-3. reasoning MUST be 2-4 substantive sentences. Mention specific indicators and levels.
-4. suggestion MUST be specific actionable advice with price levels.
+STEP 2 - Identify levels: From the price scale, identify: entry (current or last close), stopLoss (nearest support for BUY or resistance for SELL), takeProfit1 (first target). Write exact numbers like "1.0850" or "2650.50".
 
-Apply multi-indicator confluence: RSI, MACD, MAs, S/R, trend. Extract symbol, timeframe, currentPrice from chart header. Extract entry, SL, TP from price scale.
+STEP 3 - Analysis: Write 2-4 sentences on RSI, MACD, moving averages, support/resistance, trend. Explain why BUY or SELL.
 
-When chartDetected is false: Set chartDetected:false, symbol:"", timeframe:"", currentPrice:"", signal:"SELL", and brief summary.`;
+STEP 4 - Output this exact JSON (all fields required, no empty strings for prices):
+{"chartDetected":true,"symbol":"X","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"1-2 sentences","reasoning":"2-4 sentences with indicators and levels","suggestion":"Enter at X, SL at Y, TP at Z","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}
+
+RULES: signal is BUY or SELL only. entryPrice, stopLoss, takeProfit1 MUST be numbers from the chart scale. reasoning and suggestion MUST NOT be empty. If chartDetected is false, use minimal fields.`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -74,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
       ],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 1536,
         responseMimeType: 'application/json',
       },
     };
@@ -162,9 +160,11 @@ export async function POST(request: Request): Promise<Response> {
       console.warn('Raw response (first 500 chars):', text.slice(0, 500));
       // Fallback: extract fields via regex when JSON is malformed
       const extract = (key: string): string => {
-        const re = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'i');
-        const m = text.match(re);
-        return m ? m[1].trim() : '';
+        const quoted = text.match(new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'i'));
+        if (quoted?.[1]) return quoted[1].trim();
+        const unquoted = text.match(new RegExp(`"${key}"\\s*:\\s*([^,}\\s"\\[\\]]+)`, 'i'));
+        if (unquoted?.[1]) return String(unquoted[1].trim());
+        return '';
       };
       const chartDetMatch = text.match(/"chartDetected"\s*:\s*(true|false)/i)?.[1]?.toLowerCase();
       const chartDet = chartDetMatch !== 'false'; // default true if not found (backward compat)
@@ -205,10 +205,21 @@ export async function POST(request: Request): Promise<Response> {
       signal = text.includes('bearish') || text.includes('sell') || text.includes('down') || text.includes('short') ? 'SELL' : 'BUY';
     }
 
-    const currentPrice = parsed.currentPrice || '';
-    const entryPrice = parsed.entryPrice || currentPrice;
-    const stopLoss = parsed.stopLoss || '';
-    const takeProfit1 = parsed.takeProfit1 || '';
+    let currentPrice = parsed.currentPrice || '';
+    let entryPrice = parsed.entryPrice || currentPrice;
+    let stopLoss = parsed.stopLoss || '';
+    let takeProfit1 = parsed.takeProfit1 || '';
+    const suggestion = parsed.suggestion || '';
+
+    // Fallback: extract prices from suggestion text (e.g. "Enter at 1.0850, SL at 1.0800, TP at 1.0920")
+    if ((!entryPrice || !stopLoss || !takeProfit1) && suggestion) {
+      const enterMatch = suggestion.match(/(?:enter|entry)\s*(?:at|:)?\s*([\d.,]+)/i) || suggestion.match(/([\d.,]+)\s*(?:for\s+)?(?:entry|enter)/i);
+      const slMatch = suggestion.match(/(?:sl|stop\s*loss)\s*(?:at|:)?\s*([\d.,]+)/i) || suggestion.match(/([\d.,]+)\s*(?:for\s+)?(?:sl|stop)/i);
+      const tpMatch = suggestion.match(/(?:tp|take\s*profit)\s*(?:at|:)?\s*([\d.,]+)/i) || suggestion.match(/([\d.,]+)\s*(?:for\s+)?(?:tp|target)/i);
+      if (!entryPrice && enterMatch?.[1]) entryPrice = enterMatch[1].trim();
+      if (!stopLoss && slMatch?.[1]) stopLoss = slMatch[1].trim();
+      if (!takeProfit1 && tpMatch?.[1]) takeProfit1 = tpMatch[1].trim();
+    }
 
     return Response.json(
       {
@@ -220,8 +231,8 @@ export async function POST(request: Request): Promise<Response> {
           signal: signal as 'BUY' | 'SELL',
           confidence: parsed.confidence || 'low',
           summary: parsed.summary || '',
-          reasoning: parsed.reasoning || '',
-          suggestion: parsed.suggestion || '',
+          reasoning: parsed.reasoning || parsed.summary || 'Technical analysis based on chart patterns and indicators.',
+          suggestion: suggestion || 'Review entry, stop loss, and take profit levels above.',
           entryPrice,
           stopLoss,
           takeProfit1,

@@ -74,18 +74,27 @@ export default function AIScannerScreen() {
     await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
   }, []);
 
-  const clearAllHistory = useCallback(async () => {
+  const clearAllHistory = useCallback(() => {
     Alert.alert('Clear history', 'Remove all scan results from history?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear all',
         style: 'destructive',
-        onPress: async () => {
-          setHistory([]);
-          await AsyncStorage.removeItem(SCANNER_HISTORY_KEY);
+        onPress: () => {
+          AsyncStorage.removeItem(SCANNER_HISTORY_KEY).then(() => {
+            setHistory([]);
+          }).catch(() => setHistory([]));
         },
       },
     ]);
+  }, []);
+
+  const loadHistoryItem = useCallback((item: ScannerHistoryItem) => {
+    setImageUri(item.imageUri);
+    setResult(item.result);
+    setError(null);
+    setImageBase64(null);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
 
   const removeHistoryItem = useCallback(
@@ -497,26 +506,32 @@ export default function AIScannerScreen() {
                     idx === history.length - 1 && { marginBottom: 0 },
                   ]}
                 >
-                  <Image source={{ uri: item.imageUri }} style={styles.historyThumb} resizeMode="cover" />
-                  <View style={styles.historyItemContent}>
-                    <View style={styles.historyItemRow}>
-                      <Text style={[styles.historySymbol, { color: theme.colors.textPrimary }]}>
-                        {item.result.symbol || 'Chart'}
-                      </Text>
-                      <Text style={[styles.historyTimeframe, { color: theme.colors.textMuted }]}>
-                        {item.result.timeframe || ''}
-                      </Text>
+                  <TouchableOpacity
+                    style={styles.historyItemTouchable}
+                    onPress={() => loadHistoryItem(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Image source={{ uri: item.imageUri }} style={styles.historyThumb} resizeMode="cover" />
+                    <View style={styles.historyItemContent}>
+                      <View style={styles.historyItemRow}>
+                        <Text style={[styles.historySymbol, { color: theme.colors.textPrimary }]}>
+                          {item.result.symbol || 'Chart'}
+                        </Text>
+                        <Text style={[styles.historyTimeframe, { color: theme.colors.textMuted }]}>
+                          {item.result.timeframe || ''}
+                        </Text>
+                      </View>
+                      <View style={styles.historyItemRow}>
+                        <ItemIcon color={itemSignalColor} size={18} strokeWidth={2.5} />
+                        <Text style={[styles.historySignal, { color: itemSignalColor }]}>
+                          {item.result.signal === 'NEUTRAL' ? '—' : item.result.signal}
+                        </Text>
+                        <Text style={[styles.historyDate, { color: theme.colors.textMuted }]}>
+                          {new Date(item.timestamp).toLocaleDateString()}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.historyItemRow}>
-                      <ItemIcon color={itemSignalColor} size={18} strokeWidth={2.5} />
-                      <Text style={[styles.historySignal, { color: itemSignalColor }]}>
-                        {item.result.signal === 'NEUTRAL' ? '—' : item.result.signal}
-                      </Text>
-                      <Text style={[styles.historyDate, { color: theme.colors.textMuted }]}>
-                        {new Date(item.timestamp).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  </View>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.historyDeleteBtn, { backgroundColor: `${theme.colors.error}22` }]}
                     onPress={() => removeHistoryItem(item.id)}
@@ -875,10 +890,16 @@ const styles = StyleSheet.create({
   historyItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
     borderRadius: 16,
     borderWidth: 1,
     marginBottom: 8,
+    overflow: 'hidden',
+  },
+  historyItemTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
   },
   historyThumb: {
     width: 56,
