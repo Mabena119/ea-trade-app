@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,15 +13,20 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus } from 'lucide-react-native';
+import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus, Lock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/providers/theme-provider';
+import { useApp } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
 
 export default function AIScannerScreen() {
   const { theme } = useTheme();
+  const { user } = useApp();
+  const [scannerUnlocked, setScannerUnlocked] = useState<boolean | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('image/jpeg');
@@ -30,6 +35,56 @@ export default function AIScannerScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const handleBack = () => router.back();
+
+  const checkScanner = useCallback(async () => {
+    let email = user?.email;
+    if (!email) {
+      try {
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) {
+          const parsed = JSON.parse(stored) as { email?: string };
+          email = parsed?.email;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (!email) {
+      setScannerUnlocked(false);
+      return;
+    }
+    const { scanner } = await apiService.getScannerStatus(email);
+    setScannerUnlocked(scanner);
+  }, [user?.email]);
+
+  useEffect(() => {
+    checkScanner();
+  }, [checkScanner]);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkScanner();
+    }, [checkScanner])
+  );
+
+  const handleUnlockPress = async () => {
+    let email = user?.email;
+    if (!email) {
+      try {
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) {
+          const parsed = JSON.parse(stored) as { email?: string };
+          email = parsed?.email;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    router.push({
+      pathname: '/ai-payment',
+      params: email ? { email } : {},
+    });
+  };
 
   // Resize and compress to keep payload small (avoids Render 502 with large requests)
   const compressForAnalysis = async (
@@ -144,6 +199,8 @@ export default function AIScannerScreen() {
         ? theme.colors.error
         : theme.colors.warning;
 
+  const isLocked = scannerUnlocked === false;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
@@ -162,7 +219,20 @@ export default function AIScannerScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <View style={styles.contentWrapper}>
+        {isLocked && (
+          <BlurView
+            intensity={80}
+            tint={theme.isDark ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          pointerEvents={isLocked ? 'none' : 'auto'}
+        >
         {/* Upload area */}
         <TouchableOpacity
           style={[styles.uploadCard, { borderColor: theme.colors.borderColor }]}
@@ -309,6 +379,22 @@ export default function AIScannerScreen() {
           AI analysis is for educational purposes only. Not financial advice. Always do your own research.
         </Text>
       </ScrollView>
+
+        {/* Lock overlay - when scanner not unlocked */}
+        {isLocked && (
+          <View style={styles.lockOverlay} pointerEvents="box-none">
+            <TouchableOpacity
+              style={[styles.unlockButton, { backgroundColor: theme.colors.accent }]}
+              onPress={handleUnlockPress}
+              activeOpacity={0.8}
+            >
+              <Lock color="#FFFFFF" size={28} strokeWidth={2.5} />
+              <Text style={styles.unlockButtonText}>UNLOCK AI SCANNER</Text>
+              <Text style={styles.unlockButtonSubtext}>Tap to unlock</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -345,6 +431,39 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     marginTop: 2,
+  },
+  contentWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unlockButton: {
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+    alignItems: 'center',
+    minWidth: 260,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  unlockButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginTop: 12,
+  },
+  unlockButtonSubtext: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    marginTop: 6,
   },
   scroll: {
     flex: 1,

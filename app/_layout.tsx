@@ -343,6 +343,7 @@ function RootLayoutNav() {
         <Stack.Screen name="login" />
         <Stack.Screen name="license" />
         <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
+        <Stack.Screen name="ai-payment" options={{ presentation: "modal" }} />
       </Stack>
 
       {/* MT5 Signal WebView - Opens automatically when signal is received */}

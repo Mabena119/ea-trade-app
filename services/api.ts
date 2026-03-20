@@ -211,6 +211,20 @@ class ApiService {
     }
   }
 
+  async getScannerStatus(email: string): Promise<{ scanner: boolean }> {
+    if (!email) return { scanner: false };
+    try {
+      const res = await fetch(
+        `${BASE_URL}/api/scanner-status?email=${encodeURIComponent(email)}`,
+        { method: 'GET' }
+      );
+      const data = (await res.json()) as { scanner?: boolean };
+      return { scanner: Boolean(data.scanner) };
+    } catch {
+      return { scanner: false };
+    }
+  }
+
   async analyzeChart(imageBase64: string, mimeType = 'image/jpeg'): Promise<ChartAnalysisResponse> {
     if (!imageBase64) return { message: 'error', error: 'No image provided' };
     const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/analyze-chart`;

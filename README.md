@@ -27,6 +27,16 @@ The AI Scanner tab lets users upload a trading chart photo for AI analysis (BUY 
 2. **Local:** Add to `.env` (see `.env.example`) — Bun loads it automatically
 3. **Render (production):** Add `GOOGLE_AI_API_KEY` in the Render dashboard → Environment → redeploy
 
+### AI Scanner Unlock (members.scanner)
+
+The AI Scanner can be gated by a `scanner` column on the `members` table. Run:
+```sql
+ALTER TABLE members ADD COLUMN scanner TINYINT(1) DEFAULT 0;
+```
+See `scripts/add-scanner-column.sql`. When `scanner` is 0/false, users see a blurred screen with "UNLOCK AI SCANNER" that opens an in-app payment page (Paystack).
+
+**Webhook:** Your existing webhook handles DB updates. The app only shows the payment page and re-checks scanner status when the user returns.
+
 ### Quick Configuration
 
 Configure database connection pooling and caching via environment variables:

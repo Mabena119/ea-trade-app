@@ -232,6 +232,14 @@ async function handleApi(request: Request): Promise<Response> {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
+    if (pathname === '/api/scanner-status') {
+      const route = await import('./app/api/scanner-status/route.ts');
+      if (request.method === 'GET' && typeof route.GET === 'function') {
+        return route.GET(request) as Promise<Response>;
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
     // Add terminal-proxy routing
     if (pathname === '/api/terminal-proxy') {
       const route = await import('./app/api/terminal-proxy.ts');
