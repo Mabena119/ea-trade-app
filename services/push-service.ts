@@ -15,7 +15,7 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   );
 }
 
-interface PushSubscription {
+export interface PushSubscription {
   endpoint: string;
   keys: { p256dh: string; auth: string };
   licenseKey: string;
@@ -24,12 +24,26 @@ interface PushSubscription {
 
 const subscriptions = new Map<string, PushSubscription>();
 
+/** Called when a subscription is removed (e.g. 410/404) - for DB cleanup */
+let onSubscriptionRemoved: ((endpoint: string) => void) | null = null;
+export function setOnSubscriptionRemoved(cb: (endpoint: string) => void) {
+  onSubscriptionRemoved = cb;
+}
+
 export function addSubscription(sub: PushSubscription) {
   subscriptions.set(sub.endpoint, sub);
 }
 
+export function loadSubscriptions(subs: PushSubscription[]) {
+  subscriptions.clear();
+  for (const sub of subs) {
+    if (sub?.endpoint && sub?.keys) subscriptions.set(sub.endpoint, sub);
+  }
+}
+
 export function removeSubscription(endpoint: string) {
   subscriptions.delete(endpoint);
+  onSubscriptionRemoved?.(endpoint);
 }
 
 export function getSubscriptions(): PushSubscription[] {
@@ -102,7 +116,7 @@ export async function sendSignalPush(signal: {
         );
       } catch (err: any) {
         if (err?.statusCode === 410 || err?.statusCode === 404) {
-          subscriptions.delete(sub.endpoint);
+          removeSubscription(sub.endpoint);
         }
         throw err;
       }

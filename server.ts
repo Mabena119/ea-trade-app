@@ -7,6 +7,8 @@ import { createPool } from 'mysql2/promise';
 import {
   addSubscription,
   removeSubscription,
+  loadSubscriptions,
+  setOnSubscriptionRemoved,
   getVapidPublicKey,
   getSubscriptions,
   isPushConfigured,
@@ -1827,12 +1829,23 @@ async function handleApi(request: Request): Promise<Response> {
               headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
             });
           }
-          addSubscription({
+          const sub = {
             endpoint: body.subscription.endpoint,
             keys: body.subscription.keys,
             licenseKey: body.licenseKey,
             eaId: String(body.eaId),
-          });
+          };
+          addSubscription(sub);
+          // Persist to DB so subscriptions survive server restarts (critical for Render cold starts)
+          try {
+            const p = getPool();
+            await p.execute(
+              'INSERT INTO push_subscriptions (endpoint, p256dh, auth, license_key, ea_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE p256dh=VALUES(p256dh), auth=VALUES(auth), license_key=VALUES(license_key), ea_id=VALUES(ea_id)',
+              [sub.endpoint, sub.keys.p256dh, sub.keys.auth, sub.licenseKey, sub.eaId]
+            );
+          } catch (dbErr) {
+            console.warn('[Push] Failed to persist subscription:', dbErr);
+          }
           return new Response(JSON.stringify({ ok: true }), {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
           });
@@ -1853,6 +1866,11 @@ async function handleApi(request: Request): Promise<Response> {
           const body = await request.json() as { endpoint?: string };
           if (body?.endpoint) {
             removeSubscription(body.endpoint);
+            try {
+              await getPool().execute('DELETE FROM push_subscriptions WHERE endpoint = ?', [body.endpoint]);
+            } catch (dbErr) {
+              console.warn('[Push] Failed to delete subscription from DB:', dbErr);
+            }
           }
           return new Response(JSON.stringify({ ok: true }), {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -2116,10 +2134,50 @@ const server = Bun.serve({
   },
 });
 
-startPushBackgroundJob();
-if (isPushConfigured()) {
-  console.log('✅ Web Push enabled for iOS PWA background notifications');
+// Initialize push: create table, load subscriptions from DB, set cleanup callback
+async function initPushSubscriptions() {
+  if (!isPushConfigured()) return;
+  try {
+    const p = getPool();
+    await p.execute(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        endpoint VARCHAR(512) PRIMARY KEY,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        license_key VARCHAR(255) NOT NULL,
+        ea_id VARCHAR(64) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const [rows] = await p.execute(
+      'SELECT endpoint, p256dh, auth, license_key, ea_id FROM push_subscriptions'
+    ) as [any[], any];
+    const subs = (rows || []).map((r: any) => ({
+      endpoint: r.endpoint,
+      keys: { p256dh: r.p256dh, auth: r.auth },
+      licenseKey: r.license_key,
+      eaId: String(r.ea_id),
+    }));
+    loadSubscriptions(subs);
+    console.log(`[Push] Loaded ${subs.length} subscriptions from DB`);
+    setOnSubscriptionRemoved(async (endpoint) => {
+      try {
+        await getPool().execute('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
+      } catch (e) {
+        console.warn('[Push] Failed to delete expired subscription from DB:', e);
+      }
+    });
+  } catch (e) {
+    console.warn('[Push] Init failed (DB may not have push_subscriptions):', e);
+  }
 }
+
+initPushSubscriptions().then(() => {
+  startPushBackgroundJob();
+  if (isPushConfigured()) {
+    console.log('✅ Web Push enabled for iOS PWA background notifications');
+  }
+});
 
 console.log(`Server running on http://localhost:${server.port}`);
 

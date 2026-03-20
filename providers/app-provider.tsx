@@ -1651,6 +1651,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             console.log('Page visible - triggering immediate poll to catch missed signals');
             dbService.pollNow();
           }
+          // Re-subscribe to Web Push when PWA comes to foreground - ensures server has our
+          // subscription after cold start (Render free tier) so background signals are delivered
+          if (isBotActive && isIOSPWA()) {
+            try {
+              const { subscribeToPush } = await import('@/services/pwa-push-service');
+              await subscribeToPush(primaryEA.licenseKey);
+            } catch (e) {
+              console.warn('[PWA Push] Re-subscribe on visibility:', e);
+            }
+          }
         }
       }
     };
