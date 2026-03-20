@@ -221,21 +221,13 @@ export default function AIScannerScreen() {
 
       <View style={styles.contentWrapper}>
         {isLocked && (
-          Platform.OS === 'web' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                styles.blurOverlayWeb,
-                { backgroundColor: theme.isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)' },
-              ]}
-            />
-          ) : (
-            <BlurView
-              intensity={90}
-              tint={theme.isDark ? 'dark' : 'light'}
-              style={StyleSheet.absoluteFill}
-            />
-          )
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              styles.lockOverlayBg,
+              { backgroundColor: theme.colors.background },
+            ]}
+          />
         )}
         <ScrollView
           style={styles.scroll}
@@ -446,14 +438,14 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  blurOverlayWeb: {
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-  } as any,
+  lockOverlayBg: {
+    zIndex: 10,
+  },
   lockOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 11,
   },
   unlockButton: {
     paddingVertical: 24,
