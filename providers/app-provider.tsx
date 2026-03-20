@@ -90,6 +90,17 @@ function getSignalsMonitor(): Promise<any> {
   return signalsMonitorPromise;
 }
 
+async function notifySignalReceived(signal: { asset: string; action: string; price: string | number; tp: string | number; sl: string | number; time?: string; id?: string | number }) {
+  if (Platform.OS === 'web' && isIOSPWA()) {
+    try {
+      const { pwaNotificationService } = await import('@/services/pwa-notification-service');
+      await pwaNotificationService.showSignalNotification(signal);
+    } catch (e) {
+      console.log('[Notifications] Could not show signal notification:', e);
+    }
+  }
+}
+
 function getDatabaseSignalsPollingService(): Promise<any> {
   if (databaseSignalsPollingServiceCache) {
     return Promise.resolve(databaseSignalsPollingServiceCache);
@@ -1095,6 +1106,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             }
 
             setNewSignal(signalLog);
+            notifySignalReceived(signalLog);
           };
 
           const onDatabaseError = (error: string) => {
@@ -1396,6 +1408,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       // Set as new signal for dynamic island notification
       setNewSignal(signal);
+      notifySignalReceived(signal);
 
       // Check if this signal is for an active symbol and should trigger trading
       const symbolName = signal.asset;
@@ -1579,6 +1592,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setShowMT5SignalWebView(true);
 
       setNewSignal(signalLog);
+      notifySignalReceived(signalLog);
     });
 
     return () => {
@@ -1747,6 +1761,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               }
 
               setNewSignal(signalLog);
+              notifySignalReceived(signalLog);
             };
             const onDatabaseError = (error: string) => {
               console.error('Database signals polling error (background):', error);
@@ -1826,6 +1841,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               }
 
               setNewSignal(signalLog);
+              notifySignalReceived(signalLog);
             };
             const onDatabaseError = (error: string) => {
               console.error('Database signals polling error (background):', error);

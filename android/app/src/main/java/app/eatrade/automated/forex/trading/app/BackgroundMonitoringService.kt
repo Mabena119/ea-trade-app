@@ -28,6 +28,7 @@ class BackgroundMonitoringService : Service() {
     private val pendingSignals = Collections.synchronizedList(mutableListOf<Map<String, Any>>())
     private val pendingSignalsLock = Any() // Lock for atomic operations on pendingSignals
     private val MAX_SIGNAL_AGE_SECONDS = 30 // Only process signals less than 30 seconds old
+    private var lastDetectedSignal: Map<String, Any>? = null // For updating foreground notification
     
     private fun getCurrentISOTime(): String {
         val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
@@ -79,7 +80,10 @@ class BackgroundMonitoringService : Service() {
     companion object {
         private const val TAG = "BackgroundMonitoring"
         private const val NOTIFICATION_ID = 1001
+        private const val SIGNAL_NOTIFICATION_ID_BASE = 2000
         private const val CHANNEL_ID = "background_monitoring_channel"
+        private const val SIGNAL_CHANNEL_ID = "signal_alerts_channel"
+        private const val POLL_INTERVAL_MS = 5000L // 5 seconds for faster refresh
         private var instance: BackgroundMonitoringService? = null
 
         fun getInstance(): BackgroundMonitoringService? = instance
@@ -171,7 +175,9 @@ class BackgroundMonitoringService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            
+            val monitoringChannel = NotificationChannel(
                 CHANNEL_ID,
                 "Background Signal Monitoring",
                 NotificationManager.IMPORTANCE_LOW
@@ -179,20 +185,78 @@ class BackgroundMonitoringService : Service() {
                 description = "Monitors trading signals in background"
                 setShowBadge(false)
             }
+            notificationManager.createNotificationChannel(monitoringChannel)
             
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+            val signalChannel = NotificationChannel(
+                SIGNAL_CHANNEL_ID,
+                "Trading Signal Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "New trading signals with full trade details"
+                setShowBadge(true)
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(signalChannel)
         }
     }
 
     private fun createNotification(): Notification {
+        val latestSignal = lastDetectedSignal
+        val contentText = if (latestSignal != null) {
+            val asset = latestSignal["asset"] as? String ?: ""
+            val action = latestSignal["action"] as? String ?: ""
+            val price = (latestSignal["price"] as? Double) ?: 0.0
+            val sl = (latestSignal["sl"] as? Double) ?: 0.0
+            val tp = (latestSignal["tp"] as? Double) ?: 0.0
+            "Signal: $asset $action @ $price • SL: $sl TP: $tp"
+        } else {
+            "Monitoring trading signals in background"
+        }
+        
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("EA Trade - Monitoring Active")
-            .setContentText("Monitoring trading signals in background")
+            .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
+    
+    private fun showSignalNotification(signal: Map<String, Any>) {
+        val asset = signal["asset"] as? String ?: "Unknown"
+        val action = signal["action"] as? String ?: ""
+        val price = (signal["price"] as? Double) ?: 0.0
+        val sl = (signal["sl"] as? Double) ?: 0.0
+        val tp = (signal["tp"] as? Double) ?: 0.0
+        val time = signal["time"] as? String ?: ""
+        
+        val title = "🎯 $asset $action"
+        val body = "Price: $price • SL: $sl • TP: $tp${if (time.isNotEmpty()) " • $time" else ""}"
+        
+        val notificationId = SIGNAL_NOTIFICATION_ID_BASE + (signal["id"] as? Int ?: 0).coerceAtMost(999)
+        
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val notification = NotificationCompat.Builder(this, SIGNAL_CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .build()
+        
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.notify(notificationId, notification)
+        
+        Log.d(TAG, "📬 Signal notification shown: $asset $action")
     }
 
     private fun startPolling() {
@@ -213,14 +277,14 @@ class BackgroundMonitoringService : Service() {
                     pollCount++
                     Log.d(TAG, "📊 Poll #$pollCount - Checking for signals...")
                     checkForSignals()
-                    Log.d(TAG, "⏳ Waiting 10 seconds before next poll...")
-                    Thread.sleep(10000) // Poll every 10 seconds
+                    Log.d(TAG, "⏳ Waiting 5 seconds before next poll...")
+                    Thread.sleep(POLL_INTERVAL_MS) // Poll every 5 seconds for faster refresh
                 } catch (e: InterruptedException) {
                     Log.d(TAG, "⏸️ Polling thread interrupted")
                     break
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ Error in polling thread", e)
-                    Thread.sleep(10000)
+                    Thread.sleep(POLL_INTERVAL_MS)
                 }
             }
             Log.d(TAG, "🛑 Polling thread ended (total polls: $pollCount)")
@@ -271,6 +335,25 @@ class BackgroundMonitoringService : Service() {
                     val signal = parseSignal(signalJson)
                     
                     Log.d(TAG, "📤 Processing signal: ${signal["asset"]} (${signal["action"]})")
+                    
+                    // Update last detected signal for foreground notification
+                    lastDetectedSignal = signal
+                    
+                    // Show notification with full trade details
+                    showSignalNotification(signal)
+                    
+                    // Update foreground notification to show latest signal
+                    try {
+                        val notification = createNotification()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            startForeground(NOTIFICATION_ID, notification, 
+                                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                        } else {
+                            startForeground(NOTIFICATION_ID, notification)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not update foreground notification", e)
+                    }
                     
                     // Send signal to React Native (will bring app to foreground)
                     sendSignalToReactNative(signal)

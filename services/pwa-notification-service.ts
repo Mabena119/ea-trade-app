@@ -569,6 +569,66 @@ class PWANotificationService {
   }
 
   /**
+   * Show a notification with full signal/trade details when a new signal is detected
+   * Called when app is monitoring and receives an active signal
+   */
+  async showSignalNotification(signal: {
+    asset: string;
+    action: string;
+    price: string | number;
+    tp: string | number;
+    sl: string | number;
+    time?: string;
+    id?: string | number;
+  }): Promise<void> {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    if (!isIOSPWA()) {
+      return;
+    }
+
+    if (!this.hasPermission()) {
+      const granted = await this.requestPermission();
+      if (!granted) {
+        return;
+      }
+    }
+
+    try {
+      const asset = signal.asset || 'Unknown';
+      const action = (signal.action || '').toUpperCase();
+      const price = typeof signal.price === 'number' ? signal.price.toFixed(2) : String(signal.price || '0');
+      const sl = typeof signal.sl === 'number' ? signal.sl.toFixed(2) : String(signal.sl || '0');
+      const tp = typeof signal.tp === 'number' ? signal.tp.toFixed(2) : String(signal.tp || '0');
+      const timeStr = signal.time ? ` • ${signal.time}` : '';
+
+      const title = `🎯 ${asset} ${action}`;
+      const body = `Price: ${price} • SL: ${sl} • TP: ${tp}${timeStr}`;
+
+      const signalTag = `ea-trade-signal-${signal.id ?? Date.now()}`;
+
+      const notification = new Notification(title, {
+        body,
+        tag: signalTag,
+        requireInteraction: true,
+        silent: false,
+      });
+
+      console.log('[Notifications] ✅ Signal notification shown:', { asset, action });
+
+      notification.onclick = (event) => {
+        event.preventDefault();
+        window.focus();
+        notification.close();
+      };
+    } catch (error) {
+      console.error('[Notifications] Error showing signal notification:', error);
+    }
+  }
+
+  /**
    * Close the bot status notification
    */
   closeBotNotification(): void {

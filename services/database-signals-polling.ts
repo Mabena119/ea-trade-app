@@ -194,7 +194,7 @@ class DatabaseSignalsPollingService {
   private startRealPolling(licenseKey: string) {
     console.log('Starting real database signals polling for license:', licenseKey);
 
-    // Check for signals every 10 seconds
+    // Check for signals every 5 seconds for faster refresh and stay live
     this.intervalId = setInterval(async () => {
       try {
         await this.checkForNewSignals(licenseKey);
@@ -204,7 +204,7 @@ class DatabaseSignalsPollingService {
           this.onError(`Database error: ${error}`);
         }
       }
-    }, 10000); // Check every 10 seconds
+    }, 5000); // Check every 5 seconds for faster refresh
   }
 
   // Check for new signals in database

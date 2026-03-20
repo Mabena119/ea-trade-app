@@ -25,6 +25,7 @@
 		C475DB3D2EDA80040040F54D /* EATradeWidgetLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 323641313434393430434439 /* EATradeWidgetLiveActivity.swift */; };
 		C475DB3E2EDA80050040F54D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C475DB3F2EDA80050040F54D /* Assets.xcassets */; };
 		C475DB402EDA80060040F54D /* EATradeWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C475DB412EDA80060040F54D /* EATradeWidgetAttributes.swift */; };
+		C475DB422EDA80070040F54D /* EATradeWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C475DB412EDA80060040F54D /* EATradeWidgetAttributes.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -456,7 +457,7 @@
 				C475DB3B2EDA80020040F54D /* EATradeWidgetBundle.swift in Sources */,
 				C475DB3C2EDA80030040F54D /* EATradeWidgetControl.swift in Sources */,
 				C475DB3D2EDA80040040F54D /* EATradeWidgetLiveActivity.swift in Sources */,
-				C475DB402EDA80060040F54D /* EATradeWidgetAttributes.swift in Sources */,
+				C475DB422EDA80070040F54D /* EATradeWidgetAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
