@@ -5,6 +5,7 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Image,
   ScrollView,
@@ -17,6 +18,7 @@ import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus, Lock, Trash2,
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/providers/theme-provider';
@@ -25,11 +27,13 @@ import { apiService, type ChartAnalysisResult } from '@/services/api';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
 const MAX_HISTORY = 5;
+const SCANNER_IMAGES_DIR = FileSystem.documentDirectory + 'scanner-history/';
 
 export interface ScannerHistoryItem {
   id: string;
   timestamp: number;
   imageUri: string;
+  imagePath?: string; // persistent file path (preferred over imageUri)
   result: ChartAnalysisResult;
 }
 
@@ -61,10 +65,21 @@ export default function AIScannerScreen() {
   }, []);
 
   const saveToHistory = useCallback(async (imageUri: string, result: ChartAnalysisResult) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let imagePath: string | undefined;
+    try {
+      await FileSystem.makeDirectoryAsync(SCANNER_IMAGES_DIR, { intermediates: true });
+      const dest = SCANNER_IMAGES_DIR + id + '.jpg';
+      await FileSystem.copyAsync({ from: imageUri, to: dest });
+      imagePath = dest;
+    } catch {
+      // fallback to uri if copy fails (may not persist)
+    }
     const item: ScannerHistoryItem = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id,
       timestamp: Date.now(),
-      imageUri,
+      imageUri: imagePath || imageUri,
+      imagePath,
       result,
     };
     const raw = await AsyncStorage.getItem(SCANNER_HISTORY_KEY);
@@ -74,23 +89,22 @@ export default function AIScannerScreen() {
     await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
   }, []);
 
-  const clearAllHistory = useCallback(() => {
-    Alert.alert('Clear history', 'Remove all scan results from history?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear all',
-        style: 'destructive',
-        onPress: () => {
-          AsyncStorage.removeItem(SCANNER_HISTORY_KEY).then(() => {
-            setHistory([]);
-          }).catch(() => setHistory([]));
-        },
-      },
-    ]);
+  const clearAllHistory = useCallback(async () => {
+    try {
+      const dirInfo = await FileSystem.getInfoAsync(SCANNER_IMAGES_DIR);
+      if (dirInfo.exists) {
+        await FileSystem.deleteAsync(SCANNER_IMAGES_DIR, { idempotent: true });
+      }
+    } catch {
+      // ignore
+    }
+    await AsyncStorage.removeItem(SCANNER_HISTORY_KEY);
+    setHistory([]);
   }, []);
 
   const loadHistoryItem = useCallback((item: ScannerHistoryItem) => {
-    setImageUri(item.imageUri);
+    const uri = item.imagePath || item.imageUri;
+    if (uri) setImageUri(uri);
     setResult(item.result);
     setError(null);
     setImageBase64(null);
@@ -99,6 +113,13 @@ export default function AIScannerScreen() {
 
   const removeHistoryItem = useCallback(
     async (id: string) => {
+      try {
+        const filePath = SCANNER_IMAGES_DIR + id + '.jpg';
+        const info = await FileSystem.getInfoAsync(filePath);
+        if (info.exists) await FileSystem.deleteAsync(filePath);
+      } catch {
+        // ignore
+      }
       const next = history.filter((h) => h.id !== id);
       setHistory(next);
       await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
@@ -479,14 +500,16 @@ export default function AIScannerScreen() {
             <View style={styles.historyHeader}>
               <History color={theme.colors.textMuted} size={20} strokeWidth={2} />
               <Text style={[styles.historyTitle, { color: theme.colors.textPrimary }]}>Scan history</Text>
-              <TouchableOpacity
+              <Pressable
                 style={[styles.clearAllButton, { backgroundColor: `${theme.colors.error}22` }]}
-                onPress={clearAllHistory}
-                activeOpacity={0.7}
+                onPress={() => {
+                  clearAllHistory();
+                }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Trash2 color={theme.colors.error} size={16} strokeWidth={2} />
                 <Text style={[styles.clearAllText, { color: theme.colors.error }]}>Clear all</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
             {history.map((item, idx) => {
               const itemSignalColor =
@@ -511,7 +534,11 @@ export default function AIScannerScreen() {
                     onPress={() => loadHistoryItem(item)}
                     activeOpacity={0.7}
                   >
-                    <Image source={{ uri: item.imageUri }} style={styles.historyThumb} resizeMode="cover" />
+                    <Image
+                      source={{ uri: item.imagePath || item.imageUri }}
+                      style={styles.historyThumb}
+                      resizeMode="cover"
+                    />
                     <View style={styles.historyItemContent}>
                       <View style={styles.historyItemRow}>
                         <Text style={[styles.historySymbol, { color: theme.colors.textPrimary }]}>
@@ -878,10 +905,11 @@ const styles = StyleSheet.create({
   clearAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 12,
     gap: 6,
+    minHeight: 44,
   },
   clearAllText: {
     fontSize: 12,
