@@ -107,7 +107,14 @@
       "relatedApplications": []
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-background-task",
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

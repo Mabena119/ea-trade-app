@@ -925,6 +925,29 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       }
 
+      // Start/stop iOS background signal polling (picks up signals when app is in background)
+      if (Platform.OS === 'ios' && primaryEA?.licenseKey) {
+        try {
+          const { registerIOSBackgroundSignalTask, unregisterIOSBackgroundSignalTask, requestIOSNotificationPermission } = await import('@/services/ios-background-signal-service');
+          if (active) {
+            const hasPermission = await requestIOSNotificationPermission();
+            if (hasPermission) {
+              const registered = await registerIOSBackgroundSignalTask(primaryEA.licenseKey);
+              if (registered) {
+                console.log('✅ iOS background signal task registered - will poll when app is in background');
+              }
+            } else {
+              console.warn('⚠️ iOS notification permission denied - background signal notifications disabled');
+            }
+          } else {
+            await unregisterIOSBackgroundSignalTask();
+            console.log('✅ iOS background signal task unregistered');
+          }
+        } catch (error) {
+          console.error('❌ iOS background signal task error:', error);
+        }
+      }
+
       // Get primary EA and bot image URL for both iOS and Android
       const botName = primaryEA?.name?.toUpperCase() || 'EA TRADE';
       const botImageURL = getEAImageUrl(primaryEA);
@@ -1034,6 +1057,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             botImageURL
           );
           console.log('[Notifications] PWA notification shown');
+
+          // Web Push for iOS PWA - enables background signal notifications when app is suspended
+          const { subscribeToPush, unsubscribeFromPush } = await import('@/services/pwa-push-service');
+          if (active && primaryEA?.licenseKey) {
+            const subscribed = await subscribeToPush(primaryEA.licenseKey);
+            if (subscribed) {
+              console.log('[PWA Push] Background signal notifications enabled');
+            }
+          } else if (!active) {
+            await unsubscribeFromPush();
+          }
         } catch (error) {
           console.error('[Notifications] Error showing PWA notification:', error);
         }
@@ -1603,6 +1637,28 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     };
   }, [isBotActive, mt5Account, activeSymbols, mt4Symbols, mt5Symbols, shouldProcessSignal, pausePolling]);
 
+  // On web/PWA: trigger immediate poll when page becomes visible (user returns to app)
+  // Catches signals that arrived while app was suspended in background
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isBotActive) return;
+
+    const handleVisibilityChange = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        if (primaryEA?.licenseKey) {
+          const dbService = await getDatabaseSignalsPollingService();
+          if (dbService?.isRunning()) {
+            console.log('Page visible - triggering immediate poll to catch missed signals');
+            dbService.pollNow();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [Platform.OS, isBotActive, eas]);
+
   // Ensure signal monitoring continues when app is in background and resumes when active
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: string) => {
@@ -1696,7 +1752,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 setIsDatabaseSignalsPolling(true);
               }
             } else {
-              console.log('App active - database signals polling already running');
+              // Polling already running - trigger immediate poll to catch signals missed while in background
+              const dbService = await getDatabaseSignalsPollingService();
+              if (dbService?.isRunning()) {
+                console.log('App active - triggering immediate poll to catch missed signals');
+                dbService.pollNow();
+              }
             }
           }
         }

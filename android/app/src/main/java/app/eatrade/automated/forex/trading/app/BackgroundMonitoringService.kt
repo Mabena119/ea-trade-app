@@ -204,11 +204,11 @@ class BackgroundMonitoringService : Service() {
         val latestSignal = lastDetectedSignal
         val contentText = if (latestSignal != null) {
             val asset = latestSignal["asset"] as? String ?: ""
-            val action = latestSignal["action"] as? String ?: ""
-            val price = (latestSignal["price"] as? Double) ?: 0.0
+            val action = (latestSignal["action"] as? String ?: "").uppercase()
             val sl = (latestSignal["sl"] as? Double) ?: 0.0
             val tp = (latestSignal["tp"] as? Double) ?: 0.0
-            "Signal: $asset $action @ $price • SL: $sl TP: $tp"
+            val dot = if (action == "BUY") "🔵" else "🔴"
+            "$dot SIGNAL $asset $action • SL: $sl TP: $tp"
         } else {
             "Monitoring trading signals in background"
         }
@@ -222,16 +222,39 @@ class BackgroundMonitoringService : Service() {
             .build()
     }
     
+    private fun formatSignalDateTime(isoString: String?): String {
+        if (isoString.isNullOrEmpty()) return ""
+        return try {
+            val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }
+            val date = format.parse(isoString) ?: return isoString
+            java.text.SimpleDateFormat("MMMM d, yyyy, HH:mm", Locale.US).format(date)
+        } catch (e: Exception) {
+            try {
+                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(isoString)?.let { date ->
+                    java.text.SimpleDateFormat("MMMM d, yyyy, HH:mm", Locale.US).format(date)
+                } ?: isoString
+            } catch (e2: Exception) {
+                isoString
+            }
+        }
+    }
+    
     private fun showSignalNotification(signal: Map<String, Any>) {
         val asset = signal["asset"] as? String ?: "Unknown"
-        val action = signal["action"] as? String ?: ""
-        val price = (signal["price"] as? Double) ?: 0.0
+        val action = (signal["action"] as? String ?: "").uppercase()
         val sl = (signal["sl"] as? Double) ?: 0.0
         val tp = (signal["tp"] as? Double) ?: 0.0
         val time = signal["time"] as? String ?: ""
         
-        val title = "🎯 $asset $action"
-        val body = "Price: $price • SL: $sl • TP: $tp${if (time.isNotEmpty()) " • $time" else ""}"
+        val dot = if (action == "BUY") "🔵" else "🔴"
+        val title = "$dot SIGNAL $asset $action"
+        val formattedTime = formatSignalDateTime(time)
+        val body = buildString {
+            append("SL: $sl • TP: $tp")
+            if (formattedTime.isNotEmpty()) append(" • $formattedTime")
+        }
         
         val notificationId = SIGNAL_NOTIFICATION_ID_BASE + (signal["id"] as? Int ?: 0).coerceAtMost(999)
         

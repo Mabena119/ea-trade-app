@@ -7,10 +7,23 @@ import { AppProvider, useApp } from "@/providers/app-provider";
 import { ThemeProvider, useTheme } from "@/providers/theme-provider";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Notifications from "expo-notifications";
 import { RobotLogo } from "@/components/robot-logo";
 import { MT5SignalWebView } from "@/components/mt5-signal-webview";
 import colors from "@/constants/colors";
 import { isIOSPWA } from "@/utils/pwa-detection";
+
+// Configure notifications to show when app is in background
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 // Early console suppression - must be at the very top
 if (typeof window !== 'undefined' && Platform.OS === 'web') {
@@ -180,6 +193,17 @@ function RootLayoutNav() {
     }
   }, [isBotActive, isFirstTime, eas, Platform.OS]);
 
+
+  // Register service worker for Web Push (iOS PWA background notifications)
+  useEffect(() => {
+    if (Platform.OS === 'web' && isIOSPWA()) {
+      import('@/services/pwa-push-service').then(({ registerServiceWorker }) => {
+        registerServiceWorker().then((reg) => {
+          if (reg) console.log('[PWA Push] Service worker registered');
+        });
+      });
+    }
+  }, [Platform.OS]);
 
   // Request notification permission for iOS PWA on app load
   useEffect(() => {

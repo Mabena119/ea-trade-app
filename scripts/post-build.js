@@ -4,6 +4,7 @@ const path = require('path');
 // Paths
 const distPath = path.join(__dirname, '..', 'dist');
 const assetsPath = path.join(__dirname, '..', 'assets', 'images');
+const publicPath = path.join(__dirname, '..', 'public');
 
 // Create manifest.json
 const manifest = {
@@ -96,24 +97,39 @@ if (fs.existsSync(indexPath)) {
   <meta name="msapplication-TileImage" content="/assets/images/icon.png">
   <meta name="theme-color" content="#000000">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
   <style>
     body {
       background-color: #000000 !important;
     }
-    /* Ensure status bar area is black */
-    @media screen and (max-width: 768px) {
+    /* iOS safe area: notch, home indicator, rounded corners */
+    @supports (padding: env(safe-area-inset-top)) {
       body {
-        padding-top: env(safe-area-inset-top);
-        background-color: #000000 !important;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
       }
     }
   </style>`
     );
   }
   
+  // Remove duplicate viewport so our PWA viewport (with viewport-fit=cover) wins on iOS
+  html = html.replace(
+    /<meta\s+name="viewport"\s+content="[^"]*"\s*\/?>/g,
+    (match) => match.includes('viewport-fit=cover') ? match : ''
+  ).replace(/\n\s*\n\s*\n/g, '\n\n');
+
   fs.writeFileSync(indexPath, html);
   console.log('Updated index.html with PWA meta tags');
+}
+
+// Copy service worker for Web Push (iOS PWA background notifications)
+const swSrc = path.join(publicPath, 'sw.js');
+const swDest = path.join(distPath, 'sw.js');
+if (fs.existsSync(swSrc)) {
+  fs.copyFileSync(swSrc, swDest);
+  console.log('Copied sw.js for Web Push');
 }
 
 console.log('PWA setup completed successfully!');

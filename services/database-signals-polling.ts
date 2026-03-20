@@ -284,6 +284,23 @@ class DatabaseSignalsPollingService {
     }
   }
 
+  /**
+   * Trigger an immediate poll for signals (e.g. when app returns to foreground).
+   * Catches any signals that may have arrived while app was in background.
+   */
+  async pollNow(): Promise<void> {
+    if (!this.currentLicenseKey) return;
+    try {
+      console.log('Immediate poll triggered (app resumed)');
+      await this.checkForNewSignals(this.currentLicenseKey);
+    } catch (error) {
+      console.error('Error in immediate poll:', error);
+      if (this.onError) {
+        this.onError(`Immediate poll error: ${error}`);
+      }
+    }
+  }
+
   // Check if polling is running
   isRunning(): boolean {
     return this.intervalId !== null;

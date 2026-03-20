@@ -82,6 +82,13 @@ DB_NAME=your-database-name
 DB_PORT=3306
 ```
 
+**Optional - Web Push (iOS PWA background notifications):**
+```
+VAPID_PUBLIC_KEY=your-public-key
+VAPID_PRIVATE_KEY=your-private-key
+```
+Generate with: `npx web-push generate-vapid-keys`
+
 **Optional (for optimization):**
 ```
 DB_CONNECTION_LIMIT=20

@@ -569,6 +569,25 @@ class PWANotificationService {
   }
 
   /**
+   * Format ISO date string to readable format: "March 20, 2026, 08:00"
+   */
+  private formatSignalDateTime(isoString?: string): string {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const month = months[date.getMonth()];
+      const day = date.getDate();
+      const year = date.getFullYear();
+      const hours = date.getHours().toString().padStart(2, '0');
+      const mins = date.getMinutes().toString().padStart(2, '0');
+      return `${month} ${day}, ${year}, ${hours}:${mins}`;
+    } catch {
+      return isoString;
+    }
+  }
+
+  /**
    * Show a notification with full signal/trade details when a new signal is detected
    * Called when app is monitoring and receives an active signal
    */
@@ -599,13 +618,18 @@ class PWANotificationService {
     try {
       const asset = signal.asset || 'Unknown';
       const action = (signal.action || '').toUpperCase();
-      const price = typeof signal.price === 'number' ? signal.price.toFixed(2) : String(signal.price || '0');
       const sl = typeof signal.sl === 'number' ? signal.sl.toFixed(2) : String(signal.sl || '0');
       const tp = typeof signal.tp === 'number' ? signal.tp.toFixed(2) : String(signal.tp || '0');
-      const timeStr = signal.time ? ` • ${signal.time}` : '';
+      const formattedTime = this.formatSignalDateTime(signal.time);
 
-      const title = `🎯 ${asset} ${action}`;
-      const body = `Price: ${price} • SL: ${sl} • TP: ${tp}${timeStr}`;
+      // Blue dot for BUY, Red dot for SELL
+      const dot = action === 'BUY' ? '🔵' : '🔴';
+      const title = `${dot} SIGNAL ${asset} ${action}`;
+
+      // Remove price, keep SL/TP, format date properly
+      const bodyParts = [`SL: ${sl} • TP: ${tp}`];
+      if (formattedTime) bodyParts.push(formattedTime);
+      const body = bodyParts.join(' • ');
 
       const signalTag = `ea-trade-signal-${signal.id ?? Date.now()}`;
 

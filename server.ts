@@ -4,6 +4,14 @@
 
 import path from 'path';
 import { createPool } from 'mysql2/promise';
+import {
+  addSubscription,
+  removeSubscription,
+  getVapidPublicKey,
+  getSubscriptions,
+  isPushConfigured,
+  sendSignalPush,
+} from './services/push-service';
 // Declare Bun global for TypeScript linting in non-Bun tooling contexts
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 declare const Bun: any;
@@ -142,10 +150,18 @@ async function serveStatic(request: Request): Promise<Response> {
           break;
       }
 
+      // Service worker must not be cached so updates propagate (critical for iOS PWA)
+      const isServiceWorker = filePath === '/sw.js';
+      const cacheControl = ext === '.html'
+        ? 'no-cache, no-store, must-revalidate'
+        : isServiceWorker
+          ? 'no-cache, no-store, must-revalidate'
+          : 'public, max-age=31536000';
+
       return new Response(file, {
         headers: {
           'Content-Type': contentType,
-          'Cache-Control': ext === '.html' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=31536000',
+          'Cache-Control': cacheControl,
         },
       });
     }
@@ -1786,11 +1802,115 @@ async function handleApi(request: Request): Promise<Response> {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
+    // Web Push for iOS PWA - VAPID public key
+    if (pathname === '/api/vapid-public-key') {
+      if (request.method === 'GET') {
+        return new Response(JSON.stringify({ publicKey: getVapidPublicKey() }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Web Push - register subscription (when bot activated on iOS PWA)
+    if (pathname === '/api/register-push-subscription') {
+      if (request.method === 'POST') {
+        try {
+          const body = await request.json() as {
+            subscription: { endpoint: string; keys: { p256dh: string; auth: string } };
+            licenseKey: string;
+            eaId: string;
+          };
+          if (!body?.subscription?.endpoint || !body?.licenseKey || !body?.eaId) {
+            return new Response(JSON.stringify({ error: 'subscription, licenseKey, eaId required' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+            });
+          }
+          addSubscription({
+            endpoint: body.subscription.endpoint,
+            keys: body.subscription.keys,
+            licenseKey: body.licenseKey,
+            eaId: String(body.eaId),
+          });
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        } catch (e) {
+          return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        }
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Web Push - unregister subscription (when bot deactivated)
+    if (pathname === '/api/unregister-push-subscription') {
+      if (request.method === 'POST') {
+        try {
+          const body = await request.json() as { endpoint?: string };
+          if (body?.endpoint) {
+            removeSubscription(body.endpoint);
+          }
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        } catch {
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        }
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
     return new Response('Not Found', { status: 404 });
   } catch (error) {
     console.error('API handler error:', error);
     return new Response('Internal Server Error', { status: 500 });
   }
+}
+
+// Background job: poll for new signals and send Web Push to iOS PWA subscribers
+const pushLastCheck = new Map<string, string>();
+function startPushBackgroundJob() {
+  if (!isPushConfigured()) return;
+  setInterval(async () => {
+    const subs = getSubscriptions();
+    const eaIds = [...new Set(subs.map((s: any) => s.eaId))];
+    if (eaIds.length === 0) return;
+
+    const pool = getPool();
+    for (const eaId of eaIds) {
+      const since = pushLastCheck.get(eaId) || new Date(Date.now() - 60000).toISOString().slice(0, 19).replace('T', ' ');
+      try {
+        const [rows] = await pool.execute(
+          'SELECT id, ea, asset, latestupdate, action, price, tp, sl, time FROM `signals` WHERE ea = ? AND latestupdate > ? ORDER BY latestupdate DESC LIMIT 20',
+          [eaId, since]
+        );
+        const signals = rows as any[];
+        for (const s of signals) {
+          await sendSignalPush({
+            id: s.id,
+            ea: s.ea,
+            asset: s.asset,
+            action: s.action,
+            sl: s.sl,
+            tp: s.tp,
+            time: s.time || s.latestupdate,
+          });
+        }
+        if (signals.length > 0) {
+          const latest = signals[0]?.latestupdate;
+          if (latest) pushLastCheck.set(eaId, latest.slice(0, 19).replace('T', ' '));
+        }
+      } catch (e) {
+        console.warn('[Push] Background check failed for EA', eaId, e);
+      }
+    }
+  }, 5000);
 }
 
 const server = Bun.serve({
@@ -1995,6 +2115,11 @@ const server = Bun.serve({
     return serveStatic(request);
   },
 });
+
+startPushBackgroundJob();
+if (isPushConfigured()) {
+  console.log('✅ Web Push enabled for iOS PWA background notifications');
+}
 
 console.log(`Server running on http://localhost:${server.port}`);
 
