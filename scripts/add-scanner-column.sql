@@ -1,7 +1,6 @@
 -- Add scanner column to members table for AI Scanner unlock status
 -- Run this on your database to enable the feature.
 -- scanner: 0 = locked (default), 1 = unlocked
--- Then run add-scanner-uploads-column.sql for the 5-upload limit.
 
 ALTER TABLE members ADD COLUMN scanner TINYINT(1) DEFAULT 0;
 

@@ -214,36 +214,17 @@ class ApiService {
     }
   }
 
-  async getScannerStatus(email: string): Promise<{ scanner: boolean; uploadsUsed: number; remaining: number }> {
-    if (!email) return { scanner: false, uploadsUsed: 0, remaining: 0 };
+  async getScannerStatus(email: string): Promise<{ scanner: boolean }> {
+    if (!email) return { scanner: false };
     try {
       const res = await fetch(
         `${BASE_URL}/api/scanner-status?email=${encodeURIComponent(email)}`,
         { method: 'GET' }
       );
-      const data = (await res.json()) as { scanner?: boolean; uploadsUsed?: number; remaining?: number };
-      return {
-        scanner: Boolean(data.scanner),
-        uploadsUsed: Number(data.uploadsUsed ?? 0),
-        remaining: Number(data.remaining ?? 0),
-      };
+      const data = (await res.json()) as { scanner?: boolean };
+      return { scanner: Boolean(data.scanner) };
     } catch {
-      return { scanner: false, uploadsUsed: 0, remaining: 0 };
-    }
-  }
-
-  async recordScannerScan(email: string): Promise<{ ok: boolean; limitReached?: boolean }> {
-    if (!email) return { ok: false };
-    try {
-      const res = await fetch(`${BASE_URL}/api/scanner-record-scan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = (await res.json()) as { message?: string; limitReached?: boolean };
-      return { ok: res.ok && data.message === 'accept', limitReached: data.limitReached };
-    } catch {
-      return { ok: false };
+      return { scanner: false };
     }
   }
 
