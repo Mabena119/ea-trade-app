@@ -39,6 +39,7 @@ export default function AIScannerScreen() {
   const { theme } = useTheme();
   const { user } = useApp();
   const [scannerUnlocked, setScannerUnlocked] = useState<boolean | null>(null);
+  const [remainingScans, setRemainingScans] = useState<number>(0);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('image/jpeg');
@@ -123,10 +124,12 @@ export default function AIScannerScreen() {
     }
     if (!email) {
       setScannerUnlocked(false);
+      setRemainingScans(0);
       return;
     }
-    const { scanner } = await apiService.getScannerStatus(email);
-    setScannerUnlocked(scanner);
+    const { scanner, remaining } = await apiService.getScannerStatus(email);
+    setRemainingScans(remaining);
+    setScannerUnlocked(scanner && remaining > 0);
   }, [user?.email]);
 
   useEffect(() => {
@@ -231,9 +234,34 @@ export default function AIScannerScreen() {
     setMimeType(mimeType || 'image/jpeg');
   };
 
+  const getEmail = useCallback(async () => {
+    let email = user?.email;
+    if (!email) {
+      try {
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) {
+          const parsed = JSON.parse(stored) as { email?: string };
+          email = parsed?.email;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return email || '';
+  }, [user?.email]);
+
   const analyzeChart = async () => {
     if (!imageBase64) {
       setError('Please upload a chart image first.');
+      return;
+    }
+    const email = await getEmail();
+    if (!email) {
+      setError('Please sign in to use the scanner.');
+      return;
+    }
+    if (remainingScans <= 0) {
+      setError('Scan limit reached (5). Unlock again to continue.');
       return;
     }
     // Client-side size check to avoid 502 (Render limits)
@@ -249,6 +277,11 @@ export default function AIScannerScreen() {
       if (response.message === 'accept' && response.data) {
         setResult(response.data);
         if (imageUri) await saveToHistory(imageUri, imageBase64, response.data);
+        const { ok, limitReached } = await apiService.recordScannerScan(email);
+        if (ok) {
+          setRemainingScans((prev) => Math.max(0, prev - 1));
+          if (limitReached) setScannerUnlocked(false);
+        }
       } else {
         setError(response.error || 'Analysis failed. Please try again.');
       }
@@ -289,7 +322,7 @@ export default function AIScannerScreen() {
         <View style={styles.headerContent}>
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>AI SCANNER</Text>
           <Text style={[styles.headerSubtitle, { color: theme.colors.textMuted }]}>
-            Upload a chart for AI analysis
+            {scannerUnlocked ? `${remainingScans} scan${remainingScans !== 1 ? 's' : ''} left` : 'Upload a chart for AI analysis'}
           </Text>
         </View>
         {history.length > 0 && (
