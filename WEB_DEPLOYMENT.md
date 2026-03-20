@@ -51,6 +51,13 @@ The web app has **full feature parity** with the Android app:
 - Works offline for cached resources
 - Full-screen experience when installed
 
+### iOS PWA Limitations (Web Push)
+- **Add to Home Screen required** – Web Push only works when installed via "Add to Home Screen", not in Safari tabs
+- **iOS 16.4+** – Web Push support added in iOS 16.4
+- **Subscription expiration** – iOS may invalidate push subscriptions after periods of inactivity; re-subscribing when the app opens helps
+- **Storage** – iOS may clear PWA storage after ~7 days of inactivity
+- **Native app alternative** – For the most reliable background notifications, the native iOS app (via App Store) uses BGTaskScheduler
+
 ## Render Deployment
 
 ### Prerequisites

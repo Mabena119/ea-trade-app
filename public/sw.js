@@ -16,11 +16,10 @@ self.addEventListener('push', (event) => {
   const body = data.body || 'New trading signal';
   const tag = data.tag || 'ea-trade-signal-' + (data.signalId || Date.now());
   
+  // iOS Safari does not support requireInteraction - using it can break push subscriptions
   const options = {
     body,
     tag,
-    requireInteraction: true,
-    silent: false,
     data: data.data || {},
   };
   
