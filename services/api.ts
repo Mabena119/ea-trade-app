@@ -231,7 +231,8 @@ class ApiService {
         return { message: 'error', error: res.status === 502 ? 'Server busy. Try again in 30 seconds (cold start).' : 'Analysis failed.' };
       }
       if (!res.ok) {
-        return { message: 'error', error: data.error || 'Analysis failed' };
+        const errMsg = data.error || (res.status === 429 ? 'Rate limit. Wait 1 min.' : 'Analysis failed');
+        return { message: 'error', error: errMsg };
       }
       return data;
     } catch (e) {

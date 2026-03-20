@@ -4,42 +4,16 @@
  */
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const MODELS = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'] as const;
+const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as const;
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
-const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this trading chart image and provide a clear recommendation with specific trade levels.
+const CHART_ANALYSIS_PROMPT = `You are a technical analyst. Analyze this trading chart image. Respond with ONLY a single JSON object, no markdown, no extra text.
 
-Respond in this exact JSON format only (no other text):
-{
-  "signal": "BUY" | "SELL" | "NEUTRAL",
-  "confidence": "high" | "medium" | "low",
-  "summary": "1-2 sentence summary of key chart patterns and indicators",
-  "reasoning": "Brief technical reasoning (support/resistance, trend, momentum, etc.)",
-  "suggestion": "Specific actionable advice",
-  "entryPrice": "price level for entry (e.g. 248.50 or current market)",
-  "stopLoss": "price level for stop loss",
-  "takeProfit1": "first take profit target",
-  "takeProfit2": "second take profit target (optional, use empty string if not applicable)",
-  "takeProfit3": "third take profit target (optional, use empty string if not applicable)"
-}
+Required format:
+{"signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on patterns","reasoning":"brief technical reasoning","suggestion":"actionable advice","entryPrice":"price or empty","stopLoss":"price or empty","takeProfit1":"price or empty","takeProfit2":"price or empty","takeProfit3":"price or empty"}
 
-Extract price levels from the chart. Use the visible price scale. For NEUTRAL, you may leave entry/SL/TP as empty strings.
-Include takeProfit2 and takeProfit3 only when the chart supports multiple targets (e.g. resistance levels). Otherwise use "".
-
-If the image is not a trading/financial chart, or you cannot analyze it, return:
-{
-  "signal": "NEUTRAL",
-  "confidence": "low",
-  "summary": "Unable to analyze - please upload a clear trading chart image.",
-  "reasoning": "Image may not be a valid trading chart.",
-  "suggestion": "Upload a screenshot of your trading platform chart.",
-  "entryPrice": "",
-  "stopLoss": "",
-  "takeProfit1": "",
-  "takeProfit2": "",
-  "takeProfit3": ""
-}`;
+Extract price levels from the chart scale. Use "" for prices if NEUTRAL. Add takeProfit2/3 only when multiple targets exist. If not a trading chart, return signal:NEUTRAL with empty price strings.`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -127,6 +101,7 @@ export async function POST(request: Request): Promise<Response> {
         console.error('Gemini API error:', res.status, lastErr.slice(0, 500));
         let hint = 'Please try again.';
         if (res.status === 401 || res.status === 403) hint = 'Check API key in Render Environment.';
+        if (res.status === 429) hint = 'Rate limit reached. Wait 1 minute and try again.';
         return Response.json(
           { message: 'error', error: `AI analysis failed. ${hint}` },
           { status: 502, headers: { 'Content-Type': 'application/json' } }
@@ -163,12 +138,22 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Parse JSON from response (may be wrapped in markdown code blocks)
+    // Parse JSON from response (may be wrapped in markdown, have extra text)
     let parsed: Record<string, string>;
     try {
-      const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      let cleaned = text
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim();
+      // Extract first {...} block if there's extra text
+      const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (braceMatch) cleaned = braceMatch[0];
+      // Remove BOM and trailing commas before parse
+      cleaned = cleaned.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1');
       parsed = JSON.parse(cleaned) as Record<string, string>;
-    } catch {
+    } catch (parseErr) {
+      console.error('JSON parse error:', parseErr);
+      console.error('Raw response (first 500 chars):', text.slice(0, 500));
       return Response.json(
         {
           message: 'error',
