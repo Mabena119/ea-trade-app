@@ -53,12 +53,12 @@ struct ToggleBotIntent: AppIntent {
     }
 }
 
-struct OpenQuotesIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Quotes"
+struct OpenAIScannerIntent: AppIntent {
+    static var title: LocalizedStringResource = "Open AI Scanner"
     
     func perform() async throws -> some IntentResult {
-        // Open the app with a deep link to quotes
-        let url = URL(string: "myapp://quotes")!
+        // Open the app with a deep link to AI Scanner
+        let url = URL(string: "myapp://ai-scanner")!
         let openURLIntent = OpenURLIntent(url)
         _ = try await openURLIntent.perform()
         return .result()

@@ -220,6 +220,18 @@ async function handleApi(request: Request): Promise<Response> {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
+    // Add AI chart analysis routing
+    if (pathname === '/api/analyze-chart') {
+      const route = await import('./app/api/analyze-chart/route.ts');
+      if (request.method === 'POST' && typeof route.POST === 'function') {
+        return route.POST(request) as Promise<Response>;
+      }
+      if (request.method === 'GET' && typeof route.GET === 'function') {
+        return route.GET() as Promise<Response>;
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
     // Add terminal-proxy routing
     if (pathname === '/api/terminal-proxy') {
       const route = await import('./app/api/terminal-proxy.ts');

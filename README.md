@@ -18,6 +18,15 @@ This application has been **optimized for scale AND CPU efficiency** with enhanc
 - [DATABASE_OPTIMIZATION.md](DATABASE_OPTIMIZATION.md) - Connection pooling details
 - [DATABASE_QUICKSTART.md](DATABASE_QUICKSTART.md) - Quick start guide
 
+### AI Scanner (Chart Analysis)
+
+The AI Scanner tab lets users upload a trading chart photo for AI analysis (BUY / SELL / NEUTRAL). It uses **Google AI Studio (Gemini)** for vision analysis.
+
+**Setup:**
+1. Get an API key from [Google AI Studio](https://aistudio.google.com/apikey)
+2. **Local:** Add to `.env` (see `.env.example`) — Bun loads it automatically
+3. **Render (production):** Add `GOOGLE_AI_API_KEY` in the Render dashboard → Environment → redeploy
+
 ### Quick Configuration
 
 Configure database connection pooling and caching via environment variables:

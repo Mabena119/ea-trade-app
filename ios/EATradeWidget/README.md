@@ -64,7 +64,7 @@ Replace the generated Swift files with the ones in this directory:
 
 3. **Widget Actions**: Widget buttons use App Intents to open the app with deep links:
    - Toggle Bot: `myapp://toggleBot`
-   - Open Quotes: `myapp://quotes`
+   - Open AI Scanner: `myapp://ai-scanner`
 
 4. **Deep Link Handling**: Add deep link handling in `AppDelegate.swift` or `expo-router` to handle these URLs
 

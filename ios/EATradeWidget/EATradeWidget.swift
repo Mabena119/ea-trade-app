@@ -131,9 +131,9 @@ struct EATradeWidgetEntryView: View {
                             .clipShape(Circle())
                     }
                     
-                    // Quotes Button
-                    Button(intent: OpenQuotesIntent()) {
-                        Image(systemName: "chart.bar.fill")
+                    // AI Scanner Button
+                    Button(intent: OpenAIScannerIntent()) {
+                        Image(systemName: "waveform.path.ecg")
                             .font(.system(size: 18))
                             .foregroundColor(.white)
                             .frame(width: 44, height: 44)

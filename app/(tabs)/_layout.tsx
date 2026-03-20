@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, Wallet, Activity } from "lucide-react-native";
+import { Home, Wallet, Scan } from "lucide-react-native";
 import React from "react";
 import { useApp } from "@/providers/app-provider";
 import { useTheme } from "@/providers/theme-provider";
@@ -108,9 +108,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="quotes"
+        name="ai-scanner"
         options={{
-          title: "Quotes",
+          title: "AI Scanner",
           tabBarIcon: ({ color, focused }) => (
             <View style={[
               styles.iconContainer,
@@ -125,13 +125,19 @@ export default function TabLayout() {
                 elevation: 10,
               }
             ]}>
-              <Activity
+              <Scan
                 color={focused ? theme.colors.textPrimary : theme.colors.navInactiveColor}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
             </View>
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="quotes"
+        options={{
+          href: null,
         }}
       />
       <Tabs.Screen

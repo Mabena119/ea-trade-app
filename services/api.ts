@@ -91,6 +91,20 @@ export interface LicenseAuthResponse {
   data?: LicenseData;
 }
 
+export interface ChartAnalysisResult {
+  signal: 'BUY' | 'SELL' | 'NEUTRAL';
+  confidence: 'high' | 'medium' | 'low';
+  summary: string;
+  reasoning: string;
+  suggestion: string;
+}
+
+export interface ChartAnalysisResponse {
+  message: 'accept' | 'error';
+  data?: ChartAnalysisResult;
+  error?: string;
+}
+
 class ApiService {
   async authenticate(authBody: AuthBody): Promise<Account> {
     if (!authBody?.email) throw new Error('Email is required');
@@ -189,6 +203,26 @@ class ApiService {
       return data;
     } catch {
       return { message: 'error' };
+    }
+  }
+
+  async analyzeChart(imageBase64: string, mimeType = 'image/jpeg'): Promise<ChartAnalysisResponse> {
+    if (!imageBase64) return { message: 'error', error: 'No image provided' };
+    const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/analyze-chart`;
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageBase64, mimeType }),
+      });
+      const data = (await res.json()) as ChartAnalysisResponse & { error?: string };
+      if (!res.ok) {
+        return { message: 'error', error: data.error || 'Analysis failed' };
+      }
+      return data;
+    } catch (e) {
+      console.error('analyzeChart error:', e);
+      return { message: 'error', error: 'Network error. Please try again.' };
     }
   }
 }
