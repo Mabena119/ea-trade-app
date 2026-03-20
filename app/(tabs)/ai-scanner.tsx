@@ -260,6 +260,42 @@ export default function AIScannerScreen() {
             <Text style={[styles.suggestionText, { color: theme.colors.textPrimary }]}>
               {result.suggestion}
             </Text>
+
+            {(result.entryPrice || result.stopLoss || result.takeProfit1) && (
+              <View style={styles.tradeLevels}>
+                <Text style={[styles.tradeLevelsTitle, { color: theme.colors.textMuted }]}>TRADE LEVELS</Text>
+                {result.entryPrice ? (
+                  <View style={styles.tradeRow}>
+                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Entry</Text>
+                    <Text style={[styles.tradeValue, { color: theme.colors.textPrimary }]}>{result.entryPrice}</Text>
+                  </View>
+                ) : null}
+                {result.stopLoss ? (
+                  <View style={styles.tradeRow}>
+                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Stop Loss</Text>
+                    <Text style={[styles.tradeValue, { color: theme.colors.error }]}>{result.stopLoss}</Text>
+                  </View>
+                ) : null}
+                {result.takeProfit1 ? (
+                  <View style={styles.tradeRow}>
+                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>TP 1</Text>
+                    <Text style={[styles.tradeValue, { color: theme.colors.success }]}>{result.takeProfit1}</Text>
+                  </View>
+                ) : null}
+                {result.takeProfit2 ? (
+                  <View style={styles.tradeRow}>
+                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>TP 2</Text>
+                    <Text style={[styles.tradeValue, { color: theme.colors.success }]}>{result.takeProfit2}</Text>
+                  </View>
+                ) : null}
+                {result.takeProfit3 ? (
+                  <View style={styles.tradeRow}>
+                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>TP 3</Text>
+                    <Text style={[styles.tradeValue, { color: theme.colors.success }]}>{result.takeProfit3}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
           </View>
         )}
 
@@ -465,6 +501,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     lineHeight: 22,
+  },
+  tradeLevels: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  tradeLevelsTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  tradeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  tradeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tradeValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    fontFamily: 'monospace',
   },
   disclaimer: {
     fontSize: 11,

@@ -97,6 +97,11 @@ export interface ChartAnalysisResult {
   summary: string;
   reasoning: string;
   suggestion: string;
+  entryPrice?: string;
+  stopLoss?: string;
+  takeProfit1?: string;
+  takeProfit2?: string;
+  takeProfit3?: string;
 }
 
 export interface ChartAnalysisResponse {

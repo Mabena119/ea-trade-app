@@ -8,7 +8,7 @@ const MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'] as c
 const GEMINI_TIMEOUT_MS = 25000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_500_000; // ~1.1MB image to avoid 502 with large body
 
-const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this trading chart image and provide a clear, concise recommendation.
+const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this trading chart image and provide a clear recommendation with specific trade levels.
 
 Respond in this exact JSON format only (no other text):
 {
@@ -16,8 +16,16 @@ Respond in this exact JSON format only (no other text):
   "confidence": "high" | "medium" | "low",
   "summary": "1-2 sentence summary of key chart patterns and indicators",
   "reasoning": "Brief technical reasoning (support/resistance, trend, momentum, etc.)",
-  "suggestion": "Specific actionable advice (e.g., 'Wait for pullback to support', 'Consider taking profit at resistance')"
+  "suggestion": "Specific actionable advice",
+  "entryPrice": "price level for entry (e.g. 248.50 or current market)",
+  "stopLoss": "price level for stop loss",
+  "takeProfit1": "first take profit target",
+  "takeProfit2": "second take profit target (optional, use empty string if not applicable)",
+  "takeProfit3": "third take profit target (optional, use empty string if not applicable)"
 }
+
+Extract price levels from the chart. Use the visible price scale. For NEUTRAL, you may leave entry/SL/TP as empty strings.
+Include takeProfit2 and takeProfit3 only when the chart supports multiple targets (e.g. resistance levels). Otherwise use "".
 
 If the image is not a trading/financial chart, or you cannot analyze it, return:
 {
@@ -25,7 +33,12 @@ If the image is not a trading/financial chart, or you cannot analyze it, return:
   "confidence": "low",
   "summary": "Unable to analyze - please upload a clear trading chart image.",
   "reasoning": "Image may not be a valid trading chart.",
-  "suggestion": "Upload a screenshot of your trading platform chart (candlestick, line, or bar chart)."
+  "suggestion": "Upload a screenshot of your trading platform chart.",
+  "entryPrice": "",
+  "stopLoss": "",
+  "takeProfit1": "",
+  "takeProfit2": "",
+  "takeProfit3": ""
 }`;
 
 export async function POST(request: Request): Promise<Response> {
@@ -175,6 +188,11 @@ export async function POST(request: Request): Promise<Response> {
           summary: parsed.summary || '',
           reasoning: parsed.reasoning || '',
           suggestion: parsed.suggestion || '',
+          entryPrice: parsed.entryPrice || '',
+          stopLoss: parsed.stopLoss || '',
+          takeProfit1: parsed.takeProfit1 || '',
+          takeProfit2: parsed.takeProfit2 || '',
+          takeProfit3: parsed.takeProfit3 || '',
         },
       },
       { status: 200, headers: { 'Content-Type': 'application/json' } }
