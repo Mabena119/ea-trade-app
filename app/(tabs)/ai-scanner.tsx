@@ -25,7 +25,7 @@ import { useApp } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
-const MAX_HISTORY = 5;
+const MAX_HISTORY = 20;
 
 export interface ScannerHistoryItem {
   id: string;
