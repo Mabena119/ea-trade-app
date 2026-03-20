@@ -18,7 +18,6 @@ import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus, Lock, Trash2,
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/providers/theme-provider';
@@ -27,13 +26,12 @@ import { apiService, type ChartAnalysisResult } from '@/services/api';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
 const MAX_HISTORY = 5;
-const SCANNER_IMAGES_DIR = FileSystem.documentDirectory + 'scanner-history/';
 
 export interface ScannerHistoryItem {
   id: string;
   timestamp: number;
   imageUri: string;
-  imagePath?: string; // persistent file path (preferred over imageUri)
+  imageBase64?: string; // persisted in AsyncStorage for display after app restart
   result: ChartAnalysisResult;
 }
 
@@ -64,62 +62,43 @@ export default function AIScannerScreen() {
     }
   }, []);
 
-  const saveToHistory = useCallback(async (imageUri: string, result: ChartAnalysisResult) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    let imagePath: string | undefined;
-    try {
-      await FileSystem.makeDirectoryAsync(SCANNER_IMAGES_DIR, { intermediates: true });
-      const dest = SCANNER_IMAGES_DIR + id + '.jpg';
-      await FileSystem.copyAsync({ from: imageUri, to: dest });
-      imagePath = dest;
-    } catch {
-      // fallback to uri if copy fails (may not persist)
-    }
-    const item: ScannerHistoryItem = {
-      id,
-      timestamp: Date.now(),
-      imageUri: imagePath || imageUri,
-      imagePath,
-      result,
-    };
-    const raw = await AsyncStorage.getItem(SCANNER_HISTORY_KEY);
-    const current = raw ? (JSON.parse(raw) as ScannerHistoryItem[]) : [];
-    const next = [item, ...(Array.isArray(current) ? current : [])].slice(0, MAX_HISTORY);
-    setHistory(next);
-    await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
-  }, []);
+  const saveToHistory = useCallback(
+    async (imageUri: string, imageBase64: string | null, result: ChartAnalysisResult) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const item: ScannerHistoryItem = {
+        id,
+        timestamp: Date.now(),
+        imageUri,
+        imageBase64: imageBase64 || undefined,
+        result,
+      };
+      const raw = await AsyncStorage.getItem(SCANNER_HISTORY_KEY);
+      const current = raw ? (JSON.parse(raw) as ScannerHistoryItem[]) : [];
+      const next = [item, ...(Array.isArray(current) ? current : [])].slice(0, MAX_HISTORY);
+      setHistory(next);
+      await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
+    },
+    []
+  );
 
   const clearAllHistory = useCallback(async () => {
-    try {
-      const dirInfo = await FileSystem.getInfoAsync(SCANNER_IMAGES_DIR);
-      if (dirInfo.exists) {
-        await FileSystem.deleteAsync(SCANNER_IMAGES_DIR, { idempotent: true });
-      }
-    } catch {
-      // ignore
-    }
     await AsyncStorage.removeItem(SCANNER_HISTORY_KEY);
     setHistory([]);
   }, []);
 
   const loadHistoryItem = useCallback((item: ScannerHistoryItem) => {
-    const uri = item.imagePath || item.imageUri;
+    const uri = item.imageBase64
+      ? `data:image/jpeg;base64,${item.imageBase64}`
+      : item.imageUri;
     if (uri) setImageUri(uri);
     setResult(item.result);
     setError(null);
-    setImageBase64(null);
+    setImageBase64(item.imageBase64 || null);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
 
   const removeHistoryItem = useCallback(
     async (id: string) => {
-      try {
-        const filePath = SCANNER_IMAGES_DIR + id + '.jpg';
-        const info = await FileSystem.getInfoAsync(filePath);
-        if (info.exists) await FileSystem.deleteAsync(filePath);
-      } catch {
-        // ignore
-      }
       const next = history.filter((h) => h.id !== id);
       setHistory(next);
       await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
@@ -269,7 +248,7 @@ export default function AIScannerScreen() {
       const response = await apiService.analyzeChart(imageBase64, mimeType);
       if (response.message === 'accept' && response.data) {
         setResult(response.data);
-        if (imageUri) await saveToHistory(imageUri, response.data);
+        if (imageUri) await saveToHistory(imageUri, imageBase64, response.data);
       } else {
         setError(response.error || 'Analysis failed. Please try again.');
       }
@@ -535,7 +514,11 @@ export default function AIScannerScreen() {
                     activeOpacity={0.7}
                   >
                     <Image
-                      source={{ uri: item.imagePath || item.imageUri }}
+                      source={{
+                        uri: item.imageBase64
+                          ? `data:image/jpeg;base64,${item.imageBase64}`
+                          : item.imageUri,
+                      }}
                       style={styles.historyThumb}
                       resizeMode="cover"
                     />
