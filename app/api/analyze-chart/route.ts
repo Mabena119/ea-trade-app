@@ -4,7 +4,8 @@
  */
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const MODEL = 'gemini-1.5-flash'; // Vision-capable model for chart analysis
+const MODEL = 'gemini-2.5-flash'; // Stable vision-capable model
+const GEMINI_TIMEOUT_MS = 45000; // Under Render's typical 50s limit
 
 const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this trading chart image and provide a clear, concise recommendation.
 
@@ -54,6 +55,14 @@ export async function POST(request: Request): Promise<Response> {
     // Strip data URL prefix if present (e.g. "data:image/jpeg;base64,...")
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
 
+    // Limit size to avoid timeouts (base64 ~1.33x raw size; 3MB raw ≈ 4MB base64)
+    if (base64Data.length > 5_000_000) {
+      return Response.json(
+        { message: 'error', error: 'Image too large. Please use a smaller chart screenshot.' },
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const geminiPayload = {
       contents: [
         {
@@ -75,22 +84,48 @@ export async function POST(request: Request): Promise<Response> {
       },
     };
 
-    const res = await fetch(
-      `${GEMINI_API_BASE}/models/${MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geminiPayload),
-      }
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('Gemini API error:', res.status, errText);
+    let res: Response;
+    try {
+      res = await fetch(
+        `${GEMINI_API_BASE}/models/${MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(geminiPayload),
+          signal: controller.signal,
+        }
+      );
+    } catch (fetchErr: unknown) {
+      clearTimeout(timeoutId);
+      const msg = fetchErr instanceof Error ? fetchErr.message : 'Unknown error';
+      console.error('Gemini fetch error:', msg);
+      const isTimeout = msg.includes('abort') || msg.includes('timeout');
       return Response.json(
         {
           message: 'error',
-          error: 'AI analysis failed. Please try again.',
+          error: isTimeout
+            ? 'Request timed out. Try a smaller image.'
+            : 'AI service unavailable. Please try again.',
+        },
+        { status: 502, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Gemini API error:', res.status, errText.slice(0, 500));
+      // Surface sanitized hint for common issues (no API key in response)
+      let hint = 'Please try again.';
+      if (res.status === 401 || res.status === 403) hint = 'Check API key in Render Environment.';
+      if (res.status === 404) hint = 'Model may have changed.';
+      return Response.json(
+        {
+          message: 'error',
+          error: `AI analysis failed. ${hint}`,
         },
         { status: 502, headers: { 'Content-Type': 'application/json' } }
       );
