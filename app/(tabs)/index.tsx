@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Play, Square, Scan, Trash2, Plus } from 'lucide-react-native';
+import { Play, Square, Scan, Activity, Trash2, Plus } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -144,6 +144,10 @@ export default function HomeScreen() {
 
   const handleAIScanner = () => {
     router.push('/(tabs)/ai-scanner');
+  };
+
+  const handleQuotes = () => {
+    router.push('/(tabs)/quotes');
   };
 
 
@@ -346,10 +350,10 @@ export default function HomeScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity testID="action-ai-scanner" style={[styles.actionButton, styles.secondaryButton]} onPress={handleAIScanner} activeOpacity={0.6}>
+              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
                 <View style={styles.secondaryButtonContent}>
-                  <Scan color="#FFFFFF" size={24} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>AI SCANNER</Text>
+                  <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
+                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
                 </View>
               </TouchableOpacity>
 
