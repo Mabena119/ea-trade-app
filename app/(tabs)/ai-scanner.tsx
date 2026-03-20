@@ -25,7 +25,9 @@ import { useApp } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
-const MAX_HISTORY = 20;
+const SCANNER_UPLOAD_COUNT_KEY = 'ai-scanner-upload-count';
+const MAX_HISTORY = 5;
+const MAX_UPLOADS = 20;
 
 export interface ScannerHistoryItem {
   id: string;
@@ -46,6 +48,7 @@ export default function AIScannerScreen() {
   const [result, setResult] = useState<ChartAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<ScannerHistoryItem[]>([]);
+  const [uploadCount, setUploadCount] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
 
   const scrollToHistory = useCallback(() => {
@@ -59,6 +62,16 @@ export default function AIScannerScreen() {
       setHistory(Array.isArray(items) ? items.slice(0, MAX_HISTORY) : []);
     } catch {
       setHistory([]);
+    }
+  }, []);
+
+  const loadUploadCount = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(SCANNER_UPLOAD_COUNT_KEY);
+      const n = parseInt(raw || '0', 10);
+      setUploadCount(isNaN(n) ? 0 : n);
+    } catch {
+      setUploadCount(0);
     }
   }, []);
 
@@ -77,7 +90,11 @@ export default function AIScannerScreen() {
       const next = [item, ...(Array.isArray(current) ? current : [])].slice(0, MAX_HISTORY);
       setHistory(next);
       await AsyncStorage.setItem(SCANNER_HISTORY_KEY, JSON.stringify(next));
-      return next.length;
+      const countRaw = await AsyncStorage.getItem(SCANNER_UPLOAD_COUNT_KEY);
+      const count = parseInt(countRaw || '0', 10) + 1;
+      await AsyncStorage.setItem(SCANNER_UPLOAD_COUNT_KEY, String(count));
+      setUploadCount(count);
+      return count;
     },
     []
   );
@@ -127,19 +144,25 @@ export default function AIScannerScreen() {
       return;
     }
     const { scanner } = await apiService.getScannerStatus(email);
+    if (scannerUnlocked === false && scanner) {
+      await AsyncStorage.setItem(SCANNER_UPLOAD_COUNT_KEY, '0');
+      setUploadCount(0);
+    }
     setScannerUnlocked(scanner);
-  }, [user?.email]);
+  }, [user?.email, scannerUnlocked]);
 
   useEffect(() => {
     checkScanner();
     loadHistory();
-  }, [checkScanner, loadHistory]);
+    loadUploadCount();
+  }, [checkScanner, loadHistory, loadUploadCount]);
 
   useFocusEffect(
     useCallback(() => {
       checkScanner();
       loadHistory();
-    }, [checkScanner, loadHistory])
+      loadUploadCount();
+    }, [checkScanner, loadHistory, loadUploadCount])
   );
 
   const handleUnlockPress = async () => {
@@ -237,8 +260,8 @@ export default function AIScannerScreen() {
       setError('Please upload a chart image first.');
       return;
     }
-    if (history.length >= MAX_HISTORY) {
-      setError(`Limit of ${MAX_HISTORY} scans reached. Delete one from history to add another.`);
+    if (uploadCount >= MAX_UPLOADS) {
+      setError(`${MAX_UPLOADS} upload limit reached. Unlock to continue.`);
       let email = user?.email;
       if (!email) {
         try {
@@ -271,7 +294,7 @@ export default function AIScannerScreen() {
         setResult(response.data);
         if (imageUri) {
           const newCount = await saveToHistory(imageUri, imageBase64, response.data);
-          if (newCount >= MAX_HISTORY) {
+          if (newCount >= MAX_UPLOADS) {
             let email = user?.email;
             if (!email) {
               try {
@@ -411,10 +434,15 @@ export default function AIScannerScreen() {
         {/* Analyze button */}
         {imageUri && (
           <>
-            {history.length >= MAX_HISTORY && (
+            {uploadCount < MAX_UPLOADS && (
+              <Text style={[styles.uploadCountText, { color: theme.colors.textMuted }]}>
+                {uploadCount} of {MAX_UPLOADS} uploads used
+              </Text>
+            )}
+            {uploadCount >= MAX_UPLOADS && (
               <View style={[styles.limitBanner, { backgroundColor: `${theme.colors.warning}22`, borderColor: theme.colors.warning }]}>
                 <Text style={[styles.limitBannerText, { color: theme.colors.warning }]}>
-                  Limit reached ({MAX_HISTORY} scans). Delete one from history to add another.
+                  {MAX_UPLOADS} upload limit reached ({uploadCount}/{MAX_UPLOADS}). Unlock to continue.
                 </Text>
               </View>
             )}
@@ -422,10 +450,10 @@ export default function AIScannerScreen() {
               style={[
                 styles.analyzeButton,
                 { backgroundColor: theme.colors.accent },
-                history.length >= MAX_HISTORY && styles.analyzeButtonDisabled,
+                uploadCount >= MAX_UPLOADS && styles.analyzeButtonDisabled,
               ]}
               onPress={analyzeChart}
-              disabled={analyzing || history.length >= MAX_HISTORY}
+              disabled={analyzing || uploadCount >= MAX_UPLOADS}
               activeOpacity={0.8}
             >
               {analyzing ? (
@@ -793,6 +821,12 @@ const styles = StyleSheet.create({
   cameraButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  uploadCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   limitBanner: {
     padding: 12,
