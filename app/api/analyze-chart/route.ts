@@ -145,23 +145,32 @@ export async function POST(request: Request): Promise<Response> {
         .replace(/```json\s*/gi, '')
         .replace(/```\s*/g, '')
         .trim();
-      // Extract first {...} block if there's extra text
       const braceMatch = cleaned.match(/\{[\s\S]*\}/);
       if (braceMatch) cleaned = braceMatch[0];
-      // Remove BOM and trailing commas before parse
       cleaned = cleaned.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1');
       parsed = JSON.parse(cleaned) as Record<string, string>;
     } catch (parseErr) {
-      console.error('JSON parse error:', parseErr);
-      console.error('Raw response (first 500 chars):', text.slice(0, 500));
-      return Response.json(
-        {
-          message: 'error',
-          error: 'Invalid AI response format',
-          raw: text.slice(0, 200),
-        },
-        { status: 502, headers: { 'Content-Type': 'application/json' } }
-      );
+      console.warn('JSON parse failed, using regex fallback:', parseErr);
+      console.warn('Raw response (first 500 chars):', text.slice(0, 500));
+      // Fallback: extract fields via regex when JSON is malformed
+      const extract = (key: string): string => {
+        const re = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'i');
+        const m = text.match(re);
+        return m ? m[1].trim() : '';
+      };
+      const sig = text.match(/"signal"\s*:\s*"(BUY|SELL|NEUTRAL)"/i)?.[1]?.toUpperCase() || 'NEUTRAL';
+      parsed = {
+        signal: ['BUY', 'SELL'].includes(sig) ? sig : 'NEUTRAL',
+        confidence: extract('confidence') || 'medium',
+        summary: extract('summary') || 'Chart analysis completed.',
+        reasoning: extract('reasoning') || '',
+        suggestion: extract('suggestion') || '',
+        entryPrice: extract('entryPrice') || '',
+        stopLoss: extract('stopLoss') || '',
+        takeProfit1: extract('takeProfit1') || '',
+        takeProfit2: extract('takeProfit2') || '',
+        takeProfit3: extract('takeProfit3') || '',
+      };
     }
 
     return Response.json(
