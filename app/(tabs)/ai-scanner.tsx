@@ -329,50 +329,40 @@ export default function AIScannerScreen() {
               </View>
             </View>
             <Text style={[styles.summaryText, { color: theme.colors.textPrimary }]}>{result.summary}</Text>
+
+            {/* Trade levels - always visible */}
+            <View style={styles.tradeLevels}>
+              <Text style={[styles.tradeLevelsTitle, { color: theme.colors.textMuted }]}>TRADE SUGGESTION</Text>
+              <View style={styles.tradeRow}>
+                <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Entry</Text>
+                <Text style={[styles.tradeValue, { color: theme.colors.textPrimary }]}>
+                  {result.entryPrice || '—'}
+                </Text>
+              </View>
+              <View style={styles.tradeRow}>
+                <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Stop Loss</Text>
+                <Text style={[styles.tradeValue, { color: theme.colors.error }]}>
+                  {result.stopLoss || '—'}
+                </Text>
+              </View>
+              <View style={styles.tradeRow}>
+                <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Take Profit</Text>
+                <Text style={[styles.tradeValue, { color: theme.colors.success }]}>
+                  {result.takeProfit1 || result.takeProfit2 || result.takeProfit3
+                    ? [result.takeProfit1, result.takeProfit2, result.takeProfit3].filter(Boolean).join(' / ')
+                    : '—'}
+                </Text>
+              </View>
+            </View>
+
             <Text style={[styles.reasoningLabel, { color: theme.colors.textMuted }]}>Analysis</Text>
             <Text style={[styles.reasoningText, { color: theme.colors.textSecondary }]}>
-              {result.reasoning}
+              {result.reasoning || 'No technical analysis provided.'}
             </Text>
             <Text style={[styles.suggestionLabel, { color: theme.colors.textMuted }]}>Suggestion</Text>
             <Text style={[styles.suggestionText, { color: theme.colors.textPrimary }]}>
-              {result.suggestion}
+              {result.suggestion || 'Review the chart and trade levels above.'}
             </Text>
-
-            {(result.entryPrice || result.stopLoss || result.takeProfit1) && (
-              <View style={styles.tradeLevels}>
-                <Text style={[styles.tradeLevelsTitle, { color: theme.colors.textMuted }]}>TRADE LEVELS</Text>
-                {result.entryPrice ? (
-                  <View style={styles.tradeRow}>
-                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Entry</Text>
-                    <Text style={[styles.tradeValue, { color: theme.colors.textPrimary }]}>{result.entryPrice}</Text>
-                  </View>
-                ) : null}
-                {result.stopLoss ? (
-                  <View style={styles.tradeRow}>
-                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Stop Loss</Text>
-                    <Text style={[styles.tradeValue, { color: theme.colors.error }]}>{result.stopLoss}</Text>
-                  </View>
-                ) : null}
-                {result.takeProfit1 ? (
-                  <View style={styles.tradeRow}>
-                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>TP 1</Text>
-                    <Text style={[styles.tradeValue, { color: theme.colors.success }]}>{result.takeProfit1}</Text>
-                  </View>
-                ) : null}
-                {result.takeProfit2 ? (
-                  <View style={styles.tradeRow}>
-                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>TP 2</Text>
-                    <Text style={[styles.tradeValue, { color: theme.colors.success }]}>{result.takeProfit2}</Text>
-                  </View>
-                ) : null}
-                {result.takeProfit3 ? (
-                  <View style={styles.tradeRow}>
-                    <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>TP 3</Text>
-                    <Text style={[styles.tradeValue, { color: theme.colors.success }]}>{result.takeProfit3}</Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
           </View>
         )}
 

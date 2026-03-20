@@ -11,9 +11,9 @@ const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 const CHART_ANALYSIS_PROMPT = `You are a technical analyst. Analyze this trading chart image. Respond with ONLY a single JSON object, no markdown, no extra text.
 
 Required format:
-{"signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on patterns","reasoning":"brief technical reasoning","suggestion":"actionable advice","entryPrice":"price or empty","stopLoss":"price or empty","takeProfit1":"price or empty","takeProfit2":"price or empty","takeProfit3":"price or empty"}
+{"signal":"BUY"|"SELL"|"NEUTRAL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on key patterns","reasoning":"Brief description of how you concluded: mention indicators (e.g. RSI, MACD, moving averages), chart patterns (support/resistance, trend lines), and what led to your signal","suggestion":"actionable trade advice","entryPrice":"price or empty","stopLoss":"price or empty","takeProfit1":"price or empty","takeProfit2":"price or empty","takeProfit3":"price or empty"}
 
-Extract price levels from the chart scale. Use "" for prices if NEUTRAL. Add takeProfit2/3 only when multiple targets exist. If not a trading chart, return signal:NEUTRAL with empty price strings.`;
+Extract price levels from the chart scale. Use "" for prices if NEUTRAL. Add takeProfit2/3 only when multiple targets exist. If not a trading chart, return signal:NEUTRAL with empty price strings. Always explain your reasoning so the user understands how you reached the conclusion.`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
