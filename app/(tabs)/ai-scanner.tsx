@@ -40,8 +40,8 @@ export default function AIScannerScreen() {
     try {
       const manipulated = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        [{ resize: { width: 600 } }],
+        { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG, base64: true }
       );
       return {
         uri: manipulated.uri,
@@ -69,7 +69,7 @@ export default function AIScannerScreen() {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.5,
+      quality: 0.4,
       base64: true,
     });
     if (pickerResult.canceled) return;
@@ -91,7 +91,7 @@ export default function AIScannerScreen() {
     const pickerResult = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.5,
+      quality: 0.4,
       base64: true,
     });
     if (pickerResult.canceled) return;
@@ -105,6 +105,11 @@ export default function AIScannerScreen() {
   const analyzeChart = async () => {
     if (!imageBase64) {
       setError('Please upload a chart image first.');
+      return;
+    }
+    // Client-side size check to avoid 502 (Render limits)
+    if (imageBase64.length > 1_000_000) {
+      setError('Image too large. Tap Change and use a smaller screenshot or crop the chart.');
       return;
     }
     setAnalyzing(true);

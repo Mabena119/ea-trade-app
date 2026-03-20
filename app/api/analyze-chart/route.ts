@@ -4,9 +4,9 @@
  */
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'] as const;
-const GEMINI_TIMEOUT_MS = 25000; // Stay under Render timeout
-const MAX_BASE64_BYTES = 1_500_000; // ~1.1MB image to avoid 502 with large body
+const MODELS = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'] as const;
+const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
+const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
 const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this trading chart image and provide a clear recommendation with specific trade levels.
 

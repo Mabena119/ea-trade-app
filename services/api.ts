@@ -214,20 +214,34 @@ class ApiService {
   async analyzeChart(imageBase64: string, mimeType = 'image/jpeg'): Promise<ChartAnalysisResponse> {
     if (!imageBase64) return { message: 'error', error: 'No image provided' };
     const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/analyze-chart`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageBase64, mimeType }),
+        signal: controller.signal,
       });
-      const data = (await res.json()) as ChartAnalysisResponse & { error?: string };
+      clearTimeout(timeoutId);
+      let data: ChartAnalysisResponse & { error?: string };
+      try {
+        data = (await res.json()) as ChartAnalysisResponse & { error?: string };
+      } catch {
+        return { message: 'error', error: res.status === 502 ? 'Server busy. Try again in 30 seconds (cold start).' : 'Analysis failed.' };
+      }
       if (!res.ok) {
         return { message: 'error', error: data.error || 'Analysis failed' };
       }
       return data;
     } catch (e) {
+      clearTimeout(timeoutId);
       console.error('analyzeChart error:', e);
-      return { message: 'error', error: 'Network error. Please try again.' };
+      const isTimeout = e instanceof Error && e.name === 'AbortError';
+      return {
+        message: 'error',
+        error: isTimeout ? 'Request timed out. Server may be waking up—try again in 30 seconds.' : 'Network error. Please try again.',
+      };
     }
   }
 }
