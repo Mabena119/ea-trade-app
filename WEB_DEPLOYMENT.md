@@ -89,6 +89,8 @@ VAPID_PRIVATE_KEY=your-private-key
 ```
 Generate with: `npx web-push generate-vapid-keys`
 
+**Required for background notifications:** Set up keep-alive (see "Keep Server Awake" below)
+
 **Optional (for optimization):**
 ```
 DB_CONNECTION_LIMIT=20
@@ -196,6 +198,51 @@ bun run serve:dist
 2. Verify MT5 account is connected
 3. Check WebView is loading MT5 terminal
 4. Verify signal is recent (< 30 seconds old)
+
+## Keep Server Awake (24/7 Background Notifications)
+
+Render free tier spins down after 15 minutes of inactivity. For Web Push to deliver signal notifications when the iOS PWA is in the background, the server must stay awake. Choose one option:
+
+### Option A: UptimeRobot (Recommended – Free, No Code)
+
+1. Go to [uptimerobot.com](https://uptimerobot.com) and create a free account
+2. Click **Add New Monitor**
+3. Configure:
+   - **Monitor Type:** HTTP(s)
+   - **Friendly Name:** EA Trade Keep-Alive
+   - **URL:** `https://ea-trade-app.onrender.com/health`
+   - **Monitoring Interval:** 5 minutes
+4. Click **Create Monitor**
+
+### Option B: GitHub Actions
+
+1. In your repo, go to **Actions** → **New workflow** → **set up a workflow yourself**
+2. Replace the contents with:
+
+```yaml
+name: Keep Render Awake
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health
+        run: curl -sf --max-time 30 "https://ea-trade-app.onrender.com/health" || true
+```
+
+3. Click **Start commit** → **Commit new file**
+4. Enable Actions: **Settings** → **Actions** → **General** → **Allow all actions**
+
+### Option C: cron-job.org
+
+1. Go to [cron-job.org](https://cron-job.org) and create a free account
+2. Create a new cron job:
+   - **URL:** `https://ea-trade-app.onrender.com/health`
+   - **Schedule:** Every 5 minutes
+3. Save
 
 ## Monitoring
 

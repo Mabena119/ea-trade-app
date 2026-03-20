@@ -1637,23 +1637,23 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     };
   }, [isBotActive, mt5Account, activeSymbols, mt4Symbols, mt5Symbols, shouldProcessSignal, pausePolling]);
 
-  // On web/PWA: trigger immediate poll when page becomes visible (user returns to app)
-  // Catches signals that arrived while app was suspended in background
+  // On web/PWA: keep server awake, poll on resume, re-subscribe for Web Push
   useEffect(() => {
-    if (Platform.OS !== 'web' || !isBotActive) return;
+    if (Platform.OS !== 'web') return;
 
     const handleVisibilityChange = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      if (typeof document === 'undefined') return;
+
+      if (document.visibilityState === 'visible') {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
-        if (primaryEA?.licenseKey) {
+        if (primaryEA?.licenseKey && isBotActive) {
           const dbService = await getDatabaseSignalsPollingService();
           if (dbService?.isRunning()) {
             console.log('Page visible - triggering immediate poll to catch missed signals');
             dbService.pollNow();
           }
-          // Re-subscribe to Web Push when PWA comes to foreground - ensures server has our
-          // subscription after cold start (Render free tier) so background signals are delivered
-          if (isBotActive && isIOSPWA()) {
+          // Re-subscribe to Web Push when PWA comes to foreground
+          if (isIOSPWA()) {
             try {
               const { subscribeToPush } = await import('@/services/pwa-push-service');
               await subscribeToPush(primaryEA.licenseKey);
@@ -1661,12 +1661,29 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               console.warn('[PWA Push] Re-subscribe on visibility:', e);
             }
           }
+          // Start keep-alive pings so server stays awake for background Web Push
+          const { startKeepAlive } = await import('@/services/pwa-keep-alive');
+          startKeepAlive();
+        }
+      } else if (document.visibilityState === 'hidden') {
+        const { pingKeepAlive, stopKeepAlive } = await import('@/services/pwa-keep-alive');
+        stopKeepAlive();
+        // Ping when going to background - resets Render's 15min timer for Web Push
+        if (isBotActive) {
+          pingKeepAlive(true); // sendBeacon - often completes before page suspends
         }
       }
     };
 
+    if (document.visibilityState === 'visible' && isBotActive) {
+      import('@/services/pwa-keep-alive').then(({ startKeepAlive }) => startKeepAlive());
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      import('@/services/pwa-keep-alive').then(({ stopKeepAlive }) => stopKeepAlive());
+    };
   }, [Platform.OS, isBotActive, eas]);
 
   // Ensure signal monitoring continues when app is in background and resumes when active

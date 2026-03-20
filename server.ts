@@ -1943,6 +1943,13 @@ const server = Bun.serve({
       });
     }
 
+    // Keep-alive: resets Render inactivity timer so server stays awake for Web Push
+    if (url.pathname === '/api/keep-alive') {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
     // Handle terminal assets (CSS, JS, etc.) - proxy to the original MT5 terminal
     if (url.pathname.startsWith('/terminal/')) {
       try {
