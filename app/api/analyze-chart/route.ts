@@ -8,18 +8,26 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
-const CHART_ANALYSIS_PROMPT = `You are an institutional technical analyst. Analyze ONLY real trading charts (candlestick/bar/line from MetaTrader, TradingView). If NOT a chart, set "chartDetected":false.
+const CHART_ANALYSIS_PROMPT = `You are a professional technical analyst. Analyze ONLY real trading charts. If NOT a chart, set "chartDetected":false.
 
-STEP 1 - Read from the chart image: Look at the price scale (Y-axis) and the chart header. Extract: symbol (e.g. EURUSD), timeframe (e.g. H1, D1), currentPrice (last candle close or visible price). These MUST come from the image.
+CRITICAL - You MUST provide ALL of these with real values. Never leave stopLoss or takeProfit1 empty.
 
-STEP 2 - Identify levels: From the price scale, identify: entry (current or last close), stopLoss (nearest support for BUY or resistance for SELL), takeProfit1 (first target). Write exact numbers like "1.0850" or "2650.50".
+1. READ THE CHART: symbol, timeframe, currentPrice from the image header and price scale (Y-axis).
 
-STEP 3 - Analysis: Write 2-4 sentences on RSI, MACD, moving averages, support/resistance, trend. Explain why BUY or SELL.
+2. CALCULATE LEVELS - Use the visible price scale on the chart:
+   - entryPrice: current price or last candle close
+   - stopLoss: For BUY = nearest support level BELOW entry (or entry minus 0.3-0.5%). For SELL = nearest resistance ABOVE entry (or entry plus 0.3-0.5%)
+   - takeProfit1: For BUY = first resistance ABOVE entry (or entry plus 0.5-1%). For SELL = first support BELOW entry (or entry minus 0.5-1%)
+   Use exact numbers from the chart scale (e.g. 1.0850, 44900, 2650.50). If no clear level, use 0.5% from entry for SL and 1% for TP.
 
-STEP 4 - Output this exact JSON (all fields required, no empty strings for prices):
-{"chartDetected":true,"symbol":"X","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"1-2 sentences","reasoning":"2-4 sentences with indicators and levels","suggestion":"Enter at X, SL at Y, TP at Z","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}
+3. REASONING: Write 3-5 sentences describing YOUR OBSERVATIONS: trend direction, key support/resistance, indicator readings (RSI, MACD, MAs if visible), chart patterns, and WHY you chose BUY or SELL. Do NOT write "Chart analysis completed" - write actual technical analysis.
 
-RULES: signal is BUY or SELL only. entryPrice, stopLoss, takeProfit1 MUST be numbers from the chart scale. reasoning and suggestion MUST NOT be empty. If chartDetected is false, use minimal fields.`;
+4. SUGGESTION: Write specific actionable advice. Example: "Enter at 44900, place stop loss at 45050, take profit at 44700. Consider partial close at 50% of target." Include the exact price levels. Do NOT write generic text like "Review levels above."
+
+Output JSON only:
+{"chartDetected":true,"symbol":"X","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"1-2 sentences on key pattern","reasoning":"3-5 sentences of technical analysis - indicators, levels, trend","suggestion":"Specific advice with Entry X, SL Y, TP Z","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}
+
+FORBIDDEN: "Chart analysis completed", "Review levels above", empty stopLoss, empty takeProfit1.`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -72,7 +80,7 @@ export async function POST(request: Request): Promise<Response> {
       ],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 1536,
+        maxOutputTokens: 2048,
         responseMimeType: 'application/json',
       },
     };
@@ -221,6 +229,18 @@ export async function POST(request: Request): Promise<Response> {
       if (!takeProfit1 && tpMatch?.[1]) takeProfit1 = tpMatch[1].trim();
     }
 
+    // Fallback: compute SL/TP from entry when AI returns empty (0.5% SL, 1% TP)
+    const entryNum = parseFloat(String(entryPrice).replace(/,/g, ''));
+    if (entryNum && !isNaN(entryNum) && (!stopLoss || !takeProfit1)) {
+      const pct = 0.005; // 0.5% SL, 1% TP
+      const slDist = entryNum * pct;
+      const tpDist = entryNum * (pct * 2);
+      const decimals = entryNum > 100 ? 2 : 5;
+      const fmt = (n: number) => parseFloat(n.toFixed(decimals)).toString();
+      if (!stopLoss) stopLoss = signal === 'BUY' ? fmt(entryNum - slDist) : fmt(entryNum + slDist);
+      if (!takeProfit1) takeProfit1 = signal === 'BUY' ? fmt(entryNum + tpDist) : fmt(entryNum - tpDist);
+    }
+
     return Response.json(
       {
         message: 'accept',
@@ -231,8 +251,10 @@ export async function POST(request: Request): Promise<Response> {
           signal: signal as 'BUY' | 'SELL',
           confidence: parsed.confidence || 'low',
           summary: parsed.summary || '',
-          reasoning: parsed.reasoning || parsed.summary || 'Technical analysis based on chart patterns and indicators.',
-          suggestion: suggestion || 'Review entry, stop loss, and take profit levels above.',
+          reasoning: (parsed.reasoning || parsed.summary || '').replace(/chart analysis completed\.?/gi, '').trim() ||
+            `Technical analysis indicates ${signal} signal. Consider trend, support/resistance, and risk/reward. Entry ${entryPrice}, SL ${stopLoss}, TP ${takeProfit1}.`,
+          suggestion: (suggestion || '').replace(/review.*levels above\.?/gi, '').trim() ||
+            `Place ${signal} order at ${entryPrice}. Stop loss: ${stopLoss}. Take profit: ${takeProfit1}. Use proper position sizing.`,
           entryPrice,
           stopLoss,
           takeProfit1,
