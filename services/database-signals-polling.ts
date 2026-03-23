@@ -91,7 +91,8 @@ class DatabaseSignalsPollingService {
     this.onSignalFound = onSignalFound;
     this.onError = onError;
     this.currentLicenseKey = licenseKey;
-    this.lastPollTime = new Date().toISOString();
+    // Start with 24 hours ago so first poll fetches recent signals (was: "now" which missed everything)
+    this.lastPollTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     console.log('Starting database signals polling for license:', licenseKey);
 
@@ -235,8 +236,18 @@ class DatabaseSignalsPollingService {
         }
       }
 
-      // Update last poll time
-      this.lastPollTime = new Date().toISOString();
+      // Update last poll time: use newest signal's timestamp to avoid gaps, or advance with overlap when none
+      if (signals.length > 0) {
+        const newest = signals.reduce((a, s) => {
+          const aTime = new Date(a.latestupdate || a.time || 0).getTime();
+          const sTime = new Date(s.latestupdate || s.time || 0).getTime();
+          return sTime > aTime ? s : a;
+        });
+        this.lastPollTime = (newest.latestupdate || newest.time || this.lastPollTime) as string;
+      } else {
+        // No signals: advance by 5s overlap to avoid re-fetching same window and race conditions
+        this.lastPollTime = new Date(Date.now() - 5000).toISOString();
+      }
 
     } catch (error) {
       console.error('Error in checkForNewSignals:', error);
@@ -265,10 +276,9 @@ class DatabaseSignalsPollingService {
   // Get new signals for EA since last poll
   private async getNewSignalsForEA(ea: string): Promise<DatabaseSignal[]> {
     try {
-      const params = new URLSearchParams({
-        eaId: ea,
-        since: this.lastPollTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // Default to 24 hours ago
-      });
+      // Use 24h ago when lastPollTime is null (e.g. after stop/restart) so we always fetch recent signals
+      const since = this.lastPollTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const params = new URLSearchParams({ eaId: ea, since });
 
       const url = `${API_BASE_URL}/api/get-new-signals?${params}`;
       console.log('Fetching new signals, URL:', url);
