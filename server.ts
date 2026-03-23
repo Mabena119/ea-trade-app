@@ -1033,9 +1033,19 @@ async function handleApi(request: Request): Promise<Response> {
                     loginButton.click();
                     sendMessage('step_update', 'Connecting...');
                     let loginRetries = 0;
-                    while (loginRetries < 20) {
+                    while (loginRetries < 35) {
+                      const pageText = (document.body?.innerText || '').toLowerCase();
+                      if (pageText.includes('invalid login') || pageText.includes('invalid password') || 
+                          pageText.includes('wrong password') || pageText.includes('wrong login') ||
+                          pageText.includes('incorrect password') || pageText.includes('incorrect login')) {
+                        sendMessage('authentication_failed', 'Invalid login or password - verify credentials in MetaTrader tab');
+                        return;
+                      }
                       const loginForm = document.querySelector('input[name="login"]');
-                      const searchBar = document.querySelector('input[placeholder*="Search symbol" i]');
+                      const searchBar = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                       document.querySelector('input[placeholder*="Search" i]') ||
+                                       document.querySelector('input[type="search"]') ||
+                                       document.querySelector('.search input');
                       if (!loginForm && searchBar && searchBar.offsetParent !== null) {
                         break;
                       }
@@ -1104,7 +1114,12 @@ async function handleApi(request: Request): Promise<Response> {
                     return;
                   }
                   
-                  sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
+                  const errText = (document.body?.innerText || '').toLowerCase();
+                  if (errText.includes('invalid') || errText.includes('wrong') || errText.includes('incorrect')) {
+                    sendMessage('authentication_failed', 'Invalid login or password - verify credentials in MetaTrader tab');
+                  } else {
+                    sendMessage('authentication_failed', 'Authentication failed - could not reach terminal. Check broker connection.');
+                  }
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);

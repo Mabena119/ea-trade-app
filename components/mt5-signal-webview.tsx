@@ -1,8 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Modal, Text, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
+import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 import { X } from 'lucide-react-native';
 
@@ -34,6 +37,7 @@ const MT5_BROKER_URLS: Record<string, string> = {
 
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
   const { mt5Account, eas, mt5Symbols, markTradeExecuted } = useApp();
+  const theme = useTheme();
   const [loading, setLoading] = useState<boolean>(true);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
   const webViewRef = useRef<WebView>(null);
@@ -175,13 +179,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         const authenticateMT5 = async () => {
           try {
             sendMessage('step_update', 'Initializing MT5 Account...');
-            // Wait for page to be ready instead of fixed delay
+            // Wait for page to be ready (some brokers load slower)
             let retries = 0;
-            while (retries < 10) {
+            while (retries < 20) {
               const form = document.querySelector('.form');
-              const loginField = document.querySelector('input[name="login"]');
+              const loginField = document.querySelector('input[name="login"]') ||
+                               document.querySelector('input[name="Login"]') ||
+                               document.querySelector('input[type="number"]');
               if (form || loginField) break;
-              await new Promise(r => setTimeout(r, 300));
+              await new Promise(r => setTimeout(r, 400));
               retries++;
             }
             
@@ -286,9 +292,21 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Wait for login to complete - check for search bar or disappearance of login form
               sendMessage('step_update', 'Connecting...');
               let loginRetries = 0;
-              while (loginRetries < 20) {
+              const maxRetries = 35;
+              while (loginRetries < maxRetries) {
+                // Check for visible error messages (broker rejected credentials)
+                const pageText = (document.body?.innerText || '').toLowerCase();
+                if (pageText.includes('invalid login') || pageText.includes('invalid password') || 
+                    pageText.includes('wrong password') || pageText.includes('wrong login') ||
+                    pageText.includes('incorrect password') || pageText.includes('incorrect login')) {
+                  sendMessage('authentication_failed', 'Invalid login or password - verify credentials in MetaTrader tab');
+                  return;
+                }
                 const loginForm = document.querySelector('input[name="login"]');
-                const searchBar = document.querySelector('input[placeholder*="Search symbol" i]');
+                const searchBar = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                                 document.querySelector('input[placeholder*="Search" i]') ||
+                                 document.querySelector('input[type="search"]') ||
+                                 document.querySelector('.search input');
                 if (!loginForm && searchBar && searchBar.offsetParent !== null) {
                   break; // Login successful
                 }
@@ -382,8 +400,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               return;
             }
             
-            // No search bar found - authentication failed
-            sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
+            // No search bar found - check page for specific error before generic message
+            const errText = (document.body?.innerText || '').toLowerCase();
+            if (errText.includes('invalid') || errText.includes('wrong') || errText.includes('incorrect')) {
+              sendMessage('authentication_failed', 'Invalid login or password - verify credentials in MetaTrader tab');
+            } else {
+              sendMessage('authentication_failed', 'Authentication failed - could not reach terminal. Check broker connection.');
+            }
             
           } catch(e) {
             sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
@@ -1136,19 +1159,53 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.modalContent}>
-        {/* Status Bar */}
-        <View style={styles.statusBar}>
-          <View style={styles.statusBarLeft}>
-            <Text style={styles.statusText}>{currentStep}</Text>
-            {loading && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
+      {/* Transparent overlay - app stays visible underneath, like MT5 auth */}
+      <View style={styles.overlayContainer} pointerEvents="box-none">
+        {/* Floating toast at top - matches MT5 auth style */}
+        <View style={styles.authToastContainer}>
+          <LinearGradient
+            colors={theme.colors.primaryGradient as [string, string, ...string[]]}
+            style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+          <View style={styles.authToastContent}>
+            <View style={styles.authToastLeft}>
+              <View style={styles.authToastIcon}>
+                {Platform.OS === 'ios' && (
+                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+                )}
+                <LinearGradient
+                  colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <ActivityIndicator size="small" color="#25D366" />
+              </View>
+              <View style={styles.authToastInfo}>
+                <Text style={styles.authToastTitle}>Executing Trade</Text>
+                <Text style={styles.authToastStatus}>
+                  {currentStep || (loading ? 'Connecting...' : 'Initializing...')}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.authToastCloseButton}
+              onPress={onClose}
+              activeOpacity={0.8}
+            >
+              {Platform.OS === 'ios' && (
+                <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+              )}
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                style={StyleSheet.absoluteFill}
+              />
+              <X color="#FFFFFF" size={16} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} activeOpacity={0.8}>
-            <X color="#FFFFFF" size={20} />
-          </TouchableOpacity>
         </View>
 
-        {/* Hidden WebView - runs in background, only status bar visible */}
+        {/* Hidden WebView - runs in background */}
         <View style={styles.hiddenWebViewContainer}>
           {Platform.OS === 'web' ? (
             <WebWebView
@@ -1186,7 +1243,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                     if (webViewRef.current) {
                       webViewRef.current.injectJavaScript(script);
                     }
-                  }, 1000);
+                  }, 2000);
                 }
               }}
               onError={(syntheticEvent) => {
@@ -1237,66 +1294,77 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 16,
-    backgroundColor: colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerContent: {
+  overlayContainer: {
     flex: 1,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
+  authToastContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 20,
+    right: 20,
+    backgroundColor: '#000000',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.5)',
+    borderTopColor: 'rgba(139, 92, 246, 0.7)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 10000,
+    zIndex: 10000,
+    overflow: 'hidden',
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  closeButton: {
-    padding: 8,
-  },
-  modalContent: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 12,
-    paddingBottom: 20,
-  },
-  statusBar: {
+  authToastContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 8,
-    zIndex: 10000,
   },
-  statusBarLeft: {
-    flex: 1,
+  authToastLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  statusText: {
     flex: 1,
-    fontSize: 14,
+  },
+  authToastIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(37, 211, 102, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 0.3,
+    borderColor: 'rgba(37, 211, 102, 0.3)',
+    overflow: 'hidden',
+  },
+  authToastInfo: {
+    flex: 1,
+  },
+  authToastTitle: {
     color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  authToastStatus: {
+    color: '#CCCCCC',
+    fontSize: 12,
     fontWeight: '500',
   },
-  loader: {
+  authToastCloseButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.backgroundMedium,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: 8,
+    borderWidth: 0.3,
+    borderColor: colors.glass.border,
+    overflow: 'hidden',
   },
   hiddenWebViewContainer: {
     position: 'absolute',
