@@ -187,35 +187,44 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               if (acceptButton) {
                 acceptButton.click();
                 sendMessage('step_update', 'Accepting disclaimer...');
-                await new Promise(r => setTimeout(r, 500)); // Reduced wait
+                await new Promise(r => setTimeout(r, 500));
               }
             }
             
-            // Check if form is visible and remove any existing connections
-            const form = document.querySelector('.form');
-            if (form && !form.classList.contains('hidden')) {
-              // Press remove button first to clear any existing connection
-              const removeButton = document.querySelector('.button.svelte-1wrky82.red');
-              if (removeButton) {
-                removeButton.click();
-                sendMessage('step_update', 'Removing existing connection...');
-                await new Promise(r => setTimeout(r, 1000)); // Reduced wait
-              } else {
-                // Fallback: look for Remove button by text
-                const buttons = document.getElementsByTagName('button');
-                for (let i = 0; i < buttons.length; i++) {
-                  if (buttons[i].textContent.trim() === 'Remove') {
-                    buttons[i].click();
-                    sendMessage('step_update', 'Removing existing connection...');
-                    await new Promise(r => setTimeout(r, 1000)); // Reduced wait
-                    break;
-                  }
+            // Switch to Login/Register tab if on Accounts tab
+            const loginTab = Array.from(document.querySelectorAll('button, a, [role="tab"]')).find(el => {
+              const t = (el.textContent || '').trim().toLowerCase();
+              return t.includes('login') || t.includes('register');
+            });
+            if (loginTab) {
+              loginTab.click();
+              sendMessage('step_update', 'Switching to login...');
+              await new Promise(r => setTimeout(r, 2000));
+            }
+            
+            // Remove existing connection - robust find, retry up to 3 times
+            const findAndClickRemove = () => {
+              const allClickables = document.querySelectorAll('button, a, [role="button"], .button');
+              for (const el of allClickables) {
+                const text = (el.textContent || '').trim().toLowerCase();
+                const isRed = el.className && (el.className.includes('red') || el.style.color === 'red');
+                if (text === 'remove' || text.includes('remove') || text === 'disconnect' || (isRed && text.includes('remove'))) {
+                  return el;
                 }
               }
+              return null;
+            };
+            for (let attempt = 0; attempt < 3; attempt++) {
+              const removeBtn = findAndClickRemove();
+              if (removeBtn) {
+                sendMessage('step_update', 'Removing existing connection...');
+                removeBtn.click();
+                await new Promise(r => setTimeout(r, 4500));
+              } else break;
             }
             
             // Wait for form to be ready
-            await new Promise(r => setTimeout(r, 500)); // Reduced wait
+            await new Promise(r => setTimeout(r, 2000));
             
             // Fill login credentials with enhanced field detection (matching Android)
             const loginField = document.querySelector('input[name="login"]') || 

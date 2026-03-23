@@ -511,53 +511,36 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                   
-                  // Check if form is visible and remove any existing connections
-                  // Always check for existing connections and remove them first
-                  const form = document.querySelector('.form');
-                  const removeButton = document.querySelector('.button.svelte-1wrky82.red') ||
-                                     document.querySelector('button.red') ||
-                                     Array.from(document.querySelectorAll('button')).find(btn => 
-                                       btn.textContent.trim() === 'Remove' ||
-                                       btn.textContent.trim().toLowerCase().includes('remove')
-                                     );
+                  // Switch to Login/Register tab if on Accounts tab
+                  const loginTab = Array.from(document.querySelectorAll('button, a, [role="tab"]')).find(el => {
+                    const t = (el.textContent || '').trim().toLowerCase();
+                    return t.includes('login') || t.includes('register');
+                  });
+                  if (loginTab) {
+                    loginTab.click();
+                    sendMessage('step_update', 'Switching to login...');
+                    await sleep(2000);
+                  }
                   
-                    if (removeButton) {
-                    console.log('[MT5 Auth] Found existing connection, removing...');
+                  // Remove existing connection - robust find, retry up to 3 times
+                  const findAndClickRemove = () => {
+                    const allClickables = document.querySelectorAll('button, a, [role="button"], .button');
+                    for (const el of allClickables) {
+                      const text = (el.textContent || '').trim().toLowerCase();
+                      const isRed = el.className && (el.className.includes('red') || el.style.color === 'red');
+                      if (text === 'remove' || text.includes('remove') || text === 'disconnect' || (isRed && text.includes('remove'))) {
+                        return el;
+                      }
+                    }
+                    return null;
+                  };
+                  for (let attempt = 0; attempt < 3; attempt++) {
+                    const removeBtn = findAndClickRemove();
+                    if (removeBtn) {
                       sendMessage('step_update', 'Removing existing connection...');
-                    removeButton.click();
-                    await sleep(3000);
-                    
-                    // Wait for form to be cleared and ready for new connection
-                    let formCleared = false;
-                    for (let i = 0; i < 10; i++) {
-                      const currentForm = document.querySelector('.form');
-                      const currentRemoveButton = document.querySelector('.button.svelte-1wrky82.red');
-                      if (!currentRemoveButton || (currentForm && currentForm.classList.contains('hidden'))) {
-                        formCleared = true;
-                        console.log('[MT5 Auth] Form cleared, ready for new connection');
-                        break;
-                      }
-                      await sleep(500);
-                    }
-                    
-                    if (!formCleared) {
-                      console.log('[MT5 Auth] Form still visible, waiting longer...');
-                      sendMessage('step_update', 'Waiting for form to clear...');
-                      await sleep(2000);
-                    }
-                  } else if (form && !form.classList.contains('hidden')) {
-                    console.log('[MT5 Auth] Form visible but no remove button found, searching...');
-                    // Form is visible but no remove button - try to find it by other means
-                      const buttons = document.getElementsByTagName('button');
-                      for (let i = 0; i < buttons.length; i++) {
-                      const btnText = buttons[i].textContent.trim().toLowerCase();
-                      if (btnText === 'remove' || btnText.includes('remove') || btnText === 'disconnect') {
-                          sendMessage('step_update', 'Removing existing connection...');
-                        buttons[i].click();
-                        await sleep(3000);
-                          break;
-                      }
-                    }
+                      removeBtn.click();
+                      await sleep(4500);
+                    } else break;
                   }
                   
                   // Wait for form to be ready
@@ -980,33 +963,39 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                   
-                  // Check if form is visible and remove any existing connections
-                  const form = document.querySelector('.form');
-                  const removeButton = document.querySelector('.button.svelte-1wrky82.red') ||
-                                     document.querySelector('button.red') ||
-                                     Array.from(document.querySelectorAll('button')).find(btn => 
-                                       btn.textContent.trim() === 'Remove' ||
-                                       btn.textContent.trim().toLowerCase().includes('remove')
-                                     );
-                  
-                  if (removeButton) {
-                    console.log('[MT5 Trading] Found existing connection, removing...');
-                    sendMessage('step_update', 'Removing existing connection...');
-                    removeButton.click();
-                    await sleep(1000);
-                  } else if (form && !form.classList.contains('hidden')) {
-                    const buttons = document.getElementsByTagName('button');
-                    for (let i = 0; i < buttons.length; i++) {
-                      if (buttons[i].textContent.trim() === 'Remove') {
-                        buttons[i].click();
-                        sendMessage('step_update', 'Removing existing connection...');
-                        await sleep(1000);
-                        break;
-                      }
-                    }
+                  // Switch to Login/Register tab if on Accounts tab
+                  const loginTab = Array.from(document.querySelectorAll('button, a, [role="tab"]')).find(el => {
+                    const t = (el.textContent || '').trim().toLowerCase();
+                    return t.includes('login') || t.includes('register');
+                  });
+                  if (loginTab) {
+                    loginTab.click();
+                    sendMessage('step_update', 'Switching to login...');
+                    await sleep(2000);
                   }
                   
-                  await sleep(500);
+                  // Remove existing connection - robust find, retry up to 3 times
+                  const findAndClickRemove = () => {
+                    const allClickables = document.querySelectorAll('button, a, [role="button"], .button');
+                    for (const el of allClickables) {
+                      const text = (el.textContent || '').trim().toLowerCase();
+                      const isRed = el.className && (el.className.includes('red') || el.style.color === 'red');
+                      if (text === 'remove' || text.includes('remove') || text === 'disconnect' || (isRed && text.includes('remove'))) {
+                        return el;
+                      }
+                    }
+                    return null;
+                  };
+                  for (let attempt = 0; attempt < 3; attempt++) {
+                    const removeBtn = findAndClickRemove();
+                    if (removeBtn) {
+                      sendMessage('step_update', 'Removing existing connection...');
+                      removeBtn.click();
+                      await sleep(4500);
+                    } else break;
+                  }
+                  
+                  await sleep(2000);
                   
                   // Fill login credentials
                   const loginField = document.querySelector('input[name="login"]') || 
