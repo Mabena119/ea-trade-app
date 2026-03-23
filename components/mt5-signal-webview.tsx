@@ -67,7 +67,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     const { login, password, server } = mt5Account;
     const symbol = signal.asset;
     const terminalUrl = getMT5Url();
-    const baseUrl = terminalUrl.replace('/terminal/', '').replace('/terminal', '');
+    const baseUrl = terminalUrl.replace(/\/terminal\/?/, '').replace(/\/$/, '');
     const wsUrl = `${baseUrl.replace('http://', 'wss://').replace('https://', 'wss://')}/terminal/ws`;
 
     // Get robot/EA name
@@ -1132,33 +1132,44 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       transparent={true}
       onRequestClose={onClose}
     >
-      {/* Status Bar - Only visible UI element (like MT5 auth toast) */}
-      <View style={styles.statusBar}>
-        <Text style={styles.statusText}>{currentStep}</Text>
-        {loading && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
-      </View>
+      <View style={styles.modalContent}>
+        {/* Status Bar */}
+        <View style={styles.statusBar}>
+          <View style={styles.statusBarLeft}>
+            <Text style={styles.statusText}>{currentStep}</Text>
+            {loading && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
+          </View>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} activeOpacity={0.8}>
+            <X color="#FFFFFF" size={20} />
+          </TouchableOpacity>
+        </View>
 
-      {/* Hidden WebView Container - Completely invisible */}
-      <View style={styles.hiddenWebViewContainer}>
-        {/* WebView - Completely hidden */}
-        {Platform.OS === 'web' ? (
-          <WebWebView
-            key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
-            url={proxyUrl || ''}
-            onMessage={handleWebViewMessage}
-            onLoadEnd={() => {
-              setLoading(false);
-              setCurrentStep('MT5 Terminal loaded');
-              console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-            }}
-            style={styles.hiddenWebView}
-          />
-        ) : (
-          <WebView
-            key={`${webViewKey}-${signal.id || 'no-signal'}`}
-            ref={webViewRef}
-            source={{ uri: mt5Url }}
-            style={styles.hiddenWebView}
+        {/* Debug Banner */}
+        <View style={styles.debugBanner}>
+          <Text style={styles.debugText}>DEBUG: Trading WebView</Text>
+          <Text style={styles.debugTextSmall}>Broker: {mt5Account.server || 'RazorMarkets-Live'} | Symbol: {signal.asset}</Text>
+        </View>
+
+        {/* Visible WebView for debugging */}
+        <View style={styles.visibleWebViewContainer}>
+          {Platform.OS === 'web' ? (
+            <WebWebView
+              key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
+              url={proxyUrl || ''}
+              onMessage={handleWebViewMessage}
+              onLoadEnd={() => {
+                setLoading(false);
+                setCurrentStep('MT5 Terminal loaded');
+                console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+              }}
+              style={styles.visibleWebView}
+            />
+          ) : (
+            <WebView
+              key={`${webViewKey}-${signal.id || 'no-signal'}`}
+              ref={webViewRef}
+              source={{ uri: mt5Url }}
+              style={styles.visibleWebView}
             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             onMessage={handleWebViewMessage}
             onLoadStart={() => {
@@ -1216,7 +1227,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             cacheEnabled={false}
             incognito={true}
           />
-        )}
+          )}
+        </View>
       </View>
     </Modal>
   );
@@ -1254,40 +1266,30 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 8,
   },
-  // Status Bar - Only visible UI element (like MT5 auth toast)
+  modalContent: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 12,
+    paddingBottom: 20,
+  },
   statusBar: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 20,
-    left: 20,
-    right: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 8,
     zIndex: 10000,
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 10,
   },
-  // Hidden WebView Container - Completely invisible
-  hiddenWebViewContainer: {
-    position: 'absolute',
-    top: -10000,
-    left: -10000,
-    width: 0,
-    height: 0,
-    opacity: 0,
-    zIndex: -1,
-    pointerEvents: 'none',
+  statusBarLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   statusText: {
     flex: 1,
@@ -1298,13 +1300,37 @@ const styles = StyleSheet.create({
   loader: {
     marginLeft: 8,
   },
-  hiddenWebView: {
-    width: 0,
-    height: 0,
-    opacity: 0,
-    position: 'absolute',
-    top: -10000,
-    left: -10000,
-    pointerEvents: 'none',
+  debugBanner: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(0, 255, 136, 0.2)',
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 136, 0.4)',
+  },
+  debugText: {
+    color: '#00FF88',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  debugTextSmall: {
+    color: 'rgba(0, 255, 136, 0.8)',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  visibleWebViewContainer: {
+    flex: 1,
+    minHeight: 300,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(0, 255, 136, 0.3)',
+  },
+  visibleWebView: {
+    flex: 1,
+    width: '100%',
+    minHeight: 280,
   },
 });

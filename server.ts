@@ -356,6 +356,8 @@ async function handleApi(request: Request): Promise<Response> {
           const baseUrlObj = new URL(terminalUrl);
           const baseUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}`;
           const wsBaseUrl = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+          // Root-based terminals (e.g. Profinwealth) serve from domain root, not /terminal/
+          const isRootTerminal = !terminalUrl.replace(/\/$/, '').endsWith('/terminal');
 
           // Fix relative URLs in HTML (for assets, scripts, stylesheets)
           // Replace relative URLs with proxy URLs so they go through our proxy
@@ -365,19 +367,19 @@ async function handleApi(request: Request): Promise<Response> {
             : url.origin;
 
           // For terminal assets, route through proxy to avoid CORS issues
-          // Proxy will fetch from broker and serve with correct MIME types
+          // Root terminals: route ALL /path through proxy; standard: route /terminal/path
           html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              // Route through proxy with broker parameter
               return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
+            if (isRootTerminal) return `href="${proxyOrigin}/terminal/${path}?broker=${encodeURIComponent(broker)}"`;
             return `href="${baseUrl}/${path}"`;
           });
           html = html.replace(/src="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
-              // Route through proxy with broker parameter
               return `src="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
+            if (isRootTerminal) return `src="${proxyOrigin}/terminal/${path}?broker=${encodeURIComponent(broker)}"`;
             return `src="${baseUrl}/${path}"`;
           });
           html = html.replace(/url\("\/\/([^"]+)"\)/g, (match, path) => {
@@ -752,22 +754,25 @@ async function handleApi(request: Request): Promise<Response> {
           const baseUrlObj = new URL(terminalUrl);
           const baseUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}`;
           const wsBaseUrl = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+          const isRootTerminal = !terminalUrl.replace(/\/$/, '').endsWith('/terminal');
 
           const proxyOrigin = url.protocol === 'https:' || url.hostname.includes('onrender.com')
             ? `https://${url.hostname}${url.port ? `:${url.port}` : ''}`
             : url.origin;
 
-          // Fix relative URLs (same as auth proxy)
+          // Fix relative URLs - root terminals: route ALL paths through proxy
           html = html.replace(/href="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
               return `href="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
+            if (isRootTerminal) return `href="${proxyOrigin}/terminal/${path}?broker=${encodeURIComponent(broker)}"`;
             return `href="${baseUrl}/${path}"`;
           });
           html = html.replace(/src="\/([^"]+)"/g, (match, path) => {
             if (path.startsWith('terminal/')) {
               return `src="${proxyOrigin}/terminal/${path.replace('terminal/', '')}?broker=${encodeURIComponent(broker)}"`;
             }
+            if (isRootTerminal) return `src="${proxyOrigin}/terminal/${path}?broker=${encodeURIComponent(broker)}"`;
             return `src="${baseUrl}/${path}"`;
           });
           html = html.replace(/url\("\/\/([^"]+)"\)/g, (match, path) => {
@@ -1998,16 +2003,50 @@ const server = Bun.serve({
           }
         }
 
-        // Try to fetch from broker's terminal directory
-        const targetUrl = `${brokerBaseUrl}/terminal/${assetPath}`;
+        // Brokers that serve terminal from root (no /terminal path)
+        const rootTerminalBrokers = ['mt5.profinwealth.com', 'profinwealth'];
+        const isRootTerminal = rootTerminalBrokers.some(b => brokerBaseUrl.includes(b));
 
-        const response = await fetch(targetUrl, {
+        // Try to fetch from broker's terminal directory (or root for root-terminal brokers)
+        let targetUrl = isRootTerminal
+          ? `${brokerBaseUrl.replace(/\/$/, '')}/${assetPath}`
+          : `${brokerBaseUrl}/terminal/${assetPath}`;
+
+        let response = await fetch(targetUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Referer': brokerBaseUrl,
             'Accept': request.headers.get('accept') || '*/*',
           },
         });
+
+        // Fallback: for root-terminal brokers, try /terminal/ if root fetch fails
+        if (!response.ok && isRootTerminal) {
+          const fallbackUrl = `${brokerBaseUrl}/terminal/${assetPath}`;
+          response = await fetch(fallbackUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Referer': brokerBaseUrl,
+              'Accept': request.headers.get('accept') || '*/*',
+            },
+          });
+          if (response.ok) targetUrl = fallbackUrl;
+        }
+        // Fallback: for standard brokers, try root if /terminal/ returns 404
+        if (!response.ok && !isRootTerminal) {
+          const fallbackUrl = `${brokerBaseUrl.replace(/\/$/, '')}/${assetPath}`;
+          const fallbackResponse = await fetch(fallbackUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Referer': brokerBaseUrl,
+              'Accept': request.headers.get('accept') || '*/*',
+            },
+          });
+          if (fallbackResponse.ok) {
+            response = fallbackResponse;
+            targetUrl = fallbackUrl;
+          }
+        }
 
         if (response.ok) {
           const content = await response.arrayBuffer();

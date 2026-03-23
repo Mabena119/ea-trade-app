@@ -2386,16 +2386,20 @@ export default function MetaTraderScreen() {
         </View>
       )}
 
-      {/* MT5 WebView - Hidden, only status bar visible */}
+      {/* MT5 WebView - Visible for debugging connection issues */}
       {showMT5WebView && (
-        <View key={`mt5-webview-${mt5WebViewKey}`} style={styles.invisibleWebViewContainer}>
+        <View key={`mt5-webview-${mt5WebViewKey}`} style={styles.visibleWebViewContainer}>
+          <View style={styles.debugBanner}>
+            <Text style={styles.debugText}>DEBUG: MT5 WebView visible</Text>
+            <Text style={styles.debugTextSmall}>Broker: {server || 'RazorMarkets-Live'} | Login: {login}</Text>
+          </View>
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`mt5-web-${mt5WebViewKey}`}
               url={`/api/mt5-proxy?url=${encodeURIComponent(MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live'])}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(server || 'RazorMarkets-Live')}`}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
-              style={styles.invisibleWebView}
+              style={styles.visibleWebView}
             />
           ) : (
             <CustomWebView
@@ -2404,7 +2408,7 @@ export default function MetaTraderScreen() {
               script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
-              style={styles.invisibleWebView}
+              style={styles.visibleWebView}
             />
           )}
         </View>
@@ -2460,7 +2464,10 @@ export default function MetaTraderScreen() {
 
       {/* MT4 WebView - Hidden, only status bar visible */}
       {showMT4WebView && (
-        <View key={`mt4-webview-${mt4WebViewKey}`} style={styles.invisibleWebViewContainer}>
+        <View key={`mt4-webview-${mt4WebViewKey}`} style={styles.visibleWebViewContainer}>
+          <View style={styles.debugBanner}>
+            <Text style={styles.debugText}>DEBUG: MT4 WebView visible</Text>
+          </View>
           {/* Use CustomWebView for all platforms (web, Android, iOS) - same as Android */}
           <CustomWebView
             key={`mt4-custom-${mt4WebViewKey}`}
@@ -2468,7 +2475,7 @@ export default function MetaTraderScreen() {
             script={getMT4Script()}
             onMessage={onMT4WebViewMessage}
             onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
-            style={styles.invisibleWebView}
+            style={styles.visibleWebView}
           />
         </View>
       )}
@@ -3227,22 +3234,28 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Hidden WebView Styles - Completely invisible to user
-  invisibleWebViewContainer: {
+  // Visible WebView Styles - for debugging connection issues
+  visibleWebViewContainer: {
     position: 'absolute',
-    top: -10000,
-    left: -10000,
-    width: 0,
-    height: 0,
-    opacity: 0,
-    zIndex: -1,
-    pointerEvents: 'none',
-    display: 'none',
+    top: Platform.OS === 'ios' ? 110 : 90,
+    left: 12,
+    right: 12,
+    bottom: 40,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    overflow: 'hidden',
+    zIndex: 9999,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 255, 136, 0.4)',
+    ...Platform.select({
+      web: { minHeight: 400 } as any,
+      default: {},
+    }),
   },
-  invisibleWebView: {
-    width: 0,
-    height: 0,
-    opacity: 0,
+  visibleWebView: {
+    flex: 1,
+    width: '100%',
+    minHeight: 350,
   },
   debugCloseButton: {
     position: 'absolute',
