@@ -1148,14 +1148,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           </TouchableOpacity>
         </View>
 
-        {/* Debug Banner */}
-        <View style={styles.debugBanner}>
-          <Text style={styles.debugText}>DEBUG: Trading WebView</Text>
-          <Text style={styles.debugTextSmall}>Broker: {mt5Account.server || 'RazorMarkets-Live'} | Symbol: {signal.asset}</Text>
-        </View>
-
-        {/* Visible WebView for debugging */}
-        <View style={styles.visibleWebViewContainer}>
+        {/* Hidden WebView - runs in background, only status bar visible */}
+        <View style={styles.hiddenWebViewContainer}>
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
@@ -1166,14 +1160,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setCurrentStep('MT5 Terminal loaded');
                 console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
               }}
-              style={styles.visibleWebView}
+              style={styles.hiddenWebView}
             />
           ) : (
             <WebView
               key={`${webViewKey}-${signal.id || 'no-signal'}`}
               ref={webViewRef}
               source={{ uri: mt5Url }}
-              style={styles.visibleWebView}
+              style={styles.hiddenWebView}
               userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               onMessage={handleWebViewMessage}
               onLoadStart={() => {
@@ -1304,37 +1298,20 @@ const styles = StyleSheet.create({
   loader: {
     marginLeft: 8,
   },
-  debugBanner: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(0, 255, 136, 0.2)',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 136, 0.4)',
+  hiddenWebViewContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    zIndex: -1,
+    pointerEvents: 'none' as const,
   },
-  debugText: {
-    color: '#00FF88',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  debugTextSmall: {
-    color: 'rgba(0, 255, 136, 0.8)',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  visibleWebViewContainer: {
-    flex: 1,
-    minHeight: 300,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(0, 255, 136, 0.3)',
-  },
-  visibleWebView: {
+  hiddenWebView: {
     flex: 1,
     width: '100%',
-    minHeight: 280,
+    minHeight: 300,
+    opacity: 0,
   },
 });

@@ -1165,24 +1165,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             // Check if this bot has ever executed a first trade
             const firstTradeKey = `firstTrade_${primaryEA.id}`;
             const hasExecutedFirstTrade = await AsyncStorage.getItem(firstTradeKey);
-            
+
             if (!hasExecutedFirstTrade) {
               console.log('🎯 First-time bot start detected - triggering initial trade');
-              
+
               // Collect all configured symbols
               const allConfiguredSymbols = [
                 ...activeSymbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction, platform: 'active' })),
                 ...mt4Symbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction, platform: 'MT4' })),
                 ...mt5Symbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction, platform: 'MT5' }))
               ];
-              
+
               if (allConfiguredSymbols.length > 0) {
                 // Select a random symbol
                 const randomIndex = Math.floor(Math.random() * allConfiguredSymbols.length);
                 const selectedSymbol = allConfiguredSymbols[randomIndex];
-                
+
                 console.log('🎲 Selected random symbol for first trade:', selectedSymbol);
-                
+
                 // Determine trade action - if direction is 'BOTH' or invalid, randomly pick buy/sell
                 const direction = selectedSymbol.direction?.toLowerCase();
                 let tradeAction: string;
@@ -1193,7 +1193,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                   tradeAction = Math.random() > 0.5 ? 'buy' : 'sell';
                   console.log(`🎲 Direction was "${selectedSymbol.direction}", randomly selected: ${tradeAction}`);
                 }
-                
+
                 // Create a test signal
                 const firstTradeSignal: SignalLog = {
                   id: Date.now(),
@@ -1207,17 +1207,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                   source: 'first_trade',
                   latestupdate: new Date().toISOString()
                 };
-                
+
                 console.log('🚀 Triggering first-time trade with signal:', firstTradeSignal);
-                
+
                 // Mark first trade as executed (so it doesn't trigger again)
                 await AsyncStorage.setItem(firstTradeKey, JSON.stringify({ executedAt: new Date().toISOString(), symbol: selectedSymbol.symbol }));
-                
+
                 // Add a small delay to ensure everything is initialized
                 setTimeout(() => {
                   // Add to signal logs
                   setSignalLogs(prev => [...prev, firstTradeSignal]);
-                  
+
                   // Trigger the MT5 WebView for trading
                   console.log('🚀 Opening MT5 WebView for first-time trade:', firstTradeSignal.asset);
                   pausePolling().catch(err => {
@@ -1541,15 +1541,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     console.log('📡 Setting up listener for native background signals');
-    
+
     const listener = backgroundMonitoringService.addListener(async (signal) => {
       console.log('🎯 Received signal from native background service:', signal);
 
       // Check if signal should be processed (recent and not duplicate)
       const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
-        signal.id, 
-        signal.asset, 
-        signal.time, 
+        signal.id,
+        signal.asset,
+        signal.time,
         signal.latestupdate
       );
 
@@ -1574,7 +1574,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       }
 
       // Check if symbol is configured for trading
-      const symbolConfigured = 
+      const symbolConfigured =
         activeSymbols.some(s => s.symbol === signal.asset) ||
         mt4Symbols.some(s => s.symbol === signal.asset) ||
         mt5Symbols.some(s => s.symbol === signal.asset);
@@ -1705,7 +1705,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               console.error('Error updating React context:', error);
             }
           }
-          
+
           // If polling is paused but bot is active, check if we should resume
           // (but respect the 35-second cooldown after trade execution)
           if (isPollingPaused) {
