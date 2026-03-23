@@ -37,7 +37,7 @@ const MT5_BROKER_URLS: Record<string, string> = {
 
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
   const { mt5Account, eas, mt5Symbols, markTradeExecuted } = useApp();
-  const theme = useTheme();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState<boolean>(true);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
   const webViewRef = useRef<WebView>(null);
