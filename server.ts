@@ -776,22 +776,23 @@ async function handleApi(request: Request): Promise<Response> {
             `$1${wsBaseUrl}/terminal/ws$6`
           );
 
-          // Inject WebSocket override script (same as auth proxy)
+          // Inject WebSocket override script - run first to catch terminal's WebSocket URLs (including /terminal without /ws)
+          const proxyHostPlain = url.hostname;
           const wsOverrideScript = `
             (function() {
               const originalWebSocket = window.WebSocket;
               const brokerWsUrl = '${wsBaseUrl}/terminal/ws';
-              
+              const proxyHost = '${proxyHostPlain}';
+              const brokerHost = '${baseUrlObj.host}';
               window.WebSocket = function(url, protocols) {
                 if (url && typeof url === 'string') {
-                  const proxyHost = '${proxyHost.replace(/\\/g, '')}';
-                  if (url.includes(proxyHost) || url.includes('/terminal/ws')) {
-                    url = brokerWsUrl;
+                  const isToProxy = url.includes(proxyHost) || (url.includes('/terminal') && !url.includes(brokerHost));
+                  if (isToProxy) {
+                    return new originalWebSocket(brokerWsUrl, protocols);
                   }
                 }
                 return new originalWebSocket(url, protocols);
               };
-              
               Object.setPrototypeOf(window.WebSocket, originalWebSocket);
               window.WebSocket.prototype = originalWebSocket.prototype;
               window.WebSocket.CONNECTING = originalWebSocket.CONNECTING;
@@ -905,17 +906,17 @@ async function handleApi(request: Request): Promise<Response> {
                 originalLog.apply(console, args);
               };
 
-              // Override WebSocket to redirect to original terminal
+              // Override WebSocket to redirect to broker (proxy /terminal or /terminal/ws -> broker /terminal/ws)
               const originalWebSocket = window.WebSocket;
+              const brokerWsUrl = '${wsBaseUrl}/terminal/ws';
+              const proxyHostPlain = '${url.hostname}';
               window.WebSocket = function(url, protocols) {
                 console.log('WebSocket connection attempt to:', url);
-                
-                if (url.includes('/terminal/ws')) {
-                  const newUrl = '${wsBaseUrl}/terminal/ws';
-                  console.log('Redirecting WebSocket to:', newUrl);
-                  return new originalWebSocket(newUrl, protocols);
+                const isToProxy = url && typeof url === 'string' && (url.includes(proxyHostPlain) || (url.includes('/terminal') && !url.includes('${baseUrlObj.host}')));
+                if (isToProxy) {
+                  console.log('Redirecting WebSocket to broker:', brokerWsUrl);
+                  return new originalWebSocket(brokerWsUrl, protocols);
                 }
-                
                 return new originalWebSocket(url, protocols);
               };
               
