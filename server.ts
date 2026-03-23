@@ -925,6 +925,9 @@ async function handleApi(request: Request): Promise<Response> {
                 writable: false
               });
 
+              const loginCredential = '${loginValue}';
+              const passwordCredential = '${passwordValue}';
+
               // Optimized authentication function matching Android robustness
               const authenticateMT5 = async () => {
                 try {
@@ -975,7 +978,7 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   await sleep(2000);
                   
-                  // Fill login credentials
+                  // Fill login credentials - use native setter for Svelte/React-controlled inputs
                   const loginField = document.querySelector('input[name="login"]') || 
                                     document.querySelector('input[type="text"][placeholder*="login" i]') ||
                                     document.querySelector('input[type="number"]') ||
@@ -985,42 +988,37 @@ async function handleApi(request: Request): Promise<Response> {
                                        document.querySelector('input[type="password"]') ||
                                        document.querySelector('input#password');
                   
-                  if (loginField && '${loginValue}') {
-                    loginField.focus();
-                    loginField.value = '';
-                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    
-                    await sleep(100);
-                    loginField.focus();
-                    loginField.value = '${loginValue}';
-                    loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    sendMessage('step_update', 'Login filled');
-                  } else {
-                    sendMessage('authentication_failed', 'Login field not found');
+                  if (!loginField || !passwordField) {
+                    sendMessage('authentication_failed', 'Login form not found');
+                    return;
+                  }
+                  if (!loginCredential) {
+                    sendMessage('authentication_failed', 'Login not configured - connect MT5 in MetaTrader tab');
+                    return;
+                  }
+                  if (!passwordCredential) {
+                    sendMessage('authentication_failed', 'Password not configured - connect MT5 in MetaTrader tab');
                     return;
                   }
                   
-                  if (passwordField && '${passwordValue}') {
-                    await sleep(300);
-                    passwordField.focus();
-                    passwordField.value = '';
-                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    
-                    await sleep(100);
-                    passwordField.focus();
-                    passwordField.value = '${passwordValue}';
-                    passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    sendMessage('step_update', 'Password filled');
-                  } else {
-                    sendMessage('authentication_failed', 'Password field not found');
-                    return;
-                  }
-                  
-                  await sleep(2000);
+                  const setInputValue = (el, val) => {
+                    el.focus();
+                    el.value = '';
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                    if (nativeSetter) nativeSetter.call(el, val);
+                    else el.value = val;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    el.dispatchEvent(new Event('blur', { bubbles: true }));
+                  };
+                  setInputValue(loginField, loginCredential);
+                  sendMessage('step_update', 'Login filled');
+                  await sleep(300);
+                  setInputValue(passwordField, passwordCredential);
+                  sendMessage('step_update', 'Password filled');
+                  await sleep(1500);
                   
                   sendMessage('step_update', 'Connecting to Server...');
                   const loginButton = document.querySelector('.button.svelte-1wrky82.active') ||

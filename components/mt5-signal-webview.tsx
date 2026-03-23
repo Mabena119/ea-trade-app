@@ -66,6 +66,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
     const { login, password, server } = mt5Account;
     const symbol = signal.asset;
+
+    // Escape for safe injection into JS string (handles ', ", \, newlines)
+    const escapeForJS = (v: string) => (v || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    const loginVal = escapeForJS(login || '');
+    const passwordVal = escapeForJS(password || '');
     const terminalUrl = getMT5Url();
     const baseUrl = terminalUrl.replace(/\/terminal\/?/, '').replace(/\/$/, '');
     const wsUrl = `${baseUrl.replace('http://', 'wss://').replace('https://', 'wss://')}/terminal/ws`;
@@ -225,45 +230,46 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                                  document.querySelector('input[type="password"]') ||
                                  document.querySelector('input#password');
             
-            // Fill login field with enhanced method (matching Android)
-            if (loginField && '${login}') {
-              loginField.focus();
-              loginField.value = ''; // Clear first
-              loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-              loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-              
-              await new Promise(r => setTimeout(r, 100)); // Match Android timing
-              loginField.focus();
-              loginField.value = '${login}';
-              loginField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-              loginField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-              sendMessage('step_update', 'Login filled');
-            } else {
+            if (!loginField) {
               sendMessage('authentication_failed', 'Login field not found');
               return;
             }
-            
-            // Fill password field with enhanced method (matching Android)
-            if (passwordField && '${password}') {
-              await new Promise(r => setTimeout(r, 300)); // Match Android timing
-              passwordField.focus();
-              passwordField.value = ''; // Clear first
-              passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-              passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-              
-              await new Promise(r => setTimeout(r, 100)); // Match Android timing
-              passwordField.focus();
-              passwordField.value = '${password}';
-              passwordField.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-              passwordField.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-              sendMessage('step_update', 'Password filled');
-            } else {
+            if (!passwordField) {
               sendMessage('authentication_failed', 'Password field not found');
               return;
             }
+            if (!'${loginVal}') {
+              sendMessage('authentication_failed', 'Login not configured - connect MT5 in MetaTrader tab');
+              return;
+            }
+            if (!'${passwordVal}') {
+              sendMessage('authentication_failed', 'Password not configured - connect MT5 in MetaTrader tab');
+              return;
+            }
             
-            // Wait for fields to be filled
-            await new Promise(r => setTimeout(r, 2000)); // Match Android timing
+            // Fill login - use native setter for React/Svelte-controlled inputs
+            const setInputValue = (el, val) => {
+              el.focus();
+              el.value = '';
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (nativeSetter) nativeSetter.call(el, val);
+              else el.value = val;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              el.dispatchEvent(new Event('blur', { bubbles: true }));
+            };
+            
+            setInputValue(loginField, '${loginVal}');
+            sendMessage('step_update', 'Login filled');
+            await new Promise(r => setTimeout(r, 300));
+            
+            setInputValue(passwordField, '${passwordVal}');
+            sendMessage('step_update', 'Password filled');
+            
+            // Wait for fields to be filled before clicking connect
+            await new Promise(r => setTimeout(r, 1500));
             
             // Click login button with enhanced detection (matching Android)
             sendMessage('step_update', 'Connecting to Server...');
@@ -1168,63 +1174,63 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               ref={webViewRef}
               source={{ uri: mt5Url }}
               style={styles.visibleWebView}
-            userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            onMessage={handleWebViewMessage}
-            onLoadStart={() => {
-              setLoading(true);
-              setCurrentStep('Loading MT5 Terminal...');
-              console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
-            }}
-            onLoadEnd={() => {
-              setLoading(false);
-              setCurrentStep('MT5 Terminal loaded');
-              console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-              // Inject script when page loads (Android only - script is pre-injected for web via proxy)
-              const script = generateMT5AuthScript();
-              if (script && webViewRef.current) {
-                setTimeout(() => {
-                  if (webViewRef.current) {
-                    webViewRef.current.injectJavaScript(script);
-                  }
-                }, 1000);
-              }
-            }}
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.error('❌ WebView error for signal:', signal.asset, 'ID:', signal.id, nativeEvent);
-              setCurrentStep('Error loading MT5 Terminal');
-              setLoading(false);
-            }}
-            onShouldStartLoadWithRequest={(request) => {
-              // Prevent navigation away from the terminal URL
-              if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
-                console.log('🚫 Navigation prevented:', request.url);
-                return false;
-              }
-              return true;
-            }}
-            onNavigationStateChange={(navState) => {
-              // Prevent reloads and navigation away
-              if (navState.loading) {
-                // Only allow navigation if it's the initial load or same URL
-                if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
-                  console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
-                  if (webViewRef.current) {
-                    webViewRef.current.stopLoading();
+              userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+              onMessage={handleWebViewMessage}
+              onLoadStart={() => {
+                setLoading(true);
+                setCurrentStep('Loading MT5 Terminal...');
+                console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
+              }}
+              onLoadEnd={() => {
+                setLoading(false);
+                setCurrentStep('MT5 Terminal loaded');
+                console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+                // Inject script when page loads (Android only - script is pre-injected for web via proxy)
+                const script = generateMT5AuthScript();
+                if (script && webViewRef.current) {
+                  setTimeout(() => {
+                    if (webViewRef.current) {
+                      webViewRef.current.injectJavaScript(script);
+                    }
+                  }, 1000);
+                }
+              }}
+              onError={(syntheticEvent) => {
+                const { nativeEvent } = syntheticEvent;
+                console.error('❌ WebView error for signal:', signal.asset, 'ID:', signal.id, nativeEvent);
+                setCurrentStep('Error loading MT5 Terminal');
+                setLoading(false);
+              }}
+              onShouldStartLoadWithRequest={(request) => {
+                // Prevent navigation away from the terminal URL
+                if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
+                  console.log('🚫 Navigation prevented:', request.url);
+                  return false;
+                }
+                return true;
+              }}
+              onNavigationStateChange={(navState) => {
+                // Prevent reloads and navigation away
+                if (navState.loading) {
+                  // Only allow navigation if it's the initial load or same URL
+                  if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
+                    console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
+                    if (webViewRef.current) {
+                      webViewRef.current.stopLoading();
+                    }
                   }
                 }
-              }
-            }}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-            scalesPageToFit={false}
-            mixedContentMode="always"
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            cacheEnabled={false}
-            incognito={true}
-          />
+              }}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              startInLoadingState={true}
+              scalesPageToFit={false}
+              mixedContentMode="always"
+              allowsInlineMediaPlayback={true}
+              mediaPlaybackRequiresUserAction={false}
+              cacheEnabled={false}
+              incognito={true}
+            />
           )}
         </View>
       </View>
