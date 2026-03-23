@@ -1607,18 +1607,7 @@ export default function MetaTraderScreen() {
               }
             }
             
-            // Switch to Login/Register tab if we're on Accounts tab (ensures login form is visible)
-            const loginTab = Array.from(document.querySelectorAll('button, a, [role="tab"]')).find(el => {
-              const t = (el.textContent || '').trim().toLowerCase();
-              return t.includes('login') || t.includes('register');
-            });
-            if (loginTab) {
-              loginTab.click();
-              sendMessage('step_update', 'Switching to login...');
-              await sleep(2000);
-            }
-            
-            // Remove any existing connection - try multiple strategies, retry up to 3 times
+            // Remove any existing connection - find Remove button (works across different broker terminals)
             const findAndClickRemove = () => {
               const allClickables = document.querySelectorAll('button, a, [role="button"], .button');
               for (const el of allClickables) {

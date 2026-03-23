@@ -511,18 +511,7 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                   
-                  // Switch to Login/Register tab if on Accounts tab
-                  const loginTab = Array.from(document.querySelectorAll('button, a, [role="tab"]')).find(el => {
-                    const t = (el.textContent || '').trim().toLowerCase();
-                    return t.includes('login') || t.includes('register');
-                  });
-                  if (loginTab) {
-                    loginTab.click();
-                    sendMessage('step_update', 'Switching to login...');
-                    await sleep(2000);
-                  }
-                  
-                  // Remove existing connection - robust find, retry up to 3 times
+                  // Remove existing connection - find Remove button (works across different broker terminals)
                   const findAndClickRemove = () => {
                     const allClickables = document.querySelectorAll('button, a, [role="button"], .button');
                     for (const el of allClickables) {
@@ -963,18 +952,7 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                   
-                  // Switch to Login/Register tab if on Accounts tab
-                  const loginTab = Array.from(document.querySelectorAll('button, a, [role="tab"]')).find(el => {
-                    const t = (el.textContent || '').trim().toLowerCase();
-                    return t.includes('login') || t.includes('register');
-                  });
-                  if (loginTab) {
-                    loginTab.click();
-                    sendMessage('step_update', 'Switching to login...');
-                    await sleep(2000);
-                  }
-                  
-                  // Remove existing connection - robust find, retry up to 3 times
+                  // Remove existing connection - find Remove button (works across different broker terminals)
                   const findAndClickRemove = () => {
                     const allClickables = document.querySelectorAll('button, a, [role="button"], .button');
                     for (const el of allClickables) {
