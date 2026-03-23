@@ -236,16 +236,17 @@ class DatabaseSignalsPollingService {
         }
       }
 
-      // Update last poll time: use newest signal's timestamp to avoid gaps, or advance with overlap when none
+      // Update last poll time: use newest signal's timestamp (as ISO for consistent server parsing)
       if (signals.length > 0) {
         const newest = signals.reduce((a, s) => {
           const aTime = new Date(a.latestupdate || a.time || 0).getTime();
           const sTime = new Date(s.latestupdate || s.time || 0).getTime();
           return sTime > aTime ? s : a;
         });
-        this.lastPollTime = (newest.latestupdate || newest.time || this.lastPollTime) as string;
+        const rawTs = newest.latestupdate || newest.time;
+        this.lastPollTime = rawTs ? new Date(rawTs).toISOString() : new Date(Date.now() - 5000).toISOString();
       } else {
-        // No signals: advance by 5s overlap to avoid re-fetching same window and race conditions
+        // No signals: advance by 5s overlap to avoid race conditions with in-flight inserts
         this.lastPollTime = new Date(Date.now() - 5000).toISOString();
       }
 
