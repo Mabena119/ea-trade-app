@@ -769,7 +769,10 @@ export default function MetaTraderScreen() {
 
   const filteredBrokers = useMemo(() => {
     const brokerList = activeTab === 'MT4' ? mt4Brokers : MT5_BROKERS;
-    if (!server.trim()) return brokerList.slice(0, 10); // Show top 10 by default
+    if (!server.trim()) {
+      // MT5 has a small fixed list - show all; MT4 has many - show top 15
+      return activeTab === 'MT5' ? brokerList : brokerList.slice(0, 15);
+    }
     return brokerList.filter(broker =>
       broker.toLowerCase().includes(server.toLowerCase())
     ); // Allow selection of any broker from the list - fixed to allow any broker selection
