@@ -1967,6 +1967,8 @@ const server = Bun.serve({
           'derivbvi-server-vu-03': 'https://mt5-real03-web-vu.deriv.com',
           'rocketx-live': 'https://webtrader.rocketx.io:1950',
           'rocketx': 'https://webtrader.rocketx.io:1950',
+          'profinwealth-live': 'https://mt5.profinwealth.com',
+          'profinwealth': 'https://mt5.profinwealth.com',
         };
 
         // Try to detect broker from query param first

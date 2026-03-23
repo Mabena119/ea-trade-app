@@ -506,6 +506,7 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'DerivBVI-Server-VU-02': 'https://mt5-real02-web-vu.deriv.com/terminal',
   'DerivBVI-Server-VU-03': 'https://mt5-real03-web-vu.deriv.com/terminal',
   'RocketX-Live': 'https://webtrader.rocketx.io:1950/terminal',
+  'Profinwealth-Live': 'https://mt5.profinwealth.com/',
 };
 
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
