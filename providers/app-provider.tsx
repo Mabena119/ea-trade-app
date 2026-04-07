@@ -303,6 +303,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     return { shouldProcess: isRecent, ageInSeconds };
   }, []);
 
+  /** Same notion as Quotes “active” — symbol must appear in legacy, MT4, or MT5 configured lists. */
+  const isSymbolConfiguredForTrading = useCallback(
+    (symbol: string) =>
+      activeSymbols.some(s => s.symbol === symbol) ||
+      mt4Symbols.some(s => s.symbol === symbol) ||
+      mt5Symbols.some(s => s.symbol === symbol),
+    [activeSymbols, mt4Symbols, mt5Symbols]
+  );
+
   // Load persisted data on mount
   useEffect(() => {
     loadPersistedData();
@@ -1127,16 +1136,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             // Update new signal for dynamic island
             console.log('🎯 Setting new signal for dynamic island:', signalLog);
 
-            // Open MT5 WebView for ANY signal if MT5 account is connected
-            if (mt5Account && mt5Account.connected) {
+            if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
               console.log('🚀 Opening MT5 WebView for database signal:', signalLog.asset);
-              // Pause monitoring when trades start executing
               pausePolling().catch(err => {
                 console.error('Error pausing polling when opening WebView:', err);
               });
               setMT5Signal(signalLog);
               setShowMT5SignalWebView(true);
-              // Note: markTradeExecuted will be called when trades complete, not here
+            } else if (mt5Account && mt5Account.connected) {
+              console.log('⏭️ Database signal skipped — symbol not configured on Quotes:', signal.asset);
             }
 
             setNewSignal(signalLog);
@@ -1261,7 +1269,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       // Revert state on error
       setIsBotActive(!active);
     }
-  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account, activeSymbols, mt4Symbols, mt5Symbols]);
+  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account, activeSymbols, mt4Symbols, mt5Symbols, isSymbolConfiguredForTrading]);
   // Note: pausePolling is intentionally not in deps - it's defined after this callback
   // and is only used in setTimeout callbacks which will have the correct reference
 
@@ -1460,22 +1468,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         mt5Symbols: mt5Symbols.map(s => s.symbol)
       });
 
-      if (isActiveInLegacy || isActiveInMT4 || isActiveInMT5) {
-        console.log('✅ Signal is for active symbol:', symbolName);
+      const symbolAllowed = isActiveInLegacy || isActiveInMT4 || isActiveInMT5;
+
+      if (symbolAllowed) {
+        console.log('✅ Signal is for configured symbol (Quotes):', symbolName);
       } else {
-        console.log('❌ Signal ignored - not for active symbol:', symbolName);
+        console.log('⏭️ Signal not configured on Quotes — no auto-trade:', symbolName);
       }
 
-      // Open MT5 WebView for ANY signal if MT5 account is connected
-      if (mt5Account && mt5Account.connected) {
+      if (mt5Account && mt5Account.connected && symbolAllowed) {
         console.log('🚀 Opening MT5 WebView for signal:', symbolName);
-        // Pause monitoring when trades start executing
         pausePolling().catch(err => {
           console.error('Error pausing polling when opening WebView:', err);
         });
         setMT5Signal(signal);
         setShowMT5SignalWebView(true);
-        // Note: markTradeExecuted will be called when trades complete, not here
       }
     };
 
@@ -1573,14 +1580,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         return;
       }
 
-      // Check if symbol is configured for trading
-      const symbolConfigured =
-        activeSymbols.some(s => s.symbol === signal.asset) ||
-        mt4Symbols.some(s => s.symbol === signal.asset) ||
-        mt5Symbols.some(s => s.symbol === signal.asset);
-
-      if (!symbolConfigured) {
-        console.log('⚠️ Symbol not configured for trading, NOT bringing app to foreground:', signal.asset);
+      if (!isSymbolConfiguredForTrading(signal.asset)) {
+        console.log('⚠️ Symbol not configured on Quotes, NOT bringing app to foreground:', signal.asset);
         return;
       }
 
@@ -1635,7 +1636,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         backgroundMonitoringService.removeListener();
       }
     };
-  }, [isBotActive, mt5Account, activeSymbols, mt4Symbols, mt5Symbols, shouldProcessSignal, pausePolling]);
+  }, [isBotActive, mt5Account, shouldProcessSignal, pausePolling, isSymbolConfiguredForTrading]);
 
   // On web/PWA: keep server awake, poll on resume, re-subscribe for Web Push
   useEffect(() => {
@@ -1751,16 +1752,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 };
                 setSignalLogs(prev => [...prev, signalLog]);
 
-                // Open MT5 WebView for ANY signal if MT5 account is connected
-                if (mt5Account && mt5Account.connected) {
+                if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
                   console.log('🚀 Opening MT5 WebView for database signal:', signalLog.asset);
-                  // Pause monitoring when trades start executing
                   pausePolling().catch(err => {
                     console.error('Error pausing polling when opening WebView:', err);
                   });
                   setMT5Signal(signalLog);
                   setShowMT5SignalWebView(true);
-                  // Note: markTradeExecuted will be called when trades complete, not here
+                } else if (mt5Account && mt5Account.connected) {
+                  console.log('⏭️ Database signal skipped — symbol not configured on Quotes:', signal.asset);
                 }
 
                 setNewSignal(signalLog);
@@ -1834,18 +1834,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               };
               setSignalLogs(prev => [...prev, signalLog]);
 
-              // Open MT5 WebView for ANY signal if MT5 account is connected
-              if (mt5Account && mt5Account.connected) {
+              if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
                 console.log('🚀 Opening MT5 WebView for background database signal:', signalLog.asset);
-                // Bring app to foreground if in background (must be done first)
                 bringAppToForeground();
-                // Pause monitoring when trades start executing
                 pausePolling().catch(err => {
                   console.error('Error pausing polling when opening WebView:', err);
                 });
                 setMT5Signal(signalLog);
                 setShowMT5SignalWebView(true);
-                // Note: markTradeExecuted will be called when trades complete, not here
+              } else if (mt5Account && mt5Account.connected) {
+                console.log('⏭️ Background database signal skipped — symbol not configured on Quotes:', signal.asset);
               }
 
               setNewSignal(signalLog);
@@ -1914,18 +1912,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               };
               setSignalLogs(prev => [...prev, signalLog]);
 
-              // Open MT5 WebView for ANY signal if MT5 account is connected
-              if (mt5Account && mt5Account.connected) {
+              if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
                 console.log('🚀 Opening MT5 WebView for background database signal:', signalLog.asset);
-                // Bring app to foreground if in background (must be done first)
                 bringAppToForeground();
-                // Pause monitoring when trades start executing
                 pausePolling().catch(err => {
                   console.error('Error pausing polling when opening WebView:', err);
                 });
                 setMT5Signal(signalLog);
                 setShowMT5SignalWebView(true);
-                // Note: markTradeExecuted will be called when trades complete, not here
+              } else if (mt5Account && mt5Account.connected) {
+                console.log('⏭️ Background database signal skipped — symbol not configured on Quotes:', signal.asset);
               }
 
               setNewSignal(signalLog);
@@ -1961,7 +1957,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
-  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring, mt5Account, shouldProcessSignal, pausePolling, bringAppToForeground]);
+  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring, mt5Account, shouldProcessSignal, pausePolling, bringAppToForeground, isSymbolConfiguredForTrading]);
 
   // Update iOS widget whenever EAs or bot state changes (native app or PWA)
   useEffect(() => {

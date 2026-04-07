@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus, Lock, Trash2, History } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -184,30 +185,89 @@ export default function AIScannerScreen() {
     });
   };
 
+  /** Android returns content:// from the gallery; copy to app cache with correct extension so the manipulator can read it. */
+  const ensureReadableImageUri = async (uri: string, mimeType?: string | null): Promise<string> => {
+    if (Platform.OS !== 'android') return uri;
+    if (!uri.startsWith('content://')) return uri;
+    const dir = FileSystem.cacheDirectory;
+    if (!dir) return uri;
+    const mt = (mimeType || '').toLowerCase();
+    const ext = mt.includes('png') ? 'png' : mt.includes('webp') ? 'webp' : 'jpg';
+    const dest = `${dir}scanner-pick-${Date.now()}.${ext}`;
+    try {
+      await FileSystem.copyAsync({ from: uri, to: dest });
+      return dest;
+    } catch (e) {
+      console.warn('[AI Scanner] copy content URI failed:', e);
+      return uri;
+    }
+  };
+
   // Resize and compress to keep payload small (avoids Render 502 with large requests)
   const compressForAnalysis = async (
     uri: string,
     existingBase64: string | undefined,
     existingMime: string | undefined
   ): Promise<{ uri: string; base64: string | null; mimeType: string }> => {
+    const readBase64FromFile = async (fileUri: string): Promise<string | null> => {
+      try {
+        return await FileSystem.readAsStringAsync(fileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch {
+        return null;
+      }
+    };
+
+    const jpegOut = {
+      compress: 0.4,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true as const,
+    };
+
+    // 1) Resize + compress (ideal)
     try {
       const manipulated = await ImageManipulator.manipulateAsync(
         uri,
         [{ resize: { width: 600 } }],
-        { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        jpegOut
       );
-      return {
-        uri: manipulated.uri,
-        base64: manipulated.base64 ?? existingBase64 ?? null,
-        mimeType: 'image/jpeg',
-      };
-    } catch {
-      return {
-        uri,
-        base64: existingBase64 ?? null,
-        mimeType: existingMime || 'image/jpeg',
-      };
+      let base64 = manipulated.base64 ?? existingBase64 ?? null;
+      if (!base64 && manipulated.uri) {
+        base64 = await readBase64FromFile(manipulated.uri);
+      }
+      if (base64) {
+        return { uri: manipulated.uri, base64, mimeType: 'image/jpeg' };
+      }
+    } catch (e) {
+      console.warn('[AI Scanner] resize step failed:', e);
     }
+
+    // 2) Re-encode only (some Android images fail resize but work as full-frame JPEG)
+    try {
+      const encoded = await ImageManipulator.manipulateAsync(uri, [], {
+        compress: 0.45,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true,
+      });
+      let base64 = encoded.base64 ?? null;
+      if (!base64 && encoded.uri) {
+        base64 = await readBase64FromFile(encoded.uri);
+      }
+      if (base64) {
+        return { uri: encoded.uri, base64, mimeType: 'image/jpeg' };
+      }
+    } catch (e) {
+      console.warn('[AI Scanner] re-encode step failed:', e);
+    }
+
+    // 3) Raw base64 from file or content URI (Android SAF)
+    let base64 = existingBase64 ?? (await readBase64FromFile(uri));
+    return {
+      uri,
+      base64,
+      mimeType: existingMime || 'image/jpeg',
+    };
   };
 
   const pickImage = async () => {
@@ -218,16 +278,29 @@ export default function AIScannerScreen() {
       Alert.alert('Permission needed', 'Please allow access to your photo library to upload charts.');
       return;
     }
+    // Android: legacy picker + full quality avoids broken URIs / double compression; we compress in JS.
+    // iOS: quality 0.4 is fine; native base64 optional.
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.4,
-      base64: true,
+      allowsEditing: false,
+      quality: Platform.OS === 'android' ? 1 : 0.4,
+      base64: Platform.OS === 'ios',
+      ...(Platform.OS === 'android'
+        ? { legacy: true, defaultTab: 'photos' as ImagePicker.DefaultTab }
+        : {}),
     });
     if (pickerResult.canceled) return;
-    const asset = pickerResult.assets[0];
-    const { uri, base64, mimeType } = await compressForAnalysis(asset.uri, asset.base64, asset.mimeType);
+    const asset = pickerResult.assets?.[0];
+    if (!asset?.uri) {
+      setError('No image was selected.');
+      return;
+    }
+    const readableUri = await ensureReadableImageUri(asset.uri, asset.mimeType);
+    const { uri, base64, mimeType } = await compressForAnalysis(readableUri, asset.base64, asset.mimeType);
+    if (!base64) {
+      setError('Could not read this image. Try another photo or take a new screenshot.');
+      return;
+    }
     setImageUri(uri);
     setImageBase64(base64);
     setMimeType(mimeType || 'image/jpeg');
@@ -242,14 +315,22 @@ export default function AIScannerScreen() {
       return;
     }
     const pickerResult = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.4,
-      base64: true,
+      allowsEditing: false,
+      quality: Platform.OS === 'android' ? 1 : 0.4,
+      base64: Platform.OS === 'ios',
     });
     if (pickerResult.canceled) return;
-    const asset = pickerResult.assets[0];
-    const { uri, base64, mimeType } = await compressForAnalysis(asset.uri, asset.base64, asset.mimeType);
+    const asset = pickerResult.assets?.[0];
+    if (!asset?.uri) {
+      setError('No photo was captured.');
+      return;
+    }
+    const readableUri = await ensureReadableImageUri(asset.uri, asset.mimeType);
+    const { uri, base64, mimeType } = await compressForAnalysis(readableUri, asset.base64, asset.mimeType);
+    if (!base64) {
+      setError('Could not read this photo. Please try again.');
+      return;
+    }
     setImageUri(uri);
     setImageBase64(base64);
     setMimeType(mimeType || 'image/jpeg');
