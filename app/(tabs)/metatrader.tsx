@@ -819,7 +819,11 @@ export default function MetaTraderScreen() {
     }
   };
 
-  const handleAuthenticationResult = (success: boolean, message: string) => {
+  const handleAuthenticationResult = (
+    success: boolean,
+    message: string,
+    terminalStats?: { equity?: string; balance?: string },
+  ) => {
     if (authFinalizedRef.current) {
       console.log('Authentication already finalized, ignoring result:', { success, message });
       return;
@@ -845,6 +849,8 @@ export default function MetaTraderScreen() {
           password: password.trim(),
           server: server.trim(),
           connected: true,
+          equity: terminalStats?.equity,
+          balance: terminalStats?.balance,
         });
       } else {
         setMT5Account({
@@ -852,6 +858,8 @@ export default function MetaTraderScreen() {
           password: password.trim(),
           server: server.trim(),
           connected: true,
+          equity: terminalStats?.equity,
+          balance: terminalStats?.balance,
         });
       }
     } else {
@@ -869,14 +877,18 @@ export default function MetaTraderScreen() {
           login: login.trim(),
           password: password.trim(),
           server: server.trim(),
-          connected: false, // Red status when authentication failed
+          connected: false,
+          equity: undefined,
+          balance: undefined,
         });
       } else {
         setMT5Account({
           login: login.trim(),
           password: password.trim(),
           server: server.trim(),
-          connected: false, // Red status when authentication failed
+          connected: false,
+          equity: undefined,
+          balance: undefined,
         });
       }
     }
@@ -931,7 +943,10 @@ export default function MetaTraderScreen() {
         setAuthState(prev => ({ ...prev, logged: true }));
         setAuthenticationStep('Login Successful!');
         console.log('Authentication successful - destroying WebView');
-        handleAuthenticationResult(true, 'Authentication successful');
+        handleAuthenticationResult(true, 'Authentication successful', {
+          equity: typeof data.equity === 'string' ? data.equity : undefined,
+          balance: typeof data.balance === 'string' ? data.balance : undefined,
+        });
       } else if (data.type === 'authentication_failed') {
         setAuthState(prev => ({ ...prev, attempt: prev.attempt + 1 }));
         console.log('Authentication failed - destroying WebView');
@@ -997,6 +1012,8 @@ export default function MetaTraderScreen() {
           password: password.trim(),
           server: server.trim(),
           connected: true,
+          equity: typeof parsedData.equity === 'string' ? parsedData.equity : undefined,
+          balance: typeof parsedData.balance === 'string' ? parsedData.balance : undefined,
         });
         await setMTAccount({
           type: 'MT5',
@@ -1017,6 +1034,8 @@ export default function MetaTraderScreen() {
           password: password.trim(),
           server: server.trim(),
           connected: false,
+          equity: undefined,
+          balance: undefined,
         });
         await setMTAccount({
           type: 'MT5',
@@ -1086,6 +1105,8 @@ export default function MetaTraderScreen() {
           password: password.trim(),
           server: server.trim(),
           connected: true,
+          equity: typeof parsedData.equity === 'string' ? parsedData.equity : undefined,
+          balance: typeof parsedData.balance === 'string' ? parsedData.balance : undefined,
         });
         await setMTAccount({
           type: 'MT4',
@@ -1106,6 +1127,8 @@ export default function MetaTraderScreen() {
           password: password.trim(),
           server: server.trim(),
           connected: false,
+          equity: undefined,
+          balance: undefined,
         });
         await setMTAccount({
           type: 'MT4',
@@ -1182,9 +1205,43 @@ export default function MetaTraderScreen() {
           const asset = 'XAUUSD';
           let done = false;
 
-          const send = (type, message) => {
-            try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch (e) {}
+          const send = (type, message, extras) => {
+            try {
+              var payload = { type: type, message: message };
+              if (extras && typeof extras === 'object') {
+                for (var ek in extras) {
+                  if (Object.prototype.hasOwnProperty.call(extras, ek) && extras[ek] != null) {
+                    payload[ek] = extras[ek];
+                  }
+                }
+              }
+              window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+            } catch (e) {}
           };
+
+          function scrapeTerminalAccountStats() {
+            var equity = null;
+            var balance = null;
+            try {
+              var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+              var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+              if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
+              var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+              if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+              if (!equity || !balance) {
+                var compact = txt.replace(/[\\n\\r]+/g, ' ');
+                if (!equity) {
+                  var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                  if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+                }
+                if (!balance) {
+                  var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                  if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+                }
+              }
+            } catch (err) {}
+            return { equity: equity, balance: balance };
+          }
 
           const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -1283,7 +1340,8 @@ export default function MetaTraderScreen() {
               // If we can search, treat as success and optionally click a symbol
               selectSymbolCandidate();
               done = true;
-              send('authentication_success', 'Login Successful');
+              var stS = scrapeTerminalAccountStats();
+              send('authentication_success', 'Login Successful', { equity: stS.equity, balance: stS.balance });
               return;
             }
 
@@ -1291,7 +1349,8 @@ export default function MetaTraderScreen() {
             const bodyText = (document.body.innerText || '');
             if (bodyText.includes('Balance:') || bodyText.includes('Create New Order')) {
               done = true;
-              send('authentication_success', 'Login Successful');
+              var stF = scrapeTerminalAccountStats();
+              send('authentication_success', 'Login Successful', { equity: stF.equity, balance: stF.balance });
               return;
             }
 
@@ -1306,9 +1365,43 @@ export default function MetaTraderScreen() {
       // MT4 Authentication - Copy from successful trade execution steps
       return `
         (function(){
-          const sendMessage = (type, message) => {
-            try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
+          const sendMessage = (type, message, extras) => {
+            try {
+              var payload = { type: type, message: message };
+              if (extras && typeof extras === 'object') {
+                for (var sk in extras) {
+                  if (Object.prototype.hasOwnProperty.call(extras, sk) && extras[sk] != null) {
+                    payload[sk] = extras[sk];
+                  }
+                }
+              }
+              window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+            } catch(e) {}
           };
+
+          function scrapeTerminalAccountStats() {
+            var equity = null;
+            var balance = null;
+            try {
+              var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+              var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+              if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
+              var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+              if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+              if (!equity || !balance) {
+                var compact = txt.replace(/[\\n\\r]+/g, ' ');
+                if (!equity) {
+                  var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                  if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+                }
+                if (!balance) {
+                  var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                  if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+                }
+              }
+            } catch (err) {}
+            return { equity: equity, balance: balance };
+          }
 
           // Enhanced field input function from trade script
           const typeInput = (el, value) => {
@@ -1443,12 +1536,14 @@ export default function MetaTraderScreen() {
                     var a = allTRs[i].getElementsByTagName('td')[0];
                     if (a && a.textContent && a.textContent.trim() === 'XAUUSD') {
                       a.dispatchEvent(ev);
-                      sendMessage('authentication_success', 'MT4 Authentication Successful - XAUUSD symbol found and selected');
+                      var stX = scrapeTerminalAccountStats();
+                      sendMessage('authentication_success', 'MT4 Authentication Successful - XAUUSD symbol found and selected', { equity: stX.equity, balance: stX.balance });
                       return true;
                     }
                   }
                   // XAUUSD not found but symbols are visible - still successful
-                  sendMessage('authentication_success', 'MT4 Authentication Successful - Symbol list accessible');
+                  var stL = scrapeTerminalAccountStats();
+                  sendMessage('authentication_success', 'MT4 Authentication Successful - Symbol list accessible', { equity: stL.equity, balance: stL.balance });
                   return true;
                 } else {
                   // No symbols visible - authentication failed
@@ -1583,9 +1678,43 @@ export default function MetaTraderScreen() {
 
     return `
       (function() {
-        const sendMessage = (type, message) => {
-          try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
+        const sendMessage = (type, message, extras) => {
+          try {
+            var payload = { type: type, message: message };
+            if (extras && typeof extras === 'object') {
+              for (var key in extras) {
+                if (Object.prototype.hasOwnProperty.call(extras, key) && extras[key] != null) {
+                  payload[key] = extras[key];
+                }
+              }
+            }
+            window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+          } catch(e) {}
         };
+
+        function scrapeTerminalAccountStats() {
+          var equity = null;
+          var balance = null;
+          try {
+            var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+            if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
+            var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+            if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+            if (!equity || !balance) {
+              var compact = txt.replace(/[\\n\\r]+/g, ' ');
+              if (!equity) {
+                var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+              }
+              if (!balance) {
+                var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+              }
+            }
+          } catch (err) {}
+          return { equity: equity, balance: balance };
+        }
 
         sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
         
@@ -1719,10 +1848,11 @@ export default function MetaTraderScreen() {
                                document.querySelector('input[type="search"]');
             
             if (searchField && searchField.offsetParent !== null) {
-              // Search bar is present and visible - login successful!
-              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
-                return;
-              }
+              await sleep(2000);
+              var statsOk = scrapeTerminalAccountStats();
+              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsOk.equity, balance: statsOk.balance });
+              return;
+            }
             
             // Double check after a longer wait
             await sleep(3000);
@@ -1731,7 +1861,8 @@ export default function MetaTraderScreen() {
                                     document.querySelector('input[type="search"]');
             
             if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
-              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+              var statsRetry = scrapeTerminalAccountStats();
+              sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsRetry.equity, balance: statsRetry.balance });
               return;
             }
             
@@ -1753,9 +1884,43 @@ export default function MetaTraderScreen() {
   const getMT4Script = () => {
     return `
       (function() {
-        const sendMessage = (type, message) => {
-          try { window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); } catch(e) {}
+        const sendMessage = (type, message, extras) => {
+          try {
+            var payload = { type: type, message: message };
+            if (extras && typeof extras === 'object') {
+              for (var key in extras) {
+                if (Object.prototype.hasOwnProperty.call(extras, key) && extras[key] != null) {
+                  payload[key] = extras[key];
+                }
+              }
+            }
+            window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+          } catch(e) {}
         };
+
+        function scrapeTerminalAccountStats() {
+          var equity = null;
+          var balance = null;
+          try {
+            var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+            if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
+            var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+            if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+            if (!equity || !balance) {
+              var compact = txt.replace(/[\\n\\r]+/g, ' ');
+              if (!equity) {
+                var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+              }
+              if (!balance) {
+                var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+              }
+            }
+          } catch (err) {}
+          return { equity: equity, balance: balance };
+        }
 
         sendMessage('mt4_loaded', 'MT4 MetaTrader Web terminal loaded successfully');
         
@@ -1897,12 +2062,14 @@ export default function MetaTraderScreen() {
                   const a = allTRs[i].getElementsByTagName('td')[0];
                   if (a && a.textContent && a.textContent.trim() === 'XAUUSD') {
                     a.dispatchEvent(ev);
-                    sendMessage('authentication_success', 'MT4 Authentication Successful - XAUUSD symbol found and selected');
+                    var stX = scrapeTerminalAccountStats();
+                    sendMessage('authentication_success', 'MT4 Authentication Successful - XAUUSD symbol found and selected', { equity: stX.equity, balance: stX.balance });
                     return;
                   }
                 }
                 // XAUUSD not found but symbols are visible - still successful
-                sendMessage('authentication_success', 'MT4 Authentication Successful - Symbol list accessible');
+                var stList = scrapeTerminalAccountStats();
+                sendMessage('authentication_success', 'MT4 Authentication Successful - Symbol list accessible', { equity: stList.equity, balance: stList.balance });
               } else {
                 sendMessage('authentication_failed', 'Authentication failed - No symbols visible in market watch');
               }
@@ -1991,6 +2158,30 @@ export default function MetaTraderScreen() {
               MT5
             </Text>
           </View>
+
+          {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && (
+            <View style={styles.equityStrip}>
+              <Text style={styles.equityStripLabel}>Equity</Text>
+              <Text
+                testID="terminal-equity"
+                style={[
+                  styles.equityStripValue,
+                  !(activeTab === 'MT4' ? mt4Account?.equity : mt5Account?.equity) && styles.equityStripValueMuted,
+                ]}
+              >
+                {(activeTab === 'MT4' ? mt4Account?.equity : mt5Account?.equity) ?? '—'}
+              </Text>
+              {(activeTab === 'MT4' ? mt4Account?.balance : mt5Account?.balance) ? (
+                <>
+                  <Text style={styles.equityStripSep}>·</Text>
+                  <Text style={styles.equityStripLabel}>Balance</Text>
+                  <Text style={styles.equityStripValue}>
+                    {activeTab === 'MT4' ? mt4Account?.balance : mt5Account?.balance}
+                  </Text>
+                </>
+              ) : null}
+            </View>
+          )}
 
           {/* MT Logo and Title */}
           <View style={styles.logoContainer}>
@@ -2569,6 +2760,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#CCCCCC',
     letterSpacing: 1,
+  },
+  equityStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  equityStripLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.55)',
+  },
+  equityStripValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#E8E8EF',
+    letterSpacing: 0.3,
+  },
+  equityStripValueMuted: {
+    color: 'rgba(255, 255, 255, 0.35)',
+  },
+  equityStripSep: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.35)',
+    marginHorizontal: 4,
   },
   connectedText: {
     color: '#8B5CF6',

@@ -153,6 +153,10 @@ export interface MT4Account {
   password: string;
   server: string;
   connected: boolean;
+  /** Last equity read from embedded web terminal after connect (numeric string). */
+  equity?: string;
+  /** Last balance read from embedded web terminal after connect (numeric string). */
+  balance?: string;
 }
 
 export interface MT5Account {
@@ -160,6 +164,8 @@ export interface MT5Account {
   password: string;
   server: string;
   connected: boolean;
+  equity?: string;
+  balance?: string;
 }
 
 export interface ActiveSymbol {

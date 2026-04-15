@@ -468,9 +468,17 @@ async function handleApi(request: Request): Promise<Response> {
             (function() {
               console.log('[MT5 Auth] Script injected and executing...');
               
-              const sendMessage = (type, message) => {
-                try { 
-                  const messageData = JSON.stringify({ type, message });
+              const sendMessage = (type, message, extras) => {
+                try {
+                  var payload = { type: type, message: message };
+                  if (extras && typeof extras === 'object') {
+                    for (var key in extras) {
+                      if (Object.prototype.hasOwnProperty.call(extras, key) && extras[key] != null) {
+                        payload[key] = extras[key];
+                      }
+                    }
+                  }
+                  var messageData = JSON.stringify(payload);
                   if (window.parent && window.parent !== window) {
                     window.parent.postMessage(messageData, '*');
                   }
@@ -482,6 +490,30 @@ async function handleApi(request: Request): Promise<Response> {
                   console.error('[MT5 Auth] Error sending message:', e);
                 }
               };
+
+              function scrapeTerminalAccountStats() {
+                var equity = null;
+                var balance = null;
+                try {
+                  var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+                  var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+                  if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
+                  var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+                  if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+                  if (!equity || !balance) {
+                    var compact = txt.replace(/[\\n\\r]+/g, ' ');
+                    if (!equity) {
+                      var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                      if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+                    }
+                    if (!balance) {
+                      var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                      if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+                    }
+                  }
+                } catch (err) {}
+                return { equity: equity, balance: balance };
+              }
 
               sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
               console.log('[MT5 Auth] Script initialized, waiting for page load...');
@@ -622,8 +654,9 @@ async function handleApi(request: Request): Promise<Response> {
                                      document.querySelector('input[type="search"]');
                   
                   if (searchField && searchField.offsetParent !== null) {
-                    // Search bar is present and visible - login successful!
-                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+                    await sleep(2000);
+                    var statsOk = scrapeTerminalAccountStats();
+                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsOk.equity, balance: statsOk.balance });
                     return;
                   }
                   
@@ -634,7 +667,8 @@ async function handleApi(request: Request): Promise<Response> {
                                           document.querySelector('input[type="search"]');
                   
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
-                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected');
+                    var statsRetry = scrapeTerminalAccountStats();
+                    sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsRetry.equity, balance: statsRetry.balance });
                     return;
                   }
                   
