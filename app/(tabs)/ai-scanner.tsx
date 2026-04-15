@@ -43,17 +43,42 @@ import {
   type SignalLog,
 } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
-import {
-  normalizeSymbolKey,
-  symbolsAreSimilar,
-  stripNumericPrice,
-  computeFallbackSlTp,
-} from '@/utils/trade-levels';
+import { stripNumericPrice, computeFallbackSlTp } from '@/utils/trade-mode-levels';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
 const SCANNER_UPLOAD_COUNT_KEY = 'ai-scanner-upload-count';
 const MAX_HISTORY = 5;
 const MAX_UPLOADS = 20;
+
+function normalizeSymbolKey(s: string): string {
+  return s.replace(/\s/g, '').toUpperCase();
+}
+
+/** Root name before broker suffixes like .i, .m, #, etc. */
+function baseSymbolKey(s: string): string {
+  const n = normalizeSymbolKey(s);
+  return n.split(/[.#_]/)[0] || n;
+}
+
+/**
+ * True if chart symbol and configured symbol likely refer to the same instrument
+ * (exact, same root, prefix, or contained substring for longer names).
+ */
+function symbolsAreSimilar(chartSymbol: string, configuredSymbol: string): boolean {
+  const a = normalizeSymbolKey(chartSymbol);
+  const b = normalizeSymbolKey(configuredSymbol);
+  if (a === b) return true;
+  const ba = baseSymbolKey(chartSymbol);
+  const bb = baseSymbolKey(configuredSymbol);
+  if (ba.length >= 2 && bb.length >= 2 && ba === bb) return true;
+  if (a.length >= 3 && b.length >= 3) {
+    if (a.startsWith(b) || b.startsWith(a)) return true;
+  }
+  if (a.length >= 4 && b.length >= 4) {
+    if (a.includes(b) || b.includes(a)) return true;
+  }
+  return false;
+}
 
 /**
  * Maps the AI-analysed symbol to exactly one trade-config symbol, or null.

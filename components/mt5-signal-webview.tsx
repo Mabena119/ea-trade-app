@@ -13,13 +13,10 @@ import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import WebWebView from './web-webview';
-import { useApp, SignalLog, type MT5TradeMode } from '@/providers/app-provider';
+import { useApp, SignalLog } from '@/providers/app-provider';
 import apiService, { type ChartAnalysisResult } from '@/services/api';
-import {
-  computeFallbackSlTp,
-  findMT5SymbolConfigForAnalysis,
-  stripNumericPrice,
-} from '@/utils/trade-levels';
+import { computeFallbackSlTp, stripNumericPrice } from '@/utils/trade-mode-levels';
+import type { MT5TradeMode } from '@/providers/app-provider';
 
 type AiTradePayload = { action: string; sl: string; tp: string; symbol: string; volume: string };
 
@@ -114,62 +111,49 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return MT5_BROKER_URLS[mt5Account.server] || 'https://webtrader.razormarkets.co.za/terminal/';
   }, [mt5Account]);
 
-  /** Lot from trade config (equity tier); matches symbol including broker suffix variants. */
-  const getConfiguredLotVolume = useCallback((): string => {
-    if (!signal?.asset || !mt5Symbols?.length) return '0.01';
-    const cfg =
-      mt5Symbols.find(s => s.symbol === signal.asset) ||
-      findMT5SymbolConfigForAnalysis(signal.asset, signal.asset, mt5Symbols);
-    if (cfg?.lotSize) {
-      const v = parseFloat(String(cfg.lotSize));
-      if (!Number.isNaN(v) && v > 0) return String(v);
-    }
-    return '0.01';
-  }, [signal?.asset, mt5Symbols]);
-
-  /** Scalper: always 1 round; swing: numberOfTrades from trade config (equity tier). */
+  // Get number of trades from symbol config (scalper: single execution round; swing: equity preset)
   const getNumberOfTrades = useCallback(() => {
-    if (!signal?.asset || !mt5Symbols?.length) return 1;
-    const cfg =
-      mt5Symbols.find(s => s.symbol === signal.asset) ||
-      findMT5SymbolConfigForAnalysis(signal.asset, signal.asset, mt5Symbols);
-    if (!cfg) return 1;
-    if (cfg.tradeMode === 'scalper') return 1;
-    const numTrades = parseInt(cfg.numberOfTrades, 10);
-    return Number.isNaN(numTrades) || numTrades < 1 ? 1 : numTrades;
-  }, [signal?.asset, mt5Symbols]);
+    if (!signal?.asset || !mt5Symbols || mt5Symbols.length === 0) {
+      return 1;
+    }
+    const symbolConfig = mt5Symbols.find(s => s.symbol === signal.asset);
+    if (!symbolConfig) return 1;
+    if (symbolConfig.tradeMode === 'scalper') {
+      return 1;
+    }
+    if (symbolConfig.numberOfTrades) {
+      const numTrades = parseInt(symbolConfig.numberOfTrades, 10);
+      return isNaN(numTrades) || numTrades < 1 ? 1 : numTrades;
+    }
+    return 1;
+  }, [signal, mt5Symbols]);
 
   const buildAiTradePayloadFromAnalysis = useCallback(
     (data: ChartAnalysisResult): AiTradePayload | null => {
       const baseAsset = signalRef.current?.asset || '';
       const action = data.signal === 'SELL' ? 'sell' : 'buy';
-      const dir: 'BUY' | 'SELL' = data.signal === 'SELL' ? 'SELL' : 'BUY';
       const sym = (data.symbol && data.symbol.trim()) || baseAsset;
       if (!sym) return null;
-
-      const cfg = findMT5SymbolConfigForAnalysis(sym, baseAsset, mt5Symbols);
-      const tradeMode: MT5TradeMode = cfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
-      const resolvedSymbol = cfg?.symbol || sym;
-
-      const lot = cfg?.lotSize;
+      const symCfg = mt5Symbols.find((s) => s.symbol === sym);
+      const tradeMode: MT5TradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
+      const lot = symCfg?.lotSize;
       const volume =
         lot && !Number.isNaN(parseFloat(String(lot))) ? String(parseFloat(String(lot))) : '0.01';
 
-      const entryStr = stripNumericPrice(String(data.entryPrice || data.currentPrice || ''));
+      const dir = data.signal === 'SELL' ? 'SELL' : 'BUY';
+      let sl = stripNumericPrice(data.stopLoss);
+      let tp = stripNumericPrice(data.takeProfit1 || '');
+      const entryStr = stripNumericPrice(data.entryPrice || data.currentPrice);
       const entryNum = parseFloat(entryStr);
-      const hasValidEntry = entryNum > 0 && Number.isFinite(entryNum);
-      const fb = hasValidEntry ? computeFallbackSlTp(dir, entryNum, tradeMode) : null;
-
-      let sl = stripNumericPrice(String(data.stopLoss ?? ''));
-      let tp = stripNumericPrice(String(data.takeProfit1 ?? ''));
-      if (fb) {
-        sl = fb.sl;
-        tp = fb.tp;
-      } else if (!sl || !tp) {
-        return null;
+      if ((!sl || !tp) && entryNum && Number.isFinite(entryNum)) {
+        const fb = computeFallbackSlTp(dir, entryNum, tradeMode);
+        if (fb) {
+          if (!sl) sl = fb.sl;
+          if (!tp) tp = fb.tp;
+        }
       }
-
-      return { action, sl, tp, symbol: resolvedSymbol, volume };
+      if (!sl || !tp) return null; // Same as AI scanner: need valid levels to send to MT5
+      return { action, sl, tp, symbol: sym, volume };
     },
     [mt5Symbols]
   );
@@ -216,6 +200,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     const robotName = primaryEA?.name || 'EA Trade';
     const isChartWarmup = signal?.type === 'CHART_WARMUP';
+
+    // Note: volume should come from EA config or signal, defaulting to 0.01 for now
 
     return `
       (function() {
@@ -1533,7 +1519,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             var _p = window.__eaActiveTradePayload;
             const symbol = (_p && _p.symbol) ? String(_p.symbol) : '${signal?.asset || ''}';
             const action = (_p && _p.action) ? String(_p.action) : '${signal?.action || ''}';
-            const volume = (_p && _p.volume) ? String(_p.volume) : '${getConfiguredLotVolume()}';
+            const volume = (_p && _p.volume) ? String(_p.volume) : '0.01';
             const sl = (_p && _p.sl != null && String(_p.sl) !== '') ? String(_p.sl) : '${signal?.sl || ''}';
             const tp = (_p && _p.tp != null && String(_p.tp) !== '') ? String(_p.tp) : '${signal?.tp || ''}';
             const robotName = '${robotName}';
@@ -1742,7 +1728,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       })();
       true;
     `;
-  }, [signal, signal?.type, mt5Account, getMT5Url, eas, mt5Symbols, getNumberOfTrades, getConfiguredLotVolume]);
+  }, [signal, signal?.type, mt5Account, getMT5Url, eas, mt5Symbols, getNumberOfTrades]);
 
   // Update status bar (same as MT5 auth)
   const updateStatus = useCallback((message: string) => {
@@ -1794,7 +1780,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         void (async () => {
           let shouldResumePolling = true;
           try {
-            const result = await apiService.analyzeChart(data.image as string, (data.mimeType as string) || 'image/jpeg');
+            const asset = signalRef.current?.asset || '';
+            const tradeModeForApi =
+              mt5Symbols.find((s) => s.symbol === asset)?.tradeMode === 'scalper' ? 'scalper' : 'swing';
+            const result = await apiService.analyzeChart(
+              data.image as string,
+              (data.mimeType as string) || 'image/jpeg',
+              { tradeMode: tradeModeForApi }
+            );
             if (result.message === 'accept' && result.data) {
               setChartAiResult(result.data);
               const payload = buildAiTradePayloadFromAnalysis(result.data);
@@ -1802,6 +1795,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setCurrentStep('AI suggests a trade — placing order in MT5...');
                 shouldResumePolling = false;
                 runAiTradeInject(payload);
+              } else if (signalRef.current?.type === 'CHART_WARMUP' && !payload) {
+                setChartAiError(
+                  'Could not derive SL/TP for auto-trade. Check symbol trade config (Scalper/Swing) and that entry price is visible.'
+                );
+                setCurrentStep('AI analysis complete — see suggestion below');
               } else {
                 setCurrentStep('AI analysis complete — see suggestion below');
               }
@@ -1862,6 +1860,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     resumePolling,
     buildAiTradePayloadFromAnalysis,
     runAiTradeInject,
+    mt5Symbols,
   ]);
 
   // Inject script when WebView loads - ensure fresh injection for each signal
@@ -2023,7 +2022,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   const mt5Url = getMT5Url();
   const numberOfTrades = getNumberOfTrades();
-  const configuredLotVolume = getConfiguredLotVolume();
   const isChartWarmupSignal = signal?.type === 'CHART_WARMUP';
 
   // Get robot/EA name
@@ -2032,7 +2030,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   // Build proxy URL for web (same as Android but through proxy)
   const proxyUrl = Platform.OS === 'web'
-    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=${encodeURIComponent(configuredLotVolume)}&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}${isChartWarmupSignal ? '&chartWarmup=1' : ''}`
+    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}${isChartWarmupSignal ? '&chartWarmup=1' : ''}`
     : null;
 
   return (

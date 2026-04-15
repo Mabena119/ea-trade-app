@@ -241,7 +241,11 @@ class ApiService {
     }
   }
 
-  async analyzeChart(imageBase64: string, mimeType = 'image/jpeg'): Promise<ChartAnalysisResponse> {
+  async analyzeChart(
+    imageBase64: string,
+    mimeType = 'image/jpeg',
+    options?: { tradeMode?: 'scalper' | 'swing' }
+  ): Promise<ChartAnalysisResponse> {
     if (!imageBase64) return { message: 'error', error: 'No image provided' };
     const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/analyze-chart`;
     const controller = new AbortController();
@@ -250,7 +254,11 @@ class ApiService {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imageBase64, mimeType }),
+        body: JSON.stringify({
+          image: imageBase64,
+          mimeType,
+          ...(options?.tradeMode ? { tradeMode: options.tradeMode } : {}),
+        }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

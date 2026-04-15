@@ -3,6 +3,9 @@
  * Requires GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable
  */
 
+import { getSlTpPercentForTradeMode } from '@/utils/trade-mode-levels';
+import type { MT5TradeMode } from '@/providers/app-provider';
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as const;
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
@@ -137,7 +140,12 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const body = await request.json();
-    const { image, mimeType = 'image/jpeg' } = body as { image?: string; mimeType?: string };
+    const { image, mimeType = 'image/jpeg', tradeMode: tradeModeRaw } = body as {
+      image?: string;
+      mimeType?: string;
+      tradeMode?: string;
+    };
+    const tradeMode: MT5TradeMode = tradeModeRaw === 'scalper' ? 'scalper' : 'swing';
 
     if (!image || typeof image !== 'string') {
       return Response.json(
@@ -338,10 +346,10 @@ export async function POST(request: Request): Promise<Response> {
       if (!takeProfit1 && tpMatch?.[1]) takeProfit1 = tpMatch[1].trim();
     }
 
-    // Fallback: compute SL/TP from entry when AI returns empty (0.5% SL, 1% TP) — client overrides by trade mode for execution
+    // Fallback: compute SL/TP from entry when AI returns empty (scalper: tighter; swing: wider)
     const entryNum = parseFloat(String(entryPrice).replace(/,/g, ''));
     if (entryNum && !isNaN(entryNum) && (!stopLoss || !takeProfit1)) {
-      const pct = 0.005;
+      const pct = getSlTpPercentForTradeMode(tradeMode);
       const slDist = entryNum * pct;
       const tpDist = entryNum * (pct * 2);
       const decimals = entryNum > 100 ? 2 : 5;
