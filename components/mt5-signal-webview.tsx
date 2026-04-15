@@ -77,8 +77,8 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Profinwealth-Live': 'https://mt5.profinwealth.com/',
 };
 
-/** When true, MT5 signal WebView uses bottom-half visible panel (opacity 1) for debugging. */
-const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = true;
+/** When true, MT5 signal WebView uses a visible panel for debugging. Chart warmup always uses a visible terminal so WebGL paints. */
+const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = false;
 
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
   const { mt5Account, setMT5Account, eas, mt5Symbols, markTradeExecuted, mt5TradeOverlayMessage, resumePolling } =
@@ -781,27 +781,50 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return best;
         }
 
+        function canvasHasWebGLContext(canvas) {
+          try {
+            if (!canvas || !canvas.getContext) return false;
+            var gl =
+              canvas.getContext('webgl2', { stencil: false }) ||
+              canvas.getContext('webgl', { stencil: false }) ||
+              canvas.getContext('experimental-webgl');
+            return !!gl;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        /** Rank canvases; WebGL chart surfaces get a higher score (MT5 draws the chart with WebGL). */
+        function collectRankedCanvasCandidates() {
+          var canvases = getAllCanvasesDeep();
+          var ranked = [];
+          for (var i = 0; i < canvases.length; i++) {
+            var c = canvases[i];
+            var rect = c.getBoundingClientRect();
+            if (rect.bottom < -35 || rect.top > (window.innerHeight || 0) + 50) continue;
+            if (rect.width < 80 || rect.height < 58) continue;
+            var rectArea = rect.width * rect.height;
+            var internal = (c.width || 0) * (c.height || 0);
+            var score = internal > 5000 ? Math.min(rectArea, internal) : rectArea;
+            try {
+              if (canvasHasWebGLContext(c)) score *= 1.5;
+            } catch (e) {}
+            if (score > 0) ranked.push({ canvas: c, score: score });
+          }
+          ranked.sort(function(a, b) {
+            return b.score - a.score;
+          });
+          return ranked;
+        }
+
         /** Prefer main chart canvas (large rect + buffer); searches nested terminal iframes. */
         function pickChartCaptureTarget() {
           try {
-            var canvases = getAllCanvasesDeep();
-            var best = null;
-            var bestScore = 0;
-            for (var i = 0; i < canvases.length; i++) {
-              var c = canvases[i];
-              var rect = c.getBoundingClientRect();
-              if (rect.bottom < -30 || rect.top > (window.innerHeight || 0) + 40) continue;
-              if (rect.width < 90 || rect.height < 65) continue;
-              var rectArea = rect.width * rect.height;
-              var internal = (c.width || 0) * (c.height || 0);
-              var score = internal > 8000 ? Math.min(rectArea, internal) : rectArea;
-              if (score > bestScore) {
-                bestScore = score;
-                best = c;
-              }
+            var ranked = collectRankedCanvasCandidates();
+            if (ranked.length > 0) {
+              window.__eaLastChartCanvas = ranked[0].canvas;
+              return ranked[0].canvas;
             }
-            window.__eaLastChartCanvas = best || null;
-            if (best && bestScore >= 12000) return best;
           } catch (e) {}
           window.__eaLastChartCanvas = null;
           try {
@@ -823,16 +846,38 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return document.body;
         }
 
-        function canvasHasWebGLContext(canvas) {
+        function pickDeepTerminalBody() {
           try {
-            if (!canvas || !canvas.getContext) return false;
-            var gl =
-              canvas.getContext('webgl2', { stencil: false }) ||
-              canvas.getContext('webgl', { stencil: false }) ||
-              canvas.getContext('experimental-webgl');
-            return !!gl;
-          } catch (e) {
-            return false;
+            var td = resolveTerminalDocumentForBodyFallback();
+            if (td && td.body) return td.body;
+          } catch (e) {}
+          return document.body;
+        }
+
+        /** Prefer a wrapper around the chart so html2canvas captures toolbar + candles (not just one layer). */
+        function pickHtml2CanvasTarget() {
+          try {
+            var ranked = collectRankedCanvasCandidates();
+            if (ranked.length === 0) return pickChartCaptureTarget();
+            var canvas = ranked[0].canvas;
+            window.__eaLastChartCanvas = canvas;
+            var bestEl = canvas;
+            var node = canvas;
+            for (var d = 0; d < 9 && node; d++) {
+              var p = node.parentElement;
+              if (!p) break;
+              var pr = p.getBoundingClientRect();
+              if (pr.width > 180 && pr.height > 120 && pr.width < 3400) {
+                var cls = String(p.className || '');
+                if (/chart|graph|terminal|main|work|canvas|price|trading|region|panel|slot|view|content/i.test(cls) || d >= 4) {
+                  bestEl = p;
+                }
+              }
+              node = p;
+            }
+            return bestEl;
+          } catch (e2) {
+            return pickChartCaptureTarget();
           }
         }
 
@@ -885,31 +930,85 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           });
         }
 
-        function tryDirectCanvasSnapshot() {
+        function tryCanvasToDataURL(canvas) {
           try {
-            var t = pickChartCaptureTarget();
-            if (t && t.tagName === 'CANVAS') {
-              if (canvasHasWebGLContext(t)) {
-                return '';
-              }
-              try {
-                t.scrollIntoView({ block: 'center', inline: 'nearest' });
-              } catch (e0) {}
-              var w = t.width || 0;
-              var h = t.height || 0;
-              if (w > 100 && h > 80) {
-                var durl = t.toDataURL('image/jpeg', 0.82);
-                var b64 = (durl.split(',')[1] || '');
-                if (b64.length > 2500) return b64;
+            canvas.scrollIntoView({ block: 'center', inline: 'nearest' });
+          } catch (e0) {}
+          var w = canvas.width || 0;
+          var h = canvas.height || 0;
+          if (w < 64 || h < 48) return '';
+          try {
+            var durl = canvas.toDataURL('image/jpeg', 0.88);
+            var b64 = (durl.split(',')[1] || '');
+            if (b64.length > 1400) return b64;
+          } catch (e1) {}
+          return '';
+        }
+
+        /** Fallback when WebGL preserves the default framebuffer long enough to read (same-origin terminal). */
+        function tryWebGLReadPixelsSnapshot(canvas) {
+          try {
+            var w = canvas.width;
+            var h = canvas.height;
+            if (w < 32 || h < 32 || w * h > 400000) return '';
+            var gl =
+              canvas.getContext('webgl2', { stencil: false }) ||
+              canvas.getContext('webgl', { stencil: false }) ||
+              canvas.getContext('experimental-webgl');
+            if (!gl) return '';
+            var pixels = new Uint8Array(w * h * 4);
+            gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+            var sum = 0;
+            var sample = 0;
+            for (var i = 0; i < pixels.length; i += 16) {
+              sum += pixels[i] + pixels[i + 1] + pixels[i + 2];
+              sample++;
+            }
+            if (!sample || sum / sample < 2) return '';
+            var c2 = document.createElement('canvas');
+            c2.width = w;
+            c2.height = h;
+            var ctx = c2.getContext('2d');
+            var imgData = ctx.createImageData(w, h);
+            var d = imgData.data;
+            for (var y = 0; y < h; y++) {
+              for (var x = 0; x < w; x++) {
+                var src = ((h - 1 - y) * w + x) * 4;
+                var dst = (y * w + x) * 4;
+                d[dst] = pixels[src];
+                d[dst + 1] = pixels[src + 1];
+                d[dst + 2] = pixels[src + 2];
+                d[dst + 3] = 255;
               }
             }
+            ctx.putImageData(imgData, 0, 0);
+            var durl = c2.toDataURL('image/jpeg', 0.82);
+            var b64 = (durl.split(',')[1] || '');
+            if (b64.length > 1400) return b64;
           } catch (e) {}
+          return '';
+        }
+
+        function tryDirectCanvasSnapshot() {
+          var ranked = collectRankedCanvasCandidates();
+          if (ranked.length === 0) return '';
+          for (var idx = 0; idx < Math.min(ranked.length, 8); idx++) {
+            var canvas = ranked[idx].canvas;
+            window.__eaLastChartCanvas = canvas;
+            var b64 = tryCanvasToDataURL(canvas);
+            if (b64) return b64;
+            if (canvasHasWebGLContext(canvas)) {
+              b64 = tryWebGLReadPixelsSnapshot(canvas);
+              if (b64) return b64;
+            }
+          }
           return '';
         }
 
         function runHtml2CanvasCapture(resolve, opts) {
           opts = opts || {};
           var useBody = opts.useBody === true;
+          var useDeepIframe = opts.useDeepIframe === true;
           try {
             var h2c = window.html2canvas;
             if (typeof h2c !== 'function') {
@@ -917,7 +1016,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               resolve();
               return;
             }
-            var capTarget = useBody ? pickBodyForHtml2Canvas(true) : pickChartCaptureTarget();
+            var capTarget = null;
+            if (useDeepIframe) {
+              capTarget = pickDeepTerminalBody();
+            } else if (useBody) {
+              capTarget = pickBodyForHtml2Canvas(true);
+            } else {
+              capTarget = pickHtml2CanvasTarget();
+            }
             if (!capTarget) {
               capTarget = document.body;
             }
@@ -931,18 +1037,30 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             var winW = de ? de.scrollWidth : (window.innerWidth || 1280);
             var winH = de ? de.scrollHeight : (window.innerHeight || 800);
             var isBodyTarget = capTarget.tagName === 'BODY';
-            var scaleCap = isBodyTarget ? 0.42 : 0.72;
+            var scaleCap = isBodyTarget ? 0.48 : 0.82;
             h2c(capTarget, {
               useCORS: true,
               allowTaint: true,
               scale: scaleCap,
               logging: false,
+              backgroundColor: '#ffffff',
               windowWidth: winW,
-              windowHeight: winH
+              windowHeight: winH,
+              onclone: function(clonedDoc) {
+                try {
+                  var btns = clonedDoc.querySelectorAll('button, [role="button"]');
+                  for (var i = 0; i < Math.min(btns.length, 120); i++) {
+                    var t = ((btns[i].textContent || '') + '').trim();
+                    if (t === '+' || t === '−' || t === '-' || t === '×' || t === '✕') {
+                      btns[i].style.visibility = 'hidden';
+                    }
+                  }
+                } catch (e0) {}
+              }
             })
               .then(function(canvas) {
                 try {
-                  var dataUrl = canvas.toDataURL('image/jpeg', 0.76);
+                  var dataUrl = canvas.toDataURL('image/jpeg', 0.78);
                   var b64 = (dataUrl.split(',')[1] || '');
                   if (!b64 || b64.length < 100) {
                     sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
@@ -955,7 +1073,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                       runHtml2CanvasCapture(resolve, { useBody: true });
                       return;
                     }
-                    if (isBlack && useBody) {
+                    if (isBlack && useBody && !useDeepIframe) {
+                      sendMessage('step_update', 'Retrying snapshot (deep iframe body)...');
+                      runHtml2CanvasCapture(resolve, { useBody: true, useDeepIframe: true });
+                      return;
+                    }
+                    if (isBlack && useDeepIframe) {
                       sendMessage(
                         'chart_warmup_capture_failed',
                         'Snapshot was blank — chart may use GPU rendering. Scroll the chart fully into view and try again.'
@@ -999,11 +1122,29 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           (document.head || document.documentElement).appendChild(scriptEl);
         }
 
+        async function prepareChartForSnapshot() {
+          try {
+            var ranked = collectRankedCanvasCandidates();
+            if (ranked.length > 0) {
+              ranked[0].canvas.scrollIntoView({ block: 'center', inline: 'nearest' });
+            }
+          } catch (e) {}
+          await new Promise(function(r) {
+            requestAnimationFrame(function() {
+              requestAnimationFrame(r);
+            });
+          });
+          await new Promise(function(r) {
+            setTimeout(r, 450);
+          });
+        }
+
         var captureChartWarmupForAi = async function() {
           await acceptDisclaimersAndConfirmDeep();
           await dismissLoginOverlay();
           window.__eaChartScreenshotSent = false;
           window.__eaLastChartCanvas = null;
+          await prepareChartForSnapshot();
           var direct = tryDirectCanvasSnapshot();
           if (direct) {
             var darkBad = await isBase64SnapshotMostlyBlack(direct);
@@ -1019,7 +1160,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             if (!isAnyLoginModalBlocking()) break;
             await new Promise(function(r) { setTimeout(r, 450); });
           }
-          await new Promise(function(r) { setTimeout(r, 400); });
+          await prepareChartForSnapshot();
           direct = tryDirectCanvasSnapshot();
           if (direct) {
             var darkBad2 = await isBase64SnapshotMostlyBlack(direct);
@@ -2348,6 +2489,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const numberOfTrades = getNumberOfTrades();
   const isChartWarmupSignal = signal?.type === 'CHART_WARMUP';
 
+  /** Full-area terminal below toast so WebGL chart is composited (opacity 0 / z-index -1 can yield blank captures). */
+  const chartWarmupTerminalVisible = isChartWarmupSignal;
+
   /** During warmup, maximize terminal WebView and hide AI panel so MT5 is not covered while screenshots run. */
   const warmupExpandTerminal =
     isChartWarmupSignal &&
@@ -2419,7 +2563,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           </View>
         </View>
 
-        {isChartWarmupSignal && (chartAiAnalyzing || chartAiResult || chartAiError) && !warmupExpandTerminal ? (
+        {isChartWarmupSignal &&
+        (chartAiAnalyzing || chartAiResult || chartAiError) &&
+        !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
+        !warmupExpandTerminal ? (
           <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]}>
             <Text style={[styles.aiPanelTitle, { color: theme.colors.textSecondary }]}>AI trade analysis</Text>
             <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
@@ -2463,11 +2610,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         {/* WebView: hidden in production flow; debug flag shows bottom panel for inspection */}
         <View
           style={
-            SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
-              ? warmupExpandTerminal
-                ? styles.warmupFullWebViewContainer
-                : styles.visibleDebugWebViewContainer
-              : styles.hiddenWebViewContainer
+            chartWarmupTerminalVisible
+              ? styles.warmupFullWebViewContainer
+              : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
+                ? warmupExpandTerminal
+                  ? styles.warmupFullWebViewContainer
+                  : styles.visibleDebugWebViewContainer
+                : styles.hiddenWebViewContainer
           }
         >
           {Platform.OS === 'web' ? (
@@ -2482,14 +2631,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setCurrentStep('MT5 Terminal loaded');
                 console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
               }}
-              style={SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
+              style={chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
             />
           ) : (
             <WebView
               key={`${webViewKey}-${signal.id || 'no-signal'}`}
               ref={webViewRef}
               source={{ uri: mt5Url }}
-              style={SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
+              style={chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
               userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               onMessage={handleWebViewMessage}
               onLoadStart={() => {

@@ -1448,26 +1448,46 @@ async function handleApi(request: Request): Promise<Response> {
                 return best;
               }
 
+              function canvasHasWebGLContext(canvas) {
+                try {
+                  if (!canvas || !canvas.getContext) return false;
+                  const gl =
+                    canvas.getContext('webgl2', { stencil: false }) ||
+                    canvas.getContext('webgl', { stencil: false }) ||
+                    canvas.getContext('experimental-webgl');
+                  return !!gl;
+                } catch (e) {
+                  return false;
+                }
+              }
+
+              function collectRankedCanvasCandidates() {
+                const canvases = getAllCanvasesDeep();
+                const ranked = [];
+                for (let i = 0; i < canvases.length; i++) {
+                  const c = canvases[i];
+                  const rect = c.getBoundingClientRect();
+                  if (rect.bottom < -35 || rect.top > window.innerHeight + 50) continue;
+                  if (rect.width < 80 || rect.height < 58) continue;
+                  const rectArea = rect.width * rect.height;
+                  const internal = (c.width || 0) * (c.height || 0);
+                  let score = internal > 5000 ? Math.min(rectArea, internal) : rectArea;
+                  try {
+                    if (canvasHasWebGLContext(c)) score *= 1.5;
+                  } catch (e) {}
+                  if (score > 0) ranked.push({ canvas: c, score });
+                }
+                ranked.sort((a, b) => b.score - a.score);
+                return ranked;
+              }
+
               function pickChartCaptureTarget() {
                 try {
-                  const canvases = getAllCanvasesDeep();
-                  let best = null;
-                  let bestScore = 0;
-                  for (let i = 0; i < canvases.length; i++) {
-                    const c = canvases[i];
-                    const rect = c.getBoundingClientRect();
-                    if (rect.bottom < -30 || rect.top > window.innerHeight + 40) continue;
-                    if (rect.width < 90 || rect.height < 65) continue;
-                    const rectArea = rect.width * rect.height;
-                    const internal = (c.width || 0) * (c.height || 0);
-                    const score = internal > 8000 ? Math.min(rectArea, internal) : rectArea;
-                    if (score > bestScore) {
-                      bestScore = score;
-                      best = c;
-                    }
+                  const ranked = collectRankedCanvasCandidates();
+                  if (ranked.length > 0) {
+                    window.__eaLastChartCanvas = ranked[0].canvas;
+                    return ranked[0].canvas;
                   }
-                  window.__eaLastChartCanvas = best || null;
-                  if (best && bestScore >= 12000) return best;
                 } catch (e) {}
                 window.__eaLastChartCanvas = null;
                 try {
@@ -1487,6 +1507,40 @@ async function handleApi(request: Request): Promise<Response> {
                   if (td && td.body) return td.body;
                 } catch (e) {}
                 return document.body;
+              }
+
+              function pickDeepTerminalBody() {
+                try {
+                  const td = resolveTerminalDocumentForBodyFallback();
+                  if (td && td.body) return td.body;
+                } catch (e) {}
+                return document.body;
+              }
+
+              function pickHtml2CanvasTarget() {
+                try {
+                  const ranked = collectRankedCanvasCandidates();
+                  if (ranked.length === 0) return pickChartCaptureTarget();
+                  const canvas = ranked[0].canvas;
+                  window.__eaLastChartCanvas = canvas;
+                  let bestEl = canvas;
+                  let node = canvas;
+                  for (let d = 0; d < 9 && node; d++) {
+                    const p = node.parentElement;
+                    if (!p) break;
+                    const pr = p.getBoundingClientRect();
+                    if (pr.width > 180 && pr.height > 120 && pr.width < 3400) {
+                      const cls = String(p.className || '');
+                      if (/chart|graph|terminal|main|work|canvas|price|trading|region|panel|slot|view|content/i.test(cls) || d >= 4) {
+                        bestEl = p;
+                      }
+                    }
+                    node = p;
+                  }
+                  return bestEl;
+                } catch (e2) {
+                  return pickChartCaptureTarget();
+                }
               }
 
               const waitForChartReady = async (maxMs) => {
@@ -1579,19 +1633,6 @@ async function handleApi(request: Request): Promise<Response> {
                 return false;
               };
 
-              function canvasHasWebGLContext(canvas) {
-                try {
-                  if (!canvas || !canvas.getContext) return false;
-                  const gl =
-                    canvas.getContext('webgl2', { stencil: false }) ||
-                    canvas.getContext('webgl', { stencil: false }) ||
-                    canvas.getContext('experimental-webgl');
-                  return !!gl;
-                } catch (e) {
-                  return false;
-                }
-              }
-
               function isBase64SnapshotMostlyBlack(b64) {
                 return new Promise(function(resolve) {
                   try {
@@ -1641,31 +1682,84 @@ async function handleApi(request: Request): Promise<Response> {
                 });
               }
 
-              function tryDirectCanvasSnapshot() {
+              function tryCanvasToDataURL(canvas) {
                 try {
-                  const t = pickChartCaptureTarget();
-                  if (t && t.tagName === 'CANVAS') {
-                    if (canvasHasWebGLContext(t)) {
-                      return '';
-                    }
-                    try {
-                      t.scrollIntoView({ block: 'center', inline: 'nearest' });
-                    } catch (e0) {}
-                    const w = t.width || 0;
-                    const h = t.height || 0;
-                    if (w > 100 && h > 80) {
-                      const durl = t.toDataURL('image/jpeg', 0.82);
-                      const b64 = (durl.split(',')[1] || '');
-                      if (b64.length > 2500) return b64;
+                  canvas.scrollIntoView({ block: 'center', inline: 'nearest' });
+                } catch (e0) {}
+                const w = canvas.width || 0;
+                const h = canvas.height || 0;
+                if (w < 64 || h < 48) return '';
+                try {
+                  const durl = canvas.toDataURL('image/jpeg', 0.88);
+                  const b64 = (durl.split(',')[1] || '');
+                  if (b64.length > 1400) return b64;
+                } catch (e1) {}
+                return '';
+              }
+
+              function tryWebGLReadPixelsSnapshot(canvas) {
+                try {
+                  const w = canvas.width;
+                  const h = canvas.height;
+                  if (w < 32 || h < 32 || w * h > 400000) return '';
+                  const gl =
+                    canvas.getContext('webgl2', { stencil: false }) ||
+                    canvas.getContext('webgl', { stencil: false }) ||
+                    canvas.getContext('experimental-webgl');
+                  if (!gl) return '';
+                  const pixels = new Uint8Array(w * h * 4);
+                  gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                  let sum = 0;
+                  let sample = 0;
+                  for (let i = 0; i < pixels.length; i += 16) {
+                    sum += pixels[i] + pixels[i + 1] + pixels[i + 2];
+                    sample++;
+                  }
+                  if (!sample || sum / sample < 2) return '';
+                  const c2 = document.createElement('canvas');
+                  c2.width = w;
+                  c2.height = h;
+                  const ctx = c2.getContext('2d');
+                  const imgData = ctx.createImageData(w, h);
+                  const d = imgData.data;
+                  for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                      const src = ((h - 1 - y) * w + x) * 4;
+                      const dst = (y * w + x) * 4;
+                      d[dst] = pixels[src];
+                      d[dst + 1] = pixels[src + 1];
+                      d[dst + 2] = pixels[src + 2];
+                      d[dst + 3] = 255;
                     }
                   }
+                  ctx.putImageData(imgData, 0, 0);
+                  const durl = c2.toDataURL('image/jpeg', 0.82);
+                  const b64 = (durl.split(',')[1] || '');
+                  if (b64.length > 1400) return b64;
                 } catch (e) {}
+                return '';
+              }
+
+              function tryDirectCanvasSnapshot() {
+                const ranked = collectRankedCanvasCandidates();
+                if (ranked.length === 0) return '';
+                for (let idx = 0; idx < Math.min(ranked.length, 8); idx++) {
+                  const canvas = ranked[idx].canvas;
+                  window.__eaLastChartCanvas = canvas;
+                  let b64 = tryCanvasToDataURL(canvas);
+                  if (b64) return b64;
+                  if (canvasHasWebGLContext(canvas)) {
+                    b64 = tryWebGLReadPixelsSnapshot(canvas);
+                    if (b64) return b64;
+                  }
+                }
                 return '';
               }
 
               function runHtml2CanvasCapture(resolve, opts) {
                 opts = opts || {};
                 const useBody = opts.useBody === true;
+                const useDeepIframe = opts.useDeepIframe === true;
                 try {
                   const h2c = window.html2canvas;
                   if (typeof h2c !== 'function') {
@@ -1673,7 +1767,14 @@ async function handleApi(request: Request): Promise<Response> {
                     resolve();
                     return;
                   }
-                  let capTarget = useBody ? pickBodyForHtml2Canvas(true) : pickChartCaptureTarget();
+                  let capTarget = null;
+                  if (useDeepIframe) {
+                    capTarget = pickDeepTerminalBody();
+                  } else if (useBody) {
+                    capTarget = pickBodyForHtml2Canvas(true);
+                  } else {
+                    capTarget = pickHtml2CanvasTarget();
+                  }
                   if (!capTarget) {
                     capTarget = document.body;
                   }
@@ -1687,18 +1788,30 @@ async function handleApi(request: Request): Promise<Response> {
                   const winW = de ? de.scrollWidth : (window.innerWidth || 1280);
                   const winH = de ? de.scrollHeight : (window.innerHeight || 800);
                   const isBodyTarget = capTarget.tagName === 'BODY';
-                  const scaleCap = isBodyTarget ? 0.42 : 0.72;
+                  const scaleCap = isBodyTarget ? 0.48 : 0.82;
                   h2c(capTarget, {
                     useCORS: true,
                     allowTaint: true,
                     scale: scaleCap,
                     logging: false,
+                    backgroundColor: '#ffffff',
                     windowWidth: winW,
-                    windowHeight: winH
+                    windowHeight: winH,
+                    onclone: (clonedDoc) => {
+                      try {
+                        const btns = clonedDoc.querySelectorAll('button, [role="button"]');
+                        for (let i = 0; i < Math.min(btns.length, 120); i++) {
+                          const t = ((btns[i].textContent || '') + '').trim();
+                          if (t === '+' || t === '−' || t === '-' || t === '×' || t === '✕') {
+                            btns[i].style.visibility = 'hidden';
+                          }
+                        }
+                      } catch (e0) {}
+                    },
                   })
                     .then(function(canvas) {
                       try {
-                        const dataUrl = canvas.toDataURL('image/jpeg', 0.76);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
                         const b64 = (dataUrl.split(',')[1] || '');
                         if (!b64 || b64.length < 100) {
                           sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
@@ -1711,7 +1824,12 @@ async function handleApi(request: Request): Promise<Response> {
                             runHtml2CanvasCapture(resolve, { useBody: true });
                             return;
                           }
-                          if (isBlack && useBody) {
+                          if (isBlack && useBody && !useDeepIframe) {
+                            sendMessage('step_update', 'Retrying snapshot (deep iframe body)...');
+                            runHtml2CanvasCapture(resolve, { useBody: true, useDeepIframe: true });
+                            return;
+                          }
+                          if (isBlack && useDeepIframe) {
                             sendMessage(
                               'chart_warmup_capture_failed',
                               'Snapshot was blank — chart may use GPU rendering. Scroll the chart fully into view and try again.'
@@ -1755,9 +1873,27 @@ async function handleApi(request: Request): Promise<Response> {
                 (document.head || document.documentElement).appendChild(scriptEl);
               }
 
+              async function prepareChartForSnapshot() {
+                try {
+                  const ranked = collectRankedCanvasCandidates();
+                  if (ranked.length > 0) {
+                    ranked[0].canvas.scrollIntoView({ block: 'center', inline: 'nearest' });
+                  }
+                } catch (e) {}
+                await new Promise((r) => {
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(r);
+                  });
+                });
+                await sleep(450);
+              }
+
               const captureChartWarmupForAi = async () => {
+                await acceptDisclaimersAndConfirmDeep();
+                await dismissLoginOverlay();
                 window.__eaChartScreenshotSent = false;
                 window.__eaLastChartCanvas = null;
+                await prepareChartForSnapshot();
                 let direct = tryDirectCanvasSnapshot();
                 if (direct) {
                   const darkBad = await isBase64SnapshotMostlyBlack(direct);
@@ -1773,7 +1909,7 @@ async function handleApi(request: Request): Promise<Response> {
                   if (!isAnyLoginModalBlocking()) break;
                   await sleep(450);
                 }
-                await sleep(400);
+                await prepareChartForSnapshot();
                 direct = tryDirectCanvasSnapshot();
                 if (direct) {
                   const darkBad2 = await isBase64SnapshotMostlyBlack(direct);
