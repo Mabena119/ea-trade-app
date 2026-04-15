@@ -7,8 +7,6 @@ interface WebWebViewProps {
   onMessage?: (event: any) => void;
   onLoadEnd?: () => void;
   onDestroy?: () => void;
-  /** Called with the iframe element so the parent can postMessage into the MT5 proxy (web AI chart flow). */
-  onIframeRef?: (iframe: HTMLIFrameElement | null) => void;
   style?: any;
 }
 
@@ -18,7 +16,6 @@ const WebWebView: React.FC<WebWebViewProps> = ({
   onMessage,
   onLoadEnd,
   onDestroy,
-  onIframeRef,
   style
 }) => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -296,10 +293,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
   return (
     <View style={[styles.container, style]}>
       <iframe
-        ref={(el) => {
-          iframeRef.current = el;
-          onIframeRef?.(el);
-        }}
+        ref={iframeRef}
         src={url}
         style={iframeStyle}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation allow-modals allow-downloads"

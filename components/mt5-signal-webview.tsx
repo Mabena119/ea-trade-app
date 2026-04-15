@@ -1,13 +1,10 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Modal, Text, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
-import { apiService } from '@/services/api';
-import { buildSignalLogFromChartAnalysis } from '@/utils/ai-symbol-trade';
-import { resolveConfiguredTradeSymbol } from '@/utils/symbol-resolution';
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 import { AlertCircle, X } from 'lucide-react-native';
@@ -38,19 +35,12 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Profinwealth-Live': 'https://mt5.profinwealth.com/',
 };
 
+/** When true, MT5 signal WebView uses bottom-half visible panel (opacity 1) for debugging. */
+const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = true;
+
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
-  const {
-    mt5Account,
-    setMT5Account,
-    setMT5Signal,
-    eas,
-    mt5Symbols,
-    mt4Symbols,
-    activeSymbols,
-    markTradeExecuted,
-    mt5TradeOverlayMessage,
-  } = useApp();
-  const chartAiBusyRef = useRef(false);
+  const { mt5Account, setMT5Account, eas, mt5Symbols, markTradeExecuted, mt5TradeOverlayMessage, resumePolling } =
+    useApp();
   const mt5AccountRef = useRef(mt5Account);
   useEffect(() => {
     mt5AccountRef.current = mt5Account;
@@ -60,9 +50,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
   const webViewRef = useRef<WebView>(null);
   const [webViewKey, setWebViewKey] = useState<number>(0);
-  /** Web: lock proxy URL symbol for AI capture→trade so iframe src does not reload. */
-  const [stableWebChartSymbol, setStableWebChartSymbol] = useState('');
-  const webIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Get MT5 terminal URL
   const getMT5Url = useCallback(() => {
@@ -107,14 +94,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     // Get robot/EA name
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     const robotName = primaryEA?.name || 'EA Trade';
+    const isChartWarmup = signal?.type === 'CHART_WARMUP';
 
     // Note: volume should come from EA config or signal, defaulting to 0.01 for now
 
     return `
       (function() {
-        const CHART_CAPTURE_ONLY = ${signal?.type === 'AI_CHART_CAPTURE' ? 'true' : 'false'};
-        const SKIP_TO_TRADES_ONLY = ${signal?.type === 'AI_CHART_TRADE' ? 'true' : 'false'};
-
+        var isChartWarmup = ${isChartWarmup ? 'true' : 'false'};
         // Prevent page reloads and navigation
         window.addEventListener('beforeunload', function(e) {
           e.preventDefault();
@@ -233,41 +219,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           value: originalWebSocket.prototype,
           writable: false
         });
-
-        const captureChartForAI = async () => {
-          try {
-            sendMessage('step_update', 'Capturing chart for AI analysis...');
-            await new Promise(r => setTimeout(r, 800));
-            const list = Array.from(document.querySelectorAll('canvas')).filter(function(c) {
-              try {
-                const rect = c.getBoundingClientRect();
-                return rect.width >= 100 && rect.height >= 60 && c.offsetParent !== null;
-              } catch (e) { return false; }
-            });
-            if (!list.length) {
-              sendMessage('chart_capture_failed', 'No chart canvas found');
-              return;
-            }
-            list.sort(function(a, b) { return (b.width * b.height) - (a.width * a.height); });
-            var base64 = '';
-            for (var i = 0; i < Math.min(5, list.length); i++) {
-              try {
-                var dataUrl = list[i].toDataURL('image/jpeg', 0.82);
-                if (dataUrl && dataUrl.length > 400) {
-                  base64 = dataUrl.replace(/^data:image\\/jpeg;base64,/, '');
-                  break;
-                }
-              } catch (err) { continue; }
-            }
-            if (!base64 || base64.length < 100) {
-              sendMessage('chart_capture_failed', 'Could not read chart image (canvas may be protected)');
-              return;
-            }
-            sendMessage('chart_captured', 'Chart captured', { imageBase64: base64, mimeType: 'image/jpeg' });
-          } catch (e) {
-            sendMessage('chart_capture_failed', (e && e.message) ? e.message : 'Chart capture error');
-          }
-        };
 
         // Optimized authentication function matching Android robustness
         const authenticateMT5 = async () => {
@@ -467,10 +418,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Step 3: Open chart (chart opens automatically when symbol is selected)
               await openChart('${symbol}');
               
-              if (CHART_CAPTURE_ONLY) {
-                await captureChartForAI();
+              if (isChartWarmup) {
+                sendMessage('chart_warmup_complete', 'Chart ready');
                 return;
               }
+              // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
               await executeMultipleTrades();
               
               return;
@@ -491,10 +443,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Step 3: Open chart (chart opens automatically when symbol is selected)
               await openChart('${symbol}');
               
-              if (CHART_CAPTURE_ONLY) {
-                await captureChartForAI();
+              if (isChartWarmup) {
+                sendMessage('chart_warmup_complete', 'Chart ready');
                 return;
               }
+              // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
               await executeMultipleTrades();
               
               return;
@@ -915,12 +868,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         // Fill order form and confirm trade - STRICTLY SEQUENTIAL
         const fillOrderFormAndConfirm = async (tradeNumber, totalTrades) => {
           try {
-            var p = window.__eaParentTrade;
-            var symbol = (p && p.asset) ? String(p.asset) : '${signal?.asset || ''}';
-            var action = (p && p.action) ? String(p.action) : '${signal?.action || ''}';
+            // Get signal data
+            const symbol = '${signal?.asset || ''}';
+            const action = '${signal?.action || ''}';
             const volume = '0.01'; // Default volume - can be configured
-            var sl = (p && p.sl !== undefined && p.sl !== null) ? String(p.sl) : '${signal?.sl || ''}';
-            var tp = (p && p.tp !== undefined && p.tp !== null) ? String(p.tp) : '${signal?.tp || ''}';
+            const sl = '${signal?.sl || ''}';
+            const tp = '${signal?.tp || ''}';
             const robotName = '${robotName}';
             
             // Find all input fields with inputmode="decimal" (volume, SL, TP)
@@ -1107,36 +1060,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           await new Promise(r => setTimeout(r, 1000));
         };
 
-        window.addEventListener('message', function(ev) {
-          try {
-            var raw = ev.data;
-            if (typeof raw === 'string' && raw.charAt(0) === '{') raw = JSON.parse(raw);
-            if (raw && raw.type === 'ea_parent_execute_trade') {
-              window.__eaParentTrade = {
-                asset: raw.asset || '',
-                action: raw.action || '',
-                sl: String(raw.sl !== undefined && raw.sl !== null ? raw.sl : ''),
-                tp: String(raw.tp !== undefined && raw.tp !== null ? raw.tp : ''),
-              };
-              executeMultipleTrades().catch(function(e) {
-                sendMessage('error', String(e && e.message ? e.message : e));
-              });
-            }
-          } catch (err) {}
-        });
-
-        if (SKIP_TO_TRADES_ONLY) {
-          (async function() {
-            try {
-              await executeMultipleTrades();
-            } catch (e) {
-              sendMessage('error', 'Trade execution failed: ' + ((e && e.message) ? e.message : String(e)));
-            }
-          })();
-        } else if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        // Start authentication immediately when DOM is ready
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
           authenticateMT5();
         } else {
           document.addEventListener('DOMContentLoaded', authenticateMT5);
+          // Fallback timeout
           setTimeout(authenticateMT5, 2000);
         }
       })();
@@ -1181,68 +1110,17 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setCurrentStep(data.message);
       } else if (data.type === 'equity_snapshot') {
         applyTerminalEquity();
-      } else if (data.type === 'chart_captured' && typeof data.imageBase64 === 'string' && data.imageBase64.length > 50) {
-        if (chartAiBusyRef.current) return;
-        chartAiBusyRef.current = true;
-        setCurrentStep('Analyzing chart with AI...');
-        const imageBase64 = data.imageBase64;
-        const mimeType = typeof data.mimeType === 'string' ? data.mimeType : 'image/jpeg';
-        const sig = signal;
-        void (async () => {
-          try {
-            if (!sig) return;
-            const res = await apiService.analyzeChart(imageBase64, mimeType);
-            if (res.message !== 'accept' || !res.data) {
-              setCurrentStep(res.error || 'AI analysis failed');
-              return;
-            }
-            const resolved =
-              resolveConfiguredTradeSymbol(res.data.symbol, mt5Symbols, mt4Symbols, activeSymbols) ||
-              { symbol: sig.asset };
-            const symCfg = mt5Symbols.find((s) => s.symbol === resolved.symbol);
-            const tradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
-            const built = buildSignalLogFromChartAnalysis(res.data, resolved.symbol, tradeMode, {
-              id: String(sig.id),
-              type: 'AI_CHART_TRADE',
-              source: 'ai_chart_terminal',
-            });
-            if (!built) {
-              setCurrentStep('AI did not return a tradable setup');
-              return;
-            }
-            setMT5Signal(built);
-            if (Platform.OS === 'web' && webIframeRef.current?.contentWindow) {
-              try {
-                webIframeRef.current.contentWindow.postMessage(
-                  JSON.stringify({
-                    type: 'ea_parent_execute_trade',
-                    asset: built.asset,
-                    action: built.action,
-                    sl: built.sl,
-                    tp: built.tp,
-                  }),
-                  '*'
-                );
-              } catch (postErr) {
-                console.error('postMessage trade execute failed', postErr);
-              }
-            }
-            setCurrentStep('Placing trade...');
-          } catch (e) {
-            console.error('Chart AI error:', e);
-            setCurrentStep('AI analysis failed');
-          } finally {
-            chartAiBusyRef.current = false;
-          }
-        })();
-      } else if (data.type === 'chart_capture_failed') {
-        setCurrentStep('Chart capture failed: ' + (data.message || 'Unknown'));
+      } else if (data.type === 'chart_warmup_complete') {
+        setCurrentStep('Chart warmup: chart ready (debug)');
+        void Promise.resolve(resumePolling()).catch((err: unknown) => {
+          console.error('Error resuming polling after chart warmup:', err);
+        });
       } else if (data.type === 'all_trades_completed') {
         applyTerminalEquity();
         setCurrentStep('All trades completed - Closing...');
         // Mark trade as executed to pause monitoring for 20 seconds
         if (signal?.asset) {
-          markTradeExecuted(signal.asset).catch(err => {
+          void Promise.resolve(markTradeExecuted(signal.asset)).catch((err: unknown) => {
             console.error('Error marking trade as executed:', err);
           });
         }
@@ -1254,16 +1132,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     } catch (error) {
       console.error('Error parsing WebView message:', error);
     }
-  }, [
-    signal,
-    onClose,
-    markTradeExecuted,
-    setMT5Account,
-    setMT5Signal,
-    mt5Symbols,
-    mt4Symbols,
-    activeSymbols,
-  ]);
+  }, [signal, onClose, markTradeExecuted, setMT5Account, resumePolling]);
 
   // Inject script when WebView loads - ensure fresh injection for each signal
   useEffect(() => {
@@ -1345,40 +1214,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     }
   }, [visible]);
 
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    if (!visible) {
-      setStableWebChartSymbol('');
-      return;
-    }
-    if (signal?.type === 'AI_CHART_CAPTURE' && signal.asset) {
-      setStableWebChartSymbol(signal.asset);
-    }
-  }, [visible, signal?.type, signal?.id, signal?.asset]);
-
-  const proxyUrl = useMemo(() => {
-    if (Platform.OS !== 'web' || !mt5Account) return null;
-    const mt5Url = getMT5Url();
-    const n = getNumberOfTrades();
-    const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
-    const robotName = primaryEA?.name || 'EA Trade';
-    const isAi =
-      !!signal && (signal.type === 'AI_CHART_CAPTURE' || signal.type === 'AI_CHART_TRADE');
-    const sym = isAi ? stableWebChartSymbol || signal?.asset || '' : signal?.asset || '';
-    const base = `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}`;
-    if (isAi) {
-      return `${base}&symbol=${encodeURIComponent(sym)}&action=buy&sl=0&tp=0&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(n.toString())}&signalType=${encodeURIComponent('AI_CHART_CAPTURE')}`;
-    }
-    return `${base}&symbol=${encodeURIComponent(signal?.asset || '')}&action=${encodeURIComponent(signal?.action || '')}&sl=${encodeURIComponent(signal?.sl || '')}&tp=${encodeURIComponent(signal?.tp || '')}&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(n.toString())}&signalType=${encodeURIComponent(signal?.type || '')}`;
-  }, [
-    mt5Account,
-    getMT5Url,
-    getNumberOfTrades,
-    eas,
-    signal,
-    stableWebChartSymbol,
-  ]);
-
   if (!visible) {
     return null;
   }
@@ -1448,7 +1283,22 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return null;
   }
 
+  if (!mt5Account) {
+    return null;
+  }
+
   const mt5Url = getMT5Url();
+  const numberOfTrades = getNumberOfTrades();
+  const isChartWarmupSignal = signal?.type === 'CHART_WARMUP';
+
+  // Get robot/EA name
+  const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+  const robotName = primaryEA?.name || 'EA Trade';
+
+  // Build proxy URL for web (same as Android but through proxy)
+  const proxyUrl = Platform.OS === 'web'
+    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}${isChartWarmupSignal ? '&chartWarmup=1' : ''}`
+    : null;
 
   return (
     <Modal
@@ -1480,7 +1330,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 <ActivityIndicator size="small" color="#25D366" />
               </View>
               <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>Executing Trade</Text>
+                <Text style={styles.authToastTitle}>
+                  {isChartWarmupSignal ? 'Chart warmup (debug)' : 'Executing Trade'}
+                </Text>
                 <Text style={styles.authToastStatus}>
                   {currentStep || (loading ? 'Connecting...' : 'Initializing...')}
                 </Text>
@@ -1503,29 +1355,28 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           </View>
         </View>
 
-        {/* Hidden WebView - runs in background */}
-        <View style={styles.hiddenWebViewContainer}>
+        {/* WebView: hidden in production flow; debug flag shows bottom panel for inspection */}
+        <View
+          style={SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.visibleDebugWebViewContainer : styles.hiddenWebViewContainer}
+        >
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
               url={proxyUrl || ''}
-              onIframeRef={(el) => {
-                webIframeRef.current = el;
-              }}
               onMessage={handleWebViewMessage}
               onLoadEnd={() => {
                 setLoading(false);
                 setCurrentStep('MT5 Terminal loaded');
                 console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
               }}
-              style={styles.hiddenWebView}
+              style={SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
             />
           ) : (
             <WebView
               key={`${webViewKey}-${signal.id || 'no-signal'}`}
               ref={webViewRef}
               source={{ uri: mt5Url }}
-              style={styles.hiddenWebView}
+              style={SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
               userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               onMessage={handleWebViewMessage}
               onLoadStart={() => {
@@ -1677,10 +1528,28 @@ const styles = StyleSheet.create({
     zIndex: -1,
     pointerEvents: 'none' as const,
   },
+  visibleDebugWebViewContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9998,
+    pointerEvents: 'auto' as const,
+    borderTopWidth: 2,
+    borderTopColor: 'rgba(139, 92, 246, 0.85)',
+    backgroundColor: '#0a0a0a',
+  },
   hiddenWebView: {
     flex: 1,
     width: '100%',
     minHeight: 300,
     opacity: 0,
+  },
+  debugWebView: {
+    flex: 1,
+    width: '100%',
+    minHeight: 300,
+    opacity: 1,
   },
 });

@@ -5,20 +5,6 @@ import { Platform, Alert, AppState, Linking } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
 import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
-/**
- * Bot Start flow (user taps Start)
- * ─────────────────────────────────
- * 1. Poll the database for new signals **5 times** (~5s between attempts).
- *    We only treat a poll as “success” if a **tradeable** row arrives: recent (≤30s),
- *    not duplicate, symbol on Quotes, MT5 connected — see `dbStartupTradeableRef`
- *    in `onDatabaseSignalFound`. Stale rows in the API do **not** block the next step.
- * 2. If no tradeable DB signal after 5 polls, the app **creates its own signal** with AI:
- *    • **Native (iOS/Android):** Open `MT5SignalWebView` → injected script logs into the
- *      connected account → searches a **random configured symbol** → opens chart → **captures
- *      the chart** → `POST /api/analyze-chart` → builds SL/TP → second inject **executes** the trade.
- *    • **Web/PWA:** Same flow: proxy iframe keeps a stable URL for capture→AI→trade; after analysis
- *      the parent `postMessage`s trade params into the iframe to execute without reloading MT5.
- */
 
 // Define LicenseData locally to avoid importing from api service (prevents circular dependency)
 export interface LicenseData {
@@ -287,16 +273,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const processedSignalIdsRef = useRef<Set<number>>(new Set());
   // Track last trade execution time per symbol (45-second cooldown)
   const lastTradeExecutionRef = useRef<Map<string, number>>(new Map());
-  const showMT5WebViewRef = useRef(false);
-  /** Last time a tradeable DB signal was accepted (recent + not duplicate). Drives periodic AI idle window. */
-  const dbTradeableSignalAtRef = useRef(Date.now());
-  const botAiSessionRef = useRef(0);
-  const isBotActiveRef = useRef(isBotActive);
-  const mt5AccountRef = useRef(mt5Account);
-  const isPollingPausedRef = useRef(isPollingPaused);
-  const easRef = useRef(eas);
-  /** Set during pollOnce when a DB row is accepted for MT5 (recent + symbol on Quotes). Used so startup AI runs when API returns only stale rows. */
-  const dbStartupTradeableRef = useRef(false);
+
+  /** After bot start: count interval DB polls; on 5th poll with no processable DB signal, open chart warmup WebView once. */
+  const dbBootstrapSessionRef = useRef<{
+    pollCount: number;
+    gotProcessableDbSignal: boolean;
+    chartWarmupLaunched: boolean;
+  }>({ pollCount: 0, gotProcessableDbSignal: false, chartWarmupLaunched: false });
+
+  const mt5AccountForBootstrapRef = useRef(mt5Account);
+  const symbolsForBootstrapRef = useRef({ activeSymbols, mt4Symbols, mt5Symbols });
+  useEffect(() => {
+    mt5AccountForBootstrapRef.current = mt5Account;
+  }, [mt5Account]);
+  useEffect(() => {
+    symbolsForBootstrapRef.current = { activeSymbols, mt4Symbols, mt5Symbols };
+  }, [activeSymbols, mt4Symbols, mt5Symbols]);
+
+  const pausePollingRef = useRef<(() => Promise<void>) | null>(null);
 
   // Helper function to check if signal is recent and not already processed
   const shouldProcessSignal = useCallback((signalId: number, symbol: string, time?: string, latestupdate?: string): { shouldProcess: boolean; ageInSeconds: number; reason?: string } => {
@@ -357,27 +351,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     loadPersistedData();
   }, []);
-
-  useEffect(() => {
-    isBotActiveRef.current = isBotActive;
-  }, [isBotActive]);
-  useEffect(() => {
-    mt5AccountRef.current = mt5Account;
-  }, [mt5Account]);
-  useEffect(() => {
-    isPollingPausedRef.current = isPollingPaused;
-  }, [isPollingPaused]);
-  useEffect(() => {
-    easRef.current = eas;
-  }, [eas]);
-  useEffect(() => {
-    showMT5WebViewRef.current = showMT5SignalWebView;
-  }, [showMT5SignalWebView]);
-  useEffect(() => {
-    if (isBotActive) {
-      dbTradeableSignalAtRef.current = Date.now();
-    }
-  }, [isBotActive]);
 
   // Shared helper function to get EA image URL (same as home page)
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
@@ -1198,6 +1171,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
         if (primaryEA && primaryEA.licenseKey) {
           console.log('Starting database signals polling for license:', primaryEA.licenseKey);
+          dbBootstrapSessionRef.current = {
+            pollCount: 0,
+            gotProcessableDbSignal: false,
+            chartWarmupLaunched: false,
+          };
 
           const onDatabaseSignalFound = (signal: DatabaseSignal) => {
             console.log('🎯 Database signal found:', signal);
@@ -1220,10 +1198,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
             console.log('✅ Signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
 
-            dbTradeableSignalAtRef.current = Date.now();
-            if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
-              dbStartupTradeableRef.current = true;
-            }
+            dbBootstrapSessionRef.current.gotProcessableDbSignal = true;
 
             setDatabaseSignal(signal);
             // Add database signal to existing signals monitoring system
@@ -1271,19 +1246,75 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             console.error('Database signals polling error:', error);
           };
 
+          const onPollComplete = () => {
+            const s = dbBootstrapSessionRef.current;
+            if (s.chartWarmupLaunched || s.gotProcessableDbSignal) {
+              return;
+            }
+            s.pollCount += 1;
+            console.log(`[DB Bootstrap] Interval poll ${s.pollCount}/5 completed`);
+            if (s.pollCount < 5) {
+              return;
+            }
+            s.chartWarmupLaunched = true;
+
+            const acc = mt5AccountForBootstrapRef.current;
+            const { activeSymbols: asSym, mt4Symbols: m4, mt5Symbols: m5 } = symbolsForBootstrapRef.current;
+            const allConfiguredSymbols = [
+              ...asSym.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
+              ...m4.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
+              ...m5.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
+            ];
+            if (!acc?.connected || allConfiguredSymbols.length === 0) {
+              console.log('[DB Bootstrap] Chart warmup skipped — MT5 not connected or no configured symbols');
+              return;
+            }
+
+            const randomIndex = Math.floor(Math.random() * allConfiguredSymbols.length);
+            const selected = allConfiguredSymbols[randomIndex];
+            const dir = selected.direction?.toLowerCase();
+            let tradeAction: string;
+            if (dir === 'buy' || dir === 'sell') {
+              tradeAction = dir;
+            } else {
+              tradeAction = Math.random() > 0.5 ? 'buy' : 'sell';
+            }
+
+            const chartWarmupSignal: SignalLog = {
+              id: `chart-warmup-${Date.now()}`,
+              asset: selected.symbol,
+              action: tradeAction,
+              price: '0',
+              tp: '0',
+              sl: '0',
+              time: new Date().toISOString(),
+              type: 'CHART_WARMUP',
+              source: 'db_bootstrap_chart_warmup',
+              latestupdate: new Date().toISOString(),
+            };
+
+            console.log('[DB Bootstrap] No processable DB signal after 5 polls — opening MT5 chart warmup:', chartWarmupSignal.asset);
+
+            const pause = pausePollingRef.current;
+            if (pause) {
+              pause().catch(err => {
+                console.error('Error pausing polling for chart warmup:', err);
+              });
+            }
+            setMT5Signal(chartWarmupSignal);
+            setShowMT5SignalWebView(true);
+            setSignalLogs(prev => [...prev, chartWarmupSignal]);
+          };
+
           // Start JavaScript polling for all platforms (works on web, iOS, and Android)
           const dbService = await getDatabaseSignalsPollingService();
           if (dbService) {
-            dbService.startPolling(
-              primaryEA.licenseKey,
-              onDatabaseSignalFound,
-              onDatabaseError
-            );
+            dbService.startPolling(primaryEA.licenseKey, onDatabaseSignalFound, onDatabaseError, {
+              onPollComplete,
+            });
             setIsDatabaseSignalsPolling(true);
             console.log('✅ JavaScript polling started for signal monitoring');
           }
-
-          // Startup: 5× DB poll then AI chart/symbol trade — handled in useEffect (see botAiSessionRef, dbStartupTradeableRef).
         } else {
           console.log('No primary EA with license key found for database signals polling');
         }
@@ -1361,115 +1392,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [eas, isBotActive, isPollingPaused]);
 
-  const runAiSymbolFallbackTrade = useCallback(
-    async (reason: 'startup' | 'idle') => {
-      if (!isBotActiveRef.current) return;
-      if (!mt5AccountRef.current?.connected) {
-        console.log(`[AI fallback ${reason}] MT5 not connected`);
-        return;
-      }
-      if (isPollingPausedRef.current) {
-        console.log(`[AI fallback ${reason}] Polling paused`);
-        return;
-      }
-      if (showMT5WebViewRef.current) {
-        console.log(`[AI fallback ${reason}] WebView already open`);
-        return;
-      }
-
-      const allConfigured = [
-        ...activeSymbols.map(s => s.symbol),
-        ...mt4Symbols.map(s => s.symbol),
-        ...mt5Symbols.map(s => s.symbol),
-      ].filter(Boolean);
-      const unique = [...new Set(allConfigured)];
-      if (unique.length === 0) {
-        console.log(`[AI fallback ${reason}] No configured symbols`);
-        return;
-      }
-      const symbol = unique[Math.floor(Math.random() * unique.length)];
-      if (!isSymbolConfiguredForTrading(symbol)) {
-        return;
-      }
-      console.log(`[AI fallback ${reason}] Opening MT5 for symbol (trade config):`, symbol);
-
-      const captureId = `ai-cap-${Date.now()}`;
-      const captureSignal: SignalLog = {
-        id: captureId,
-        asset: symbol,
-        action: 'buy',
-        price: '0',
-        tp: '0',
-        sl: '0',
-        time: new Date().toISOString(),
-        type: 'AI_CHART_CAPTURE',
-        source: 'ai_chart_capture',
-      };
-
-      pausePolling().catch(() => {});
-      setMT5Signal(captureSignal);
-      setShowMT5SignalWebView(true);
-      setSignalLogs(prev => [...prev, captureSignal]);
-      setNewSignal(captureSignal);
-      notifySignalReceived(captureSignal);
-    },
-    [activeSymbols, mt4Symbols, mt5Symbols, isSymbolConfiguredForTrading, pausePolling]
-  );
-
-  const runAiSymbolFallbackRef = useRef(runAiSymbolFallbackTrade);
-  runAiSymbolFallbackRef.current = runAiSymbolFallbackTrade;
-
   useEffect(() => {
-    if (!isBotActive) {
-      botAiSessionRef.current += 1;
-      return;
-    }
-    const session = botAiSessionRef.current;
-    let cancelled = false;
-
-    void (async () => {
-      await new Promise(r => setTimeout(r, 4000));
-      if (cancelled || session !== botAiSessionRef.current) return;
-      const primary =
-        Array.isArray(easRef.current) && easRef.current.length > 0 ? easRef.current[0] : null;
-      if (!primary?.licenseKey) return;
-
-      const db = await getDatabaseSignalsPollingService();
-      if (!db || cancelled || session !== botAiSessionRef.current) return;
-
-      for (let i = 0; i < 5; i++) {
-        if (cancelled || session !== botAiSessionRef.current) return;
-        dbStartupTradeableRef.current = false;
-        await db.pollOnce();
-        if (dbStartupTradeableRef.current) {
-          console.log('[Startup] Tradeable DB signal on poll', i + 1, '/5 — skipping AI chart fallback');
-          return;
-        }
-        if (i < 4) await new Promise(r => setTimeout(r, 5000));
-      }
-      if (cancelled || session !== botAiSessionRef.current) return;
-      await runAiSymbolFallbackRef.current('startup');
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isBotActive]);
-
-  useEffect(() => {
-    if (!isBotActive || !mt5Account?.connected) return;
-    const id = setInterval(() => {
-      if (!isBotActiveRef.current) return;
-      if (!mt5AccountRef.current?.connected) return;
-      if (showMT5WebViewRef.current) return;
-      if (isPollingPausedRef.current) return;
-      const idleMs = Date.now() - dbTradeableSignalAtRef.current;
-      if (idleMs < 15 * 60 * 1000) return;
-      void runAiSymbolFallbackRef.current('idle');
-      dbTradeableSignalAtRef.current = Date.now();
-    }, 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [isBotActive, mt5Account?.connected]);
+    pausePollingRef.current = pausePolling;
+  }, [pausePolling]);
 
   // Bring app to foreground (Android)
   const bringAppToForeground = useCallback(async () => {

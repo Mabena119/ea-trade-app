@@ -737,7 +737,7 @@ async function handleApi(request: Request): Promise<Response> {
         const volume = url.searchParams.get('volume') || '0.01';
         const robotName = url.searchParams.get('robotName') || 'EA Trade';
         const numberOfTrades = url.searchParams.get('numberOfTrades') || '1';
-        const signalType = url.searchParams.get('signalType') || '';
+        const chartWarmup = url.searchParams.get('chartWarmup') === '1';
 
         if (!terminalUrl) {
           return new Response('Missing terminal URL', { status: 400 });
@@ -859,13 +859,12 @@ async function handleApi(request: Request): Promise<Response> {
           const volumeValue = escapeValue(volume || '0.01');
           const robotNameValue = escapeValue(robotName || 'EA Trade');
           const numberOfTradesValue = escapeValue(numberOfTrades || '1');
+          const isChartWarmupJs = chartWarmup ? 'true' : 'false';
 
           // Generate trading script - EXACT COPY from Android mt5-signal-webview.tsx generateMT5AuthScript()
           // This includes authentication + trading logic - MUST BE IDENTICAL TO ANDROID VERSION
           const tradingScript = `
             (function() {
-              const CHART_CAPTURE_ONLY = ${signalType === 'AI_CHART_CAPTURE'};
-              const SKIP_TO_TRADES_ONLY = ${signalType === 'AI_CHART_TRADE'};
               console.log('[MT5 Trading] Script injected and executing...');
               
               const sendMessage = (type, message, extras) => {
@@ -919,6 +918,7 @@ async function handleApi(request: Request): Promise<Response> {
               console.log('[MT5 Trading] Script initialized, waiting for page load...');
               
               const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+              const isChartWarmup = ${isChartWarmupJs};
 
               // Prevent page reloads and navigation
               window.addEventListener('beforeunload', function(e) {
@@ -997,41 +997,6 @@ async function handleApi(request: Request): Promise<Response> {
 
               const loginCredential = '${loginValue}';
               const passwordCredential = '${passwordValue}';
-
-              const captureChartForAI = async () => {
-                try {
-                  sendMessage('step_update', 'Capturing chart for AI analysis...');
-                  await sleep(800);
-                  const list = Array.from(document.querySelectorAll('canvas')).filter(function(c) {
-                    try {
-                      const rect = c.getBoundingClientRect();
-                      return rect.width >= 100 && rect.height >= 60 && c.offsetParent !== null;
-                    } catch (e) { return false; }
-                  });
-                  if (!list.length) {
-                    sendMessage('chart_capture_failed', 'No chart canvas found');
-                    return;
-                  }
-                  list.sort(function(a, b) { return (b.width * b.height) - (a.width * a.height); });
-                  var base64 = '';
-                  for (var i = 0; i < Math.min(5, list.length); i++) {
-                    try {
-                      var dataUrl = list[i].toDataURL('image/jpeg', 0.82);
-                      if (dataUrl && dataUrl.length > 400) {
-                        base64 = dataUrl.replace(/^data:image\\/jpeg;base64,/, '');
-                        break;
-                      }
-                    } catch (err) { continue; }
-                  }
-                  if (!base64 || base64.length < 100) {
-                    sendMessage('chart_capture_failed', 'Could not read chart image (canvas may be protected)');
-                    return;
-                  }
-                  sendMessage('chart_captured', 'Chart captured', { imageBase64: base64, mimeType: 'image/jpeg' });
-                } catch (e) {
-                  sendMessage('chart_capture_failed', (e && e.message) ? e.message : 'Chart capture error');
-                }
-              };
 
               // Optimized authentication function matching Android robustness
               const authenticateMT5 = async () => {
@@ -1203,8 +1168,8 @@ async function handleApi(request: Request): Promise<Response> {
                   if (searchField && searchField.offsetParent !== null) {
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
-                    if (CHART_CAPTURE_ONLY) {
-                      await captureChartForAI();
+                    if (isChartWarmup) {
+                      sendMessage('chart_warmup_complete', 'Chart ready');
                       return;
                     }
                     await executeMultipleTrades();
@@ -1219,8 +1184,8 @@ async function handleApi(request: Request): Promise<Response> {
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
-                    if (CHART_CAPTURE_ONLY) {
-                      await captureChartForAI();
+                    if (isChartWarmup) {
+                      sendMessage('chart_warmup_complete', 'Chart ready');
                       return;
                     }
                     await executeMultipleTrades();
@@ -1607,12 +1572,11 @@ async function handleApi(request: Request): Promise<Response> {
               // Fill order form and confirm trade - STRICTLY SEQUENTIAL
               const fillOrderFormAndConfirm = async (tradeNumber, totalTrades) => {
                 try {
-                  var p = window.__eaParentTrade;
-                  var symbol = (p && p.asset) ? String(p.asset) : '${symbolValue}';
-                  var action = (p && p.action) ? String(p.action) : '${actionValue}';
+                  const symbol = '${symbolValue}';
+                  const action = '${actionValue}';
                   const volume = '${volumeValue}';
-                  var sl = (p && p.sl !== undefined && p.sl !== null) ? String(p.sl) : '${slValue}';
-                  var tp = (p && p.tp !== undefined && p.tp !== null) ? String(p.tp) : '${tpValue}';
+                  const sl = '${slValue}';
+                  const tp = '${tpValue}';
                   const robotName = '${robotNameValue}';
                   
                   const decimalInputs = Array.from(document.querySelectorAll('input[inputmode="decimal"]'));
@@ -1786,34 +1750,9 @@ async function handleApi(request: Request): Promise<Response> {
                 
                 await sleep(1000);
               };
-
-              window.addEventListener('message', function(ev) {
-                try {
-                  var raw = ev.data;
-                  if (typeof raw === 'string' && raw.charAt(0) === '{') raw = JSON.parse(raw);
-                  if (raw && raw.type === 'ea_parent_execute_trade') {
-                    window.__eaParentTrade = {
-                      asset: raw.asset || '',
-                      action: raw.action || '',
-                      sl: String(raw.sl !== undefined && raw.sl !== null ? raw.sl : ''),
-                      tp: String(raw.tp !== undefined && raw.tp !== null ? raw.tp : ''),
-                    };
-                    executeMultipleTrades().catch(function(e) {
-                      sendMessage('error', String(e && e.message ? e.message : e));
-                    });
-                  }
-                } catch (err) {}
-              });
               
-              if (SKIP_TO_TRADES_ONLY) {
-                (async function() {
-                  try {
-                    await executeMultipleTrades();
-                  } catch (e) {
-                    sendMessage('error', 'Trade execution failed: ' + ((e && e.message) ? e.message : String(e)));
-                  }
-                })();
-              } else if (document.readyState === 'complete' || document.readyState === 'interactive') {
+              // Start authentication immediately when DOM is ready
+              if (document.readyState === 'complete' || document.readyState === 'interactive') {
                 authenticateMT5();
               } else {
                 document.addEventListener('DOMContentLoaded', authenticateMT5);

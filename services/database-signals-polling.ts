@@ -59,6 +59,8 @@ class DatabaseSignalsPollingService {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private onSignalFound?: (signal: DatabaseSignal) => void;
   private onError?: (error: string) => void;
+  /** Called after each scheduled interval poll completes (not used for `pollNow`). */
+  private onPollComplete?: () => void;
   private currentLicenseKey: string | null = null;
   private currentEA: string | null = null;
   private lastPollTime: string | null = null;
@@ -81,7 +83,8 @@ class DatabaseSignalsPollingService {
   startPolling(
     licenseKey: string,
     onSignalFound?: (signal: DatabaseSignal) => void,
-    onError?: (error: string) => void
+    onError?: (error: string) => void,
+    options?: { onPollComplete?: () => void }
   ) {
     if (this.intervalId) {
       console.log('Database signals polling already running');
@@ -90,6 +93,7 @@ class DatabaseSignalsPollingService {
 
     this.onSignalFound = onSignalFound;
     this.onError = onError;
+    this.onPollComplete = options?.onPollComplete;
     this.currentLicenseKey = licenseKey;
     // Start with 24 hours ago so first poll fetches recent signals (was: "now" which missed everything)
     this.lastPollTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -116,6 +120,7 @@ class DatabaseSignalsPollingService {
     this.currentEA = null;
     this.lastPollTime = null;
     this.isPaused = false;
+    this.onPollComplete = undefined;
     console.log('Database signals polling stopped');
   }
 
@@ -188,6 +193,11 @@ class DatabaseSignalsPollingService {
       if (this.onSignalFound) {
         this.onSignalFound(mockSignal);
       }
+      try {
+        this.onPollComplete?.();
+      } catch (e) {
+        console.error('onPollComplete error:', e);
+      }
     }, 30000); // Check every 30 seconds
   }
 
@@ -204,31 +214,18 @@ class DatabaseSignalsPollingService {
         if (this.onError) {
           this.onError(`Database error: ${error}`);
         }
+      } finally {
+        try {
+          this.onPollComplete?.();
+        } catch (e) {
+          console.error('onPollComplete error:', e);
+        }
       }
     }, 5000); // Check every 5 seconds for faster refresh
   }
 
-  /**
-   * Single immediate fetch (used at bot startup: up to 4 attempts before AI fallback).
-   * Returns how many new rows were returned from the API (not how many passed app-side filters).
-   */
-  async pollOnce(): Promise<number> {
-    if (!this.currentLicenseKey || this.isPaused) {
-      return 0;
-    }
-    try {
-      return await this.checkForNewSignals(this.currentLicenseKey);
-    } catch (error) {
-      console.error('pollOnce error:', error);
-      if (this.onError) {
-        this.onError(`pollOnce: ${error}`);
-      }
-      return 0;
-    }
-  }
-
-  // Check for new signals in database — returns count of new rows from API
-  private async checkForNewSignals(licenseKey: string): Promise<number> {
+  // Check for new signals in database
+  private async checkForNewSignals(licenseKey: string) {
     try {
       console.log('Checking for new database signals for license:', licenseKey);
 
@@ -236,7 +233,7 @@ class DatabaseSignalsPollingService {
       const ea = await this.getEAFromLicense(licenseKey);
       if (!ea) {
         console.error('Could not find EA for license:', licenseKey);
-        return 0;
+        return;
       }
 
       this.currentEA = ea;
@@ -269,7 +266,6 @@ class DatabaseSignalsPollingService {
         this.lastPollTime = new Date(Date.now() - 5000).toISOString();
       }
 
-      return signals.length;
     } catch (error) {
       console.error('Error in checkForNewSignals:', error);
       throw error;
@@ -308,8 +304,7 @@ class DatabaseSignalsPollingService {
         throw new Error(`API call failed: ${response.status}`);
       }
       const data = await response.json();
-      const list = data.signals;
-      return Array.isArray(list) ? list : [];
+      return data.signals;
     } catch (error) {
       console.error('Error fetching new signals via API:', error);
       throw new Error('Failed to fetch new signals');
