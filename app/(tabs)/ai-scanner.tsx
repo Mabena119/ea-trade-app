@@ -11,7 +11,7 @@ import {
   ScrollView,
   Platform,
   Alert,
-  unstable_batchedUpdates,
+  InteractionManager,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -86,6 +86,23 @@ function stripNumericPrice(s: string | undefined): string {
   return m;
 }
 
+/** Same distance rules as analyze-chart API when AI omits SL/TP (keeps execution possible). */
+function computeFallbackSlTp(
+  direction: 'BUY' | 'SELL',
+  entryNumeric: number
+): { sl: string; tp: string } | null {
+  if (!entryNumeric || !Number.isFinite(entryNumeric)) return null;
+  const pct = 0.005;
+  const slDist = entryNumeric * pct;
+  const tpDist = entryNumeric * (pct * 2);
+  const decimals = entryNumeric > 100 ? 2 : 5;
+  const fmt = (n: number) => parseFloat(n.toFixed(decimals)).toString();
+  if (direction === 'BUY') {
+    return { sl: fmt(entryNumeric - slDist), tp: fmt(entryNumeric + tpDist) };
+  }
+  return { sl: fmt(entryNumeric + slDist), tp: fmt(entryNumeric - tpDist) };
+}
+
 /**
  * Maps the AI-analysed symbol to exactly one trade-config symbol, or null.
  * Only trades when the analysed instrument is configured (exact or same broker variant, e.g. USTECH vs USTECH.i).
@@ -101,9 +118,13 @@ function resolveConfiguredTradeSymbol(
   const fromMt4 = mt4Symbols.map((x) => x.symbol);
   const fromActive = activeSymbols.map((x) => x.symbol);
   const unique = [...new Set([...fromMt5, ...fromMt4, ...fromActive].filter(Boolean))];
+  if (unique.length === 0) return null;
 
   const raw = (analysisSymbol || '').trim();
-  if (!raw || unique.length === 0) return null;
+  if (!raw) {
+    if (unique.length === 1) return { symbol: unique[0] };
+    return null;
+  }
 
   const exact = unique.find((u) => normalizeSymbolKey(u) === normalizeSymbolKey(raw));
   if (exact) return { symbol: exact };
@@ -123,18 +144,19 @@ function resolveConfiguredTradeSymbol(
 /** Builds the same `SignalLog` shape the signal monitor uses, so MT5 execution runs the same path. */
 function buildSignalFromScanner(
   result: ChartAnalysisResult,
-  asset: string
+  asset: string,
+  levelOverrides?: { sl?: string; tp?: string }
 ): SignalLog {
-  const tp = stripNumericPrice(result.takeProfit1 || '');
+  const tp = stripNumericPrice(levelOverrides?.tp ?? result.takeProfit1 ?? '');
   const price = stripNumericPrice(result.entryPrice || result.currentPrice);
   const direction = result.signal === 'BUY' ? 'buy' : 'sell';
   return {
-    id: `ai-scan-${Date.now()}`,
+    id: `ai-scan-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     asset,
     action: direction,
     price: price || '0',
     tp,
-    sl: stripNumericPrice(result.stopLoss),
+    sl: stripNumericPrice(levelOverrides?.sl ?? result.stopLoss),
     time: new Date().toISOString(),
     type: 'AI_SCANNER',
     source: 'ai_scanner',
@@ -548,7 +570,10 @@ export default function AIScannerScreen() {
       setShowMT5SignalWebView(true);
     };
 
-    if (!mt5Account?.login?.trim() || !mt5Account?.password) {
+    const hasMt5Creds =
+      Boolean(mt5Account?.login?.trim()) &&
+      Boolean(String(mt5Account?.password ?? '').length > 0);
+    if (!hasMt5Creds) {
       router.push('/(tabs)/metatrader');
       return;
     }
@@ -564,22 +589,35 @@ export default function AIScannerScreen() {
       return;
     }
 
-    const sl = stripNumericPrice(result.stopLoss);
-    const tp = stripNumericPrice(result.takeProfit1 || '');
+    const dir = result.signal === 'SELL' ? 'SELL' : 'BUY';
+    let sl = stripNumericPrice(result.stopLoss);
+    let tp = stripNumericPrice(result.takeProfit1 || '');
+    const entryStr = stripNumericPrice(result.entryPrice || result.currentPrice);
+    const entryNum = parseFloat(entryStr);
+    if ((!sl || !tp) && entryNum && Number.isFinite(entryNum)) {
+      const fb = computeFallbackSlTp(dir, entryNum);
+      if (fb) {
+        if (!sl) sl = fb.sl;
+        if (!tp) tp = fb.tp;
+      }
+    }
     if (!sl || !tp) {
-      Alert.alert(
-        'Incomplete trade levels',
-        'Stop loss and take profit (TP1) are required. They are sent with the buy or sell direction from the analysis.'
-      );
+      openTradingNotice('Unable to read prices — add SL and TP to the analysis or retake the scan.');
       return;
     }
 
-    const signal = buildSignalFromScanner(result, resolved.symbol);
+    const signal = buildSignalFromScanner(result, resolved.symbol, { sl, tp });
     pausePolling().catch(() => {});
-    unstable_batchedUpdates(() => {
+
+    const openExecution = () => {
       setMT5TradeOverlayMessage(null);
       setMT5Signal(signal);
       setShowMT5SignalWebView(true);
+    };
+    InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(() => {
+        openExecution();
+      });
     });
   }, [
     result,

@@ -1148,7 +1148,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   const blockMessage =
     mt5TradeOverlayMessage ||
-    (!hasMt5Credentials
+    (signal && !hasMt5Credentials
       ? 'MT5 account not connected. Add your MT5 login in the MetaTrader tab.'
       : null);
 
@@ -1202,52 +1202,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   }
 
   if (!signal) {
-    return (
-      <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
-        <View style={styles.overlayContainer} pointerEvents="box-none">
-          <View style={styles.authToastContainer}>
-            <LinearGradient
-              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
-              style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <View style={styles.authToastContent}>
-              <View style={styles.authToastLeft}>
-                <View style={styles.authToastIcon}>
-                  {Platform.OS === 'ios' && (
-                    <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                  )}
-                  <LinearGradient
-                    colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <ActivityIndicator size="small" color="#25D366" />
-                </View>
-                <View style={styles.authToastInfo}>
-                  <Text style={styles.authToastTitle}>Executing Trade</Text>
-                  <Text style={styles.authToastStatus}>Preparing trade…</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={styles.authToastCloseButton}
-                onPress={onClose}
-                activeOpacity={0.8}
-              >
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                )}
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
-                  style={StyleSheet.absoluteFill}
-                />
-                <X color="#FFFFFF" size={16} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
+    return null;
   }
 
   const mt5Url = getMT5Url();

@@ -309,16 +309,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     return { shouldProcess: isRecent, ageInSeconds };
   }, []);
 
-  /** Same notion as Quotes “active” — symbol must appear in legacy, MT4, or MT5 configured lists (case-insensitive). */
+  /** Same notion as Quotes “active” — symbol must appear in legacy, MT4, or MT5 configured lists. */
   const isSymbolConfiguredForTrading = useCallback(
-    (symbol: string) => {
-      const k = symbol.replace(/\s/g, '').toUpperCase();
-      return (
-        activeSymbols.some((s) => s.symbol.replace(/\s/g, '').toUpperCase() === k) ||
-        mt4Symbols.some((s) => s.symbol.replace(/\s/g, '').toUpperCase() === k) ||
-        mt5Symbols.some((s) => s.symbol.replace(/\s/g, '').toUpperCase() === k)
-      );
-    },
+    (symbol: string) =>
+      activeSymbols.some(s => s.symbol === symbol) ||
+      mt4Symbols.some(s => s.symbol === symbol) ||
+      mt5Symbols.some(s => s.symbol === symbol),
     [activeSymbols, mt4Symbols, mt5Symbols]
   );
 
