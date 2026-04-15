@@ -14,7 +14,18 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Scan, Upload, TrendingUp, TrendingDown, Minus, Lock, Trash2, History } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Scan,
+  Upload,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Lock,
+  Trash2,
+  History,
+  Zap,
+} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
@@ -22,13 +33,70 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/providers/theme-provider';
-import { useApp } from '@/providers/app-provider';
+import { useApp, type ActiveSymbol, type MT5Symbol, type SignalLog } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
 const SCANNER_UPLOAD_COUNT_KEY = 'ai-scanner-upload-count';
 const MAX_HISTORY = 5;
 const MAX_UPLOADS = 20;
+
+function normalizeSymbolKey(s: string): string {
+  return s.replace(/\s/g, '').toUpperCase();
+}
+
+/** Strip to a numeric string for MT5 order fields (prices may include commas or labels). */
+function stripNumericPrice(s: string | undefined): string {
+  if (!s) return '';
+  const t = s.trim();
+  const m = t.replace(/[^\d.,-]/g, '').replace(/,/g, '');
+  return m;
+}
+
+/**
+ * Pick the MT5 symbol to trade: must exist in mt5Symbols or activeSymbols (MT5).
+ * If several are configured, the analysis symbol must match one (case/spacing insensitive).
+ */
+function resolveMt5ConfiguredSymbol(
+  analysisSymbol: string | undefined,
+  mt5Symbols: MT5Symbol[],
+  activeSymbols: ActiveSymbol[]
+): { symbol: string } | null {
+  const fromMt5 = mt5Symbols.map((x) => x.symbol);
+  const fromActive = activeSymbols.filter((x) => x.platform === 'MT5').map((x) => x.symbol);
+  const unique = [...new Set([...fromMt5, ...fromActive].filter(Boolean))];
+  if (unique.length === 0) return null;
+  if (unique.length === 1) return { symbol: unique[0] };
+  const ai = analysisSymbol ? normalizeSymbolKey(analysisSymbol) : '';
+  if (ai) {
+    const match = unique.find((u) => normalizeSymbolKey(u) === ai);
+    if (match) return { symbol: match };
+  }
+  return null;
+}
+
+function buildSignalFromScanner(
+  result: ChartAnalysisResult,
+  asset: string
+): SignalLog {
+  const tp =
+    result.takeProfit1 ||
+    result.takeProfit2 ||
+    result.takeProfit3 ||
+    '';
+  const price = stripNumericPrice(result.entryPrice || result.currentPrice);
+  return {
+    id: `ai-scan-${Date.now()}`,
+    asset,
+    action: result.signal === 'BUY' ? 'buy' : 'sell',
+    price: price || '0',
+    tp: stripNumericPrice(tp),
+    sl: stripNumericPrice(result.stopLoss),
+    time: new Date().toISOString(),
+    type: 'AI_SCANNER',
+    source: 'ai_scanner',
+  };
+}
 
 export interface ScannerHistoryItem {
   id: string;
@@ -40,7 +108,13 @@ export interface ScannerHistoryItem {
 
 export default function AIScannerScreen() {
   const { theme } = useTheme();
-  const { user } = useApp();
+  const {
+    user,
+    mt5Symbols,
+    activeSymbols,
+    setMT5Signal,
+    setShowMT5SignalWebView,
+  } = useApp();
   const [scannerUnlocked, setScannerUnlocked] = useState<boolean | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -411,6 +485,45 @@ export default function AIScannerScreen() {
     setError(null);
   };
 
+  const handleTakeTrade = useCallback(() => {
+    if (!result) return;
+    if (result.signal === 'NEUTRAL') {
+      Alert.alert('No trade direction', 'The analysis is neutral. Only buy or sell suggestions can be sent to MetaTrader.');
+      return;
+    }
+    const resolved = resolveMt5ConfiguredSymbol(result.symbol, mt5Symbols, activeSymbols);
+    if (!resolved) {
+      const hasMt5 =
+        mt5Symbols.length > 0 || activeSymbols.some((s) => s.platform === 'MT5');
+      if (!hasMt5) {
+        Alert.alert(
+          'No symbol configured',
+          'Add and activate a symbol for MetaTrader 5 in your trade settings, then try again.'
+        );
+        return;
+      }
+      Alert.alert(
+        'Symbol not matched',
+        'You have more than one MT5 symbol configured. The chart symbol must match one of them (same name as in your broker), or turn off extra symbols so only the one you trade remains active.'
+      );
+      return;
+    }
+    const sl = stripNumericPrice(result.stopLoss);
+    const tp = stripNumericPrice(
+      result.takeProfit1 || result.takeProfit2 || result.takeProfit3 || ''
+    );
+    if (!sl || !tp) {
+      Alert.alert(
+        'Incomplete trade levels',
+        'Stop loss and at least one take profit are needed to place this trade. Wait for a full analysis or check the result.'
+      );
+      return;
+    }
+    const signal = buildSignalFromScanner(result, resolved.symbol);
+    setMT5Signal(signal);
+    setShowMT5SignalWebView(true);
+  }, [result, mt5Symbols, activeSymbols, setMT5Signal, setShowMT5SignalWebView]);
+
   const SignalIcon = result?.signal === 'BUY' ? TrendingUp : result?.signal === 'SELL' ? TrendingDown : Minus;
   const signalColor =
     result?.signal === 'BUY'
@@ -538,11 +651,11 @@ export default function AIScannerScreen() {
               activeOpacity={0.8}
             >
               {analyzing ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color={theme.colors.onAccent} size="small" />
               ) : (
                 <>
-                  <Scan color="#FFFFFF" size={22} strokeWidth={2.5} />
-                  <Text style={styles.analyzeButtonText}>Analyze Chart</Text>
+                  <Scan color={theme.colors.onAccent} size={22} strokeWidth={2.5} />
+                  <Text style={[styles.analyzeButtonText, { color: theme.colors.onAccent }]}>Analyze Chart</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -623,6 +736,19 @@ export default function AIScannerScreen() {
                     : '—'}
                 </Text>
               </View>
+              <TouchableOpacity
+                style={[
+                  styles.takeTradeButton,
+                  { backgroundColor: theme.colors.success },
+                  result.signal === 'NEUTRAL' && styles.takeTradeButtonDisabled,
+                ]}
+                onPress={handleTakeTrade}
+                disabled={result.signal === 'NEUTRAL'}
+                activeOpacity={0.85}
+              >
+                <Zap color="#FFFFFF" size={20} strokeWidth={2.5} />
+                <Text style={styles.takeTradeButtonText}>Take trade</Text>
+              </TouchableOpacity>
             </View>
 
             <Text style={[styles.reasoningLabel, { color: theme.colors.textMuted }]}>Analysis</Text>
@@ -732,9 +858,11 @@ export default function AIScannerScreen() {
               onPress={handleUnlockPress}
               activeOpacity={0.8}
             >
-              <Lock color="#FFFFFF" size={28} strokeWidth={2.5} />
-              <Text style={styles.unlockButtonText}>UNLOCK AI SCANNER</Text>
-              <Text style={styles.unlockButtonSubtext}>Tap to unlock</Text>
+              <Lock color={theme.colors.onAccent} size={28} strokeWidth={2.5} />
+              <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>UNLOCK AI SCANNER</Text>
+              <Text style={[styles.unlockButtonSubtext, { color: theme.colors.onAccent, opacity: 0.9 }]}>
+                Tap to unlock
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -815,14 +943,12 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   unlockButtonText: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: 1,
     marginTop: 12,
   },
   unlockButtonSubtext: {
-    color: 'rgba(255,255,255,0.9)',
     fontSize: 13,
     marginTop: 6,
   },
@@ -933,7 +1059,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   analyzeButtonText: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -1049,6 +1174,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     fontFamily: 'monospace',
+  },
+  takeTradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+  },
+  takeTradeButtonDisabled: {
+    opacity: 0.45,
+  },
+  takeTradeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   historySection: {
     marginTop: 24,

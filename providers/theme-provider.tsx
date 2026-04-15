@@ -22,6 +22,8 @@ export interface ThemeColors {
   
   // Accents
   accent: string;
+  /** Text/icons on solid `accent` fills (e.g. primary buttons). Use when background is `accent`. */
+  onAccent: string;
   accentSecondary: string;
   success: string;
   error: string;
@@ -66,6 +68,7 @@ export const purpleTheme: Theme = {
     textMuted: 'rgba(255, 255, 255, 0.5)',
     
     accent: '#8B5CF6',
+    onAccent: '#FFFFFF',
     accentSecondary: '#EC4899',
     success: '#10B981',
     error: '#EF4444',
@@ -102,6 +105,7 @@ export const cyberTheme: Theme = {
     textMuted: 'rgba(255, 255, 255, 0.6)',
     
     accent: '#7C3AED',
+    onAccent: '#FFFFFF',
     accentSecondary: '#A855F7',
     success: '#22C55E',
     error: '#EF4444',
@@ -140,6 +144,7 @@ export const sunriseTheme: Theme = {
     textMuted: 'rgba(28, 25, 23, 0.5)',
     
     accent: '#F97316',
+    onAccent: '#FFFFFF',
     accentSecondary: '#FBBF24',
     success: '#22C55E',
     error: '#EF4444',
@@ -176,6 +181,7 @@ export const oceanTheme: Theme = {
     textMuted: 'rgba(19, 78, 74, 0.5)',
     
     accent: '#0891B2',
+    onAccent: '#FFFFFF',
     accentSecondary: '#06B6D4',
     success: '#10B981',
     error: '#EF4444',
@@ -212,6 +218,7 @@ export const mintTheme: Theme = {
     textMuted: 'rgba(20, 83, 45, 0.5)',
     
     accent: '#16A34A',
+    onAccent: '#FFFFFF',
     accentSecondary: '#22C55E',
     success: '#10B981',
     error: '#EF4444',
@@ -250,6 +257,7 @@ export const blackTheme: Theme = {
     textMuted: 'rgba(255, 255, 255, 0.4)',
     
     accent: '#FFFFFF',
+    onAccent: '#000000',
     accentSecondary: '#E5E5E5',
     success: '#22C55E',
     error: '#EF4444',
@@ -286,6 +294,7 @@ export const whiteTheme: Theme = {
     textMuted: 'rgba(0, 0, 0, 0.5)',
     
     accent: '#000000',
+    onAccent: '#FFFFFF',
     accentSecondary: '#333333',
     success: '#16A34A',
     error: '#DC2626',
