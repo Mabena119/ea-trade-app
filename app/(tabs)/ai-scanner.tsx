@@ -33,7 +33,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/providers/theme-provider';
-import { useApp, type ActiveSymbol, type MT5Symbol, type SignalLog } from '@/providers/app-provider';
+import {
+  useApp,
+  type ActiveSymbol,
+  type MT4Symbol,
+  type MT5Symbol,
+  type SignalLog,
+} from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
@@ -54,17 +60,19 @@ function stripNumericPrice(s: string | undefined): string {
 }
 
 /**
- * Pick the MT5 symbol to trade: must exist in mt5Symbols or activeSymbols (MT5).
+ * Pick which configured symbol to trade — same pools as automatic signals (legacy active, MT4, MT5).
  * If several are configured, the analysis symbol must match one (case/spacing insensitive).
  */
-function resolveMt5ConfiguredSymbol(
+function resolveConfiguredTradeSymbol(
   analysisSymbol: string | undefined,
   mt5Symbols: MT5Symbol[],
+  mt4Symbols: MT4Symbol[],
   activeSymbols: ActiveSymbol[]
 ): { symbol: string } | null {
   const fromMt5 = mt5Symbols.map((x) => x.symbol);
-  const fromActive = activeSymbols.filter((x) => x.platform === 'MT5').map((x) => x.symbol);
-  const unique = [...new Set([...fromMt5, ...fromActive].filter(Boolean))];
+  const fromMt4 = mt4Symbols.map((x) => x.symbol);
+  const fromActive = activeSymbols.map((x) => x.symbol);
+  const unique = [...new Set([...fromMt5, ...fromMt4, ...fromActive].filter(Boolean))];
   if (unique.length === 0) return null;
   if (unique.length === 1) return { symbol: unique[0] };
   const ai = analysisSymbol ? normalizeSymbolKey(analysisSymbol) : '';
@@ -75,17 +83,18 @@ function resolveMt5ConfiguredSymbol(
   return null;
 }
 
+/** Builds the same `SignalLog` shape the signal monitor uses, so MT5 execution runs the same path. */
 function buildSignalFromScanner(
   result: ChartAnalysisResult,
   asset: string
 ): SignalLog {
-  // Always use first TP only (matches automated signal execution behaviour).
   const tp = stripNumericPrice(result.takeProfit1 || '');
   const price = stripNumericPrice(result.entryPrice || result.currentPrice);
+  const direction = result.signal === 'BUY' ? 'buy' : 'sell';
   return {
     id: `ai-scan-${Date.now()}`,
     asset,
-    action: result.signal === 'BUY' ? 'buy' : 'sell',
+    action: direction,
     price: price || '0',
     tp,
     sl: stripNumericPrice(result.stopLoss),
@@ -109,7 +118,10 @@ export default function AIScannerScreen() {
     user,
     mt5Account,
     mt5Symbols,
+    mt4Symbols,
     activeSymbols,
+    isSymbolConfiguredForTrading,
+    pausePolling,
     setMT5Signal,
     setShowMT5SignalWebView,
   } = useApp();
@@ -486,46 +498,76 @@ export default function AIScannerScreen() {
   const handleTakeTrade = useCallback(() => {
     if (!result) return;
     if (result.signal === 'NEUTRAL') {
-      Alert.alert('No trade direction', 'The analysis is neutral. Only buy or sell suggestions can be sent to MetaTrader.');
+      Alert.alert(
+        'No trade direction',
+        'The analysis is neutral. Choose a chart with a clear buy or sell suggestion before taking a trade.'
+      );
       return;
     }
     if (!mt5Account?.login?.trim() || !mt5Account?.password) {
       Alert.alert(
         'MetaTrader 5 not connected',
-        'Add your MT5 login and password in the MetaTrader tab. Trade execution uses the same web terminal as automatic signals.'
+        'Add your MT5 login and password in the MetaTrader tab. Execution uses the same flow as when the app finds a signal while monitoring.'
       );
       return;
     }
-    const resolved = resolveMt5ConfiguredSymbol(result.symbol, mt5Symbols, activeSymbols);
+
+    const resolved = resolveConfiguredTradeSymbol(
+      result.symbol,
+      mt5Symbols,
+      mt4Symbols,
+      activeSymbols
+    );
     if (!resolved) {
-      const hasMt5 =
-        mt5Symbols.length > 0 || activeSymbols.some((s) => s.platform === 'MT5');
-      if (!hasMt5) {
+      const hasAny =
+        mt5Symbols.length > 0 || mt4Symbols.length > 0 || activeSymbols.length > 0;
+      if (!hasAny) {
         Alert.alert(
-          'No symbol configured',
-          'Add and activate a symbol for MetaTrader 5 in your trade settings, then try again.'
+          'Symbol not configured',
+          'Add and activate a symbol under Quotes or trade settings so the app knows which instrument to trade.'
         );
         return;
       }
       Alert.alert(
-        'Symbol not matched',
-        'You have more than one MT5 symbol configured. The chart symbol must match one of them (same name as in your broker), or turn off extra symbols so only the one you trade remains active.'
+        'Symbol not configured',
+        'You have more than one symbol configured. The chart symbol must match one of them (same broker name), or keep only one active symbol.'
       );
       return;
     }
+
+    if (!isSymbolConfiguredForTrading(resolved.symbol)) {
+      Alert.alert(
+        'Symbol not configured',
+        'Turn on this symbol under Quotes or in your trade settings, then try again.'
+      );
+      return;
+    }
+
     const sl = stripNumericPrice(result.stopLoss);
     const tp = stripNumericPrice(result.takeProfit1 || '');
     if (!sl || !tp) {
       Alert.alert(
         'Incomplete trade levels',
-        'Stop loss and the first take profit (TP1) are required. The app always uses TP1 for execution, matching automatic trading.'
+        'Stop loss and take profit (TP1) are required. They are sent with the buy or sell direction from the analysis.'
       );
       return;
     }
+
     const signal = buildSignalFromScanner(result, resolved.symbol);
+    pausePolling().catch(() => {});
     setMT5Signal(signal);
     setShowMT5SignalWebView(true);
-  }, [result, mt5Account, mt5Symbols, activeSymbols, setMT5Signal, setShowMT5SignalWebView]);
+  }, [
+    result,
+    mt5Account,
+    mt5Symbols,
+    mt4Symbols,
+    activeSymbols,
+    isSymbolConfiguredForTrading,
+    pausePolling,
+    setMT5Signal,
+    setShowMT5SignalWebView,
+  ]);
 
   const SignalIcon = result?.signal === 'BUY' ? TrendingUp : result?.signal === 'SELL' ? TrendingDown : Minus;
   const signalColor =

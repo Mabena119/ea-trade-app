@@ -231,6 +231,8 @@ interface AppState {
   setShowMT5SignalWebView: (show: boolean) => void;
   setMT5Signal: (signal: SignalLog | null) => void;
   markTradeExecuted: (symbol: string) => void;
+  /** True if the symbol appears in legacy active, MT4, or MT5 configured lists (same as auto-trade). */
+  isSymbolConfiguredForTrading: (symbol: string) => boolean;
 }
 
 export const [AppProvider, useApp] = createContextHook<AppState>(() => {
@@ -2072,6 +2074,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setShowMT5SignalWebView: setShowMT5SignalWebViewCallback,
     setMT5Signal: setMT5SignalCallback,
     markTradeExecuted,
+    isSymbolConfiguredForTrading,
   }), [
     user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols,
     isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal,
@@ -2081,6 +2084,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol,
     deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission,
     startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal,
-    setShowMT5SignalWebViewCallback, setMT5SignalCallback, markTradeExecuted
+    setShowMT5SignalWebViewCallback, setMT5SignalCallback, markTradeExecuted,
+    isSymbolConfiguredForTrading
   ]);
 });
