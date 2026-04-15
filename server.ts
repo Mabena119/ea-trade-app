@@ -1177,6 +1177,109 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch (e) {}
               }
 
+              function visitAllFramesDeep(visitor) {
+                function walk(d) {
+                  if (!d) return;
+                  try {
+                    visitor(d);
+                    var iframes = d.querySelectorAll('iframe');
+                    for (var i = 0; i < iframes.length; i++) {
+                      try {
+                        var ind = iframes[i].contentDocument;
+                        if (ind) walk(ind);
+                      } catch (e) {}
+                    }
+                  } catch (e2) {}
+                }
+                walk(document);
+              }
+
+              async function acceptDisclaimersAndConfirmDeep() {
+                var maxPasses = 4;
+                for (var pass = 0; pass < maxPasses; pass++) {
+                  var changed = false;
+                  visitAllFramesDeep(function(d) {
+                    try {
+                      var disc = d.querySelector('#disclaimer');
+                      if (disc && disc.offsetParent) {
+                        var ab = d.querySelector('.accept-button');
+                        if (ab) {
+                          ab.click();
+                          changed = true;
+                          sendMessage('step_update', 'Accepted broker disclaimer');
+                        }
+                      }
+                    } catch (e) {}
+                  });
+                  visitAllFramesDeep(function(d) {
+                    try {
+                      var txt = (d.body && d.body.innerText) ? d.body.innerText : '';
+                      var low = txt.toLowerCase();
+                      if (low.indexOf('one click') < 0 && low.indexOf('one-click') < 0) return;
+                      if (low.indexOf('disclaimer') < 0 && low.indexOf('terms and conditions') < 0) return;
+                      var boxes = d.querySelectorAll('input[type="checkbox"]');
+                      var hit = false;
+                      for (var i = 0; i < boxes.length; i++) {
+                        var cb = boxes[i];
+                        if (!cb.offsetParent || cb.checked) continue;
+                        var labTxt = '';
+                        if (cb.labels && cb.labels.length) labTxt = (cb.labels[0].innerText || '') + '';
+                        try {
+                          var wrapLab = cb.closest('label');
+                          if (wrapLab) labTxt += ' ' + (wrapLab.innerText || '');
+                        } catch (eL) {}
+                        var labLow = (labTxt + '').toLowerCase();
+                        if (labLow.indexOf('accept') >= 0 || labLow.indexOf('terms') >= 0 || labLow.indexOf('condition') >= 0) {
+                          cb.click();
+                          hit = true;
+                          changed = true;
+                          sendMessage('step_update', 'Accepted One Click Trading checkbox');
+                          break;
+                        }
+                      }
+                      if (!hit) {
+                        for (var j = 0; j < boxes.length; j++) {
+                          var c2 = boxes[j];
+                          if (c2.offsetParent && !c2.checked) {
+                            c2.click();
+                            changed = true;
+                            sendMessage('step_update', 'Accepted terms checkbox');
+                            break;
+                          }
+                        }
+                      }
+                    } catch (e2) {}
+                  });
+                  visitAllFramesDeep(function(d) {
+                    try {
+                      var ttxt = (d.body && d.body.innerText) ? d.body.innerText : '';
+                      if (!/one click|disclaimer|terms/i.test(ttxt)) return;
+                      var btns = d.querySelectorAll('button, [role="button"], a');
+                      for (var k = 0; k < btns.length; k++) {
+                        var el = btns[k];
+                        if (!el.offsetParent) continue;
+                        var t = ((el.innerText || el.textContent || '') + '').trim().toLowerCase();
+                        if (
+                          t === 'ok' ||
+                          t === 'accept' ||
+                          t === 'continue' ||
+                          t.indexOf('i agree') >= 0 ||
+                          t.indexOf('i accept') >= 0 ||
+                          (t.indexOf('confirm') >= 0 && t.length < 24)
+                        ) {
+                          el.click();
+                          changed = true;
+                          sendMessage('step_update', 'Confirmed disclaimer dialog');
+                          break;
+                        }
+                      }
+                    } catch (e3) {}
+                  });
+                  if (!changed) break;
+                  await new Promise(function(r) { setTimeout(r, 500); });
+                }
+              }
+
               const dismissLoginOverlay = async () => {
                 try {
                   hideTradingAccountsOverlayIfPresent();
@@ -1463,6 +1566,7 @@ async function handleApi(request: Request): Promise<Response> {
                   } catch (e3) { return false; }
                 }
                 while (Date.now() < deadline) {
+                  await acceptDisclaimersAndConfirmDeep();
                   await dismissLoginOverlay();
                   const onLogin = isLikelyLoginScreen();
                   const chartOk = hasChartCanvas() || hasBidAskRibbon();
@@ -1664,6 +1768,7 @@ async function handleApi(request: Request): Promise<Response> {
                 }
                 sendMessage('step_update', 'Capturing chart for AI analysis...');
                 for (let preCap = 0; preCap < 10; preCap++) {
+                  await acceptDisclaimersAndConfirmDeep();
                   await dismissLoginOverlay();
                   if (!isAnyLoginModalBlocking()) break;
                   await sleep(450);
@@ -1813,6 +1918,7 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   sendMessage('step_update', 'Verifying authentication...');
                   await sleep(1000);
+                  await acceptDisclaimersAndConfirmDeep();
                   await dismissLoginOverlay();
                   
                   sendMessage('step_update', 'Checking Market Watch panel...');
@@ -1851,10 +1957,12 @@ async function handleApi(request: Request): Promise<Response> {
                                      document.querySelector('input[type="search"]');
                   
                   if (searchField && searchField.offsetParent !== null) {
+                    await acceptDisclaimersAndConfirmDeep();
                     await dismissLoginOverlay();
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
+                      await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
                       sendMessage('step_update', 'Waiting for chart (login must complete)...');
                       const chartReadyOk = await waitForChartReady(120000);
@@ -1875,10 +1983,12 @@ async function handleApi(request: Request): Promise<Response> {
                                           document.querySelector('input[type="search"]');
                   
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+                    await acceptDisclaimersAndConfirmDeep();
                     await dismissLoginOverlay();
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
+                      await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
                       sendMessage('step_update', 'Waiting for chart (login must complete)...');
                       const chartReadyOk = await waitForChartReady(120000);
@@ -2058,8 +2168,10 @@ async function handleApi(request: Request): Promise<Response> {
                      }
 
                     if (symbolSelected) {
+                      await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
                       await sleep(500);
+                      await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
                       await closeSearchPanelAfterSymbolSelect();
                     }
@@ -2118,8 +2230,10 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
 
+                  await acceptDisclaimersAndConfirmDeep();
                   await dismissLoginOverlay();
                   await sleep(450);
+                  await acceptDisclaimersAndConfirmDeep();
                   await dismissLoginOverlay();
                 } catch(e) {
                   sendMessage('error', 'Error opening chart: ' + e.message);
