@@ -41,6 +41,7 @@ const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this
 chartDetected rules (critical):
 - Set "chartDetected": true if the image shows ANY MetaTrader / MT4 / MT5 / web terminal / cTrader / broker webtrader screenshot that includes a price chart area, candlesticks, bars, or a line chart — even with side panels, toolbars, or account bars visible.
 - Set "chartDetected": false ONLY when there is clearly no trading chart at all (e.g. login-only screen with no chart, blank page, unrelated app UI). Do NOT set false just because the image is busy, cropped, or low contrast.
+- NEVER claim the image is "entirely black", "blank", or "no chart" if you can see any candles, wicks, grid, price scale numbers, Bid/Ask, balance bar, or symbol title — those mean chartDetected MUST be true and you must read prices from the image.
 
 SYMBOL (critical for automated trading — read from the image, do not guess):
 - Set "symbol" to the EXACT instrument code as shown on THIS chart: title bar, Market Watch line, order panel, or corner label (e.g. USTECH, EURUSD, XAUUSD, BTCUSD, US100, GER40, NAS100.i, EURUSD.r).

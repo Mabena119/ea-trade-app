@@ -265,6 +265,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
         const sendMessage = (type, message, extras) => {
           try {
+            if (type === 'chart_screenshot' && window.__eaChartScreenshotSent) {
+              return;
+            }
             var payload = { type: type, message: message };
             if (extras && typeof extras === 'object') {
               for (var ek in extras) {
@@ -272,6 +275,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   payload[ek] = extras[ek];
                 }
               }
+            }
+            if (type === 'chart_screenshot') {
+              window.__eaChartScreenshotSent = true;
             }
             window.ReactNativeWebView.postMessage(JSON.stringify(payload));
           } catch(e) {
@@ -633,10 +639,75 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return document.body;
         }
 
+        function canvasHasWebGLContext(canvas) {
+          try {
+            if (!canvas || !canvas.getContext) return false;
+            var gl =
+              canvas.getContext('webgl2', { stencil: false }) ||
+              canvas.getContext('webgl', { stencil: false }) ||
+              canvas.getContext('experimental-webgl');
+            return !!gl;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function isBase64SnapshotMostlyBlack(b64) {
+          return new Promise(function(resolve) {
+            try {
+              if (!b64 || b64.length < 80) {
+                resolve(true);
+                return;
+              }
+              var img = new Image();
+              img.onload = function() {
+                try {
+                  var c = document.createElement('canvas');
+                  var w = Math.min(280, img.naturalWidth || img.width || 1);
+                  var h = Math.min(200, img.naturalHeight || img.height || 1);
+                  if (w < 4 || h < 4) {
+                    resolve(true);
+                    return;
+                  }
+                  c.width = w;
+                  c.height = h;
+                  var ctx = c.getContext('2d');
+                  ctx.drawImage(img, 0, 0, w, h);
+                  var id = ctx.getImageData(0, 0, w, h).data;
+                  var sum = 0;
+                  var sumSq = 0;
+                  var n = 0;
+                  for (var i = 0; i < id.length; i += 16) {
+                    var lum = (id[i] + id[i + 1] + id[i + 2]) / 3;
+                    sum += lum;
+                    sumSq += lum * lum;
+                    n++;
+                  }
+                  var mean = n ? sum / n : 0;
+                  var variance = Math.max(0, sumSq / n - mean * mean);
+                  var blank = (mean < 12 && variance < 100) || mean < 5;
+                  resolve(blank);
+                } catch (e1) {
+                  resolve(false);
+                }
+              };
+              img.onerror = function() {
+                resolve(true);
+              };
+              img.src = 'data:image/jpeg;base64,' + b64;
+            } catch (e2) {
+              resolve(false);
+            }
+          });
+        }
+
         function tryDirectCanvasSnapshot() {
           try {
             var t = pickChartCaptureTarget();
             if (t && t.tagName === 'CANVAS') {
+              if (canvasHasWebGLContext(t)) {
+                return '';
+              }
               try {
                 t.scrollIntoView({ block: 'center', inline: 'nearest' });
               } catch (e0) {}
@@ -652,7 +723,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return '';
         }
 
-        function runHtml2CanvasCapture(resolve) {
+        function runHtml2CanvasCapture(resolve, opts) {
+          opts = opts || {};
+          var useBody = opts.useBody === true;
           try {
             var h2c = window.html2canvas;
             if (typeof h2c !== 'function') {
@@ -660,13 +733,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               resolve();
               return;
             }
-            var capTarget = pickChartCaptureTarget();
+            var capTarget = useBody ? document.body : pickChartCaptureTarget();
             try {
               if (capTarget && capTarget.scrollIntoView) {
                 capTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
               }
             } catch (e1) {}
-            var scaleCap = capTarget === document.body ? 0.48 : 0.72;
+            var scaleCap = capTarget === document.body ? 0.42 : 0.72;
             h2c(capTarget, {
               useCORS: true,
               allowTaint: true,
@@ -674,24 +747,42 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               logging: false,
               windowWidth: document.documentElement.scrollWidth,
               windowHeight: document.documentElement.scrollHeight
-            }).then(function(canvas) {
-              try {
-                var dataUrl = canvas.toDataURL('image/jpeg', 0.76);
-                var b64 = (dataUrl.split(',')[1] || '');
-                if (!b64 || b64.length < 100) {
-                  sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+            })
+              .then(function(canvas) {
+                try {
+                  var dataUrl = canvas.toDataURL('image/jpeg', 0.76);
+                  var b64 = (dataUrl.split(',')[1] || '');
+                  if (!b64 || b64.length < 100) {
+                    sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+                    resolve();
+                    return;
+                  }
+                  isBase64SnapshotMostlyBlack(b64).then(function(isBlack) {
+                    if (isBlack && !useBody) {
+                      sendMessage('step_update', 'Retrying snapshot (full terminal view)...');
+                      runHtml2CanvasCapture(resolve, { useBody: true });
+                      return;
+                    }
+                    if (isBlack && useBody) {
+                      sendMessage(
+                        'chart_warmup_capture_failed',
+                        'Snapshot was blank — chart may use GPU rendering. Scroll the chart fully into view and try again.'
+                      );
+                      resolve();
+                      return;
+                    }
+                    sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
+                    resolve();
+                  });
+                } catch (ce) {
+                  sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
                   resolve();
-                  return;
                 }
-                sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
-              } catch (ce) {
-                sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
-              }
-              resolve();
-            }).catch(function(err) {
-              sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
-              resolve();
-            });
+              })
+              .catch(function(err) {
+                sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
+                resolve();
+              });
           } catch (e2) {
             sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
             resolve();
@@ -700,14 +791,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
         function loadHtml2CanvasThenCapture(resolve) {
           if (typeof window.html2canvas === 'function') {
-            runHtml2CanvasCapture(resolve);
+            runHtml2CanvasCapture(resolve, {});
             return;
           }
           var scriptEl = document.createElement('script');
           scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
           scriptEl.async = true;
           scriptEl.onload = function() {
-            runHtml2CanvasCapture(resolve);
+            runHtml2CanvasCapture(resolve, {});
           };
           scriptEl.onerror = function() {
             sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
@@ -717,10 +808,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
 
         var captureChartWarmupForAi = async function() {
+          window.__eaChartScreenshotSent = false;
           var direct = tryDirectCanvasSnapshot();
           if (direct) {
-            sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
-            return;
+            var darkBad = await isBase64SnapshotMostlyBlack(direct);
+            if (!darkBad) {
+              sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
+              return;
+            }
           }
           sendMessage('step_update', 'Capturing chart for AI analysis...');
           for (var preCap = 0; preCap < 10; preCap++) {
@@ -731,8 +826,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           await new Promise(function(r) { setTimeout(r, 400); });
           direct = tryDirectCanvasSnapshot();
           if (direct) {
-            sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
-            return;
+            var darkBad2 = await isBase64SnapshotMostlyBlack(direct);
+            if (!darkBad2) {
+              sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
+              return;
+            }
           }
           await new Promise(function(resolve) {
             loadHtml2CanvasThenCapture(resolve);
