@@ -1136,8 +1136,43 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     }
   }, [visible]);
 
-  if (!signal || !mt5Account) {
+  if (!signal) {
     return null;
+  }
+
+  const hasMt5Credentials =
+    !!mt5Account &&
+    typeof mt5Account.login === 'string' &&
+    mt5Account.login.trim().length > 0 &&
+    !!mt5Account.password;
+
+  if (!hasMt5Credentials) {
+    return (
+      <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+        <View style={styles.overlayContainer} pointerEvents="box-none">
+          <View style={[styles.authToastContainer, { padding: 16 }]}>
+            <Text style={styles.authToastTitle}>MetaTrader 5 required</Text>
+            <Text style={[styles.authToastStatus, { marginTop: 8 }]}>
+              Add your MT5 login and password in the MetaTrader tab. Trade execution uses the same web terminal as automatic signals.
+            </Text>
+            <TouchableOpacity
+              style={{
+                marginTop: 16,
+                paddingVertical: 12,
+                paddingHorizontal: 20,
+                borderRadius: 14,
+                backgroundColor: 'rgba(139, 92, 246, 0.35)',
+                alignItems: 'center',
+              }}
+              onPress={onClose}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
   }
 
   const mt5Url = getMT5Url();

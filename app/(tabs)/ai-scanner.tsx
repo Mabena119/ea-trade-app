@@ -79,18 +79,15 @@ function buildSignalFromScanner(
   result: ChartAnalysisResult,
   asset: string
 ): SignalLog {
-  const tp =
-    result.takeProfit1 ||
-    result.takeProfit2 ||
-    result.takeProfit3 ||
-    '';
+  // Always use first TP only (matches automated signal execution behaviour).
+  const tp = stripNumericPrice(result.takeProfit1 || '');
   const price = stripNumericPrice(result.entryPrice || result.currentPrice);
   return {
     id: `ai-scan-${Date.now()}`,
     asset,
     action: result.signal === 'BUY' ? 'buy' : 'sell',
     price: price || '0',
-    tp: stripNumericPrice(tp),
+    tp,
     sl: stripNumericPrice(result.stopLoss),
     time: new Date().toISOString(),
     type: 'AI_SCANNER',
@@ -110,6 +107,7 @@ export default function AIScannerScreen() {
   const { theme } = useTheme();
   const {
     user,
+    mt5Account,
     mt5Symbols,
     activeSymbols,
     setMT5Signal,
@@ -491,6 +489,13 @@ export default function AIScannerScreen() {
       Alert.alert('No trade direction', 'The analysis is neutral. Only buy or sell suggestions can be sent to MetaTrader.');
       return;
     }
+    if (!mt5Account?.login?.trim() || !mt5Account?.password) {
+      Alert.alert(
+        'MetaTrader 5 not connected',
+        'Add your MT5 login and password in the MetaTrader tab. Trade execution uses the same web terminal as automatic signals.'
+      );
+      return;
+    }
     const resolved = resolveMt5ConfiguredSymbol(result.symbol, mt5Symbols, activeSymbols);
     if (!resolved) {
       const hasMt5 =
@@ -509,20 +514,18 @@ export default function AIScannerScreen() {
       return;
     }
     const sl = stripNumericPrice(result.stopLoss);
-    const tp = stripNumericPrice(
-      result.takeProfit1 || result.takeProfit2 || result.takeProfit3 || ''
-    );
+    const tp = stripNumericPrice(result.takeProfit1 || '');
     if (!sl || !tp) {
       Alert.alert(
         'Incomplete trade levels',
-        'Stop loss and at least one take profit are needed to place this trade. Wait for a full analysis or check the result.'
+        'Stop loss and the first take profit (TP1) are required. The app always uses TP1 for execution, matching automatic trading.'
       );
       return;
     }
     const signal = buildSignalFromScanner(result, resolved.symbol);
     setMT5Signal(signal);
     setShowMT5SignalWebView(true);
-  }, [result, mt5Symbols, activeSymbols, setMT5Signal, setShowMT5SignalWebView]);
+  }, [result, mt5Account, mt5Symbols, activeSymbols, setMT5Signal, setShowMT5SignalWebView]);
 
   const SignalIcon = result?.signal === 'BUY' ? TrendingUp : result?.signal === 'SELL' ? TrendingDown : Minus;
   const signalColor =
