@@ -1022,21 +1022,35 @@ async function handleApi(request: Request): Promise<Response> {
                 return isConnectModalVisible() || isSecondaryConnectionPanelVisible();
               }
 
+              function elementContainsLargeChartCanvas(el) {
+                try {
+                  const canvases = el.querySelectorAll ? el.querySelectorAll('canvas') : [];
+                  for (let i = 0; i < canvases.length; i++) {
+                    const c = canvases[i];
+                    const a = (c.width || 0) * (c.height || 0);
+                    if (a >= 40000) return true;
+                  }
+                } catch (e) {}
+                return false;
+              }
+
               function hideSecondaryConnectionPanels() {
                 try {
-                  const sel = document.querySelectorAll('div, section, aside, article, main');
+                  const sel = document.querySelectorAll('div, section, aside');
                   for (let i = 0; i < Math.min(sel.length, 500); i++) {
                     const el = sel[i];
                     if (!el.offsetParent) continue;
+                    if (elementContainsLargeChartCanvas(el)) continue;
                     const t = (el.innerText || '').trim();
-                    if (t.length > 1400 || t.length < 15) continue;
+                    if (t.length > 900 || t.length < 15) continue;
                     if (t.indexOf('Connection closed or not established') >= 0) {
                       const r = el.getBoundingClientRect();
-                      if (r.height > 28 && r.width > 80) {
+                      const vh = window.innerHeight || 800;
+                      if (r.height > 28 && r.width > 80 && r.height < vh * 0.55) {
                         el.style.display = 'none';
                         el.style.visibility = 'hidden';
                         el.style.pointerEvents = 'none';
-                        sendMessage('step_update', 'Hid connection status strip blocking chart');
+                        sendMessage('step_update', 'Hid connection status strip');
                         return true;
                       }
                     }
@@ -1044,15 +1058,17 @@ async function handleApi(request: Request): Promise<Response> {
                   for (let j = 0; j < Math.min(sel.length, 500); j++) {
                     const e2 = sel[j];
                     if (!e2.offsetParent) continue;
+                    if (elementContainsLargeChartCanvas(e2)) continue;
                     const t2 = (e2.innerText || '').trim();
-                    if (t2.length > 1400 || t2.length < 40) continue;
+                    if (t2.length > 900 || t2.length < 40) continue;
                     if (t2.indexOf('Trading accounts:') >= 0 && t2.indexOf('Connect to account') >= 0 && t2.indexOf('MetaQuotes') >= 0) {
                       const r2 = e2.getBoundingClientRect();
-                      if (r2.height > 50 && r2.width > 120) {
+                      const vh2 = window.innerHeight || 800;
+                      if (r2.height > 50 && r2.width > 120 && r2.height < vh2 * 0.55) {
                         e2.style.display = 'none';
                         e2.style.visibility = 'hidden';
                         e2.style.pointerEvents = 'none';
-                        sendMessage('step_update', 'Hid Trading accounts / Connect duplicate panel');
+                        sendMessage('step_update', 'Hid Trading accounts strip');
                         return true;
                       }
                     }
@@ -1099,6 +1115,7 @@ async function handleApi(request: Request): Promise<Response> {
               }
 
               const dismissLoginOverlay = async () => {
+                if (!isAnyConnectionOverlayBlocking()) return;
                 try {
                   if (passwordCredential && isConnectModalVisible()) {
                     const pwdIn = document.querySelector('input[type="password"]');
@@ -1119,13 +1136,14 @@ async function handleApi(request: Request): Promise<Response> {
                   }
                 } catch (e0) {}
                 try {
-                  if (isSecondaryConnectionPanelVisible()) {
+                  if (isSecondaryConnectionPanelVisible() && !window.__eaDupConnectClicked) {
+                    window.__eaDupConnectClicked = true;
                     const btnsC = document.querySelectorAll('button, a, [role="button"]');
                     for (let bc = 0; bc < Math.min(btnsC.length, 120); bc++) {
                       const tcx = ((btnsC[bc].innerText || btnsC[bc].textContent || '') + '').trim().toLowerCase();
                       if (tcx.indexOf('connect') >= 0 && tcx.indexOf('account') >= 0 && btnsC[bc].offsetParent) {
                         btnsC[bc].click();
-                        sendMessage('step_update', 'Clicked Connect to account (clears duplicate connection panel)');
+                        sendMessage('step_update', 'Connect panel: single click to restore terminal');
                         await sleep(2600);
                         break;
                       }
@@ -1155,7 +1173,7 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch (e2) {}
                 try {
                   const root = findConnectModalRootFromPassword();
-                  if (root) {
+                  if (root && !elementContainsLargeChartCanvas(root)) {
                     root.style.display = 'none';
                     root.style.visibility = 'hidden';
                     root.style.pointerEvents = 'none';
@@ -1167,9 +1185,9 @@ async function handleApi(request: Request): Promise<Response> {
                       if (!ae.offsetParent) continue;
                       const atxt = (ae.innerText || '').trim();
                       if (atxt.length > 500) continue;
-                      if (atxt.indexOf('Connect to account') >= 0) {
+                      if (atxt.indexOf('Connect to account') >= 0 && !elementContainsLargeChartCanvas(ae)) {
                         const ar = ae.getBoundingClientRect();
-                        if (ar.width > 160 && ar.height > 100) {
+                        if (ar.width > 160 && ar.height > 100 && ar.height < (window.innerHeight || 800) * 0.65) {
                           ae.style.display = 'none';
                           ae.style.visibility = 'hidden';
                           ae.style.pointerEvents = 'none';
@@ -1192,7 +1210,7 @@ async function handleApi(request: Request): Promise<Response> {
                       if (!node) break;
                       const cls = String(node.className || '');
                       const z = parseInt(window.getComputedStyle(node).zIndex, 10) || 0;
-                      if (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || z > 40) {
+                      if (!elementContainsLargeChartCanvas(node) && (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || z > 40)) {
                         node.style.display = 'none';
                         node.style.visibility = 'hidden';
                         node.style.pointerEvents = 'none';
@@ -1202,9 +1220,6 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                 } catch (e4) {}
-                try {
-                  hideSecondaryConnectionPanels();
-                } catch (e5) {}
               };
 
               function pickChartCaptureTarget() {
@@ -1272,7 +1287,9 @@ async function handleApi(request: Request): Promise<Response> {
                   } catch (e3) { return false; }
                 }
                 while (Date.now() < deadline) {
-                  await dismissLoginOverlay();
+                  if (isAnyConnectionOverlayBlocking()) {
+                    await dismissLoginOverlay();
+                  }
                   const onLogin = isLikelyLoginScreen();
                   const chartOk = hasChartCanvas() || hasBidAskRibbon();
                   if (!onLogin && chartOk) {
@@ -1465,7 +1482,7 @@ async function handleApi(request: Request): Promise<Response> {
                         return;
                       }
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      for (let preCap = 0; preCap < 10; preCap++) {
+                      for (let preCap = 0; preCap < 2; preCap++) {
                         await dismissLoginOverlay();
                         if (!isAnyConnectionOverlayBlocking()) break;
                         await sleep(450);
@@ -1550,7 +1567,7 @@ async function handleApi(request: Request): Promise<Response> {
                         return;
                       }
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      for (let preCap = 0; preCap < 10; preCap++) {
+                      for (let preCap = 0; preCap < 2; preCap++) {
                         await dismissLoginOverlay();
                         if (!isAnyConnectionOverlayBlocking()) break;
                         await sleep(450);
@@ -1796,13 +1813,9 @@ async function handleApi(request: Request): Promise<Response> {
                       sendMessage('step_update', 'Chart container focused');
                     }
                   }
-                  if (isChartWarmup) {
-                    sendMessage('step_update', 'Clearing duplicate connection UI after chart open...');
-                    for (let ocx = 0; ocx < 10; ocx++) {
-                      await dismissLoginOverlay();
-                      if (!isAnyConnectionOverlayBlocking()) break;
-                      await sleep(500);
-                    }
+                  if (isChartWarmup && isAnyConnectionOverlayBlocking()) {
+                    sendMessage('step_update', 'Dismissing connection UI once after chart open...');
+                    await dismissLoginOverlay();
                   }
                 } catch(e) {
                   sendMessage('error', 'Error opening chart: ' + e.message);

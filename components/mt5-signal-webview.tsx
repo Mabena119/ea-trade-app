@@ -341,21 +341,36 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return isConnectModalVisible() || isSecondaryConnectionPanelVisible();
         }
 
+        function elementContainsLargeChartCanvas(el) {
+          try {
+            var canvases = el.querySelectorAll ? el.querySelectorAll('canvas') : [];
+            for (var i = 0; i < canvases.length; i++) {
+              var c = canvases[i];
+              var a = (c.width || 0) * (c.height || 0);
+              if (a >= 40000) return true;
+            }
+          } catch (e) {}
+          return false;
+        }
+
+        /** Only hide small connection strips — never hide main/layout that contains the chart canvas. */
         function hideSecondaryConnectionPanels() {
           try {
-            var sel = document.querySelectorAll('div, section, aside, article, main');
+            var sel = document.querySelectorAll('div, section, aside');
             for (var i = 0; i < Math.min(sel.length, 500); i++) {
               var el = sel[i];
               if (!el.offsetParent) continue;
+              if (elementContainsLargeChartCanvas(el)) continue;
               var t = (el.innerText || '').trim();
-              if (t.length > 1400 || t.length < 15) continue;
+              if (t.length > 900 || t.length < 15) continue;
               if (t.indexOf('Connection closed or not established') >= 0) {
                 var r = el.getBoundingClientRect();
-                if (r.height > 28 && r.width > 80) {
+                var vh = window.innerHeight || 800;
+                if (r.height > 28 && r.width > 80 && r.height < vh * 0.55) {
                   el.style.display = 'none';
                   el.style.visibility = 'hidden';
                   el.style.pointerEvents = 'none';
-                  sendMessage('step_update', 'Hid connection status strip blocking chart');
+                  sendMessage('step_update', 'Hid connection status strip');
                   return true;
                 }
               }
@@ -363,15 +378,17 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             for (var j = 0; j < Math.min(sel.length, 500); j++) {
               var e2 = sel[j];
               if (!e2.offsetParent) continue;
+              if (elementContainsLargeChartCanvas(e2)) continue;
               var t2 = (e2.innerText || '').trim();
-              if (t2.length > 1400 || t2.length < 40) continue;
+              if (t2.length > 900 || t2.length < 40) continue;
               if (t2.indexOf('Trading accounts:') >= 0 && t2.indexOf('Connect to account') >= 0 && t2.indexOf('MetaQuotes') >= 0) {
                 var r2 = e2.getBoundingClientRect();
-                if (r2.height > 50 && r2.width > 120) {
+                var vh2 = window.innerHeight || 800;
+                if (r2.height > 50 && r2.width > 120 && r2.height < vh2 * 0.55) {
                   e2.style.display = 'none';
                   e2.style.visibility = 'hidden';
                   e2.style.pointerEvents = 'none';
-                  sendMessage('step_update', 'Hid Trading accounts / Connect duplicate panel');
+                  sendMessage('step_update', 'Hid Trading accounts strip');
                   return true;
                 }
               }
@@ -416,8 +433,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (e) {}
         }
 
-        /** Dismiss "Connect to account" so AI snapshot is candlesticks, not the login form. */
+        /** Dismiss "Connect to account" so AI snapshot is candlesticks, not the login form. Safe to call often: no-ops when nothing blocking. */
         const dismissLoginOverlay = async function() {
+          if (!isAnyConnectionOverlayBlocking()) return;
           var pw = '${passwordVal}';
           try {
             if (pw && isConnectModalVisible()) {
@@ -439,13 +457,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             }
           } catch (e0) {}
           try {
-            if (isSecondaryConnectionPanelVisible()) {
+            if (isSecondaryConnectionPanelVisible() && !window.__eaDupConnectClicked) {
+              window.__eaDupConnectClicked = true;
               var btnsC = document.querySelectorAll('button, a, [role="button"]');
               for (var bc = 0; bc < Math.min(btnsC.length, 120); bc++) {
                 var tcx = ((btnsC[bc].innerText || btnsC[bc].textContent || '') + '').trim().toLowerCase();
                 if (tcx.indexOf('connect') >= 0 && tcx.indexOf('account') >= 0 && btnsC[bc].offsetParent) {
                   btnsC[bc].click();
-                  sendMessage('step_update', 'Clicked Connect to account (clears duplicate connection panel)');
+                  sendMessage('step_update', 'Connect panel: single click to restore terminal');
                   await new Promise(function(r) { setTimeout(r, 2600); });
                   break;
                 }
@@ -475,7 +494,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (e2) {}
           try {
             var root = findConnectModalRootFromPassword();
-            if (root) {
+            if (root && !elementContainsLargeChartCanvas(root)) {
               root.style.display = 'none';
               root.style.visibility = 'hidden';
               root.style.pointerEvents = 'none';
@@ -487,9 +506,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 if (!ae.offsetParent) continue;
                 var atxt = (ae.innerText || '').trim();
                 if (atxt.length > 500) continue;
-                if (atxt.indexOf('Connect to account') >= 0) {
+                if (atxt.indexOf('Connect to account') >= 0 && !elementContainsLargeChartCanvas(ae)) {
                   var ar = ae.getBoundingClientRect();
-                  if (ar.width > 160 && ar.height > 100) {
+                  if (ar.width > 160 && ar.height > 100 && ar.height < (window.innerHeight || 800) * 0.65) {
                     ae.style.display = 'none';
                     ae.style.visibility = 'hidden';
                     ae.style.pointerEvents = 'none';
@@ -512,7 +531,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 if (!node) break;
                 var cls = String(node.className || '');
                 var z = parseInt(window.getComputedStyle(node).zIndex, 10) || 0;
-                if (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || z > 40) {
+                if (!elementContainsLargeChartCanvas(node) && (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || z > 40)) {
                   node.style.display = 'none';
                   node.style.visibility = 'hidden';
                   node.style.pointerEvents = 'none';
@@ -522,9 +541,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               }
             }
           } catch (e4) {}
-          try {
-            hideSecondaryConnectionPanels();
-          } catch (e5) {}
         };
 
         /** Prefer largest chart canvas so html2canvas does not include sibling modal DOM. */
@@ -596,7 +612,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             } catch (e3) { return false; }
           }
           while (Date.now() < deadline) {
-            await dismissLoginOverlay();
+            if (isAnyConnectionOverlayBlocking()) {
+              await dismissLoginOverlay();
+            }
             var onLogin = isLikelyLoginScreen();
             var chartOk = hasChartCanvas() || hasBidAskRibbon();
             if (!onLogin && chartOk) {
@@ -817,7 +835,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   return;
                 }
                 sendMessage('step_update', 'Capturing chart for AI analysis...');
-                for (var preCap = 0; preCap < 10; preCap++) {
+                for (var preCap = 0; preCap < 2; preCap++) {
                   await dismissLoginOverlay();
                   if (!isAnyConnectionOverlayBlocking()) break;
                   await new Promise(function(r) { setTimeout(r, 450); });
@@ -911,7 +929,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   return;
                 }
                 sendMessage('step_update', 'Capturing chart for AI analysis...');
-                for (var preCap = 0; preCap < 10; preCap++) {
+                for (var preCap = 0; preCap < 2; preCap++) {
                   await dismissLoginOverlay();
                   if (!isAnyConnectionOverlayBlocking()) break;
                   await new Promise(function(r) { setTimeout(r, 450); });
@@ -1178,13 +1196,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 sendMessage('step_update', 'Chart container focused');
               }
             }
-            if (isChartWarmup) {
-              sendMessage('step_update', 'Clearing duplicate connection UI after chart open...');
-              for (var ocx = 0; ocx < 10; ocx++) {
-                await dismissLoginOverlay();
-                if (!isAnyConnectionOverlayBlocking()) break;
-                await new Promise(function(r) { setTimeout(r, 500); });
-              }
+            if (isChartWarmup && isAnyConnectionOverlayBlocking()) {
+              sendMessage('step_update', 'Dismissing connection UI once after chart open...');
+              await dismissLoginOverlay();
             }
           } catch(e) {
             sendMessage('error', 'Error opening chart: ' + e.message);
