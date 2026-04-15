@@ -865,9 +865,17 @@ async function handleApi(request: Request): Promise<Response> {
             (function() {
               console.log('[MT5 Trading] Script injected and executing...');
               
-              const sendMessage = (type, message) => {
-                try { 
-                  const messageData = JSON.stringify({ type, message });
+              const sendMessage = (type, message, extras) => {
+                try {
+                  var payload = { type: type, message: message };
+                  if (extras && typeof extras === 'object') {
+                    for (var ek in extras) {
+                      if (Object.prototype.hasOwnProperty.call(extras, ek) && extras[ek] != null) {
+                        payload[ek] = extras[ek];
+                      }
+                    }
+                  }
+                  var messageData = JSON.stringify(payload);
                   if (window.parent && window.parent !== window) {
                     window.parent.postMessage(messageData, '*');
                   }
@@ -879,6 +887,30 @@ async function handleApi(request: Request): Promise<Response> {
                   console.error('[MT5 Trading] Error sending message:', e);
                 }
               };
+
+              function scrapeTerminalAccountStats() {
+                var equity = null;
+                var balance = null;
+                try {
+                  var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+                  var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+                  if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
+                  var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+                  if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+                  if (!equity || !balance) {
+                    var compact = txt.replace(/[\\n\\r]+/g, ' ');
+                    if (!equity) {
+                      var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                      if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+                    }
+                    if (!balance) {
+                      var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                      if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+                    }
+                  }
+                } catch (err) {}
+                return { equity: equity, balance: balance };
+              }
 
               sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
               console.log('[MT5 Trading] Script initialized, waiting for page load...');
@@ -1671,6 +1703,11 @@ async function handleApi(request: Request): Promise<Response> {
                       successfulTrades++;
                       sendMessage('step_update', '✅ Trade ' + tradeNumber + '/' + numberOfTrades + ' completed successfully');
                       console.log('✅ Trade ' + tradeNumber + ' completed successfully');
+                      await sleep(1500);
+                      var snapAfter = scrapeTerminalAccountStats();
+                      if (snapAfter.equity || snapAfter.balance) {
+                        sendMessage('equity_snapshot', 'Account updated', { equity: snapAfter.equity, balance: snapAfter.balance });
+                      }
                     } else {
                       failedTrades++;
                       sendMessage('step_update', '❌ Trade ' + tradeNumber + '/' + numberOfTrades + ' failed');
@@ -1692,10 +1729,12 @@ async function handleApi(request: Request): Promise<Response> {
                 sendMessage('step_update', summaryMessage);
                 console.log('📊 EXECUTION COMPLETE: ' + successfulTrades + ' successful, ' + failedTrades + ' failed out of ' + numberOfTrades + ' total');
                 
+                await sleep(2000);
+                var statsFinal = scrapeTerminalAccountStats();
                 if (successfulTrades === numberOfTrades) {
-                  sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully');
+                  sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', { equity: statsFinal.equity, balance: statsFinal.balance });
                 } else {
-                  sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed');
+                  sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', { equity: statsFinal.equity, balance: statsFinal.balance });
                 }
                 
                 await sleep(1000);

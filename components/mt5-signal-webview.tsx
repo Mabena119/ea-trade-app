@@ -36,7 +36,11 @@ const MT5_BROKER_URLS: Record<string, string> = {
 };
 
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
-  const { mt5Account, eas, mt5Symbols, markTradeExecuted, mt5TradeOverlayMessage } = useApp();
+  const { mt5Account, setMT5Account, eas, mt5Symbols, markTradeExecuted, mt5TradeOverlayMessage } = useApp();
+  const mt5AccountRef = useRef(mt5Account);
+  useEffect(() => {
+    mt5AccountRef.current = mt5Account;
+  }, [mt5Account]);
   const { theme } = useTheme();
   const [loading, setLoading] = useState<boolean>(true);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
@@ -148,14 +152,45 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           originalLog.apply(console, args);
         };
 
-        // Message sending function
-        const sendMessage = (type, message) => {
-          try { 
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type, message })); 
+        const sendMessage = (type, message, extras) => {
+          try {
+            var payload = { type: type, message: message };
+            if (extras && typeof extras === 'object') {
+              for (var ek in extras) {
+                if (Object.prototype.hasOwnProperty.call(extras, ek) && extras[ek] != null) {
+                  payload[ek] = extras[ek];
+                }
+              }
+            }
+            window.ReactNativeWebView.postMessage(JSON.stringify(payload));
           } catch(e) {
             console.log('Message send error:', e);
           }
         };
+
+        function scrapeTerminalAccountStats() {
+          var equity = null;
+          var balance = null;
+          try {
+            var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+            if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
+            var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
+            if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+            if (!equity || !balance) {
+              var compact = txt.replace(/[\\n\\r]+/g, ' ');
+              if (!equity) {
+                var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+              }
+              if (!balance) {
+                var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+              }
+            }
+          } catch (err) {}
+          return { equity: equity, balance: balance };
+        }
 
         // Override WebSocket to redirect to original terminal
         const originalWebSocket = window.WebSocket;
@@ -971,6 +1006,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 successfulTrades++;
                 sendMessage('step_update', '✅ Trade ' + tradeNumber + '/' + numberOfTrades + ' completed successfully');
                 console.log('✅ Trade ' + tradeNumber + ' completed successfully');
+                await new Promise(r => setTimeout(r, 1500));
+                var snapAfter = scrapeTerminalAccountStats();
+                if (snapAfter.equity || snapAfter.balance) {
+                  sendMessage('equity_snapshot', 'Account updated', { equity: snapAfter.equity, balance: snapAfter.balance });
+                }
               } else {
                 failedTrades++;
                 sendMessage('step_update', '❌ Trade ' + tradeNumber + '/' + numberOfTrades + ' failed');
@@ -994,10 +1034,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           sendMessage('step_update', summaryMessage);
           console.log('📊 EXECUTION COMPLETE: ' + successfulTrades + ' successful, ' + failedTrades + ' failed out of ' + numberOfTrades + ' total');
           
+          await new Promise(r => setTimeout(r, 2000));
+          var statsFinal = scrapeTerminalAccountStats();
           if (successfulTrades === numberOfTrades) {
-            sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully');
+            sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', { equity: statsFinal.equity, balance: statsFinal.balance });
           } else {
-            sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed');
+            sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', { equity: statsFinal.equity, balance: statsFinal.balance });
           }
           
           // Close after brief delay
@@ -1028,6 +1070,16 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       const data = JSON.parse(event.nativeEvent.data);
       console.log('MT5 Signal WebView message:', data);
 
+      const applyTerminalEquity = () => {
+        const acc = mt5AccountRef.current;
+        if (!acc || typeof data.equity !== 'string' || !data.equity.trim()) return;
+        void setMT5Account({
+          ...acc,
+          equity: data.equity.trim(),
+          ...(typeof data.balance === 'string' && data.balance.trim() ? { balance: data.balance.trim() } : {}),
+        });
+      };
+
       if (data.type === 'step_update') {
         // Don't show "Market Watch already visible" messages to the user
         if (!data.message.includes('Market Watch already visible')) {
@@ -1042,7 +1094,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setCurrentStep(data.message);
       } else if (data.type === 'symbol_selected') {
         setCurrentStep(data.message);
+      } else if (data.type === 'equity_snapshot') {
+        applyTerminalEquity();
       } else if (data.type === 'all_trades_completed') {
+        applyTerminalEquity();
         setCurrentStep('All trades completed - Closing...');
         // Mark trade as executed to pause monitoring for 20 seconds
         if (signal?.asset) {
@@ -1058,7 +1113,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     } catch (error) {
       console.error('Error parsing WebView message:', error);
     }
-  }, [signal, onClose]);
+  }, [signal, onClose, markTradeExecuted, setMT5Account]);
 
   // Inject script when WebView loads - ensure fresh injection for each signal
   useEffect(() => {
