@@ -8,7 +8,38 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
+/** Keep broker symbol text usable for app matching (exact ticker, no prose). */
+function normalizeSymbolFromChart(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  let s = String(raw).trim();
+  if (!s) return '';
+  s = s.replace(/^[\s"'`]+|[\s"'`]+$/g, '');
+  s = s.replace(/\u00A0/g, '');
+  const labelPick = s.match(
+    /(?:^|\s)(?:symbol|pair|ticker|instrument)\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9.#_\-]{0,30})/i
+  );
+  if (labelPick?.[1]) return labelPick[1].trim();
+  const slash = s.match(/\b([A-Za-z]{3,10})\s*\/\s*([A-Za-z]{3,10})\b/);
+  if (slash) return `${slash[1]}${slash[2]}`.toUpperCase();
+  const paren = s.match(/\(([A-Za-z0-9][A-Za-z0-9.#_\-]{1,31})\)/);
+  if (paren?.[1]) return paren[1].trim();
+  const oneToken = s.match(/^([A-Za-z0-9][A-Za-z0-9.#_\-]{1,31})$/);
+  if (oneToken) return s;
+  const tokens = s.split(/[\s,;|]+/).filter(Boolean);
+  for (const t of tokens) {
+    if (/^[A-Za-z0-9][A-Za-z0-9.#_\-]{1,31}$/.test(t)) return t;
+  }
+  const stripped = s.replace(/[^\w.#\-]/g, '');
+  return stripped.length <= 32 ? stripped : stripped.slice(0, 32);
+}
+
 const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this chart image. If it is NOT a trading chart, set "chartDetected":false.
+
+SYMBOL (critical for automated trading — read from the image, do not guess):
+- Set "symbol" to the EXACT instrument code as shown on THIS chart: title bar, Market Watch line, order panel, or corner label (e.g. USTECH, EURUSD, XAUUSD, BTCUSD, US100, GER40, NAS100.i, EURUSD.r).
+- Copy spelling, dots, suffixes, and case EXACTLY as the platform displays (brokers differ: .i .m .pro # mini micro).
+- If the chart window shows one primary symbol, use that only — not a watchlist of other pairs.
+- If the symbol text is unreadable or not visible, use "" for symbol (never invent a ticker from the asset class alone).
 
 APPROACH - Use a structured strategy. First OBSERVE what you see, then CONCLUDE.
 
@@ -30,8 +61,8 @@ Do NOT just repeat "Place order at X, SL Y, TP Z" - add strategy.
 
 LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL or TP empty.
 
-Output JSON only:
-{"chartDetected":true,"symbol":"X","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
+Output JSON only (symbol must be the literal ticker string from the chart UI, or ""):
+{"chartDetected":true,"symbol":"EXACT_TICKER_OR_EMPTY","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -83,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
         },
       ],
       generationConfig: {
-        temperature: 0.4,
+        temperature: 0.25,
         maxOutputTokens: 2048,
         responseMimeType: 'application/json',
       },
@@ -245,11 +276,13 @@ export async function POST(request: Request): Promise<Response> {
       if (!takeProfit1) takeProfit1 = signal === 'BUY' ? fmt(entryNum + tpDist) : fmt(entryNum - tpDist);
     }
 
+    const symbolNormalized = normalizeSymbolFromChart(parsed.symbol);
+
     return Response.json(
       {
         message: 'accept',
         data: {
-          symbol: parsed.symbol || '',
+          symbol: symbolNormalized,
           timeframe: parsed.timeframe || '',
           currentPrice,
           signal: signal as 'BUY' | 'SELL',

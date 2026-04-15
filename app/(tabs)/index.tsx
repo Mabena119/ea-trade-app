@@ -12,7 +12,7 @@ import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
 
 export default function HomeScreen() {
-  const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA } = useApp();
+  const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA, mt5Account } = useApp();
   const { theme, themeName, toggleTheme } = useTheme();
 
   // Safely get the primary EA (first one in the list)
@@ -147,6 +147,16 @@ export default function HomeScreen() {
   };
 
   const handleQuotes = () => {
+    const hasMt5Linked = Boolean(
+      mt5Account &&
+      typeof mt5Account.login === 'string' &&
+      mt5Account.login.trim().length > 0 &&
+      mt5Account.password
+    );
+    if (!hasMt5Linked) {
+      router.push('/(tabs)/metatrader');
+      return;
+    }
     router.push('/(tabs)/quotes');
   };
 

@@ -21,8 +21,15 @@ interface Quote {
 
 
 export default function QuotesScreen() {
-  const { eas, activeSymbols, mt4Symbols, mt5Symbols } = useApp();
+  const { eas, activeSymbols, mt4Symbols, mt5Symbols, mt5Account } = useApp();
   const { theme } = useTheme();
+
+  const hasMt5Linked = Boolean(
+    mt5Account &&
+    typeof mt5Account.login === 'string' &&
+    mt5Account.login.trim().length > 0 &&
+    mt5Account.password
+  );
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [apiSymbols, setApiSymbols] = useState<ApiSymbol[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -45,6 +52,11 @@ export default function QuotesScreen() {
 
   // Fetch symbols from API - only show symbols from connected robot
   const fetchSymbols = useCallback(async (showRefreshIndicator = false) => {
+    if (!hasMt5Linked) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       console.log('Fetching symbols for active bot:', {
         botId: primaryEA?.id,
@@ -146,10 +158,20 @@ export default function QuotesScreen() {
         setRefreshing(false);
       }, showRefreshIndicator ? 300 : 0);
     }
-  }, [hasConnectedEA, primaryEA?.id, primaryEA?.phoneSecretKey, primaryEA?.name, activeSymbols, mt4Symbols, mt5Symbols]);
+  }, [
+    hasMt5Linked,
+    hasConnectedEA,
+    primaryEA?.id,
+    primaryEA?.phoneSecretKey,
+    primaryEA?.name,
+    activeSymbols,
+    mt4Symbols,
+    mt5Symbols,
+  ]);
 
   // Initial load and refresh when symbols change or active bot switches
   useEffect(() => {
+    if (!hasMt5Linked) return;
     const currentBotId = primaryEA?.id;
     const previousBotId = previousBotIdRef.current;
     const botChanged = currentBotId !== previousBotId;
@@ -178,13 +200,14 @@ export default function QuotesScreen() {
       fetchSymbols(true);
     }
   }, [
+    hasMt5Linked,
     hasConnectedEA,
     primaryEA?.id,
     primaryEA?.phoneSecretKey,
     activeSymbols.length,
     mt4Symbols.length,
     mt5Symbols.length,
-    fetchSymbols
+    fetchSymbols,
   ]);
 
   // Smooth rotation animation for refresh button
@@ -210,13 +233,16 @@ export default function QuotesScreen() {
     }
   }, [refreshing, rotateAnim]);
 
-  // Refresh when screen comes into focus (e.g., returning from trade-config)
+  // Redirect if MT5 not linked; otherwise refresh when screen focuses (e.g. returning from trade-config)
   useFocusEffect(
     useCallback(() => {
+      if (!hasMt5Linked) {
+        router.replace('/(tabs)/metatrader');
+        return;
+      }
       console.log('Quotes screen focused, refreshing to sync active bot symbols...');
-      // Always refresh with indicator since we're coming back to focus
       setTimeout(() => fetchSymbols(true), 100);
-    }, [fetchSymbols])
+    }, [hasMt5Linked, fetchSymbols])
   );
 
   // Refresh function
@@ -246,6 +272,10 @@ export default function QuotesScreen() {
   const handleQuoteTap = (symbol: string) => {
     router.push(`/trade-config?symbol=${symbol}`);
   };
+
+  if (!hasMt5Linked) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
