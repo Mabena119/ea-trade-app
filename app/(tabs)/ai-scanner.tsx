@@ -86,8 +86,9 @@ function stripNumericPrice(s: string | undefined): string {
 }
 
 /**
- * Pick which configured symbol to trade — same pools as trade config / automatic signals.
- * Matches exact name, same root (e.g. USTECH vs USTECH.i), or similar broker spellings.
+ * Maps the AI-analysed symbol to exactly one trade-config symbol, or null.
+ * Only trades when the analysed instrument is configured (exact or same broker variant, e.g. USTECH vs USTECH.i).
+ * Never picks an unrelated configured symbol when the chart was for something else.
  */
 function resolveConfiguredTradeSymbol(
   analysisSymbol: string | undefined,
@@ -99,30 +100,23 @@ function resolveConfiguredTradeSymbol(
   const fromMt4 = mt4Symbols.map((x) => x.symbol);
   const fromActive = activeSymbols.map((x) => x.symbol);
   const unique = [...new Set([...fromMt5, ...fromMt4, ...fromActive].filter(Boolean))];
-  if (unique.length === 0) return null;
-  if (unique.length === 1) return { symbol: unique[0] };
 
   const raw = (analysisSymbol || '').trim();
-  if (!raw) {
-    return null;
-  }
+  if (!raw || unique.length === 0) return null;
 
   const exact = unique.find((u) => normalizeSymbolKey(u) === normalizeSymbolKey(raw));
   if (exact) return { symbol: exact };
 
   const similar = unique.filter((u) => symbolsAreSimilar(raw, u));
+  if (similar.length === 0) return null;
   if (similar.length === 1) return { symbol: similar[0] };
-  if (similar.length > 1) {
-    similar.sort((a, b) => {
-      const da = Math.abs(normalizeSymbolKey(a).length - normalizeSymbolKey(raw).length);
-      const db = Math.abs(normalizeSymbolKey(b).length - normalizeSymbolKey(raw).length);
-      if (da !== db) return da - db;
-      return normalizeSymbolKey(a).localeCompare(normalizeSymbolKey(b));
-    });
-    return { symbol: similar[0] };
-  }
-
-  return null;
+  similar.sort((a, b) => {
+    const da = Math.abs(normalizeSymbolKey(a).length - normalizeSymbolKey(raw).length);
+    const db = Math.abs(normalizeSymbolKey(b).length - normalizeSymbolKey(raw).length);
+    if (da !== db) return da - db;
+    return normalizeSymbolKey(a).localeCompare(normalizeSymbolKey(b));
+  });
+  return { symbol: similar[0] };
 }
 
 /** Builds the same `SignalLog` shape the signal monitor uses, so MT5 execution runs the same path. */
@@ -564,25 +558,8 @@ export default function AIScannerScreen() {
       mt4Symbols,
       activeSymbols
     );
-    if (!resolved) {
-      const hasAny =
-        mt5Symbols.length > 0 || mt4Symbols.length > 0 || activeSymbols.length > 0;
-      if (!hasAny) {
-        openTradingNotice(
-          'Symbol not configured. Add and activate a symbol under Quotes or trade settings so the app knows which instrument to trade.'
-        );
-        return;
-      }
-      openTradingNotice(
-        'Symbol not configured. The chart symbol must match one of your configured symbols (same broker name), or keep only one active symbol.'
-      );
-      return;
-    }
-
-    if (!isSymbolConfiguredForTrading(resolved.symbol)) {
-      openTradingNotice(
-        'Symbol not configured. Turn on this symbol under Quotes or in your trade settings, then try again.'
-      );
+    if (!resolved || !isSymbolConfiguredForTrading(resolved.symbol)) {
+      openTradingNotice('Symbol not configured');
       return;
     }
 
