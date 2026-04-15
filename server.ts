@@ -1282,17 +1282,21 @@ async function handleApi(request: Request): Promise<Response> {
                 try {
                   const canvases = document.querySelectorAll('canvas');
                   let best = null;
-                  let bestArea = 0;
+                  let bestScore = 0;
                   for (let i = 0; i < canvases.length; i++) {
                     const c = canvases[i];
                     const rect = c.getBoundingClientRect();
-                    const area = rect.width * rect.height;
-                    if (area > bestArea && rect.width > 80 && rect.height > 60) {
-                      bestArea = area;
+                    if (rect.bottom < -30 || rect.top > window.innerHeight + 40) continue;
+                    if (rect.width < 90 || rect.height < 65) continue;
+                    const rectArea = rect.width * rect.height;
+                    const internal = (c.width || 0) * (c.height || 0);
+                    const score = internal > 8000 ? Math.min(rectArea, internal) : rectArea;
+                    if (score > bestScore) {
+                      bestScore = score;
                       best = c;
                     }
                   }
-                  if (best && bestArea >= 18000) return best;
+                  if (best && bestScore >= 12000) return best;
                 } catch (e) {}
                 return document.body;
               }
@@ -1353,6 +1357,112 @@ async function handleApi(request: Request): Promise<Response> {
                   await sleep(tick);
                 }
                 return false;
+              };
+
+              function tryDirectCanvasSnapshot() {
+                try {
+                  const t = pickChartCaptureTarget();
+                  if (t && t.tagName === 'CANVAS') {
+                    try {
+                      t.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    } catch (e0) {}
+                    const w = t.width || 0;
+                    const h = t.height || 0;
+                    if (w > 100 && h > 80) {
+                      const durl = t.toDataURL('image/jpeg', 0.82);
+                      const b64 = (durl.split(',')[1] || '');
+                      if (b64.length > 2500) return b64;
+                    }
+                  }
+                } catch (e) {}
+                return '';
+              }
+
+              function runHtml2CanvasCapture(resolve) {
+                try {
+                  const h2c = window.html2canvas;
+                  if (typeof h2c !== 'function') {
+                    sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
+                    resolve();
+                    return;
+                  }
+                  const capTarget = pickChartCaptureTarget();
+                  try {
+                    if (capTarget && capTarget.scrollIntoView) {
+                      capTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    }
+                  } catch (e1) {}
+                  const scaleCap = capTarget === document.body ? 0.48 : 0.72;
+                  h2c(capTarget, {
+                    useCORS: true,
+                    allowTaint: true,
+                    scale: scaleCap,
+                    logging: false,
+                    windowWidth: document.documentElement.scrollWidth,
+                    windowHeight: document.documentElement.scrollHeight
+                  }).then(function(canvas) {
+                    try {
+                      const dataUrl = canvas.toDataURL('image/jpeg', 0.76);
+                      const b64 = (dataUrl.split(',')[1] || '');
+                      if (!b64 || b64.length < 100) {
+                        sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+                        resolve();
+                        return;
+                      }
+                      sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
+                    } catch (ce) {
+                      sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
+                    }
+                    resolve();
+                  }).catch(function(err) {
+                    sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
+                    resolve();
+                  });
+                } catch (e2) {
+                  sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
+                  resolve();
+                }
+              }
+
+              function loadHtml2CanvasThenCapture(resolve) {
+                if (typeof window.html2canvas === 'function') {
+                  runHtml2CanvasCapture(resolve);
+                  return;
+                }
+                const scriptEl = document.createElement('script');
+                scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                scriptEl.async = true;
+                scriptEl.onload = function() {
+                  runHtml2CanvasCapture(resolve);
+                };
+                scriptEl.onerror = function() {
+                  sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
+                  resolve();
+                };
+                (document.head || document.documentElement).appendChild(scriptEl);
+              }
+
+              const captureChartWarmupForAi = async () => {
+                let direct = tryDirectCanvasSnapshot();
+                if (direct) {
+                  sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
+                  return;
+                }
+                sendMessage('step_update', 'Capturing chart for AI analysis...');
+                for (let preCap = 0; preCap < 10; preCap++) {
+                  await dismissLoginOverlay();
+                  if (!isAnyLoginModalBlocking()) break;
+                  await sleep(450);
+                }
+                await sleep(400);
+                direct = tryDirectCanvasSnapshot();
+                if (direct) {
+                  sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
+                  return;
+                }
+                await new Promise(function(resolve) {
+                  loadHtml2CanvasThenCapture(resolve);
+                });
               };
 
               // Optimized authentication function matching Android robustness
@@ -1535,68 +1645,7 @@ async function handleApi(request: Request): Promise<Response> {
                         sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                         return;
                       }
-                      sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      for (let preCap = 0; preCap < 10; preCap++) {
-                        await dismissLoginOverlay();
-                        if (!isAnyLoginModalBlocking()) break;
-                        await sleep(450);
-                      }
-                      await sleep(900);
-                      try {
-                        await new Promise(function(resolve) {
-                          var scriptEl = document.createElement('script');
-                          scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-                          scriptEl.async = true;
-                          scriptEl.onload = function() {
-                            try {
-                              var h2c = window.html2canvas;
-                              if (typeof h2c !== 'function') {
-                                sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
-                                resolve();
-                                return;
-                              }
-                              var capTarget = pickChartCaptureTarget();
-                              var scaleCap = capTarget === document.body ? 0.42 : 0.55;
-                              h2c(capTarget, {
-                                useCORS: true,
-                                allowTaint: true,
-                                scale: scaleCap,
-                                logging: false,
-                                windowWidth: document.documentElement.scrollWidth,
-                                windowHeight: document.documentElement.scrollHeight
-                              }).then(function(canvas) {
-                                try {
-                                  var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
-                                  var parts = dataUrl.split(',');
-                                  var b64 = parts.length > 1 ? parts[1] : '';
-                                  if (!b64 || b64.length < 100) {
-                                    sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
-                                    resolve();
-                                    return;
-                                  }
-                                  sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
-                                } catch (ce) {
-                                  sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
-                                }
-                                resolve();
-                              }).catch(function(err) {
-                                sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
-                                resolve();
-                              });
-                            } catch (e1) {
-                              sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
-                              resolve();
-                            }
-                          };
-                          scriptEl.onerror = function() {
-                            sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
-                            resolve();
-                          };
-                          (document.head || document.documentElement).appendChild(scriptEl);
-                        });
-                      } catch (e2) {
-                        sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
-                      }
+                      await captureChartWarmupForAi();
                       return;
                     }
                     await executeMultipleTrades();
@@ -1620,68 +1669,7 @@ async function handleApi(request: Request): Promise<Response> {
                         sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                         return;
                       }
-                      sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      for (let preCap = 0; preCap < 10; preCap++) {
-                        await dismissLoginOverlay();
-                        if (!isAnyLoginModalBlocking()) break;
-                        await sleep(450);
-                      }
-                      await sleep(900);
-                      try {
-                        await new Promise(function(resolve) {
-                          var scriptEl = document.createElement('script');
-                          scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-                          scriptEl.async = true;
-                          scriptEl.onload = function() {
-                            try {
-                              var h2c = window.html2canvas;
-                              if (typeof h2c !== 'function') {
-                                sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
-                                resolve();
-                                return;
-                              }
-                              var capTarget = pickChartCaptureTarget();
-                              var scaleCap = capTarget === document.body ? 0.42 : 0.55;
-                              h2c(capTarget, {
-                                useCORS: true,
-                                allowTaint: true,
-                                scale: scaleCap,
-                                logging: false,
-                                windowWidth: document.documentElement.scrollWidth,
-                                windowHeight: document.documentElement.scrollHeight
-                              }).then(function(canvas) {
-                                try {
-                                  var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
-                                  var parts = dataUrl.split(',');
-                                  var b64 = parts.length > 1 ? parts[1] : '';
-                                  if (!b64 || b64.length < 100) {
-                                    sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
-                                    resolve();
-                                    return;
-                                  }
-                                  sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
-                                } catch (ce) {
-                                  sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
-                                }
-                                resolve();
-                              }).catch(function(err) {
-                                sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
-                                resolve();
-                              });
-                            } catch (e1) {
-                              sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
-                              resolve();
-                            }
-                          };
-                          scriptEl.onerror = function() {
-                            sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
-                            resolve();
-                          };
-                          (document.head || document.documentElement).appendChild(scriptEl);
-                        });
-                      } catch (e2) {
-                        sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
-                      }
+                      await captureChartWarmupForAi();
                       return;
                     }
                     await executeMultipleTrades();
@@ -2300,12 +2288,19 @@ async function handleApi(request: Request): Promise<Response> {
 
               window.__eaRunExecuteMultipleTrades = executeMultipleTrades;
               
-              // Start authentication immediately when DOM is ready
+              var __eaStartAuthOnce = (function() {
+                var done = false;
+                return function() {
+                  if (done) return;
+                  done = true;
+                  void authenticateMT5();
+                };
+              })();
               if (document.readyState === 'complete' || document.readyState === 'interactive') {
-                authenticateMT5();
+                __eaStartAuthOnce();
               } else {
-                document.addEventListener('DOMContentLoaded', authenticateMT5);
-                setTimeout(authenticateMT5, 2000);
+                document.addEventListener('DOMContentLoaded', __eaStartAuthOnce);
+                setTimeout(__eaStartAuthOnce, 2500);
               }
             })();
           `;

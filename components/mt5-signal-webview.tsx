@@ -93,6 +93,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const [chartAiAnalyzing, setChartAiAnalyzing] = useState(false);
   const [webExternalEval, setWebExternalEval] = useState<{ code: string; id: number } | null>(null);
   const webViewRef = useRef<WebView>(null);
+  const lastChartScreenshotAtRef = useRef(0);
   const signalRef = useRef(signal);
   const [webViewKey, setWebViewKey] = useState<number>(0);
 
@@ -596,25 +597,135 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (eT2) {}
         };
 
-        /** Prefer largest chart canvas so html2canvas does not include sibling modal DOM. */
+        /** Prefer main chart canvas (large rect + buffer); avoids body capture when possible. */
         function pickChartCaptureTarget() {
           try {
             var canvases = document.querySelectorAll('canvas');
             var best = null;
-            var bestArea = 0;
+            var bestScore = 0;
             for (var i = 0; i < canvases.length; i++) {
               var c = canvases[i];
               var rect = c.getBoundingClientRect();
-              var area = rect.width * rect.height;
-              if (area > bestArea && rect.width > 80 && rect.height > 60) {
-                bestArea = area;
+              if (rect.bottom < -30 || rect.top > window.innerHeight + 40) continue;
+              if (rect.width < 90 || rect.height < 65) continue;
+              var rectArea = rect.width * rect.height;
+              var internal = (c.width || 0) * (c.height || 0);
+              var score = internal > 8000 ? Math.min(rectArea, internal) : rectArea;
+              if (score > bestScore) {
+                bestScore = score;
                 best = c;
               }
             }
-            if (best && bestArea >= 18000) return best;
+            if (best && bestScore >= 12000) return best;
           } catch (e) {}
           return document.body;
         }
+
+        function tryDirectCanvasSnapshot() {
+          try {
+            var t = pickChartCaptureTarget();
+            if (t && t.tagName === 'CANVAS') {
+              try {
+                t.scrollIntoView({ block: 'center', inline: 'nearest' });
+              } catch (e0) {}
+              var w = t.width || 0;
+              var h = t.height || 0;
+              if (w > 100 && h > 80) {
+                var durl = t.toDataURL('image/jpeg', 0.82);
+                var b64 = (durl.split(',')[1] || '');
+                if (b64.length > 2500) return b64;
+              }
+            }
+          } catch (e) {}
+          return '';
+        }
+
+        function runHtml2CanvasCapture(resolve) {
+          try {
+            var h2c = window.html2canvas;
+            if (typeof h2c !== 'function') {
+              sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
+              resolve();
+              return;
+            }
+            var capTarget = pickChartCaptureTarget();
+            try {
+              if (capTarget && capTarget.scrollIntoView) {
+                capTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
+              }
+            } catch (e1) {}
+            var scaleCap = capTarget === document.body ? 0.48 : 0.72;
+            h2c(capTarget, {
+              useCORS: true,
+              allowTaint: true,
+              scale: scaleCap,
+              logging: false,
+              windowWidth: document.documentElement.scrollWidth,
+              windowHeight: document.documentElement.scrollHeight
+            }).then(function(canvas) {
+              try {
+                var dataUrl = canvas.toDataURL('image/jpeg', 0.76);
+                var b64 = (dataUrl.split(',')[1] || '');
+                if (!b64 || b64.length < 100) {
+                  sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+                  resolve();
+                  return;
+                }
+                sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
+              } catch (ce) {
+                sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
+              }
+              resolve();
+            }).catch(function(err) {
+              sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
+              resolve();
+            });
+          } catch (e2) {
+            sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
+            resolve();
+          }
+        }
+
+        function loadHtml2CanvasThenCapture(resolve) {
+          if (typeof window.html2canvas === 'function') {
+            runHtml2CanvasCapture(resolve);
+            return;
+          }
+          var scriptEl = document.createElement('script');
+          scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+          scriptEl.async = true;
+          scriptEl.onload = function() {
+            runHtml2CanvasCapture(resolve);
+          };
+          scriptEl.onerror = function() {
+            sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
+            resolve();
+          };
+          (document.head || document.documentElement).appendChild(scriptEl);
+        }
+
+        var captureChartWarmupForAi = async function() {
+          var direct = tryDirectCanvasSnapshot();
+          if (direct) {
+            sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
+            return;
+          }
+          sendMessage('step_update', 'Capturing chart for AI analysis...');
+          for (var preCap = 0; preCap < 10; preCap++) {
+            await dismissLoginOverlay();
+            if (!isAnyLoginModalBlocking()) break;
+            await new Promise(function(r) { setTimeout(r, 450); });
+          }
+          await new Promise(function(r) { setTimeout(r, 400); });
+          direct = tryDirectCanvasSnapshot();
+          if (direct) {
+            sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
+            return;
+          }
+          await new Promise(function(resolve) {
+            loadHtml2CanvasThenCapture(resolve);
+          });
+        };
 
         /** Wait until not on broker login screen and chart canvas is visible (avoids AI snapshot of login page). */
         const waitForChartReady = async function(maxMs) {
@@ -885,68 +996,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                   return;
                 }
-                sendMessage('step_update', 'Capturing chart for AI analysis...');
-                for (var preCap = 0; preCap < 10; preCap++) {
-                  await dismissLoginOverlay();
-                  if (!isAnyLoginModalBlocking()) break;
-                  await new Promise(function(r) { setTimeout(r, 450); });
-                }
-                await new Promise(function(r) { setTimeout(r, 900); });
-                try {
-                  await new Promise(function(resolve) {
-                    var scriptEl = document.createElement('script');
-                    scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-                    scriptEl.async = true;
-                    scriptEl.onload = function() {
-                      try {
-                        var h2c = window.html2canvas;
-                        if (typeof h2c !== 'function') {
-                          sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
-                          resolve();
-                          return;
-                        }
-                        var capTarget = pickChartCaptureTarget();
-                        var scaleCap = capTarget === document.body ? 0.42 : 0.55;
-                        h2c(capTarget, {
-                          useCORS: true,
-                          allowTaint: true,
-                          scale: scaleCap,
-                          logging: false,
-                          windowWidth: document.documentElement.scrollWidth,
-                          windowHeight: document.documentElement.scrollHeight
-                        }).then(function(canvas) {
-                          try {
-                            var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
-                            var parts = dataUrl.split(',');
-                            var b64 = parts.length > 1 ? parts[1] : '';
-                            if (!b64 || b64.length < 100) {
-                              sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
-                              resolve();
-                              return;
-                            }
-                            sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
-                          } catch (ce) {
-                            sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
-                          }
-                          resolve();
-                        }).catch(function(err) {
-                          sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
-                          resolve();
-                        });
-                      } catch (e1) {
-                        sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
-                        resolve();
-                      }
-                    };
-                    scriptEl.onerror = function() {
-                      sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
-                      resolve();
-                    };
-                    (document.head || document.documentElement).appendChild(scriptEl);
-                  });
-                } catch (e2) {
-                  sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
-                }
+                await captureChartWarmupForAi();
                 return;
               }
               // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
@@ -979,68 +1029,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                   return;
                 }
-                sendMessage('step_update', 'Capturing chart for AI analysis...');
-                for (var preCap = 0; preCap < 10; preCap++) {
-                  await dismissLoginOverlay();
-                  if (!isAnyLoginModalBlocking()) break;
-                  await new Promise(function(r) { setTimeout(r, 450); });
-                }
-                await new Promise(function(r) { setTimeout(r, 900); });
-                try {
-                  await new Promise(function(resolve) {
-                    var scriptEl = document.createElement('script');
-                    scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-                    scriptEl.async = true;
-                    scriptEl.onload = function() {
-                      try {
-                        var h2c = window.html2canvas;
-                        if (typeof h2c !== 'function') {
-                          sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
-                          resolve();
-                          return;
-                        }
-                        var capTarget = pickChartCaptureTarget();
-                        var scaleCap = capTarget === document.body ? 0.42 : 0.55;
-                        h2c(capTarget, {
-                          useCORS: true,
-                          allowTaint: true,
-                          scale: scaleCap,
-                          logging: false,
-                          windowWidth: document.documentElement.scrollWidth,
-                          windowHeight: document.documentElement.scrollHeight
-                        }).then(function(canvas) {
-                          try {
-                            var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
-                            var parts = dataUrl.split(',');
-                            var b64 = parts.length > 1 ? parts[1] : '';
-                            if (!b64 || b64.length < 100) {
-                              sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
-                              resolve();
-                              return;
-                            }
-                            sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
-                          } catch (ce) {
-                            sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
-                          }
-                          resolve();
-                        }).catch(function(err) {
-                          sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
-                          resolve();
-                        });
-                      } catch (e1) {
-                        sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
-                        resolve();
-                      }
-                    };
-                    scriptEl.onerror = function() {
-                      sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
-                      resolve();
-                    };
-                    (document.head || document.documentElement).appendChild(scriptEl);
-                  });
-                } catch (e2) {
-                  sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
-                }
+                await captureChartWarmupForAi();
                 return;
               }
               // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
@@ -1710,13 +1699,19 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
         window.__eaRunExecuteMultipleTrades = executeMultipleTrades;
 
-        // Start authentication immediately when DOM is ready
+        var __eaStartAuthOnce = (function() {
+          var done = false;
+          return function() {
+            if (done) return;
+            done = true;
+            void authenticateMT5();
+          };
+        })();
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
-          authenticateMT5();
+          __eaStartAuthOnce();
         } else {
-          document.addEventListener('DOMContentLoaded', authenticateMT5);
-          // Fallback timeout
-          setTimeout(authenticateMT5, 2000);
+          document.addEventListener('DOMContentLoaded', __eaStartAuthOnce);
+          setTimeout(__eaStartAuthOnce, 2500);
         }
       })();
       true;
@@ -1761,6 +1756,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       } else if (data.type === 'equity_snapshot') {
         applyTerminalEquity();
       } else if (data.type === 'chart_screenshot' && typeof data.image === 'string') {
+        const now = Date.now();
+        if (now - lastChartScreenshotAtRef.current < 4000) {
+          console.log('MT5: ignoring duplicate chart_screenshot within debounce window');
+          return;
+        }
+        lastChartScreenshotAtRef.current = now;
         setChartAiError(null);
         setChartAiAnalyzing(true);
         setCurrentStep('AI is analyzing the chart snapshot...');

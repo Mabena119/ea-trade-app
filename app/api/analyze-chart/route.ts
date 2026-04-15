@@ -33,7 +33,11 @@ function normalizeSymbolFromChart(raw: unknown): string {
   return stripped.length <= 32 ? stripped : stripped.slice(0, 32);
 }
 
-const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this chart image. If it is NOT a trading chart, set "chartDetected":false.
+const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this chart image.
+
+chartDetected rules (critical):
+- Set "chartDetected": true if the image shows ANY MetaTrader / MT4 / MT5 / web terminal / cTrader / broker webtrader screenshot that includes a price chart area, candlesticks, bars, or a line chart — even with side panels, toolbars, or account bars visible.
+- Set "chartDetected": false ONLY when there is clearly no trading chart at all (e.g. login-only screen with no chart, blank page, unrelated app UI). Do NOT set false just because the image is busy, cropped, or low contrast.
 
 SYMBOL (critical for automated trading — read from the image, do not guess):
 - Set "symbol" to the EXACT instrument code as shown on THIS chart: title bar, Market Watch line, order panel, or corner label (e.g. USTECH, EURUSD, XAUUSD, BTCUSD, US100, GER40, NAS100.i, EURUSD.r).
@@ -63,6 +67,59 @@ LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL 
 
 Output JSON only (symbol must be the literal ticker string from the chart UI, or ""):
 {"chartDetected":true,"symbol":"EXACT_TICKER_OR_EMPTY","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
+
+/** Second pass when the model wrongly returns chartDetected:false on a large screenshot (typical MT5 web canvas capture). */
+const CHART_RETRY_PROMPT = `This image is a screenshot from a MetaTrader web terminal (MT4/MT5) or similar broker terminal. It MUST be treated as a valid trading chart. Set "chartDetected": true. Read the visible symbol from the title bar or chart label. Output the same JSON schema as before (symbol, timeframe, signal BUY or SELL, entryPrice, stopLoss, takeProfit1, reasoning, summary, suggestion).`;
+
+function asChartString(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  return String(v);
+}
+
+function parseGeminiChartResponse(rawText: string): Record<string, string | boolean> {
+  let parsed: Record<string, string | boolean>;
+  try {
+    let cleaned = rawText
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (braceMatch) cleaned = braceMatch[0];
+    cleaned = cleaned.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1');
+    parsed = JSON.parse(cleaned) as Record<string, string | boolean>;
+  } catch (parseErr) {
+    console.warn('JSON parse failed, using regex fallback:', parseErr);
+    console.warn('Raw response (first 500 chars):', rawText.slice(0, 500));
+    const extract = (key: string): string => {
+      const quoted = rawText.match(new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'i'));
+      if (quoted?.[1]) return quoted[1].trim();
+      const unquoted = rawText.match(new RegExp(`"${key}"\\s*:\\s*([^,}\\s"\\[\\]]+)`, 'i'));
+      if (unquoted?.[1]) return String(unquoted[1].trim());
+      return '';
+    };
+    const chartDetMatch = rawText.match(/"chartDetected"\s*:\s*(true|false)/i)?.[1]?.toLowerCase();
+    const chartDet = chartDetMatch !== 'false';
+    const sig = rawText.match(/"signal"\s*:\s*"(BUY|SELL|NEUTRAL)"/i)?.[1]?.toUpperCase() || 'NEUTRAL';
+    parsed = {
+      chartDetected: chartDet,
+      symbol: extract('symbol') || '',
+      timeframe: extract('timeframe') || '',
+      currentPrice: extract('currentPrice') || '',
+      signal: ['BUY', 'SELL'].includes(sig) ? sig : 'NEUTRAL',
+      confidence: extract('confidence') || 'medium',
+      summary: extract('summary') || 'Chart analysis completed.',
+      reasoning: extract('reasoning') || '',
+      suggestion: extract('suggestion') || '',
+      entryPrice: extract('entryPrice') || '',
+      stopLoss: extract('stopLoss') || '',
+      takeProfit1: extract('takeProfit1') || '',
+      takeProfit2: extract('takeProfit2') || '',
+      takeProfit3: extract('takeProfit3') || '',
+    };
+  }
+  return parsed;
+}
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
@@ -187,50 +244,67 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Parse JSON from response (may be wrapped in markdown, have extra text)
-    let parsed: Record<string, string | boolean>;
-    try {
-      let cleaned = text
-        .replace(/```json\s*/gi, '')
-        .replace(/```\s*/g, '')
-        .trim();
-      const braceMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (braceMatch) cleaned = braceMatch[0];
-      cleaned = cleaned.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1');
-      parsed = JSON.parse(cleaned) as Record<string, string>;
-    } catch (parseErr) {
-      console.warn('JSON parse failed, using regex fallback:', parseErr);
-      console.warn('Raw response (first 500 chars):', text.slice(0, 500));
-      // Fallback: extract fields via regex when JSON is malformed
-      const extract = (key: string): string => {
-        const quoted = text.match(new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'i'));
-        if (quoted?.[1]) return quoted[1].trim();
-        const unquoted = text.match(new RegExp(`"${key}"\\s*:\\s*([^,}\\s"\\[\\]]+)`, 'i'));
-        if (unquoted?.[1]) return String(unquoted[1].trim());
-        return '';
+    let parsed = parseGeminiChartResponse(text);
+
+    let chartDetected = parsed.chartDetected !== false;
+    const MIN_BASE64_FOR_CHART_RETRY = 10_000;
+    if (!chartDetected && base64Data.length >= MIN_BASE64_FOR_CHART_RETRY) {
+      console.warn('analyze-chart: chartDetected false on substantial image, retrying with MT5 terminal hint');
+      const retryPayload = {
+        contents: [
+          {
+            parts: [
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Data,
+                },
+              },
+              { text: CHART_RETRY_PROMPT },
+            ],
+          },
+        ],
+        generationConfig: geminiPayload.generationConfig,
       };
-      const chartDetMatch = text.match(/"chartDetected"\s*:\s*(true|false)/i)?.[1]?.toLowerCase();
-      const chartDet = chartDetMatch !== 'false'; // default true if not found (backward compat)
-      const sig = text.match(/"signal"\s*:\s*"(BUY|SELL|NEUTRAL)"/i)?.[1]?.toUpperCase() || 'NEUTRAL';
-      parsed = {
-        chartDetected: chartDet,
-        symbol: extract('symbol') || '',
-        timeframe: extract('timeframe') || '',
-        currentPrice: extract('currentPrice') || '',
-        signal: ['BUY', 'SELL'].includes(sig) ? sig : 'NEUTRAL',
-        confidence: extract('confidence') || 'medium',
-        summary: extract('summary') || 'Chart analysis completed.',
-        reasoning: extract('reasoning') || '',
-        suggestion: extract('suggestion') || '',
-        entryPrice: extract('entryPrice') || '',
-        stopLoss: extract('stopLoss') || '',
-        takeProfit1: extract('takeProfit1') || '',
-        takeProfit2: extract('takeProfit2') || '',
-        takeProfit3: extract('takeProfit3') || '',
-      };
+      const retryController = new AbortController();
+      const retryTimeoutId = setTimeout(() => retryController.abort(), GEMINI_TIMEOUT_MS);
+      try {
+        for (const model of MODELS) {
+          const rTry = await fetch(
+            `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(retryPayload),
+              signal: retryController.signal,
+            }
+          );
+          if (rTry.ok) {
+            const retryData = (await rTry.json()) as {
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+            };
+            const retryText = retryData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+            if (retryText) {
+              parsed = parseGeminiChartResponse(retryText);
+              chartDetected = parsed.chartDetected !== false;
+            }
+            break;
+          }
+          const errBody = await rTry.text();
+          if (rTry.status === 404) {
+            console.warn(`Model ${model} not found for retry, trying next...`);
+            continue;
+          }
+          console.warn('analyze-chart retry Gemini error:', rTry.status, errBody.slice(0, 400));
+          break;
+        }
+      } catch (retryErr) {
+        console.warn('analyze-chart retry failed:', retryErr);
+      } finally {
+        clearTimeout(retryTimeoutId);
+      }
     }
 
-    const chartDetected = parsed.chartDetected !== false;
     if (!chartDetected) {
       return Response.json(
         {
@@ -242,17 +316,17 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Force BUY or SELL only - convert NEUTRAL based on reasoning/summary
-    let signal = (parsed.signal || 'BUY').toUpperCase();
+    let signal = (asChartString(parsed.signal) || 'BUY').toUpperCase();
     if (signal === 'NEUTRAL') {
-      const text = `${parsed.reasoning || ''} ${parsed.summary || ''}`.toLowerCase();
+      const text = `${asChartString(parsed.reasoning)} ${asChartString(parsed.summary)}`.toLowerCase();
       signal = text.includes('bearish') || text.includes('sell') || text.includes('down') || text.includes('short') ? 'SELL' : 'BUY';
     }
 
-    let currentPrice = parsed.currentPrice || '';
-    let entryPrice = parsed.entryPrice || currentPrice;
-    let stopLoss = parsed.stopLoss || '';
-    let takeProfit1 = parsed.takeProfit1 || '';
-    const suggestion = parsed.suggestion || '';
+    let currentPrice = asChartString(parsed.currentPrice);
+    let entryPrice = asChartString(parsed.entryPrice) || currentPrice;
+    let stopLoss = asChartString(parsed.stopLoss);
+    let takeProfit1 = asChartString(parsed.takeProfit1);
+    const suggestion = asChartString(parsed.suggestion);
 
     // Fallback: extract prices from suggestion text (e.g. "Enter at 1.0850, SL at 1.0800, TP at 1.0920")
     if ((!entryPrice || !stopLoss || !takeProfit1) && suggestion) {
@@ -283,14 +357,14 @@ export async function POST(request: Request): Promise<Response> {
         message: 'accept',
         data: {
           symbol: symbolNormalized,
-          timeframe: parsed.timeframe || '',
+          timeframe: asChartString(parsed.timeframe),
           currentPrice,
           signal: signal as 'BUY' | 'SELL',
-          confidence: parsed.confidence || 'low',
-          summary: parsed.summary || '',
+          confidence: asChartString(parsed.confidence) || 'low',
+          summary: asChartString(parsed.summary),
           reasoning: (() => {
-            const r = (parsed.reasoning || '').replace(/chart analysis completed\.?/gi, '').trim();
-            const summary = (parsed.summary || '').trim();
+            const r = asChartString(parsed.reasoning).replace(/chart analysis completed\.?/gi, '').trim();
+            const summary = asChartString(parsed.summary).trim();
             if (r && r.length > 80 && !/entry\s*\d|consider trend|technical analysis indicates/i.test(r)) return r;
             if (summary && summary.length > 30 && !/chart analysis completed/i.test(summary)) return summary;
             return r || summary;
@@ -303,8 +377,8 @@ export async function POST(request: Request): Promise<Response> {
           entryPrice,
           stopLoss,
           takeProfit1,
-          takeProfit2: parsed.takeProfit2 || '',
-          takeProfit3: parsed.takeProfit3 || '',
+          takeProfit2: asChartString(parsed.takeProfit2),
+          takeProfit3: asChartString(parsed.takeProfit3),
         },
       },
       { status: 200, headers: { 'Content-Type': 'application/json' } }
