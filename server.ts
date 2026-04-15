@@ -1607,11 +1607,12 @@ async function handleApi(request: Request): Promise<Response> {
               // Fill order form and confirm trade - STRICTLY SEQUENTIAL
               const fillOrderFormAndConfirm = async (tradeNumber, totalTrades) => {
                 try {
-                  const symbol = '${symbolValue}';
-                  const action = '${actionValue}';
+                  var p = window.__eaParentTrade;
+                  var symbol = (p && p.asset) ? String(p.asset) : '${symbolValue}';
+                  var action = (p && p.action) ? String(p.action) : '${actionValue}';
                   const volume = '${volumeValue}';
-                  const sl = '${slValue}';
-                  const tp = '${tpValue}';
+                  var sl = (p && p.sl !== undefined && p.sl !== null) ? String(p.sl) : '${slValue}';
+                  var tp = (p && p.tp !== undefined && p.tp !== null) ? String(p.tp) : '${tpValue}';
                   const robotName = '${robotNameValue}';
                   
                   const decimalInputs = Array.from(document.querySelectorAll('input[inputmode="decimal"]'));
@@ -1785,6 +1786,24 @@ async function handleApi(request: Request): Promise<Response> {
                 
                 await sleep(1000);
               };
+
+              window.addEventListener('message', function(ev) {
+                try {
+                  var raw = ev.data;
+                  if (typeof raw === 'string' && raw.charAt(0) === '{') raw = JSON.parse(raw);
+                  if (raw && raw.type === 'ea_parent_execute_trade') {
+                    window.__eaParentTrade = {
+                      asset: raw.asset || '',
+                      action: raw.action || '',
+                      sl: String(raw.sl !== undefined && raw.sl !== null ? raw.sl : ''),
+                      tp: String(raw.tp !== undefined && raw.tp !== null ? raw.tp : ''),
+                    };
+                    executeMultipleTrades().catch(function(e) {
+                      sendMessage('error', String(e && e.message ? e.message : e));
+                    });
+                  }
+                } catch (err) {}
+              });
               
               if (SKIP_TO_TRADES_ONLY) {
                 (async function() {
