@@ -998,6 +998,102 @@ async function handleApi(request: Request): Promise<Response> {
               const loginCredential = '${loginValue}';
               const passwordCredential = '${passwordValue}';
 
+              const dismissLoginOverlay = async () => {
+                try {
+                  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+                } catch (e) {}
+                await sleep(200);
+                try {
+                  const cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
+                  for (let ci = 0; ci < Math.min(cand.length, 50); ci++) {
+                    const el = cand[ci];
+                    const lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
+                    if (lab.indexOf('close') >= 0 || (el.innerText || '').trim() === '×' || (el.innerText || '').trim() === '✕') {
+                      el.click();
+                      await sleep(150);
+                    }
+                  }
+                } catch (e2) {}
+                try {
+                  const pwd = document.querySelector('input[type="password"]');
+                  const sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                           document.querySelector('input[placeholder*="Search" i]') ||
+                           document.querySelector('input[type="search"]');
+                  if (pwd && pwd.offsetParent && sb && sb.offsetParent) {
+                    let node = pwd;
+                    for (let d = 0; d < 14 && node; d++) {
+                      node = node.parentElement;
+                      if (!node) break;
+                      const cls = String(node.className || '');
+                      const z = parseInt(window.getComputedStyle(node).zIndex, 10) || 0;
+                      if (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || z > 40) {
+                        node.style.display = 'none';
+                        node.style.visibility = 'hidden';
+                        node.style.pointerEvents = 'none';
+                        sendMessage('step_update', 'Dismissed login layer blocking chart');
+                        break;
+                      }
+                    }
+                  }
+                } catch (e3) {}
+              };
+
+              const waitForChartReady = async (maxMs) => {
+                const deadline = Date.now() + maxMs;
+                const tick = 450;
+                function isLikelyLoginScreen() {
+                  try {
+                    const hasChart = hasChartCanvas();
+                    const hasBidAsk = hasBidAskRibbon();
+                    const sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                             document.querySelector('input[placeholder*="Search" i]') ||
+                             document.querySelector('input[type="search"]');
+                    const hasSb = sb && sb.offsetParent !== null;
+                    if (hasSb && (hasChart || hasBidAsk)) {
+                      return false;
+                    }
+                    const pwd = document.querySelector('input[type="password"]');
+                    if (!pwd || pwd.offsetParent === null) return false;
+                    const btns = document.querySelectorAll('button');
+                    for (let j = 0; j < btns.length; j++) {
+                      const t = ((btns[j].innerText || btns[j].textContent || '') + '').trim().toLowerCase();
+                      if (t.indexOf('connect') >= 0 && (t.indexOf('account') >= 0 || t === 'connect')) {
+                        return btns[j].offsetParent !== null;
+                      }
+                    }
+                  } catch (e) {}
+                  return false;
+                }
+                function hasChartCanvas() {
+                  try {
+                    let best = 0;
+                    const list = document.querySelectorAll('canvas');
+                    for (let i = 0; i < list.length; i++) {
+                      const c = list[i];
+                      const area = (c.width || 0) * (c.height || 0);
+                      if (area > best) best = area;
+                    }
+                    return best >= 60000;
+                  } catch (e2) { return false; }
+                }
+                function hasBidAskRibbon() {
+                  try {
+                    const txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+                    return /\\bBid\\b/i.test(txt) && /\\bAsk\\b/i.test(txt);
+                  } catch (e3) { return false; }
+                }
+                while (Date.now() < deadline) {
+                  const onLogin = isLikelyLoginScreen();
+                  const chartOk = hasChartCanvas() || hasBidAskRibbon();
+                  if (!onLogin && chartOk) {
+                    sendMessage('step_update', 'Chart ready for snapshot');
+                    return true;
+                  }
+                  await sleep(tick);
+                }
+                return false;
+              };
+
               // Optimized authentication function matching Android robustness
               const authenticateMT5 = async () => {
                 try {
@@ -1129,6 +1225,7 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   sendMessage('step_update', 'Verifying authentication...');
                   await sleep(1000);
+                  await dismissLoginOverlay();
                   
                   sendMessage('step_update', 'Checking Market Watch panel...');
                   
@@ -1166,11 +1263,19 @@ async function handleApi(request: Request): Promise<Response> {
                                      document.querySelector('input[type="search"]');
                   
                   if (searchField && searchField.offsetParent !== null) {
+                    await dismissLoginOverlay();
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
+                      await dismissLoginOverlay();
+                      sendMessage('step_update', 'Waiting for chart (login must complete)...');
+                      const chartReadyOk = await waitForChartReady(120000);
+                      if (!chartReadyOk) {
+                        sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
+                        return;
+                      }
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      await sleep(2800);
+                      await sleep(2500);
                       try {
                         await new Promise(function(resolve) {
                           var scriptEl = document.createElement('script');
@@ -1227,8 +1332,8 @@ async function handleApi(request: Request): Promise<Response> {
                       return;
                     }
                     await executeMultipleTrades();
-                          return;
-                        }
+                    return;
+                  }
                   
                   await sleep(3000);
                   const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -1236,11 +1341,19 @@ async function handleApi(request: Request): Promise<Response> {
                                           document.querySelector('input[type="search"]');
                   
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+                    await dismissLoginOverlay();
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
+                      await dismissLoginOverlay();
+                      sendMessage('step_update', 'Waiting for chart (login must complete)...');
+                      const chartReadyOk = await waitForChartReady(120000);
+                      if (!chartReadyOk) {
+                        sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
+                        return;
+                      }
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      await sleep(2800);
+                      await sleep(2500);
                       try {
                         await new Promise(function(resolve) {
                           var scriptEl = document.createElement('script');

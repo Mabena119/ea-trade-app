@@ -312,6 +312,106 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           writable: false
         });
 
+        /** MT5 web often leaves the login layer in the DOM on top of the chart — dismiss it when session is clearly live. */
+        const dismissLoginOverlay = async function() {
+          try {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+          } catch (e) {}
+          await new Promise(function(r) { setTimeout(r, 200); });
+          try {
+            var cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
+            for (var ci = 0; ci < Math.min(cand.length, 50); ci++) {
+              var el = cand[ci];
+              var lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
+              if (lab.indexOf('close') >= 0 || (el.innerText || '').trim() === '×' || (el.innerText || '').trim() === '✕') {
+                el.click();
+                await new Promise(function(r) { setTimeout(r, 150); });
+              }
+            }
+          } catch (e2) {}
+          try {
+            var pwd = document.querySelector('input[type="password"]');
+            var sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                     document.querySelector('input[placeholder*="Search" i]') ||
+                     document.querySelector('input[type="search"]');
+            if (pwd && pwd.offsetParent && sb && sb.offsetParent) {
+              var node = pwd;
+              for (var d = 0; d < 14 && node; d++) {
+                node = node.parentElement;
+                if (!node) break;
+                var cls = String(node.className || '');
+                var z = parseInt(window.getComputedStyle(node).zIndex, 10) || 0;
+                if (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || z > 40) {
+                  node.style.display = 'none';
+                  node.style.visibility = 'hidden';
+                  node.style.pointerEvents = 'none';
+                  sendMessage('step_update', 'Dismissed login layer blocking chart');
+                  break;
+                }
+              }
+            }
+          } catch (e3) {}
+        };
+
+        /** Wait until not on broker login screen and chart canvas is visible (avoids AI snapshot of login page). */
+        const waitForChartReady = async function(maxMs) {
+          var deadline = Date.now() + maxMs;
+          var tick = 450;
+          function isLikelyLoginScreen() {
+            try {
+              var hasChart = hasChartCanvas();
+              var hasBidAsk = hasBidAskRibbon();
+              var sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                       document.querySelector('input[placeholder*="Search" i]') ||
+                       document.querySelector('input[type="search"]');
+              var hasSb = sb && sb.offsetParent !== null;
+              if (hasSb && (hasChart || hasBidAsk)) {
+                return false;
+              }
+              var pwd = document.querySelector('input[type="password"]');
+              if (!pwd || pwd.offsetParent === null) return false;
+              var btns = document.querySelectorAll('button');
+              for (var j = 0; j < btns.length; j++) {
+                var t = ((btns[j].innerText || btns[j].textContent || '') + '').trim().toLowerCase();
+                if (t.indexOf('connect') >= 0 && (t.indexOf('account') >= 0 || t === 'connect')) {
+                  return btns[j].offsetParent !== null;
+                }
+              }
+            } catch (e) {}
+            return false;
+          }
+          function hasChartCanvas() {
+            try {
+              var best = 0;
+              var list = document.querySelectorAll('canvas');
+              for (var i = 0; i < list.length; i++) {
+                var c = list[i];
+                var w = c.width || 0;
+                var h = c.height || 0;
+                var area = w * h;
+                if (area > best) best = area;
+              }
+              return best >= 60000;
+            } catch (e2) { return false; }
+          }
+          function hasBidAskRibbon() {
+            try {
+              var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+              return /\\bBid\\b/i.test(txt) && /\\bAsk\\b/i.test(txt);
+            } catch (e3) { return false; }
+          }
+          while (Date.now() < deadline) {
+            var onLogin = isLikelyLoginScreen();
+            var chartOk = hasChartCanvas() || hasBidAskRibbon();
+            if (!onLogin && chartOk) {
+              sendMessage('step_update', 'Chart ready for snapshot');
+              return true;
+            }
+            await new Promise(function(r) { setTimeout(r, tick); });
+          }
+          return false;
+        };
+
         // Optimized authentication function matching Android robustness
         const authenticateMT5 = async () => {
           try {
@@ -458,6 +558,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             // Check for successful login
             sendMessage('step_update', 'Verifying authentication...');
             await new Promise(r => setTimeout(r, 1000)); // Reduced wait
+            await dismissLoginOverlay();
             
             // After login, expand Market Watch panel if not already expanded
             sendMessage('step_update', 'Checking Market Watch panel...');
@@ -504,6 +605,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Search bar is present and visible - login successful!
               // STRICTLY SEQUENTIAL FLOW - none before the other:
               // Step 1: Login ✅ (completed)
+              await dismissLoginOverlay();
               // Step 2: Search for symbol
               await searchForSymbol('${symbol}');
               
@@ -511,8 +613,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               await openChart('${symbol}');
               
               if (isChartWarmup) {
+                await dismissLoginOverlay();
+                sendMessage('step_update', 'Waiting for chart (login must complete)...');
+                var chartReadyOk = await waitForChartReady(120000);
+                if (!chartReadyOk) {
+                  sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
+                  return;
+                }
                 sendMessage('step_update', 'Capturing chart for AI analysis...');
-                await new Promise(function(r) { setTimeout(r, 2800); });
+                await new Promise(function(r) { setTimeout(r, 2500); });
                 try {
                   await new Promise(function(resolve) {
                     var scriptEl = document.createElement('script');
@@ -583,6 +692,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
               // STRICTLY SEQUENTIAL FLOW - none before the other:
               // Step 1: Login ✅ (completed)
+              await dismissLoginOverlay();
               // Step 2: Search for symbol
               await searchForSymbol('${symbol}');
               
@@ -590,8 +700,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               await openChart('${symbol}');
               
               if (isChartWarmup) {
+                await dismissLoginOverlay();
+                sendMessage('step_update', 'Waiting for chart (login must complete)...');
+                var chartReadyOk = await waitForChartReady(120000);
+                if (!chartReadyOk) {
+                  sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
+                  return;
+                }
                 sendMessage('step_update', 'Capturing chart for AI analysis...');
-                await new Promise(function(r) { setTimeout(r, 2800); });
+                await new Promise(function(r) { setTimeout(r, 2500); });
                 try {
                   await new Promise(function(resolve) {
                     var scriptEl = document.createElement('script');
