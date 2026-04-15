@@ -9,6 +9,7 @@ import { useApp } from '@/providers/app-provider';
 import { useTheme } from '@/providers/theme-provider';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
+import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
 
 interface Quote {
   symbol: string;
@@ -130,12 +131,13 @@ export default function QuotesScreen() {
           };
         }
 
-        // Return default values if no saved configuration
+        // Default preview: equity-based MT5 preset (not user-editable)
+        const fb = getEquityBasedMT5Preset(mt5Account?.equity);
         return {
           symbol: symbolName,
-          lotSize: 0.01,
+          lotSize: Number.parseFloat(fb.lotSize) || 0.01,
           platform: 'MT5' as const,
-          direction: 'BUY' as const
+          direction: fb.direction,
         };
       });
 
@@ -167,6 +169,7 @@ export default function QuotesScreen() {
     activeSymbols,
     mt4Symbols,
     mt5Symbols,
+    mt5Account?.equity,
   ]);
 
   // Initial load and refresh when symbols change or active bot switches

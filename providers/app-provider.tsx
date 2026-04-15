@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert, AppState, Linking } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
+import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
 
 // Define LicenseData locally to avoid importing from api service (prevents circular dependency)
 export interface LicenseData {
@@ -740,8 +741,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const activateSymbol = useCallback(async (symbolConfig: Omit<ActiveSymbol, 'activatedAt'>) => {
+    let effective = symbolConfig;
+    if (symbolConfig.platform === 'MT5') {
+      const p = getEquityBasedMT5Preset(mt5Account?.equity);
+      effective = {
+        ...symbolConfig,
+        lotSize: p.lotSize,
+        direction: 'BOTH',
+        platform: 'MT5',
+        numberOfTrades: p.numberOfTrades,
+      };
+    }
     const newActiveSymbol: ActiveSymbol = {
-      ...symbolConfig,
+      ...effective,
       activatedAt: new Date()
     };
 
@@ -771,7 +783,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       return updatedSymbols;
     });
-  }, []);
+  }, [mt5Account?.equity]);
 
   const deactivateSymbol = useCallback(async (symbol: string) => {
     setActiveSymbols(currentSymbols => {
@@ -821,8 +833,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const activateMT5Symbol = useCallback(async (symbolConfig: Omit<MT5Symbol, 'activatedAt'>) => {
+    const preset = getEquityBasedMT5Preset(mt5Account?.equity);
     const newActiveSymbol: MT5Symbol = {
-      ...symbolConfig,
+      symbol: symbolConfig.symbol,
+      lotSize: preset.lotSize,
+      direction: 'BOTH',
+      numberOfTrades: preset.numberOfTrades,
       activatedAt: new Date()
     };
 
@@ -853,7 +869,37 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('MT5 symbol activated:', symbolConfig.symbol);
       return updatedSymbols;
     });
-  }, []);
+  }, [mt5Account?.equity]);
+
+  useEffect(() => {
+    if (!mt5Account?.connected) return;
+    const preset = getEquityBasedMT5Preset(mt5Account.equity);
+    setMT5Symbols(current => {
+      if (current.length === 0) return current;
+      let changed = false;
+      const next = current.map(s => {
+        if (
+          s.lotSize === preset.lotSize &&
+          s.direction === 'BOTH' &&
+          s.numberOfTrades === preset.numberOfTrades
+        ) {
+          return s;
+        }
+        changed = true;
+        return {
+          ...s,
+          lotSize: preset.lotSize,
+          direction: 'BOTH' as const,
+          numberOfTrades: preset.numberOfTrades,
+        };
+      });
+      if (!changed) return current;
+      AsyncStorage.setItem('mt5Symbols', JSON.stringify(next)).catch(error => {
+        console.error('Error saving MT5 symbols:', error);
+      });
+      return next;
+    });
+  }, [mt5Account?.connected, mt5Account?.equity]);
 
   const deactivateMT4Symbol = useCallback(async (symbol: string) => {
     setMT4Symbols(currentSymbols => {

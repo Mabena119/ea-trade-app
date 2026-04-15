@@ -13,8 +13,8 @@ import { useApp } from '@/providers/app-provider';
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 
-/** Embedded MT4/MT5 terminal WebView: false = fully hidden (legacy). true = bottom panel visible for DOM inspection and feature work. */
-const SHOW_EMBEDDED_MT_WEBVIEW = true;
+/** Embedded MT4/MT5 terminal WebView: false = fully hidden (toast-only UX). true = bottom panel visible for debugging. */
+const SHOW_EMBEDDED_MT_WEBVIEW = false;
 
 const EMBEDDED_WEBVIEW_HEIGHT = Math.round(Dimensions.get('window').height * 0.42);
 
