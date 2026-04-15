@@ -338,10 +338,10 @@ export async function POST(request: Request): Promise<Response> {
       if (!takeProfit1 && tpMatch?.[1]) takeProfit1 = tpMatch[1].trim();
     }
 
-    // Fallback: compute SL/TP from entry when AI returns empty (0.5% SL, 1% TP)
+    // Fallback: compute SL/TP from entry when AI returns empty (0.5% SL, 1% TP) — client overrides by trade mode for execution
     const entryNum = parseFloat(String(entryPrice).replace(/,/g, ''));
     if (entryNum && !isNaN(entryNum) && (!stopLoss || !takeProfit1)) {
-      const pct = 0.005; // 0.5% SL, 1% TP
+      const pct = 0.005;
       const slDist = entryNum * pct;
       const tpDist = entryNum * (pct * 2);
       const decimals = entryNum > 100 ? 2 : 5;
