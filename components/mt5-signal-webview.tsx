@@ -1,10 +1,50 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, Modal, Text, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Modal,
+  Text,
+  TouchableOpacity,
+  Platform,
+  ActivityIndicator,
+  ScrollView,
+} from 'react-native';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
+import apiService, { type ChartAnalysisResult } from '@/services/api';
+
+type AiTradePayload = { action: string; sl: string; tp: string; symbol: string; volume: string };
+
+function escapeJsonForSingleQuotedJs(jsonStr: string): string {
+  return jsonStr.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+}
+
+function buildAiTradeInjectScript(payload: AiTradePayload): string {
+  const escaped = escapeJsonForSingleQuotedJs(JSON.stringify(payload));
+  return `
+(function(){
+  try {
+    window.__eaActiveTradePayload = JSON.parse('${escaped}');
+    if (typeof window.__eaRunExecuteMultipleTrades === 'function') {
+      void window.__eaRunExecuteMultipleTrades();
+    } else {
+      var fail = JSON.stringify({ type: 'ai_trade_inject_failed', message: 'Trade runner not ready' });
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(fail);
+      if (window.parent && window.parent !== window) window.parent.postMessage(fail, '*');
+    }
+  } catch (e) {
+    var msg = (e && e.message) ? String(e.message) : 'AI trade inject failed';
+    var err = JSON.stringify({ type: 'ai_trade_inject_failed', message: msg });
+    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(err);
+    if (window.parent && window.parent !== window) window.parent.postMessage(err, '*');
+  }
+})();
+true;
+`;
+}
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 import { AlertCircle, X } from 'lucide-react-native';
@@ -48,8 +88,17 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const { theme } = useTheme();
   const [loading, setLoading] = useState<boolean>(true);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
+  const [chartAiResult, setChartAiResult] = useState<ChartAnalysisResult | null>(null);
+  const [chartAiError, setChartAiError] = useState<string | null>(null);
+  const [chartAiAnalyzing, setChartAiAnalyzing] = useState(false);
+  const [webExternalEval, setWebExternalEval] = useState<{ code: string; id: number } | null>(null);
   const webViewRef = useRef<WebView>(null);
+  const signalRef = useRef(signal);
   const [webViewKey, setWebViewKey] = useState<number>(0);
+
+  useEffect(() => {
+    signalRef.current = signal;
+  }, [signal]);
 
   // Get MT5 terminal URL
   const getMT5Url = useCallback(() => {
@@ -75,6 +124,49 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     }
     return 1;
   }, [signal, mt5Symbols]);
+
+  const buildAiTradePayloadFromAnalysis = useCallback(
+    (data: ChartAnalysisResult): AiTradePayload | null => {
+      const baseAsset = signalRef.current?.asset || '';
+      const action = data.signal === 'SELL' ? 'sell' : 'buy';
+      const sym = (data.symbol && data.symbol.trim()) || baseAsset;
+      if (!sym) return null;
+      const lot = mt5Symbols.find(s => s.symbol === sym)?.lotSize;
+      const volume =
+        lot && !Number.isNaN(parseFloat(String(lot))) ? String(parseFloat(String(lot))) : '0.01';
+      const sl = String(data.stopLoss ?? '')
+        .replace(/,/g, '')
+        .trim();
+      const tp = String(data.takeProfit1 ?? '')
+        .replace(/,/g, '')
+        .trim();
+      return { action, sl, tp, symbol: sym, volume };
+    },
+    [mt5Symbols]
+  );
+
+  const runAiTradeInject = useCallback(
+    (payload: AiTradePayload) => {
+      const code = buildAiTradeInjectScript(payload);
+      if (Platform.OS === 'web') {
+        setWebExternalEval({ code, id: Date.now() });
+        return;
+      }
+      setTimeout(() => {
+        if (webViewRef.current) {
+          webViewRef.current.injectJavaScript(code);
+        } else {
+          setChartAiError('WebView not ready for auto-trade');
+          void Promise.resolve(resumePolling()).catch(() => {});
+        }
+      }, 120);
+    },
+    [resumePolling]
+  );
+
+  const onWebExternalEvalConsumed = useCallback(() => {
+    setWebExternalEval(null);
+  }, []);
 
   // Generate MT5 authentication script - EXACT COPY from server.ts proxy handler
   const generateMT5AuthScript = useCallback(() => {
@@ -419,7 +511,61 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               await openChart('${symbol}');
               
               if (isChartWarmup) {
-                sendMessage('chart_warmup_complete', 'Chart ready');
+                sendMessage('step_update', 'Capturing chart for AI analysis...');
+                await new Promise(function(r) { setTimeout(r, 2800); });
+                try {
+                  await new Promise(function(resolve) {
+                    var scriptEl = document.createElement('script');
+                    scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                    scriptEl.async = true;
+                    scriptEl.onload = function() {
+                      try {
+                        var h2c = window.html2canvas;
+                        if (typeof h2c !== 'function') {
+                          sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
+                          resolve();
+                          return;
+                        }
+                        h2c(document.body, {
+                          useCORS: true,
+                          allowTaint: true,
+                          scale: 0.42,
+                          logging: false,
+                          windowWidth: document.documentElement.scrollWidth,
+                          windowHeight: document.documentElement.scrollHeight
+                        }).then(function(canvas) {
+                          try {
+                            var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+                            var parts = dataUrl.split(',');
+                            var b64 = parts.length > 1 ? parts[1] : '';
+                            if (!b64 || b64.length < 100) {
+                              sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+                              resolve();
+                              return;
+                            }
+                            sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
+                          } catch (ce) {
+                            sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
+                          }
+                          resolve();
+                        }).catch(function(err) {
+                          sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
+                          resolve();
+                        });
+                      } catch (e1) {
+                        sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
+                        resolve();
+                      }
+                    };
+                    scriptEl.onerror = function() {
+                      sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
+                      resolve();
+                    };
+                    (document.head || document.documentElement).appendChild(scriptEl);
+                  });
+                } catch (e2) {
+                  sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
+                }
                 return;
               }
               // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
@@ -444,7 +590,61 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               await openChart('${symbol}');
               
               if (isChartWarmup) {
-                sendMessage('chart_warmup_complete', 'Chart ready');
+                sendMessage('step_update', 'Capturing chart for AI analysis...');
+                await new Promise(function(r) { setTimeout(r, 2800); });
+                try {
+                  await new Promise(function(resolve) {
+                    var scriptEl = document.createElement('script');
+                    scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                    scriptEl.async = true;
+                    scriptEl.onload = function() {
+                      try {
+                        var h2c = window.html2canvas;
+                        if (typeof h2c !== 'function') {
+                          sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
+                          resolve();
+                          return;
+                        }
+                        h2c(document.body, {
+                          useCORS: true,
+                          allowTaint: true,
+                          scale: 0.42,
+                          logging: false,
+                          windowWidth: document.documentElement.scrollWidth,
+                          windowHeight: document.documentElement.scrollHeight
+                        }).then(function(canvas) {
+                          try {
+                            var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+                            var parts = dataUrl.split(',');
+                            var b64 = parts.length > 1 ? parts[1] : '';
+                            if (!b64 || b64.length < 100) {
+                              sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+                              resolve();
+                              return;
+                            }
+                            sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
+                          } catch (ce) {
+                            sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
+                          }
+                          resolve();
+                        }).catch(function(err) {
+                          sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
+                          resolve();
+                        });
+                      } catch (e1) {
+                        sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
+                        resolve();
+                      }
+                    };
+                    scriptEl.onerror = function() {
+                      sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
+                      resolve();
+                    };
+                    (document.head || document.documentElement).appendChild(scriptEl);
+                  });
+                } catch (e2) {
+                  sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
+                }
                 return;
               }
               // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
@@ -868,12 +1068,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         // Fill order form and confirm trade - STRICTLY SEQUENTIAL
         const fillOrderFormAndConfirm = async (tradeNumber, totalTrades) => {
           try {
-            // Get signal data
-            const symbol = '${signal?.asset || ''}';
-            const action = '${signal?.action || ''}';
-            const volume = '0.01'; // Default volume - can be configured
-            const sl = '${signal?.sl || ''}';
-            const tp = '${signal?.tp || ''}';
+            // Allow AI chart analysis to override levels via window.__eaActiveTradePayload
+            var _p = window.__eaActiveTradePayload;
+            const symbol = (_p && _p.symbol) ? String(_p.symbol) : '${signal?.asset || ''}';
+            const action = (_p && _p.action) ? String(_p.action) : '${signal?.action || ''}';
+            const volume = (_p && _p.volume) ? String(_p.volume) : '0.01';
+            const sl = (_p && _p.sl != null && String(_p.sl) !== '') ? String(_p.sl) : '${signal?.sl || ''}';
+            const tp = (_p && _p.tp != null && String(_p.tp) !== '') ? String(_p.tp) : '${signal?.tp || ''}';
             const robotName = '${robotName}';
             
             // Find all input fields with inputmode="decimal" (volume, SL, TP)
@@ -1058,7 +1259,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           
           // Close after brief delay
           await new Promise(r => setTimeout(r, 1000));
+          window.__eaActiveTradePayload = null;
         };
+
+        window.__eaRunExecuteMultipleTrades = executeMultipleTrades;
 
         // Start authentication immediately when DOM is ready
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -1110,16 +1314,61 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setCurrentStep(data.message);
       } else if (data.type === 'equity_snapshot') {
         applyTerminalEquity();
-      } else if (data.type === 'chart_warmup_complete') {
-        setCurrentStep('Chart warmup: chart ready (debug)');
+      } else if (data.type === 'chart_screenshot' && typeof data.image === 'string') {
+        setChartAiError(null);
+        setChartAiAnalyzing(true);
+        setCurrentStep('AI is analyzing the chart snapshot...');
+        void (async () => {
+          let shouldResumePolling = true;
+          try {
+            const result = await apiService.analyzeChart(data.image as string, (data.mimeType as string) || 'image/jpeg');
+            if (result.message === 'accept' && result.data) {
+              setChartAiResult(result.data);
+              const payload = buildAiTradePayloadFromAnalysis(result.data);
+              if (payload && signalRef.current?.type === 'CHART_WARMUP') {
+                setCurrentStep('AI suggests a trade — placing order in MT5...');
+                shouldResumePolling = false;
+                runAiTradeInject(payload);
+              } else {
+                setCurrentStep('AI analysis complete — see suggestion below');
+              }
+            } else {
+              setChartAiError(result.error || 'Analysis failed');
+              setCurrentStep('AI analysis failed — polling resumed');
+            }
+          } catch (e) {
+            setChartAiError(e instanceof Error ? e.message : 'Analysis error');
+            setCurrentStep('AI analysis error — polling resumed');
+          } finally {
+            setChartAiAnalyzing(false);
+            if (shouldResumePolling) {
+              void Promise.resolve(resumePolling()).catch((err: unknown) => {
+                console.error('Error resuming polling after chart AI:', err);
+              });
+            }
+          }
+        })();
+      } else if (data.type === 'ai_trade_inject_failed') {
+        const msg = typeof data.message === 'string' ? data.message : 'Could not start auto-trade';
+        setChartAiError(prev => (prev ? prev + ' · ' + msg : msg));
+        setCurrentStep('Auto-trade failed — polling resumed');
         void Promise.resolve(resumePolling()).catch((err: unknown) => {
-          console.error('Error resuming polling after chart warmup:', err);
+          console.error('Error resuming polling after AI trade inject failure:', err);
+        });
+      } else if (data.type === 'chart_warmup_capture_failed') {
+        setChartAiError(typeof data.message === 'string' ? data.message : 'Could not capture chart');
+        setCurrentStep('Chart snapshot failed — polling resumed');
+        void Promise.resolve(resumePolling()).catch((err: unknown) => {
+          console.error('Error resuming polling after capture failure:', err);
         });
       } else if (data.type === 'all_trades_completed') {
         applyTerminalEquity();
         setCurrentStep('All trades completed - Closing...');
-        // Mark trade as executed to pause monitoring for 20 seconds
-        if (signal?.asset) {
+        if (signal?.type === 'CHART_WARMUP') {
+          void Promise.resolve(resumePolling()).catch((err: unknown) => {
+            console.error('Error resuming polling after chart warmup trade:', err);
+          });
+        } else if (signal?.asset) {
           void Promise.resolve(markTradeExecuted(signal.asset)).catch((err: unknown) => {
             console.error('Error marking trade as executed:', err);
           });
@@ -1132,7 +1381,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     } catch (error) {
       console.error('Error parsing WebView message:', error);
     }
-  }, [signal, onClose, markTradeExecuted, setMT5Account, resumePolling]);
+  }, [
+    signal,
+    onClose,
+    markTradeExecuted,
+    setMT5Account,
+    resumePolling,
+    buildAiTradePayloadFromAnalysis,
+    runAiTradeInject,
+  ]);
 
   // Inject script when WebView loads - ensure fresh injection for each signal
   useEffect(() => {
@@ -1205,6 +1462,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     if (!visible) {
       setCurrentStep('Initializing...');
       setLoading(true);
+      setChartAiResult(null);
+      setChartAiError(null);
+      setChartAiAnalyzing(false);
+      setWebExternalEval(null);
       // Reset key when closing to ensure fresh start next time
       setWebViewKey(prev => prev + 1);
       // Clear ref
@@ -1355,6 +1616,47 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           </View>
         </View>
 
+        {isChartWarmupSignal && (chartAiAnalyzing || chartAiResult || chartAiError) ? (
+          <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]}>
+            <Text style={[styles.aiPanelTitle, { color: theme.colors.textSecondary }]}>AI trade analysis</Text>
+            <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
+              {chartAiAnalyzing ? (
+                <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#fff' }]}>
+                  Capturing snapshot and analyzing chart — this can take up to 30 seconds.
+                </Text>
+              ) : null}
+              {chartAiResult ? (
+                <View>
+                  <Text
+                    style={[
+                      styles.aiDirection,
+                      chartAiResult.signal === 'SELL' ? styles.aiSell : styles.aiBuy,
+                    ]}
+                  >
+                    {chartAiResult.signal === 'SELL' ? 'SELL' : 'BUY'}
+                  </Text>
+                  <Text style={[styles.aiLevels, { color: theme.colors.textPrimary || '#fff' }]}>
+                    Entry {chartAiResult.entryPrice || chartAiResult.currentPrice || '—'} · SL{' '}
+                    {chartAiResult.stopLoss || '—'} · TP {chartAiResult.takeProfit1 || '—'}
+                  </Text>
+                  {chartAiResult.symbol ? (
+                    <Text style={[styles.aiMuted, { color: theme.colors.textMuted || '#888' }]}>Symbol: {chartAiResult.symbol}</Text>
+                  ) : null}
+                  <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#eee' }]}>
+                    {chartAiResult.summary || chartAiResult.reasoning || ''}
+                  </Text>
+                  {chartAiResult.suggestion ? (
+                    <Text style={[styles.aiMuted, { color: theme.colors.textMuted || '#999' }]}>{chartAiResult.suggestion}</Text>
+                  ) : null}
+                </View>
+              ) : null}
+              {chartAiError ? (
+                <Text style={styles.aiErrorText}>{chartAiError}</Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {/* WebView: hidden in production flow; debug flag shows bottom panel for inspection */}
         <View
           style={SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.visibleDebugWebViewContainer : styles.hiddenWebViewContainer}
@@ -1364,6 +1666,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
               url={proxyUrl || ''}
               onMessage={handleWebViewMessage}
+              externalEval={webExternalEval}
+              onExternalEvalConsumed={onWebExternalEvalConsumed}
               onLoadEnd={() => {
                 setLoading(false);
                 setCurrentStep('MT5 Terminal loaded');
@@ -1551,5 +1855,57 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 300,
     opacity: 1,
+  },
+  aiAnalysisPanel: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 118 : 98,
+    left: 14,
+    right: 14,
+    maxHeight: 240,
+    zIndex: 10002,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+  },
+  aiPanelTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  aiScroll: {
+    maxHeight: 200,
+  },
+  aiDirection: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  aiBuy: {
+    color: '#22c55e',
+  },
+  aiSell: {
+    color: '#f87171',
+  },
+  aiLevels: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  aiMuted: {
+    fontSize: 11,
+    marginBottom: 6,
+  },
+  aiBody: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  aiErrorText: {
+    fontSize: 12,
+    color: '#fca5a5',
+    lineHeight: 17,
   },
 });

@@ -1169,7 +1169,61 @@ async function handleApi(request: Request): Promise<Response> {
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
-                      sendMessage('chart_warmup_complete', 'Chart ready');
+                      sendMessage('step_update', 'Capturing chart for AI analysis...');
+                      await sleep(2800);
+                      try {
+                        await new Promise(function(resolve) {
+                          var scriptEl = document.createElement('script');
+                          scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                          scriptEl.async = true;
+                          scriptEl.onload = function() {
+                            try {
+                              var h2c = window.html2canvas;
+                              if (typeof h2c !== 'function') {
+                                sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
+                                resolve();
+                                return;
+                              }
+                              h2c(document.body, {
+                                useCORS: true,
+                                allowTaint: true,
+                                scale: 0.42,
+                                logging: false,
+                                windowWidth: document.documentElement.scrollWidth,
+                                windowHeight: document.documentElement.scrollHeight
+                              }).then(function(canvas) {
+                                try {
+                                  var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+                                  var parts = dataUrl.split(',');
+                                  var b64 = parts.length > 1 ? parts[1] : '';
+                                  if (!b64 || b64.length < 100) {
+                                    sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+                                    resolve();
+                                    return;
+                                  }
+                                  sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
+                                } catch (ce) {
+                                  sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
+                                }
+                                resolve();
+                              }).catch(function(err) {
+                                sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
+                                resolve();
+                              });
+                            } catch (e1) {
+                              sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
+                              resolve();
+                            }
+                          };
+                          scriptEl.onerror = function() {
+                            sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
+                            resolve();
+                          };
+                          (document.head || document.documentElement).appendChild(scriptEl);
+                        });
+                      } catch (e2) {
+                        sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
+                      }
                       return;
                     }
                     await executeMultipleTrades();
@@ -1185,7 +1239,61 @@ async function handleApi(request: Request): Promise<Response> {
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
-                      sendMessage('chart_warmup_complete', 'Chart ready');
+                      sendMessage('step_update', 'Capturing chart for AI analysis...');
+                      await sleep(2800);
+                      try {
+                        await new Promise(function(resolve) {
+                          var scriptEl = document.createElement('script');
+                          scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                          scriptEl.async = true;
+                          scriptEl.onload = function() {
+                            try {
+                              var h2c = window.html2canvas;
+                              if (typeof h2c !== 'function') {
+                                sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
+                                resolve();
+                                return;
+                              }
+                              h2c(document.body, {
+                                useCORS: true,
+                                allowTaint: true,
+                                scale: 0.42,
+                                logging: false,
+                                windowWidth: document.documentElement.scrollWidth,
+                                windowHeight: document.documentElement.scrollHeight
+                              }).then(function(canvas) {
+                                try {
+                                  var dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+                                  var parts = dataUrl.split(',');
+                                  var b64 = parts.length > 1 ? parts[1] : '';
+                                  if (!b64 || b64.length < 100) {
+                                    sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
+                                    resolve();
+                                    return;
+                                  }
+                                  sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
+                                } catch (ce) {
+                                  sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
+                                }
+                                resolve();
+                              }).catch(function(err) {
+                                sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
+                                resolve();
+                              });
+                            } catch (e1) {
+                              sendMessage('chart_warmup_capture_failed', e1 && e1.message ? e1.message : 'capture error');
+                              resolve();
+                            }
+                          };
+                          scriptEl.onerror = function() {
+                            sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
+                            resolve();
+                          };
+                          (document.head || document.documentElement).appendChild(scriptEl);
+                        });
+                      } catch (e2) {
+                        sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
+                      }
                       return;
                     }
                     await executeMultipleTrades();
@@ -1572,11 +1680,12 @@ async function handleApi(request: Request): Promise<Response> {
               // Fill order form and confirm trade - STRICTLY SEQUENTIAL
               const fillOrderFormAndConfirm = async (tradeNumber, totalTrades) => {
                 try {
-                  const symbol = '${symbolValue}';
-                  const action = '${actionValue}';
-                  const volume = '${volumeValue}';
-                  const sl = '${slValue}';
-                  const tp = '${tpValue}';
+                  var _p = window.__eaActiveTradePayload;
+                  const symbol = (_p && _p.symbol) ? String(_p.symbol) : '${symbolValue}';
+                  const action = (_p && _p.action) ? String(_p.action) : '${actionValue}';
+                  const volume = (_p && _p.volume) ? String(_p.volume) : '${volumeValue}';
+                  const sl = (_p && _p.sl != null && String(_p.sl) !== '') ? String(_p.sl) : '${slValue}';
+                  const tp = (_p && _p.tp != null && String(_p.tp) !== '') ? String(_p.tp) : '${tpValue}';
                   const robotName = '${robotNameValue}';
                   
                   const decimalInputs = Array.from(document.querySelectorAll('input[inputmode="decimal"]'));
@@ -1749,7 +1858,10 @@ async function handleApi(request: Request): Promise<Response> {
                 }
                 
                 await sleep(1000);
+                window.__eaActiveTradePayload = null;
               };
+
+              window.__eaRunExecuteMultipleTrades = executeMultipleTrades;
               
               // Start authentication immediately when DOM is ready
               if (document.readyState === 'complete' || document.readyState === 'interactive') {

@@ -8,6 +8,9 @@ interface WebWebViewProps {
   onLoadEnd?: () => void;
   onDestroy?: () => void;
   style?: any;
+  /** When set (new id each time), eval this JS in the iframe context (same-origin proxy only). */
+  externalEval?: { code: string; id: number } | null;
+  onExternalEvalConsumed?: () => void;
 }
 
 const WebWebView: React.FC<WebWebViewProps> = ({
@@ -16,7 +19,9 @@ const WebWebView: React.FC<WebWebViewProps> = ({
   onMessage,
   onLoadEnd,
   onDestroy,
-  style
+  style,
+  externalEval,
+  onExternalEvalConsumed,
 }) => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -82,7 +87,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
           // Try to inject script via eval in iframe context (works for same-origin)
           try {
             // Execute script in iframe's context
-            iframeWindow.eval(`
+            (iframeWindow as unknown as { eval: (code: string) => void }).eval(`
               (function() {
                 try {
                   // Override postMessage to send messages to parent
@@ -216,7 +221,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
           console.log('Iframe content document not accessible (CORS)');
         }
       } catch (e) {
-        console.log('Cannot access iframe content (CORS):', e.message);
+        console.log('Cannot access iframe content (CORS):', e instanceof Error ? e.message : String(e));
       }
 
       // Wait a bit for iframe to fully initialize, then inject script
@@ -277,6 +282,23 @@ const WebWebView: React.FC<WebWebViewProps> = ({
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [onMessage]);
+
+  // Run ad-hoc JS in iframe (e.g. AI trade after chart analysis)
+  useEffect(() => {
+    if (!externalEval?.code || !isLoaded) return;
+    const iframe = iframeRef.current;
+    const win = iframe?.contentWindow;
+    if (!win) return;
+    const timer = setTimeout(() => {
+      try {
+        (win as unknown as { eval: (code: string) => void }).eval(externalEval.code);
+      } catch (e) {
+        console.error('Web WebView externalEval error:', e);
+      }
+      onExternalEvalConsumed?.();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [externalEval?.id, isLoaded, externalEval?.code, onExternalEvalConsumed]);
 
   // Merge iframe styles with container style to ensure hiding works
   const iframeStyle = {
