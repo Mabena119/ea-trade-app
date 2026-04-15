@@ -1283,9 +1283,71 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch (eT2) {}
               };
 
+              function getAllCanvasesDeep() {
+                const out = [];
+                function walk(d) {
+                  if (!d) return;
+                  try {
+                    const list = d.querySelectorAll('canvas');
+                    for (let i = 0; i < list.length; i++) out.push(list[i]);
+                    const iframes = d.querySelectorAll('iframe');
+                    for (let j = 0; j < iframes.length; j++) {
+                      try {
+                        const ind = iframes[j].contentDocument;
+                        if (ind) walk(ind);
+                      } catch (e) {}
+                    }
+                  } catch (e2) {}
+                }
+                walk(document);
+                return out;
+              }
+
+              function resolveTerminalDocumentForBodyFallback() {
+                let best = document;
+                let bestScore = 0;
+                function scoreDoc(d) {
+                  try {
+                    let maxC = 0;
+                    const list = d.querySelectorAll('canvas');
+                    for (let i = 0; i < list.length; i++) {
+                      const a = (list[i].width || 0) * (list[i].height || 0);
+                      if (a > maxC) maxC = a;
+                    }
+                    const txt = (d.body && d.body.innerText) ? d.body.innerText : '';
+                    let bonus = 0;
+                    if (/Bid/i.test(txt) && /Ask/i.test(txt)) bonus += 500000;
+                    if (/Equity/i.test(txt)) bonus += 200000;
+                    if (/Balance/i.test(txt)) bonus += 100000;
+                    return maxC + bonus + txt.length;
+                  } catch (e) {
+                    return 0;
+                  }
+                }
+                function walk(d) {
+                  if (!d) return;
+                  try {
+                    const s = scoreDoc(d);
+                    if (s > bestScore) {
+                      bestScore = s;
+                      best = d;
+                    }
+                    const iframes = d.querySelectorAll('iframe');
+                    for (let j = 0; j < iframes.length; j++) {
+                      try {
+                        const ind = iframes[j].contentDocument;
+                        if (ind) walk(ind);
+                      } catch (e) {}
+                    }
+                  } catch (e2) {}
+                }
+                walk(document);
+                return best;
+              }
+
               function pickChartCaptureTarget() {
                 try {
-                  const canvases = document.querySelectorAll('canvas');
+                  const canvases = getAllCanvasesDeep();
                   let best = null;
                   let bestScore = 0;
                   for (let i = 0; i < canvases.length; i++) {
@@ -1301,7 +1363,25 @@ async function handleApi(request: Request): Promise<Response> {
                       best = c;
                     }
                   }
+                  window.__eaLastChartCanvas = best || null;
                   if (best && bestScore >= 12000) return best;
+                } catch (e) {}
+                window.__eaLastChartCanvas = null;
+                try {
+                  const td = resolveTerminalDocumentForBodyFallback();
+                  if (td && td.body) return td.body;
+                } catch (e3) {}
+                return document.body;
+              }
+
+              function pickBodyForHtml2Canvas(useBody) {
+                if (!useBody) return null;
+                try {
+                  if (window.__eaLastChartCanvas && window.__eaLastChartCanvas.ownerDocument && window.__eaLastChartCanvas.ownerDocument.body) {
+                    return window.__eaLastChartCanvas.ownerDocument.body;
+                  }
+                  const td = resolveTerminalDocumentForBodyFallback();
+                  if (td && td.body) return td.body;
                 } catch (e) {}
                 return document.body;
               }
@@ -1335,19 +1415,50 @@ async function handleApi(request: Request): Promise<Response> {
                 }
                 function hasChartCanvas() {
                   try {
-                    let best = 0;
-                    const list = document.querySelectorAll('canvas');
-                    for (let i = 0; i < list.length; i++) {
-                      const c = list[i];
-                      const area = (c.width || 0) * (c.height || 0);
-                      if (area > best) best = area;
+                    function maxArea(d) {
+                      if (!d) return 0;
+                      let best = 0;
+                      try {
+                        const list = d.querySelectorAll('canvas');
+                        for (let i = 0; i < list.length; i++) {
+                          const c = list[i];
+                          const area = (c.width || 0) * (c.height || 0);
+                          if (area > best) best = area;
+                        }
+                        const iframes = d.querySelectorAll('iframe');
+                        for (let j = 0; j < iframes.length; j++) {
+                          try {
+                            const ind = iframes[j].contentDocument;
+                            if (ind) {
+                              const sub = maxArea(ind);
+                              if (sub > best) best = sub;
+                            }
+                          } catch (e) {}
+                        }
+                      } catch (e2) {}
+                      return best;
                     }
-                    return best >= 60000;
-                  } catch (e2) { return false; }
+                    return maxArea(document) >= 60000;
+                  } catch (e3) { return false; }
                 }
                 function hasBidAskRibbon() {
                   try {
-                    const txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+                    function concatText(d) {
+                      if (!d || !d.body) return '';
+                      let t = '';
+                      try {
+                        t += (d.body.innerText || '') + '\\n';
+                        const iframes = d.querySelectorAll('iframe');
+                        for (let i = 0; i < iframes.length; i++) {
+                          try {
+                            const ind = iframes[i].contentDocument;
+                            if (ind) t += concatText(ind);
+                          } catch (e) {}
+                        }
+                      } catch (e2) {}
+                      return t;
+                    }
+                    const txt = concatText(document);
                     return /\\bBid\\b/i.test(txt) && /\\bAsk\\b/i.test(txt);
                   } catch (e3) { return false; }
                 }
@@ -1458,20 +1569,28 @@ async function handleApi(request: Request): Promise<Response> {
                     resolve();
                     return;
                   }
-                  const capTarget = useBody ? document.body : pickChartCaptureTarget();
+                  let capTarget = useBody ? pickBodyForHtml2Canvas(true) : pickChartCaptureTarget();
+                  if (!capTarget) {
+                    capTarget = document.body;
+                  }
                   try {
                     if (capTarget && capTarget.scrollIntoView) {
                       capTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
                     }
                   } catch (e1) {}
-                  const scaleCap = capTarget === document.body ? 0.42 : 0.72;
+                  const od = capTarget.ownerDocument || document;
+                  const de = od.documentElement || od.body;
+                  const winW = de ? de.scrollWidth : (window.innerWidth || 1280);
+                  const winH = de ? de.scrollHeight : (window.innerHeight || 800);
+                  const isBodyTarget = capTarget.tagName === 'BODY';
+                  const scaleCap = isBodyTarget ? 0.42 : 0.72;
                   h2c(capTarget, {
                     useCORS: true,
                     allowTaint: true,
                     scale: scaleCap,
                     logging: false,
-                    windowWidth: document.documentElement.scrollWidth,
-                    windowHeight: document.documentElement.scrollHeight
+                    windowWidth: winW,
+                    windowHeight: winH
                   })
                     .then(function(canvas) {
                       try {
@@ -1534,6 +1653,7 @@ async function handleApi(request: Request): Promise<Response> {
 
               const captureChartWarmupForAi = async () => {
                 window.__eaChartScreenshotSent = false;
+                window.__eaLastChartCanvas = null;
                 let direct = tryDirectCanvasSnapshot();
                 if (direct) {
                   const darkBad = await isBase64SnapshotMostlyBlack(direct);

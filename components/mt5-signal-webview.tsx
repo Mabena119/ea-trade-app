@@ -615,16 +615,79 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (eT2) {}
         };
 
-        /** Prefer main chart canvas (large rect + buffer); avoids body capture when possible. */
+        /** Collect canvases from this document and all same-origin nested iframes (MT5 chart often lives in a child frame). */
+        function getAllCanvasesDeep() {
+          var out = [];
+          function walk(d) {
+            if (!d) return;
+            try {
+              var list = d.querySelectorAll('canvas');
+              for (var i = 0; i < list.length; i++) out.push(list[i]);
+              var iframes = d.querySelectorAll('iframe');
+              for (var j = 0; j < iframes.length; j++) {
+                try {
+                  var ind = iframes[j].contentDocument;
+                  if (ind) walk(ind);
+                } catch (e) {}
+              }
+            } catch (e2) {}
+          }
+          walk(document);
+          return out;
+        }
+
+        function resolveTerminalDocumentForBodyFallback() {
+          var best = document;
+          var bestScore = 0;
+          function scoreDoc(d) {
+            try {
+              var maxC = 0;
+              var list = d.querySelectorAll('canvas');
+              for (var i = 0; i < list.length; i++) {
+                var a = (list[i].width || 0) * (list[i].height || 0);
+                if (a > maxC) maxC = a;
+              }
+              var txt = (d.body && d.body.innerText) ? d.body.innerText : '';
+              var bonus = 0;
+              if (/Bid/i.test(txt) && /Ask/i.test(txt)) bonus += 500000;
+              if (/Equity/i.test(txt)) bonus += 200000;
+              if (/Balance/i.test(txt)) bonus += 100000;
+              return maxC + bonus + txt.length;
+            } catch (e) {
+              return 0;
+            }
+          }
+          function walk(d) {
+            if (!d) return;
+            try {
+              var s = scoreDoc(d);
+              if (s > bestScore) {
+                bestScore = s;
+                best = d;
+              }
+              var iframes = d.querySelectorAll('iframe');
+              for (var j = 0; j < iframes.length; j++) {
+                try {
+                  var ind = iframes[j].contentDocument;
+                  if (ind) walk(ind);
+                } catch (e) {}
+              }
+            } catch (e2) {}
+          }
+          walk(document);
+          return best;
+        }
+
+        /** Prefer main chart canvas (large rect + buffer); searches nested terminal iframes. */
         function pickChartCaptureTarget() {
           try {
-            var canvases = document.querySelectorAll('canvas');
+            var canvases = getAllCanvasesDeep();
             var best = null;
             var bestScore = 0;
             for (var i = 0; i < canvases.length; i++) {
               var c = canvases[i];
               var rect = c.getBoundingClientRect();
-              if (rect.bottom < -30 || rect.top > window.innerHeight + 40) continue;
+              if (rect.bottom < -30 || rect.top > (window.innerHeight || 0) + 40) continue;
               if (rect.width < 90 || rect.height < 65) continue;
               var rectArea = rect.width * rect.height;
               var internal = (c.width || 0) * (c.height || 0);
@@ -634,7 +697,25 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 best = c;
               }
             }
+            window.__eaLastChartCanvas = best || null;
             if (best && bestScore >= 12000) return best;
+          } catch (e) {}
+          window.__eaLastChartCanvas = null;
+          try {
+            var td = resolveTerminalDocumentForBodyFallback();
+            if (td && td.body) return td.body;
+          } catch (e3) {}
+          return document.body;
+        }
+
+        function pickBodyForHtml2Canvas(useBody) {
+          if (!useBody) return null;
+          try {
+            if (window.__eaLastChartCanvas && window.__eaLastChartCanvas.ownerDocument && window.__eaLastChartCanvas.ownerDocument.body) {
+              return window.__eaLastChartCanvas.ownerDocument.body;
+            }
+            var td = resolveTerminalDocumentForBodyFallback();
+            if (td && td.body) return td.body;
           } catch (e) {}
           return document.body;
         }
@@ -733,20 +814,28 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               resolve();
               return;
             }
-            var capTarget = useBody ? document.body : pickChartCaptureTarget();
+            var capTarget = useBody ? pickBodyForHtml2Canvas(true) : pickChartCaptureTarget();
+            if (!capTarget) {
+              capTarget = document.body;
+            }
             try {
               if (capTarget && capTarget.scrollIntoView) {
                 capTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
               }
             } catch (e1) {}
-            var scaleCap = capTarget === document.body ? 0.42 : 0.72;
+            var od = capTarget.ownerDocument || document;
+            var de = od.documentElement || od.body;
+            var winW = de ? de.scrollWidth : (window.innerWidth || 1280);
+            var winH = de ? de.scrollHeight : (window.innerHeight || 800);
+            var isBodyTarget = capTarget.tagName === 'BODY';
+            var scaleCap = isBodyTarget ? 0.42 : 0.72;
             h2c(capTarget, {
               useCORS: true,
               allowTaint: true,
               scale: scaleCap,
               logging: false,
-              windowWidth: document.documentElement.scrollWidth,
-              windowHeight: document.documentElement.scrollHeight
+              windowWidth: winW,
+              windowHeight: winH
             })
               .then(function(canvas) {
                 try {
@@ -809,6 +898,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
         var captureChartWarmupForAi = async function() {
           window.__eaChartScreenshotSent = false;
+          window.__eaLastChartCanvas = null;
           var direct = tryDirectCanvasSnapshot();
           if (direct) {
             var darkBad = await isBase64SnapshotMostlyBlack(direct);
@@ -867,21 +957,50 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
           function hasChartCanvas() {
             try {
-              var best = 0;
-              var list = document.querySelectorAll('canvas');
-              for (var i = 0; i < list.length; i++) {
-                var c = list[i];
-                var w = c.width || 0;
-                var h = c.height || 0;
-                var area = w * h;
-                if (area > best) best = area;
+              function maxArea(d) {
+                if (!d) return 0;
+                var best = 0;
+                try {
+                  var list = d.querySelectorAll('canvas');
+                  for (var i = 0; i < list.length; i++) {
+                    var c = list[i];
+                    var area = (c.width || 0) * (c.height || 0);
+                    if (area > best) best = area;
+                  }
+                  var iframes = d.querySelectorAll('iframe');
+                  for (var j = 0; j < iframes.length; j++) {
+                    try {
+                      var ind = iframes[j].contentDocument;
+                      if (ind) {
+                        var sub = maxArea(ind);
+                        if (sub > best) best = sub;
+                      }
+                    } catch (e) {}
+                  }
+                } catch (e2) {}
+                return best;
               }
-              return best >= 60000;
-            } catch (e2) { return false; }
+              return maxArea(document) >= 60000;
+            } catch (e3) { return false; }
           }
           function hasBidAskRibbon() {
             try {
-              var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+              function concatText(d) {
+                if (!d || !d.body) return '';
+                var t = '';
+                try {
+                  t += (d.body.innerText || '') + '\\n';
+                  var iframes = d.querySelectorAll('iframe');
+                  for (var i = 0; i < iframes.length; i++) {
+                    try {
+                      var ind = iframes[i].contentDocument;
+                      if (ind) t += concatText(ind);
+                    } catch (e) {}
+                  }
+                } catch (e2) {}
+                return t;
+              }
+              var txt = concatText(document);
               return /\\bBid\\b/i.test(txt) && /\\bAsk\\b/i.test(txt);
             } catch (e3) { return false; }
           }
