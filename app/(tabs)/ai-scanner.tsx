@@ -51,6 +51,32 @@ function normalizeSymbolKey(s: string): string {
   return s.replace(/\s/g, '').toUpperCase();
 }
 
+/** Root name before broker suffixes like .i, .m, #, etc. */
+function baseSymbolKey(s: string): string {
+  const n = normalizeSymbolKey(s);
+  return n.split(/[.#_]/)[0] || n;
+}
+
+/**
+ * True if chart symbol and configured symbol likely refer to the same instrument
+ * (exact, same root, prefix, or contained substring for longer names).
+ */
+function symbolsAreSimilar(chartSymbol: string, configuredSymbol: string): boolean {
+  const a = normalizeSymbolKey(chartSymbol);
+  const b = normalizeSymbolKey(configuredSymbol);
+  if (a === b) return true;
+  const ba = baseSymbolKey(chartSymbol);
+  const bb = baseSymbolKey(configuredSymbol);
+  if (ba.length >= 2 && bb.length >= 2 && ba === bb) return true;
+  if (a.length >= 3 && b.length >= 3) {
+    if (a.startsWith(b) || b.startsWith(a)) return true;
+  }
+  if (a.length >= 4 && b.length >= 4) {
+    if (a.includes(b) || b.includes(a)) return true;
+  }
+  return false;
+}
+
 /** Strip to a numeric string for MT5 order fields (prices may include commas or labels). */
 function stripNumericPrice(s: string | undefined): string {
   if (!s) return '';
@@ -60,8 +86,8 @@ function stripNumericPrice(s: string | undefined): string {
 }
 
 /**
- * Pick which configured symbol to trade — same pools as automatic signals (legacy active, MT4, MT5).
- * If several are configured, the analysis symbol must match one (case/spacing insensitive).
+ * Pick which configured symbol to trade — same pools as trade config / automatic signals.
+ * Matches exact name, same root (e.g. USTECH vs USTECH.i), or similar broker spellings.
  */
 function resolveConfiguredTradeSymbol(
   analysisSymbol: string | undefined,
@@ -75,11 +101,27 @@ function resolveConfiguredTradeSymbol(
   const unique = [...new Set([...fromMt5, ...fromMt4, ...fromActive].filter(Boolean))];
   if (unique.length === 0) return null;
   if (unique.length === 1) return { symbol: unique[0] };
-  const ai = analysisSymbol ? normalizeSymbolKey(analysisSymbol) : '';
-  if (ai) {
-    const match = unique.find((u) => normalizeSymbolKey(u) === ai);
-    if (match) return { symbol: match };
+
+  const raw = (analysisSymbol || '').trim();
+  if (!raw) {
+    return null;
   }
+
+  const exact = unique.find((u) => normalizeSymbolKey(u) === normalizeSymbolKey(raw));
+  if (exact) return { symbol: exact };
+
+  const similar = unique.filter((u) => symbolsAreSimilar(raw, u));
+  if (similar.length === 1) return { symbol: similar[0] };
+  if (similar.length > 1) {
+    similar.sort((a, b) => {
+      const da = Math.abs(normalizeSymbolKey(a).length - normalizeSymbolKey(raw).length);
+      const db = Math.abs(normalizeSymbolKey(b).length - normalizeSymbolKey(raw).length);
+      if (da !== db) return da - db;
+      return normalizeSymbolKey(a).localeCompare(normalizeSymbolKey(b));
+    });
+    return { symbol: similar[0] };
+  }
+
   return null;
 }
 
@@ -512,9 +554,7 @@ export default function AIScannerScreen() {
     };
 
     if (!mt5Account?.login?.trim() || !mt5Account?.password) {
-      openTradingNotice(
-        'MT5 account not connected. Add your MT5 login in the MetaTrader tab to execute trades.'
-      );
+      router.push('/(tabs)/metatrader');
       return;
     }
 
