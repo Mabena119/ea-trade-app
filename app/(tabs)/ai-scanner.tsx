@@ -25,8 +25,6 @@ import {
   Trash2,
   History,
   Zap,
-  AlertCircle,
-  X,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -125,6 +123,7 @@ export default function AIScannerScreen() {
     isSymbolConfiguredForTrading,
     pausePolling,
     setMT5Signal,
+    setMT5TradeOverlayMessage,
     setShowMT5SignalWebView,
   } = useApp();
   const [scannerUnlocked, setScannerUnlocked] = useState<boolean | null>(null);
@@ -136,18 +135,7 @@ export default function AIScannerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<ScannerHistoryItem[]>([]);
   const [uploadCount, setUploadCount] = useState(0);
-  const [takeTradeNotice, setTakeTradeNotice] = useState<{ title: string; message: string } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-
-  useEffect(() => {
-    if (!takeTradeNotice) return;
-    const t = setTimeout(() => setTakeTradeNotice(null), 6500);
-    return () => clearTimeout(t);
-  }, [takeTradeNotice]);
-
-  const showTakeTradeNotice = useCallback((title: string, message: string) => {
-    setTakeTradeNotice({ title, message });
-  }, []);
 
   const scrollToHistory = useCallback(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
@@ -511,16 +499,21 @@ export default function AIScannerScreen() {
   const handleTakeTrade = useCallback(() => {
     if (!result) return;
     if (result.signal === 'NEUTRAL') {
-      showTakeTradeNotice(
+      Alert.alert(
         'No trade direction',
-        'The analysis is neutral. Use a chart with a clear buy or sell suggestion before taking a trade.'
+        'The analysis is neutral. Choose a chart with a clear buy or sell suggestion before taking a trade.'
       );
       return;
     }
+    const openTradingNotice = (message: string) => {
+      setMT5Signal(null);
+      setMT5TradeOverlayMessage(message);
+      setShowMT5SignalWebView(true);
+    };
+
     if (!mt5Account?.login?.trim() || !mt5Account?.password) {
-      showTakeTradeNotice(
-        'MetaTrader 5 not connected',
-        'Link your MT5 account in the MetaTrader tab (login and password). Trades run in the same web session as monitored signals.'
+      openTradingNotice(
+        'MT5 account not connected. Add your MT5 login in the MetaTrader tab to execute trades.'
       );
       return;
     }
@@ -535,23 +528,20 @@ export default function AIScannerScreen() {
       const hasAny =
         mt5Symbols.length > 0 || mt4Symbols.length > 0 || activeSymbols.length > 0;
       if (!hasAny) {
-        showTakeTradeNotice(
-          'Symbol not configured',
-          'Add and activate a symbol under Quotes or trade settings so the app knows which instrument to trade.'
+        openTradingNotice(
+          'Symbol not configured. Add and activate a symbol under Quotes or trade settings so the app knows which instrument to trade.'
         );
         return;
       }
-      showTakeTradeNotice(
-        'Symbol not configured',
-        'You have several symbols configured. The chart symbol must match one of them (same broker name), or keep only one active symbol.'
+      openTradingNotice(
+        'Symbol not configured. The chart symbol must match one of your configured symbols (same broker name), or keep only one active symbol.'
       );
       return;
     }
 
     if (!isSymbolConfiguredForTrading(resolved.symbol)) {
-      showTakeTradeNotice(
-        'Symbol not configured',
-        'Turn on this symbol under Quotes or in your trade settings, then try again.'
+      openTradingNotice(
+        'Symbol not configured. Turn on this symbol under Quotes or in your trade settings, then try again.'
       );
       return;
     }
@@ -559,7 +549,7 @@ export default function AIScannerScreen() {
     const sl = stripNumericPrice(result.stopLoss);
     const tp = stripNumericPrice(result.takeProfit1 || '');
     if (!sl || !tp) {
-      showTakeTradeNotice(
+      Alert.alert(
         'Incomplete trade levels',
         'Stop loss and take profit (TP1) are required. They are sent with the buy or sell direction from the analysis.'
       );
@@ -579,8 +569,8 @@ export default function AIScannerScreen() {
     isSymbolConfiguredForTrading,
     pausePolling,
     setMT5Signal,
+    setMT5TradeOverlayMessage,
     setShowMT5SignalWebView,
-    showTakeTradeNotice,
   ]);
 
   const SignalIcon = result?.signal === 'BUY' ? TrendingUp : result?.signal === 'SELL' ? TrendingDown : Minus;
@@ -595,47 +585,6 @@ export default function AIScannerScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {takeTradeNotice && (
-        <View style={styles.takeTradeToastWrap} pointerEvents="box-none">
-          <View
-            style={[
-              styles.takeTradeToastCard,
-              {
-                borderColor: theme.colors.borderColor,
-                backgroundColor: theme.isDark ? 'rgba(0,0,0,0.92)' : 'rgba(255,255,255,0.98)',
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
-              style={[StyleSheet.absoluteFill, { opacity: theme.isDark ? 0.12 : 0.08 }]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <View style={styles.takeTradeToastRow}>
-              <View style={[styles.takeTradeToastIcon, { borderColor: `${theme.colors.warning}55` }]}>
-                <AlertCircle color={theme.colors.warning} size={22} strokeWidth={2.5} />
-              </View>
-              <View style={styles.takeTradeToastTextCol}>
-                <Text style={[styles.takeTradeToastTitle, { color: theme.colors.textPrimary }]}>
-                  {takeTradeNotice.title}
-                </Text>
-                <Text style={[styles.takeTradeToastBody, { color: theme.colors.textMuted }]}>
-                  {takeTradeNotice.message}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.takeTradeToastClose, { borderColor: `${theme.colors.accent}44` }]}
-                onPress={() => setTakeTradeNotice(null)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                activeOpacity={0.85}
-              >
-                <X color={theme.colors.textMuted} size={18} strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
@@ -974,63 +923,6 @@ export default function AIScannerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  takeTradeToastWrap: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 8 : 10,
-    left: 16,
-    right: 16,
-    zIndex: 1000,
-    elevation: 1000,
-  },
-  takeTradeToastCard: {
-    borderRadius: 18,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-  },
-  takeTradeToastRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  takeTradeToastIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-  },
-  takeTradeToastTextCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  takeTradeToastTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  takeTradeToastBody: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  takeTradeToastClose: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -2,
   },
   header: {
     flexDirection: 'row',

@@ -203,6 +203,8 @@ interface AppState {
   newSignal: SignalLog | null;
   showMT5SignalWebView: boolean;
   mt5Signal: SignalLog | null;
+  /** When set, MT5 overlay shows this message instead of executing (e.g. AI Scanner block). Cleared when the overlay closes or a real signal is set. */
+  mt5TradeOverlayMessage: string | null;
   databaseSignal: DatabaseSignal | null;
   isDatabaseSignalsPolling: boolean;
   isPollingPaused: boolean;
@@ -230,6 +232,7 @@ interface AppState {
   dismissNewSignal: () => void;
   setShowMT5SignalWebView: (show: boolean) => void;
   setMT5Signal: (signal: SignalLog | null) => void;
+  setMT5TradeOverlayMessage: (message: string | null) => void;
   markTradeExecuted: (symbol: string) => void;
   /** True if the symbol appears in legacy active, MT4, or MT5 configured lists (same as auto-trade). */
   isSymbolConfiguredForTrading: (symbol: string) => boolean;
@@ -251,6 +254,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [newSignal, setNewSignal] = useState<SignalLog | null>(null);
   const [showMT5SignalWebView, setShowMT5SignalWebView] = useState<boolean>(false);
   const [mt5Signal, setMT5Signal] = useState<SignalLog | null>(null);
+  const [mt5TradeOverlayMessage, setMt5TradeOverlayMessage] = useState<string | null>(null);
   const [databaseSignal, setDatabaseSignal] = useState<DatabaseSignal | null>(null);
   const [isDatabaseSignalsPolling, setIsDatabaseSignalsPolling] = useState<boolean>(false);
   const [isPollingPaused, setIsPollingPaused] = useState<boolean>(false);
@@ -1523,11 +1527,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setShowMT5SignalWebView(show);
     if (!show) {
       setMT5Signal(null);
+      setMt5TradeOverlayMessage(null);
     }
   }, []);
 
   const setMT5SignalCallback = useCallback((signal: SignalLog | null) => {
     setMT5Signal(signal);
+    if (signal) {
+      setMt5TradeOverlayMessage(null);
+    }
+  }, []);
+
+  const setMT5TradeOverlayMessageCallback = useCallback((message: string | null) => {
+    setMt5TradeOverlayMessage(message);
   }, []);
 
 
@@ -2046,6 +2058,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     newSignal,
     showMT5SignalWebView,
     mt5Signal,
+    mt5TradeOverlayMessage,
     databaseSignal,
     isDatabaseSignalsPolling,
     isPollingPaused,
@@ -2073,18 +2086,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     dismissNewSignal,
     setShowMT5SignalWebView: setShowMT5SignalWebViewCallback,
     setMT5Signal: setMT5SignalCallback,
+    setMT5TradeOverlayMessage: setMT5TradeOverlayMessageCallback,
     markTradeExecuted,
     isSymbolConfiguredForTrading,
   }), [
     user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols,
-    isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal,
+    isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal, mt5TradeOverlayMessage,
     databaseSignal, isDatabaseSignalsPolling, isPollingPaused,
     // Functions are stable due to useCallback, but removing from deps to prevent initialization issues
     pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account,
     setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol,
     deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission,
     startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal,
-    setShowMT5SignalWebViewCallback, setMT5SignalCallback, markTradeExecuted,
+    setShowMT5SignalWebViewCallback, setMT5SignalCallback, setMT5TradeOverlayMessageCallback, markTradeExecuted,
     isSymbolConfiguredForTrading
   ]);
 });
