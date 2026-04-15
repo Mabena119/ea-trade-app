@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Trash2 } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useApp } from '@/providers/app-provider';
+import { useApp, type MT5TradeMode } from '@/providers/app-provider';
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
@@ -23,6 +23,14 @@ export default function TradeConfigScreen() {
 
   const preset = useMemo(() => getEquityBasedMT5Preset(mt5Account?.equity), [mt5Account?.equity]);
 
+  const [tradeMode, setTradeMode] = useState<MT5TradeMode>('swing');
+
+  useEffect(() => {
+    if (!symbol) return;
+    const existing = mt5Symbols.find((s) => s.symbol === symbol);
+    setTradeMode(existing?.tradeMode === 'scalper' ? 'scalper' : 'swing');
+  }, [symbol, mt5Symbols]);
+
   const isSymbolActive =
     mt5Symbols.some(s => s.symbol === symbol) || activeSymbols.some(s => s.symbol === symbol);
 
@@ -37,6 +45,7 @@ export default function TradeConfigScreen() {
       lotSize: preset.lotSize,
       direction: 'BOTH',
       numberOfTrades: preset.numberOfTrades,
+      tradeMode,
     });
     router.back();
   };
@@ -66,8 +75,9 @@ export default function TradeConfigScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.notice, { color: theme.colors.textSecondary }]}>
-          Lot size and number of trades are set automatically from your linked MT5 account equity (risk
-          management). Direction is always BOTH. Platform is always MT5. These values cannot be edited.
+          Lot size and number of trades follow your linked MT5 account equity. Direction is BOTH; platform
+          is MT5. Choose how this symbol is traded: Scalper (tighter risk levels, single execution round)
+          or Swing (wider levels, equity-based trade count).
         </Text>
         {!mt5Account?.connected && (
           <Text style={[styles.warn, { color: theme.colors.warning }]}>
@@ -96,6 +106,42 @@ export default function TradeConfigScreen() {
           />
 
           <View style={styles.cardContent}>
+            <View style={styles.configSection}>
+              <Text
+                style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}
+              >
+                TRADE MODE
+              </Text>
+              <View style={styles.modeRow}>
+                {(['scalper', 'swing'] as const).map((m) => {
+                  const selected = tradeMode === m;
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setTradeMode(m)}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.modeChip,
+                        {
+                          borderColor: selected ? theme.colors.accent : theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+                          backgroundColor: selected ? `${theme.colors.accent}44` : theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.modeChipText,
+                          { color: theme.colors.textPrimary, fontWeight: selected ? '800' : '600' },
+                        ]}
+                      >
+                        {m === 'scalper' ? 'Scalper' : 'Swing'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
             <ReadOnlyRow label="LOT SIZE" value={preset.lotSize} />
             <ReadOnlyRow label="DIRECTION" value="BOTH" />
             <ReadOnlyRow label="PLATFORM" value="MT5" />
@@ -290,6 +336,25 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     zIndex: 1,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  modeChip: {
+    flex: 1,
+    minWidth: 120,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeChipText: {
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
   buttonContainer: {
     marginTop: 24,

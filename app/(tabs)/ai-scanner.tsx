@@ -39,6 +39,7 @@ import {
   type ActiveSymbol,
   type MT4Symbol,
   type MT5Symbol,
+  type MT5TradeMode,
   type SignalLog,
 } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
@@ -89,10 +90,12 @@ function stripNumericPrice(s: string | undefined): string {
 /** Same distance rules as analyze-chart API when AI omits SL/TP (keeps execution possible). */
 function computeFallbackSlTp(
   direction: 'BUY' | 'SELL',
-  entryNumeric: number
+  entryNumeric: number,
+  tradeMode: MT5TradeMode = 'swing'
 ): { sl: string; tp: string } | null {
   if (!entryNumeric || !Number.isFinite(entryNumeric)) return null;
-  const pct = 0.005;
+  // Scalper: tighter stops; swing: wider (hold longer)
+  const pct = tradeMode === 'scalper' ? 0.0025 : 0.007;
   const slDist = entryNumeric * pct;
   const tpDist = entryNumeric * (pct * 2);
   const decimals = entryNumeric > 100 ? 2 : 5;
@@ -589,13 +592,16 @@ export default function AIScannerScreen() {
       return;
     }
 
+    const symCfg = mt5Symbols.find((s) => s.symbol === resolved.symbol);
+    const tradeMode: MT5TradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
+
     const dir = result.signal === 'SELL' ? 'SELL' : 'BUY';
     let sl = stripNumericPrice(result.stopLoss);
     let tp = stripNumericPrice(result.takeProfit1 || '');
     const entryStr = stripNumericPrice(result.entryPrice || result.currentPrice);
     const entryNum = parseFloat(entryStr);
     if ((!sl || !tp) && entryNum && Number.isFinite(entryNum)) {
-      const fb = computeFallbackSlTp(dir, entryNum);
+      const fb = computeFallbackSlTp(dir, entryNum, tradeMode);
       if (fb) {
         if (!sl) sl = fb.sl;
         if (!tp) tp = fb.tp;

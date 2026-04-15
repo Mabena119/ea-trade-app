@@ -186,11 +186,15 @@ export interface MT4Symbol {
   activatedAt: Date;
 }
 
+export type MT5TradeMode = 'scalper' | 'swing';
+
 export interface MT5Symbol {
   symbol: string;
   lotSize: string;
   direction: 'BUY' | 'SELL' | 'BOTH';
   numberOfTrades: string;
+  /** User-selected on trade config; drives execution style (e.g. scalper = tighter levels / single round). */
+  tradeMode?: MT5TradeMode;
   activatedAt: Date;
 }
 
@@ -517,11 +521,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               try {
                 return {
                   ...symbol,
+                  tradeMode: symbol.tradeMode === 'scalper' ? 'scalper' : 'swing',
                   activatedAt: new Date(symbol.activatedAt)
                 };
               } catch {
                 return {
                   ...symbol,
+                  tradeMode: symbol.tradeMode === 'scalper' ? 'scalper' : 'swing',
                   activatedAt: new Date()
                 };
               }
@@ -834,11 +840,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const activateMT5Symbol = useCallback(async (symbolConfig: Omit<MT5Symbol, 'activatedAt'>) => {
     const preset = getEquityBasedMT5Preset(mt5Account?.equity);
+    const tradeMode: MT5TradeMode = symbolConfig.tradeMode === 'scalper' ? 'scalper' : 'swing';
     const newActiveSymbol: MT5Symbol = {
       symbol: symbolConfig.symbol,
       lotSize: preset.lotSize,
       direction: 'BOTH',
       numberOfTrades: preset.numberOfTrades,
+      tradeMode,
       activatedAt: new Date()
     };
 

@@ -51,17 +51,21 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return MT5_BROKER_URLS[mt5Account.server] || 'https://webtrader.razormarkets.co.za/terminal/';
   }, [mt5Account]);
 
-  // Get number of trades from symbol config
+  // Get number of trades from symbol config (scalper: single execution round; swing: equity preset)
   const getNumberOfTrades = useCallback(() => {
     if (!signal?.asset || !mt5Symbols || mt5Symbols.length === 0) {
-      return 1; // Default to 1 trade
+      return 1;
     }
     const symbolConfig = mt5Symbols.find(s => s.symbol === signal.asset);
-    if (symbolConfig && symbolConfig.numberOfTrades) {
+    if (!symbolConfig) return 1;
+    if (symbolConfig.tradeMode === 'scalper') {
+      return 1;
+    }
+    if (symbolConfig.numberOfTrades) {
       const numTrades = parseInt(symbolConfig.numberOfTrades, 10);
       return isNaN(numTrades) || numTrades < 1 ? 1 : numTrades;
     }
-    return 1; // Default to 1 trade
+    return 1;
   }, [signal, mt5Symbols]);
 
   // Generate MT5 authentication script - EXACT COPY from server.ts proxy handler
