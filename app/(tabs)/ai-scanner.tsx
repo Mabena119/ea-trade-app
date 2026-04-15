@@ -11,6 +11,7 @@ import {
   ScrollView,
   Platform,
   Alert,
+  unstable_batchedUpdates,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -575,8 +576,11 @@ export default function AIScannerScreen() {
 
     const signal = buildSignalFromScanner(result, resolved.symbol);
     pausePolling().catch(() => {});
-    setMT5Signal(signal);
-    setShowMT5SignalWebView(true);
+    unstable_batchedUpdates(() => {
+      setMT5TradeOverlayMessage(null);
+      setMT5Signal(signal);
+      setShowMT5SignalWebView(true);
+    });
   }, [
     result,
     mt5Account,
