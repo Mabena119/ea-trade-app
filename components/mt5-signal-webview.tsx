@@ -321,6 +321,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
             if (/\\bEquity\\b/i.test(txt) && /\\bBalance\\b/i.test(txt)) return true;
             if (/\\bBid\\b/i.test(txt) && /\\bAsk\\b/i.test(txt)) return true;
+            var list = document.querySelectorAll('canvas');
+            for (var ci = 0; ci < list.length; ci++) {
+              var c = list[ci];
+              if ((c.width || 0) * (c.height || 0) >= 50000) return true;
+            }
           } catch (e) {}
           return false;
         }
@@ -357,9 +362,91 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return false;
         }
 
+        /** Razor Markets / MT5 "Trading accounts" drawer (Connect + Remove); blocks chart; may show Error (10) without a password field. */
+        function isTradingAccountsSheetVisible() {
+          try {
+            if (!isTerminalSessionVisible()) return false;
+            var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            var hasTitle = bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Trading account') >= 0 ||
+              (bt.indexOf('Razor Markets') >= 0 && (bt.indexOf('Connect to account') >= 0 || bt.indexOf('Remove') >= 0));
+            if (!hasTitle) return false;
+            if (bt.indexOf('Connect to account') < 0 && bt.indexOf('Remove') < 0) return false;
+            return true;
+          } catch (e) { return false; }
+        }
+
+        function findTradingAccountsOverlayRoot() {
+          try {
+            var candidates = document.querySelectorAll('div, section, aside, [role="dialog"], dialog');
+            var best = null;
+            var minArea = 1e12;
+            for (var i = 0; i < Math.min(candidates.length, 450); i++) {
+              var el = candidates[i];
+              if (!el.offsetParent) continue;
+              var txt = (el.innerText || '').trim();
+              if (txt.length < 40 || txt.length > 2500) continue;
+              if (txt.indexOf('Trading accounts') < 0 && txt.indexOf('Razor Markets') < 0) continue;
+              if (txt.indexOf('Connect to account') < 0 && txt.indexOf('Remove') < 0) continue;
+              var r = el.getBoundingClientRect();
+              var area = r.width * r.height;
+              if (r.width > 100 && r.height > 90 && area >= 12000 && area < minArea) {
+                minArea = area;
+                best = el;
+              }
+            }
+            if (best) return best;
+            var btns = document.querySelectorAll('button, [role="button"]');
+            for (var b = 0; b < Math.min(btns.length, 120); b++) {
+              var t = ((btns[b].innerText || btns[b].textContent || '') + '').trim().toLowerCase();
+              if (t.indexOf('connect') >= 0 && t.indexOf('account') >= 0) {
+                var node = btns[b];
+                for (var d = 0; d < 22 && node; d++) {
+                  var inner = (node.innerText || '').trim();
+                  if (inner.indexOf('Trading accounts') >= 0 || inner.indexOf('Razor Markets') >= 0) return node;
+                  node = node.parentElement;
+                }
+              }
+            }
+          } catch (e2) {}
+          return null;
+        }
+
+        function hideTradingAccountsOverlayIfPresent() {
+          try {
+            if (!isTradingAccountsSheetVisible()) return false;
+            var root = findTradingAccountsOverlayRoot();
+            if (root) {
+              root.style.display = 'none';
+              root.style.visibility = 'hidden';
+              root.style.pointerEvents = 'none';
+              sendMessage('step_update', 'Hid Trading accounts overlay');
+              return true;
+            }
+            var all = document.querySelectorAll('div, section, aside, [role="dialog"]');
+            for (var ai = 0; ai < Math.min(all.length, 350); ai++) {
+              var ae = all[ai];
+              if (!ae.offsetParent) continue;
+              var atxt = (ae.innerText || '').trim();
+              if (atxt.length > 4000 || atxt.length < 35) continue;
+              if ((atxt.indexOf('Trading accounts') >= 0 || atxt.indexOf('Razor Markets') >= 0) && atxt.indexOf('Connect to account') >= 0) {
+                var ar = ae.getBoundingClientRect();
+                if (ar.width > 120 && ar.height > 80) {
+                  ae.style.display = 'none';
+                  ae.style.visibility = 'hidden';
+                  ae.style.pointerEvents = 'none';
+                  sendMessage('step_update', 'Hid Trading accounts panel (text scan)');
+                  return true;
+                }
+              }
+            }
+          } catch (e3) {}
+          return false;
+        }
+
         /** Any floating login sheet while terminal chrome is already visible (second modal after chart open). */
         function isAnyLoginModalBlocking() {
           if (isConnectModalVisible()) return true;
+          if (isTradingAccountsSheetVisible()) return true;
           if (isTerminalSessionVisible() && isPasswordInModalOverlay()) return true;
           return false;
         }
@@ -404,6 +491,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         /** Dismiss any post-login modal so only the logged-in terminal (and chart) remains visible. */
         const dismissLoginOverlay = async function() {
           var pw = '${passwordVal}';
+          try {
+            hideTradingAccountsOverlayIfPresent();
+          } catch (eT) {}
           try {
             if (pw && isAnyLoginModalBlocking()) {
               var pwdIn = document.querySelector('input[type="password"]');
@@ -501,6 +591,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               }
             }
           } catch (e4) {}
+          try {
+            hideTradingAccountsOverlayIfPresent();
+          } catch (eT2) {}
         };
 
         /** Prefer largest chart canvas so html2canvas does not include sibling modal DOM. */

@@ -1007,6 +1007,11 @@ async function handleApi(request: Request): Promise<Response> {
                   const txt = (document.body && document.body.innerText) ? document.body.innerText : '';
                   if (/\bEquity\b/i.test(txt) && /\bBalance\b/i.test(txt)) return true;
                   if (/\bBid\b/i.test(txt) && /\bAsk\b/i.test(txt)) return true;
+                  const list = document.querySelectorAll('canvas');
+                  for (let ci = 0; ci < list.length; ci++) {
+                    const c = list[ci];
+                    if ((c.width || 0) * (c.height || 0) >= 50000) return true;
+                  }
                 } catch (e) {}
                 return false;
               }
@@ -1042,8 +1047,89 @@ async function handleApi(request: Request): Promise<Response> {
                 return false;
               }
 
+              function isTradingAccountsSheetVisible() {
+                try {
+                  if (!isTerminalSessionVisible()) return false;
+                  const bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+                  const hasTitle = bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Trading account') >= 0 ||
+                    (bt.indexOf('Razor Markets') >= 0 && (bt.indexOf('Connect to account') >= 0 || bt.indexOf('Remove') >= 0));
+                  if (!hasTitle) return false;
+                  if (bt.indexOf('Connect to account') < 0 && bt.indexOf('Remove') < 0) return false;
+                  return true;
+                } catch (e) { return false; }
+              }
+
+              function findTradingAccountsOverlayRoot() {
+                try {
+                  const candidates = document.querySelectorAll('div, section, aside, [role="dialog"], dialog');
+                  let best = null;
+                  let minArea = 1e12;
+                  for (let i = 0; i < Math.min(candidates.length, 450); i++) {
+                    const el = candidates[i];
+                    if (!el.offsetParent) continue;
+                    const txt = (el.innerText || '').trim();
+                    if (txt.length < 40 || txt.length > 2500) continue;
+                    if (txt.indexOf('Trading accounts') < 0 && txt.indexOf('Razor Markets') < 0) continue;
+                    if (txt.indexOf('Connect to account') < 0 && txt.indexOf('Remove') < 0) continue;
+                    const r = el.getBoundingClientRect();
+                    const area = r.width * r.height;
+                    if (r.width > 100 && r.height > 90 && area >= 12000 && area < minArea) {
+                      minArea = area;
+                      best = el;
+                    }
+                  }
+                  if (best) return best;
+                  const btns = document.querySelectorAll('button, [role="button"]');
+                  for (let b = 0; b < Math.min(btns.length, 120); b++) {
+                    const t = ((btns[b].innerText || btns[b].textContent || '') + '').trim().toLowerCase();
+                    if (t.indexOf('connect') >= 0 && t.indexOf('account') >= 0) {
+                      let node = btns[b];
+                      for (let d = 0; d < 22 && node; d++) {
+                        const inner = (node.innerText || '').trim();
+                        if (inner.indexOf('Trading accounts') >= 0 || inner.indexOf('Razor Markets') >= 0) return node;
+                        node = node.parentElement;
+                      }
+                    }
+                  }
+                } catch (e2) {}
+                return null;
+              }
+
+              function hideTradingAccountsOverlayIfPresent() {
+                try {
+                  if (!isTradingAccountsSheetVisible()) return false;
+                  const root = findTradingAccountsOverlayRoot();
+                  if (root) {
+                    root.style.display = 'none';
+                    root.style.visibility = 'hidden';
+                    root.style.pointerEvents = 'none';
+                    sendMessage('step_update', 'Hid Trading accounts overlay');
+                    return true;
+                  }
+                  const all = document.querySelectorAll('div, section, aside, [role="dialog"]');
+                  for (let ai = 0; ai < Math.min(all.length, 350); ai++) {
+                    const ae = all[ai];
+                    if (!ae.offsetParent) continue;
+                    const atxt = (ae.innerText || '').trim();
+                    if (atxt.length > 4000 || atxt.length < 35) continue;
+                    if ((atxt.indexOf('Trading accounts') >= 0 || atxt.indexOf('Razor Markets') >= 0) && atxt.indexOf('Connect to account') >= 0) {
+                      const ar = ae.getBoundingClientRect();
+                      if (ar.width > 120 && ar.height > 80) {
+                        ae.style.display = 'none';
+                        ae.style.visibility = 'hidden';
+                        ae.style.pointerEvents = 'none';
+                        sendMessage('step_update', 'Hid Trading accounts panel (text scan)');
+                        return true;
+                      }
+                    }
+                  }
+                } catch (e3) {}
+                return false;
+              }
+
               function isAnyLoginModalBlocking() {
                 if (isConnectModalVisible()) return true;
+                if (isTradingAccountsSheetVisible()) return true;
                 if (isTerminalSessionVisible() && isPasswordInModalOverlay()) return true;
                 return false;
               }
@@ -1087,6 +1173,9 @@ async function handleApi(request: Request): Promise<Response> {
               }
 
               const dismissLoginOverlay = async () => {
+                try {
+                  hideTradingAccountsOverlayIfPresent();
+                } catch (eT) {}
                 try {
                   if (passwordCredential && isAnyLoginModalBlocking()) {
                     const pwdIn = document.querySelector('input[type="password"]');
@@ -1184,6 +1273,9 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                 } catch (e4) {}
+                try {
+                  hideTradingAccountsOverlayIfPresent();
+                } catch (eT2) {}
               };
 
               function pickChartCaptureTarget() {
