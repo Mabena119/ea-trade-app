@@ -1699,6 +1699,44 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
                 }
               };
+
+              const closeSearchPanelAfterSymbolSelect = async () => {
+                try {
+                  sendMessage('step_update', 'Closing search panel for a wider chart...');
+                  try {
+                    const sf =
+                      document.querySelector('input[placeholder*="Search symbol" i]') ||
+                      document.querySelector('input[placeholder*="Search" i]');
+                    if (sf) sf.blur();
+                  } catch (e) {}
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
+                  );
+                  await sleep(300);
+                  const hideMw =
+                    document.querySelector('div.icon-button.svelte-1iwf8ix[title="Hide Market Watch (Ctrl + M)"]') ||
+                    Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix')).find(btn => {
+                      const t = (btn.getAttribute('title') || '').toLowerCase();
+                      return t.includes('hide') && t.includes('market watch');
+                    });
+                  if (hideMw) {
+                    hideMw.click();
+                    await sleep(650);
+                  }
+                  const sf2 =
+                    document.querySelector('input[placeholder*="Search symbol" i]') ||
+                    document.querySelector('input[placeholder*="Search" i]');
+                  if (sf2) {
+                    sf2.value = '';
+                    sf2.dispatchEvent(new Event('input', { bubbles: true }));
+                    sf2.blur();
+                  }
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
+                  );
+                  await sleep(400);
+                } catch (e) {}
+              };
               
               // Search for symbol function - STRICTLY SEQUENTIAL Step 2
               const searchForSymbol = async (symbolName) => {
@@ -1818,6 +1856,7 @@ async function handleApi(request: Request): Promise<Response> {
                       await dismissLoginOverlay();
                       await sleep(500);
                       await dismissLoginOverlay();
+                      await closeSearchPanelAfterSymbolSelect();
                     }
                      
                     if (!symbolSelected) {

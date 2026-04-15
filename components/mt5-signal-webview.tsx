@@ -1062,6 +1062,45 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
         };
 
+        /** Collapse Market Watch / clear search after picking a symbol so the chart uses full width for screenshots and AI analysis. */
+        const closeSearchPanelAfterSymbolSelect = async () => {
+          try {
+            sendMessage('step_update', 'Closing search panel for a wider chart...');
+            try {
+              const sf =
+                document.querySelector('input[placeholder*="Search symbol" i]') ||
+                document.querySelector('input[placeholder*="Search" i]');
+              if (sf) sf.blur();
+            } catch (e) {}
+            document.dispatchEvent(
+              new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
+            );
+            await new Promise(r => setTimeout(r, 300));
+            const hideMw =
+              document.querySelector('div.icon-button.svelte-1iwf8ix[title="Hide Market Watch (Ctrl + M)"]') ||
+              Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix')).find(btn => {
+                const t = (btn.getAttribute('title') || '').toLowerCase();
+                return t.includes('hide') && t.includes('market watch');
+              });
+            if (hideMw) {
+              hideMw.click();
+              await new Promise(r => setTimeout(r, 650));
+            }
+            const sf2 =
+              document.querySelector('input[placeholder*="Search symbol" i]') ||
+              document.querySelector('input[placeholder*="Search" i]');
+            if (sf2) {
+              sf2.value = '';
+              sf2.dispatchEvent(new Event('input', { bubbles: true }));
+              sf2.blur();
+            }
+            document.dispatchEvent(
+              new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
+            );
+            await new Promise(r => setTimeout(r, 400));
+          } catch (e) {}
+        };
+
         // Search for symbol function - STRICTLY SEQUENTIAL Step 2
         const searchForSymbol = async (symbolName) => {
           try {
@@ -1192,6 +1231,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 await dismissLoginOverlay();
                 await new Promise(r => setTimeout(r, 500));
                 await dismissLoginOverlay();
+                await closeSearchPanelAfterSymbolSelect();
               }
               
               if (!symbolSelected) {
