@@ -1009,6 +1009,58 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch (e) { return false; }
               }
 
+              function isSecondaryConnectionPanelVisible() {
+                try {
+                  const bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+                  if (bt.indexOf('Connection closed or not established') >= 0) return true;
+                  if (bt.indexOf('Trading accounts:') >= 0 && bt.indexOf('Connect to account') >= 0) return true;
+                } catch (e) {}
+                return false;
+              }
+
+              function isAnyConnectionOverlayBlocking() {
+                return isConnectModalVisible() || isSecondaryConnectionPanelVisible();
+              }
+
+              function hideSecondaryConnectionPanels() {
+                try {
+                  const sel = document.querySelectorAll('div, section, aside, article, main');
+                  for (let i = 0; i < Math.min(sel.length, 500); i++) {
+                    const el = sel[i];
+                    if (!el.offsetParent) continue;
+                    const t = (el.innerText || '').trim();
+                    if (t.length > 1400 || t.length < 15) continue;
+                    if (t.indexOf('Connection closed or not established') >= 0) {
+                      const r = el.getBoundingClientRect();
+                      if (r.height > 28 && r.width > 80) {
+                        el.style.display = 'none';
+                        el.style.visibility = 'hidden';
+                        el.style.pointerEvents = 'none';
+                        sendMessage('step_update', 'Hid connection status strip blocking chart');
+                        return true;
+                      }
+                    }
+                  }
+                  for (let j = 0; j < Math.min(sel.length, 500); j++) {
+                    const e2 = sel[j];
+                    if (!e2.offsetParent) continue;
+                    const t2 = (e2.innerText || '').trim();
+                    if (t2.length > 1400 || t2.length < 40) continue;
+                    if (t2.indexOf('Trading accounts:') >= 0 && t2.indexOf('Connect to account') >= 0 && t2.indexOf('MetaQuotes') >= 0) {
+                      const r2 = e2.getBoundingClientRect();
+                      if (r2.height > 50 && r2.width > 120) {
+                        e2.style.display = 'none';
+                        e2.style.visibility = 'hidden';
+                        e2.style.pointerEvents = 'none';
+                        sendMessage('step_update', 'Hid Trading accounts / Connect duplicate panel');
+                        return true;
+                      }
+                    }
+                  }
+                } catch (e) {}
+                return false;
+              }
+
               function findConnectModalRootFromPassword() {
                 try {
                   const pwd = document.querySelector('input[type="password"]');
@@ -1067,6 +1119,23 @@ async function handleApi(request: Request): Promise<Response> {
                   }
                 } catch (e0) {}
                 try {
+                  if (isSecondaryConnectionPanelVisible()) {
+                    const btnsC = document.querySelectorAll('button, a, [role="button"]');
+                    for (let bc = 0; bc < Math.min(btnsC.length, 120); bc++) {
+                      const tcx = ((btnsC[bc].innerText || btnsC[bc].textContent || '') + '').trim().toLowerCase();
+                      if (tcx.indexOf('connect') >= 0 && tcx.indexOf('account') >= 0 && btnsC[bc].offsetParent) {
+                        btnsC[bc].click();
+                        sendMessage('step_update', 'Clicked Connect to account (clears duplicate connection panel)');
+                        await sleep(2600);
+                        break;
+                      }
+                    }
+                  }
+                } catch (e0b) {}
+                try {
+                  hideSecondaryConnectionPanels();
+                } catch (e0c) {}
+                try {
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
                   await sleep(120);
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
@@ -1091,7 +1160,7 @@ async function handleApi(request: Request): Promise<Response> {
                     root.style.visibility = 'hidden';
                     root.style.pointerEvents = 'none';
                     sendMessage('step_update', 'Hid Connect to account overlay (modal root)');
-                  } else if (isConnectModalVisible()) {
+                  } else if (isAnyConnectionOverlayBlocking()) {
                     const all = document.querySelectorAll('div, section, [role="dialog"], dialog');
                     for (let ai = 0; ai < Math.min(all.length, 250); ai++) {
                       const ae = all[ai];
@@ -1133,6 +1202,9 @@ async function handleApi(request: Request): Promise<Response> {
                     }
                   }
                 } catch (e4) {}
+                try {
+                  hideSecondaryConnectionPanels();
+                } catch (e5) {}
               };
 
               function pickChartCaptureTarget() {
@@ -1159,7 +1231,7 @@ async function handleApi(request: Request): Promise<Response> {
                 const tick = 450;
                 function isLikelyLoginScreen() {
                   try {
-                    if (isConnectModalVisible()) return true;
+                    if (isAnyConnectionOverlayBlocking()) return true;
                     const hasChart = hasChartCanvas();
                     const hasBidAsk = hasBidAskRibbon();
                     const sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -1395,7 +1467,7 @@ async function handleApi(request: Request): Promise<Response> {
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
                       for (let preCap = 0; preCap < 10; preCap++) {
                         await dismissLoginOverlay();
-                        if (!isConnectModalVisible()) break;
+                        if (!isAnyConnectionOverlayBlocking()) break;
                         await sleep(450);
                       }
                       await sleep(900);
@@ -1480,7 +1552,7 @@ async function handleApi(request: Request): Promise<Response> {
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
                       for (let preCap = 0; preCap < 10; preCap++) {
                         await dismissLoginOverlay();
-                        if (!isConnectModalVisible()) break;
+                        if (!isAnyConnectionOverlayBlocking()) break;
                         await sleep(450);
                       }
                       await sleep(900);
@@ -1722,6 +1794,14 @@ async function handleApi(request: Request): Promise<Response> {
                       chartContainer.click();
                       await sleep(500);
                       sendMessage('step_update', 'Chart container focused');
+                    }
+                  }
+                  if (isChartWarmup) {
+                    sendMessage('step_update', 'Clearing duplicate connection UI after chart open...');
+                    for (let ocx = 0; ocx < 10; ocx++) {
+                      await dismissLoginOverlay();
+                      if (!isAnyConnectionOverlayBlocking()) break;
+                      await sleep(500);
                     }
                   }
                 } catch(e) {
