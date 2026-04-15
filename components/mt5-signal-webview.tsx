@@ -312,23 +312,121 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           writable: false
         });
 
-        /** MT5 web often leaves the login layer in the DOM on top of the chart — dismiss it when session is clearly live. */
-        const dismissLoginOverlay = async function() {
+        /** True when MT5 shows the in-terminal "Connect to account" sheet on top of the chart (session reconnect). */
+        function isConnectModalVisible() {
           try {
+            var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            if (bt.indexOf('Connect to account') < 0) return false;
+            var pwd = document.querySelector('input[type="password"]');
+            if (!pwd || !pwd.offsetParent) return false;
+            var rr = pwd.getBoundingClientRect();
+            return rr.width > 0 && rr.height > 0;
+          } catch (e) { return false; }
+        }
+
+        function findConnectModalRootFromPassword() {
+          try {
+            var pwd = document.querySelector('input[type="password"]');
+            if (!pwd || !pwd.offsetParent) return null;
+            var node = pwd;
+            for (var d = 0; d < 24 && node; d++) {
+              var cls = String(node.className || '');
+              var txt = (node.innerText || '').trim();
+              if (txt.indexOf('Connect to account') >= 0 || (txt.indexOf('RazorMarkets') >= 0 && txt.indexOf('Server') >= 0 && txt.indexOf('Password') >= 0)) {
+                return node;
+              }
+              if (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || cls.indexOf('sheet') >= 0) {
+                return node;
+              }
+              node = node.parentElement;
+            }
+          } catch (e2) {}
+          return null;
+        }
+
+        function setInputValueForOverlay(el, val) {
+          if (!el || val == null || val === '') return;
+          try {
+            el.focus();
+            el.value = '';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            var nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') && Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            if (nativeSetter) nativeSetter.call(el, val);
+            else el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true }));
+          } catch (e) {}
+        }
+
+        /** Dismiss "Connect to account" so AI snapshot is candlesticks, not the login form. */
+        const dismissLoginOverlay = async function() {
+          var pw = '${passwordVal}';
+          try {
+            if (pw && isConnectModalVisible()) {
+              var pwdIn = document.querySelector('input[type="password"]');
+              if (pwdIn && (!pwdIn.value || String(pwdIn.value).trim() === '')) {
+                setInputValueForOverlay(pwdIn, pw);
+                await new Promise(function(r) { setTimeout(r, 400); });
+                var btns0 = document.querySelectorAll('button');
+                for (var b0 = 0; b0 < btns0.length; b0++) {
+                  var t0 = ((btns0[b0].innerText || btns0[b0].textContent || '') + '').trim().toLowerCase();
+                  if (t0.indexOf('connect') >= 0 && t0.indexOf('account') >= 0) {
+                    btns0[b0].click();
+                    sendMessage('step_update', 'Connect modal: submitted saved password to dismiss overlay');
+                    await new Promise(function(r) { setTimeout(r, 2200); });
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (e0) {}
+          try {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+            await new Promise(function(r) { setTimeout(r, 120); });
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
           } catch (e) {}
           await new Promise(function(r) { setTimeout(r, 200); });
           try {
             var cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
-            for (var ci = 0; ci < Math.min(cand.length, 50); ci++) {
+            for (var ci = 0; ci < Math.min(cand.length, 80); ci++) {
               var el = cand[ci];
               var lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
-              if (lab.indexOf('close') >= 0 || (el.innerText || '').trim() === '×' || (el.innerText || '').trim() === '✕') {
+              var tx = ((el.innerText || el.textContent || '') + '').trim();
+              if (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') {
                 el.click();
                 await new Promise(function(r) { setTimeout(r, 150); });
               }
             }
           } catch (e2) {}
+          try {
+            var root = findConnectModalRootFromPassword();
+            if (root) {
+              root.style.display = 'none';
+              root.style.visibility = 'hidden';
+              root.style.pointerEvents = 'none';
+              sendMessage('step_update', 'Hid Connect to account overlay (modal root)');
+            } else if (isConnectModalVisible()) {
+              var all = document.querySelectorAll('div, section, [role="dialog"], dialog');
+              for (var ai = 0; ai < Math.min(all.length, 250); ai++) {
+                var ae = all[ai];
+                if (!ae.offsetParent) continue;
+                var atxt = (ae.innerText || '').trim();
+                if (atxt.length > 500) continue;
+                if (atxt.indexOf('Connect to account') >= 0) {
+                  var ar = ae.getBoundingClientRect();
+                  if (ar.width > 160 && ar.height > 100) {
+                    ae.style.display = 'none';
+                    ae.style.visibility = 'hidden';
+                    ae.style.pointerEvents = 'none';
+                    sendMessage('step_update', 'Hid Connect to account overlay (text match)');
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (e3) {}
           try {
             var pwd = document.querySelector('input[type="password"]');
             var sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -336,7 +434,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                      document.querySelector('input[type="search"]');
             if (pwd && pwd.offsetParent && sb && sb.offsetParent) {
               var node = pwd;
-              for (var d = 0; d < 14 && node; d++) {
+              for (var d = 0; d < 18 && node; d++) {
                 node = node.parentElement;
                 if (!node) break;
                 var cls = String(node.className || '');
@@ -350,8 +448,28 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 }
               }
             }
-          } catch (e3) {}
+          } catch (e4) {}
         };
+
+        /** Prefer largest chart canvas so html2canvas does not include sibling modal DOM. */
+        function pickChartCaptureTarget() {
+          try {
+            var canvases = document.querySelectorAll('canvas');
+            var best = null;
+            var bestArea = 0;
+            for (var i = 0; i < canvases.length; i++) {
+              var c = canvases[i];
+              var rect = c.getBoundingClientRect();
+              var area = rect.width * rect.height;
+              if (area > bestArea && rect.width > 80 && rect.height > 60) {
+                bestArea = area;
+                best = c;
+              }
+            }
+            if (best && bestArea >= 18000) return best;
+          } catch (e) {}
+          return document.body;
+        }
 
         /** Wait until not on broker login screen and chart canvas is visible (avoids AI snapshot of login page). */
         const waitForChartReady = async function(maxMs) {
@@ -359,6 +477,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           var tick = 450;
           function isLikelyLoginScreen() {
             try {
+              if (isConnectModalVisible()) return true;
               var hasChart = hasChartCanvas();
               var hasBidAsk = hasBidAskRibbon();
               var sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -401,6 +520,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             } catch (e3) { return false; }
           }
           while (Date.now() < deadline) {
+            await dismissLoginOverlay();
             var onLogin = isLikelyLoginScreen();
             var chartOk = hasChartCanvas() || hasBidAskRibbon();
             if (!onLogin && chartOk) {
@@ -621,7 +741,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   return;
                 }
                 sendMessage('step_update', 'Capturing chart for AI analysis...');
-                await new Promise(function(r) { setTimeout(r, 2500); });
+                for (var preCap = 0; preCap < 10; preCap++) {
+                  await dismissLoginOverlay();
+                  if (!isConnectModalVisible()) break;
+                  await new Promise(function(r) { setTimeout(r, 450); });
+                }
+                await new Promise(function(r) { setTimeout(r, 900); });
                 try {
                   await new Promise(function(resolve) {
                     var scriptEl = document.createElement('script');
@@ -635,10 +760,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                           resolve();
                           return;
                         }
-                        h2c(document.body, {
+                        var capTarget = pickChartCaptureTarget();
+                        var scaleCap = capTarget === document.body ? 0.42 : 0.55;
+                        h2c(capTarget, {
                           useCORS: true,
                           allowTaint: true,
-                          scale: 0.42,
+                          scale: scaleCap,
                           logging: false,
                           windowWidth: document.documentElement.scrollWidth,
                           windowHeight: document.documentElement.scrollHeight
@@ -708,7 +835,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   return;
                 }
                 sendMessage('step_update', 'Capturing chart for AI analysis...');
-                await new Promise(function(r) { setTimeout(r, 2500); });
+                for (var preCap = 0; preCap < 10; preCap++) {
+                  await dismissLoginOverlay();
+                  if (!isConnectModalVisible()) break;
+                  await new Promise(function(r) { setTimeout(r, 450); });
+                }
+                await new Promise(function(r) { setTimeout(r, 900); });
                 try {
                   await new Promise(function(resolve) {
                     var scriptEl = document.createElement('script');
@@ -722,10 +854,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                           resolve();
                           return;
                         }
-                        h2c(document.body, {
+                        var capTarget = pickChartCaptureTarget();
+                        var scaleCap = capTarget === document.body ? 0.42 : 0.55;
+                        h2c(capTarget, {
                           useCORS: true,
                           allowTaint: true,
-                          scale: 0.42,
+                          scale: scaleCap,
                           logging: false,
                           windowWidth: document.documentElement.scrollWidth,
                           windowHeight: document.documentElement.scrollHeight

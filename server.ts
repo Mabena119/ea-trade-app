@@ -998,22 +998,119 @@ async function handleApi(request: Request): Promise<Response> {
               const loginCredential = '${loginValue}';
               const passwordCredential = '${passwordValue}';
 
+              function isConnectModalVisible() {
+                try {
+                  const bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+                  if (bt.indexOf('Connect to account') < 0) return false;
+                  const pwd = document.querySelector('input[type="password"]');
+                  if (!pwd || !pwd.offsetParent) return false;
+                  const rr = pwd.getBoundingClientRect();
+                  return rr.width > 0 && rr.height > 0;
+                } catch (e) { return false; }
+              }
+
+              function findConnectModalRootFromPassword() {
+                try {
+                  const pwd = document.querySelector('input[type="password"]');
+                  if (!pwd || !pwd.offsetParent) return null;
+                  let node = pwd;
+                  for (let d = 0; d < 24 && node; d++) {
+                    const cls = String(node.className || '');
+                    const txt = (node.innerText || '').trim();
+                    if (txt.indexOf('Connect to account') >= 0 || (txt.indexOf('RazorMarkets') >= 0 && txt.indexOf('Server') >= 0 && txt.indexOf('Password') >= 0)) {
+                      return node;
+                    }
+                    if (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || cls.indexOf('sheet') >= 0) {
+                      return node;
+                    }
+                    node = node.parentElement;
+                  }
+                } catch (e2) {}
+                return null;
+              }
+
+              function setInputValueForOverlay(el, val) {
+                if (!el || val == null || val === '') return;
+                try {
+                  el.focus();
+                  el.value = '';
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                  el.dispatchEvent(new Event('change', { bubbles: true }));
+                  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+                  const nativeSetter = desc && desc.set;
+                  if (nativeSetter) nativeSetter.call(el, val);
+                  else el.value = val;
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                  el.dispatchEvent(new Event('change', { bubbles: true }));
+                  el.dispatchEvent(new Event('blur', { bubbles: true }));
+                } catch (e) {}
+              }
+
               const dismissLoginOverlay = async () => {
                 try {
+                  if (passwordCredential && isConnectModalVisible()) {
+                    const pwdIn = document.querySelector('input[type="password"]');
+                    if (pwdIn && (!pwdIn.value || String(pwdIn.value).trim() === '')) {
+                      setInputValueForOverlay(pwdIn, passwordCredential);
+                      await sleep(400);
+                      const btns0 = document.querySelectorAll('button');
+                      for (let b0 = 0; b0 < btns0.length; b0++) {
+                        const t0 = ((btns0[b0].innerText || btns0[b0].textContent || '') + '').trim().toLowerCase();
+                        if (t0.indexOf('connect') >= 0 && t0.indexOf('account') >= 0) {
+                          btns0[b0].click();
+                          sendMessage('step_update', 'Connect modal: submitted saved password to dismiss overlay');
+                          await sleep(2200);
+                          break;
+                        }
+                      }
+                    }
+                  }
+                } catch (e0) {}
+                try {
+                  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+                  await sleep(120);
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
                 } catch (e) {}
                 await sleep(200);
                 try {
                   const cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
-                  for (let ci = 0; ci < Math.min(cand.length, 50); ci++) {
+                  for (let ci = 0; ci < Math.min(cand.length, 80); ci++) {
                     const el = cand[ci];
                     const lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
-                    if (lab.indexOf('close') >= 0 || (el.innerText || '').trim() === '×' || (el.innerText || '').trim() === '✕') {
+                    const tx = ((el.innerText || el.textContent || '') + '').trim();
+                    if (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') {
                       el.click();
                       await sleep(150);
                     }
                   }
                 } catch (e2) {}
+                try {
+                  const root = findConnectModalRootFromPassword();
+                  if (root) {
+                    root.style.display = 'none';
+                    root.style.visibility = 'hidden';
+                    root.style.pointerEvents = 'none';
+                    sendMessage('step_update', 'Hid Connect to account overlay (modal root)');
+                  } else if (isConnectModalVisible()) {
+                    const all = document.querySelectorAll('div, section, [role="dialog"], dialog');
+                    for (let ai = 0; ai < Math.min(all.length, 250); ai++) {
+                      const ae = all[ai];
+                      if (!ae.offsetParent) continue;
+                      const atxt = (ae.innerText || '').trim();
+                      if (atxt.length > 500) continue;
+                      if (atxt.indexOf('Connect to account') >= 0) {
+                        const ar = ae.getBoundingClientRect();
+                        if (ar.width > 160 && ar.height > 100) {
+                          ae.style.display = 'none';
+                          ae.style.visibility = 'hidden';
+                          ae.style.pointerEvents = 'none';
+                          sendMessage('step_update', 'Hid Connect to account overlay (text match)');
+                          break;
+                        }
+                      }
+                    }
+                  }
+                } catch (e3) {}
                 try {
                   const pwd = document.querySelector('input[type="password"]');
                   const sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -1021,7 +1118,7 @@ async function handleApi(request: Request): Promise<Response> {
                            document.querySelector('input[type="search"]');
                   if (pwd && pwd.offsetParent && sb && sb.offsetParent) {
                     let node = pwd;
-                    for (let d = 0; d < 14 && node; d++) {
+                    for (let d = 0; d < 18 && node; d++) {
                       node = node.parentElement;
                       if (!node) break;
                       const cls = String(node.className || '');
@@ -1035,14 +1132,34 @@ async function handleApi(request: Request): Promise<Response> {
                       }
                     }
                   }
-                } catch (e3) {}
+                } catch (e4) {}
               };
+
+              function pickChartCaptureTarget() {
+                try {
+                  const canvases = document.querySelectorAll('canvas');
+                  let best = null;
+                  let bestArea = 0;
+                  for (let i = 0; i < canvases.length; i++) {
+                    const c = canvases[i];
+                    const rect = c.getBoundingClientRect();
+                    const area = rect.width * rect.height;
+                    if (area > bestArea && rect.width > 80 && rect.height > 60) {
+                      bestArea = area;
+                      best = c;
+                    }
+                  }
+                  if (best && bestArea >= 18000) return best;
+                } catch (e) {}
+                return document.body;
+              }
 
               const waitForChartReady = async (maxMs) => {
                 const deadline = Date.now() + maxMs;
                 const tick = 450;
                 function isLikelyLoginScreen() {
                   try {
+                    if (isConnectModalVisible()) return true;
                     const hasChart = hasChartCanvas();
                     const hasBidAsk = hasBidAskRibbon();
                     const sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -1083,6 +1200,7 @@ async function handleApi(request: Request): Promise<Response> {
                   } catch (e3) { return false; }
                 }
                 while (Date.now() < deadline) {
+                  await dismissLoginOverlay();
                   const onLogin = isLikelyLoginScreen();
                   const chartOk = hasChartCanvas() || hasBidAskRibbon();
                   if (!onLogin && chartOk) {
@@ -1275,7 +1393,12 @@ async function handleApi(request: Request): Promise<Response> {
                         return;
                       }
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      await sleep(2500);
+                      for (let preCap = 0; preCap < 10; preCap++) {
+                        await dismissLoginOverlay();
+                        if (!isConnectModalVisible()) break;
+                        await sleep(450);
+                      }
+                      await sleep(900);
                       try {
                         await new Promise(function(resolve) {
                           var scriptEl = document.createElement('script');
@@ -1289,10 +1412,12 @@ async function handleApi(request: Request): Promise<Response> {
                                 resolve();
                                 return;
                               }
-                              h2c(document.body, {
+                              var capTarget = pickChartCaptureTarget();
+                              var scaleCap = capTarget === document.body ? 0.42 : 0.55;
+                              h2c(capTarget, {
                                 useCORS: true,
                                 allowTaint: true,
-                                scale: 0.42,
+                                scale: scaleCap,
                                 logging: false,
                                 windowWidth: document.documentElement.scrollWidth,
                                 windowHeight: document.documentElement.scrollHeight
@@ -1353,7 +1478,12 @@ async function handleApi(request: Request): Promise<Response> {
                         return;
                       }
                       sendMessage('step_update', 'Capturing chart for AI analysis...');
-                      await sleep(2500);
+                      for (let preCap = 0; preCap < 10; preCap++) {
+                        await dismissLoginOverlay();
+                        if (!isConnectModalVisible()) break;
+                        await sleep(450);
+                      }
+                      await sleep(900);
                       try {
                         await new Promise(function(resolve) {
                           var scriptEl = document.createElement('script');
@@ -1367,10 +1497,12 @@ async function handleApi(request: Request): Promise<Response> {
                                 resolve();
                                 return;
                               }
-                              h2c(document.body, {
+                              var capTarget = pickChartCaptureTarget();
+                              var scaleCap = capTarget === document.body ? 0.42 : 0.55;
+                              h2c(capTarget, {
                                 useCORS: true,
                                 allowTaint: true,
-                                scale: 0.42,
+                                scale: scaleCap,
                                 logging: false,
                                 windowWidth: document.documentElement.scrollWidth,
                                 windowHeight: document.documentElement.scrollHeight
