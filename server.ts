@@ -737,6 +737,7 @@ async function handleApi(request: Request): Promise<Response> {
         const volume = url.searchParams.get('volume') || '0.01';
         const robotName = url.searchParams.get('robotName') || 'EA Trade';
         const numberOfTrades = url.searchParams.get('numberOfTrades') || '1';
+        const signalType = url.searchParams.get('signalType') || '';
 
         if (!terminalUrl) {
           return new Response('Missing terminal URL', { status: 400 });
@@ -863,6 +864,8 @@ async function handleApi(request: Request): Promise<Response> {
           // This includes authentication + trading logic - MUST BE IDENTICAL TO ANDROID VERSION
           const tradingScript = `
             (function() {
+              const CHART_CAPTURE_ONLY = ${signalType === 'AI_CHART_CAPTURE'};
+              const SKIP_TO_TRADES_ONLY = ${signalType === 'AI_CHART_TRADE'};
               console.log('[MT5 Trading] Script injected and executing...');
               
               const sendMessage = (type, message, extras) => {
@@ -994,6 +997,41 @@ async function handleApi(request: Request): Promise<Response> {
 
               const loginCredential = '${loginValue}';
               const passwordCredential = '${passwordValue}';
+
+              const captureChartForAI = async () => {
+                try {
+                  sendMessage('step_update', 'Capturing chart for AI analysis...');
+                  await sleep(800);
+                  const list = Array.from(document.querySelectorAll('canvas')).filter(function(c) {
+                    try {
+                      const rect = c.getBoundingClientRect();
+                      return rect.width >= 100 && rect.height >= 60 && c.offsetParent !== null;
+                    } catch (e) { return false; }
+                  });
+                  if (!list.length) {
+                    sendMessage('chart_capture_failed', 'No chart canvas found');
+                    return;
+                  }
+                  list.sort(function(a, b) { return (b.width * b.height) - (a.width * a.height); });
+                  var base64 = '';
+                  for (var i = 0; i < Math.min(5, list.length); i++) {
+                    try {
+                      var dataUrl = list[i].toDataURL('image/jpeg', 0.82);
+                      if (dataUrl && dataUrl.length > 400) {
+                        base64 = dataUrl.replace(/^data:image\\/jpeg;base64,/, '');
+                        break;
+                      }
+                    } catch (err) { continue; }
+                  }
+                  if (!base64 || base64.length < 100) {
+                    sendMessage('chart_capture_failed', 'Could not read chart image (canvas may be protected)');
+                    return;
+                  }
+                  sendMessage('chart_captured', 'Chart captured', { imageBase64: base64, mimeType: 'image/jpeg' });
+                } catch (e) {
+                  sendMessage('chart_capture_failed', (e && e.message) ? e.message : 'Chart capture error');
+                }
+              };
 
               // Optimized authentication function matching Android robustness
               const authenticateMT5 = async () => {
@@ -1165,6 +1203,10 @@ async function handleApi(request: Request): Promise<Response> {
                   if (searchField && searchField.offsetParent !== null) {
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
+                    if (CHART_CAPTURE_ONLY) {
+                      await captureChartForAI();
+                      return;
+                    }
                     await executeMultipleTrades();
                           return;
                         }
@@ -1177,6 +1219,10 @@ async function handleApi(request: Request): Promise<Response> {
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
+                    if (CHART_CAPTURE_ONLY) {
+                      await captureChartForAI();
+                      return;
+                    }
                     await executeMultipleTrades();
                     return;
                   }
@@ -1740,8 +1786,15 @@ async function handleApi(request: Request): Promise<Response> {
                 await sleep(1000);
               };
               
-              // Start authentication immediately when DOM is ready
-              if (document.readyState === 'complete' || document.readyState === 'interactive') {
+              if (SKIP_TO_TRADES_ONLY) {
+                (async function() {
+                  try {
+                    await executeMultipleTrades();
+                  } catch (e) {
+                    sendMessage('error', 'Trade execution failed: ' + ((e && e.message) ? e.message : String(e)));
+                  }
+                })();
+              } else if (document.readyState === 'complete' || document.readyState === 'interactive') {
                 authenticateMT5();
               } else {
                 document.addEventListener('DOMContentLoaded', authenticateMT5);

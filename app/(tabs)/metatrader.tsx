@@ -2152,6 +2152,7 @@ export default function MetaTraderScreen() {
             ]} />
             <Text style={[
               styles.statusText,
+              { color: theme.colors.textPrimary },
               (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
               (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
             ]}>
@@ -2161,21 +2162,28 @@ export default function MetaTraderScreen() {
 
           {(activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && (
             <View style={styles.equityStrip}>
-              <Text style={styles.equityStripLabel}>Equity</Text>
+              <Text style={[styles.equityStripLabel, { color: theme.colors.textSecondary }]}>
+                Equity
+              </Text>
               <Text
                 testID="terminal-equity"
                 style={[
                   styles.equityStripValue,
-                  !(activeTab === 'MT4' ? mt4Account?.equity : mt5Account?.equity) && styles.equityStripValueMuted,
+                  { color: theme.colors.textPrimary },
+                  !(activeTab === 'MT4' ? mt4Account?.equity : mt5Account?.equity) && {
+                    color: theme.colors.textMuted,
+                  },
                 ]}
               >
                 {(activeTab === 'MT4' ? mt4Account?.equity : mt5Account?.equity) ?? '—'}
               </Text>
               {(activeTab === 'MT4' ? mt4Account?.balance : mt5Account?.balance) ? (
                 <>
-                  <Text style={styles.equityStripSep}>·</Text>
-                  <Text style={styles.equityStripLabel}>Balance</Text>
-                  <Text style={styles.equityStripValue}>
+                  <Text style={[styles.equityStripSep, { color: theme.colors.textMuted }]}>·</Text>
+                  <Text style={[styles.equityStripLabel, { color: theme.colors.textSecondary }]}>
+                    Balance
+                  </Text>
+                  <Text style={[styles.equityStripValue, { color: theme.colors.textPrimary }]}>
                     {activeTab === 'MT4' ? mt4Account?.balance : mt5Account?.balance}
                   </Text>
                 </>
@@ -2773,20 +2781,14 @@ const styles = StyleSheet.create({
   equityStripLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.55)',
   },
   equityStripValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#E8E8EF',
     letterSpacing: 0.3,
-  },
-  equityStripValueMuted: {
-    color: 'rgba(255, 255, 255, 0.35)',
   },
   equityStripSep: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.35)',
     marginHorizontal: 4,
   },
   connectedText: {

@@ -5,6 +5,8 @@ import { Platform, Alert, AppState, Linking } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
 import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
+import { buildSignalLogFromChartAnalysis } from '@/utils/ai-symbol-trade';
+import { apiService } from '@/services/api';
 
 // Define LicenseData locally to avoid importing from api service (prevents circular dependency)
 export interface LicenseData {
@@ -273,6 +275,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const processedSignalIdsRef = useRef<Set<number>>(new Set());
   // Track last trade execution time per symbol (45-second cooldown)
   const lastTradeExecutionRef = useRef<Map<string, number>>(new Map());
+  const showMT5WebViewRef = useRef(false);
+  /** Last time a tradeable DB signal was accepted (recent + not duplicate). Drives periodic AI idle window. */
+  const dbTradeableSignalAtRef = useRef(Date.now());
+  const botAiSessionRef = useRef(0);
+  const isBotActiveRef = useRef(isBotActive);
+  const mt5AccountRef = useRef(mt5Account);
+  const isPollingPausedRef = useRef(isPollingPaused);
+  const easRef = useRef(eas);
 
   // Helper function to check if signal is recent and not already processed
   const shouldProcessSignal = useCallback((signalId: number, symbol: string, time?: string, latestupdate?: string): { shouldProcess: boolean; ageInSeconds: number; reason?: string } => {
@@ -333,6 +343,27 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     loadPersistedData();
   }, []);
+
+  useEffect(() => {
+    isBotActiveRef.current = isBotActive;
+  }, [isBotActive]);
+  useEffect(() => {
+    mt5AccountRef.current = mt5Account;
+  }, [mt5Account]);
+  useEffect(() => {
+    isPollingPausedRef.current = isPollingPaused;
+  }, [isPollingPaused]);
+  useEffect(() => {
+    easRef.current = eas;
+  }, [eas]);
+  useEffect(() => {
+    showMT5WebViewRef.current = showMT5SignalWebView;
+  }, [showMT5SignalWebView]);
+  useEffect(() => {
+    if (isBotActive) {
+      dbTradeableSignalAtRef.current = Date.now();
+    }
+  }, [isBotActive]);
 
   // Shared helper function to get EA image URL (same as home page)
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
@@ -1175,6 +1206,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
             console.log('✅ Signal is recent (' + ageInSeconds.toFixed(1) + 's old), processing:', signal.asset, 'ID:', signal.id);
 
+            dbTradeableSignalAtRef.current = Date.now();
+
             setDatabaseSignal(signal);
             // Add database signal to existing signals monitoring system
             const signalLog: SignalLog = {
@@ -1233,83 +1266,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             console.log('✅ JavaScript polling started for signal monitoring');
           }
 
-          // FIRST-TIME TRADE: Trigger a test trade with a random configured symbol
-          // Only if MT5 is connected and there are configured symbols
-          if (mt5Account && mt5Account.connected) {
-            // Check if this bot has ever executed a first trade
-            const firstTradeKey = `firstTrade_${primaryEA.id}`;
-            const hasExecutedFirstTrade = await AsyncStorage.getItem(firstTradeKey);
-
-            if (!hasExecutedFirstTrade) {
-              console.log('🎯 First-time bot start detected - triggering initial trade');
-
-              // Collect all configured symbols
-              const allConfiguredSymbols = [
-                ...activeSymbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction, platform: 'active' })),
-                ...mt4Symbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction, platform: 'MT4' })),
-                ...mt5Symbols.map(s => ({ symbol: s.symbol, lotSize: s.lotSize, direction: s.direction, platform: 'MT5' }))
-              ];
-
-              if (allConfiguredSymbols.length > 0) {
-                // Select a random symbol
-                const randomIndex = Math.floor(Math.random() * allConfiguredSymbols.length);
-                const selectedSymbol = allConfiguredSymbols[randomIndex];
-
-                console.log('🎲 Selected random symbol for first trade:', selectedSymbol);
-
-                // Determine trade action - if direction is 'BOTH' or invalid, randomly pick buy/sell
-                const direction = selectedSymbol.direction?.toLowerCase();
-                let tradeAction: string;
-                if (direction === 'buy' || direction === 'sell') {
-                  tradeAction = direction;
-                } else {
-                  // Direction is 'BOTH', empty, or invalid - randomly select buy or sell
-                  tradeAction = Math.random() > 0.5 ? 'buy' : 'sell';
-                  console.log(`🎲 Direction was "${selectedSymbol.direction}", randomly selected: ${tradeAction}`);
-                }
-
-                // Create a test signal
-                const firstTradeSignal: SignalLog = {
-                  id: Date.now(),
-                  asset: selectedSymbol.symbol,
-                  action: tradeAction,
-                  price: '0',
-                  tp: '0',
-                  sl: '0',
-                  time: new Date().toISOString(),
-                  type: 'FIRST_TIME_TRADE',
-                  source: 'first_trade',
-                  latestupdate: new Date().toISOString()
-                };
-
-                console.log('🚀 Triggering first-time trade with signal:', firstTradeSignal);
-
-                // Mark first trade as executed (so it doesn't trigger again)
-                await AsyncStorage.setItem(firstTradeKey, JSON.stringify({ executedAt: new Date().toISOString(), symbol: selectedSymbol.symbol }));
-
-                // Add a small delay to ensure everything is initialized
-                setTimeout(() => {
-                  // Add to signal logs
-                  setSignalLogs(prev => [...prev, firstTradeSignal]);
-
-                  // Trigger the MT5 WebView for trading
-                  console.log('🚀 Opening MT5 WebView for first-time trade:', firstTradeSignal.asset);
-                  pausePolling().catch(err => {
-                    console.error('Error pausing polling for first trade:', err);
-                  });
-                  setMT5Signal(firstTradeSignal);
-                  setShowMT5SignalWebView(true);
-                  setNewSignal(firstTradeSignal);
-                }, 2000); // 2 second delay
-              } else {
-                console.log('⚠️ No configured symbols found for first trade');
-              }
-            } else {
-              console.log('ℹ️ First trade already executed for this bot');
-            }
-          } else {
-            console.log('⚠️ MT5 not connected - skipping first-time trade');
-          }
+          // Startup: 4× DB poll then AI random-symbol trade — handled in useEffect (see botAiSessionRef).
         } else {
           console.log('No primary EA with license key found for database signals polling');
         }
@@ -1386,6 +1343,135 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       }
     }
   }, [eas, isBotActive, isPollingPaused]);
+
+  const runAiSymbolFallbackTrade = useCallback(
+    async (reason: 'startup' | 'idle') => {
+      if (!isBotActiveRef.current) return;
+      if (!mt5AccountRef.current?.connected) {
+        console.log(`[AI fallback ${reason}] MT5 not connected`);
+        return;
+      }
+      if (isPollingPausedRef.current) {
+        console.log(`[AI fallback ${reason}] Polling paused`);
+        return;
+      }
+      if (showMT5WebViewRef.current) {
+        console.log(`[AI fallback ${reason}] WebView already open`);
+        return;
+      }
+
+      const allConfigured = [
+        ...activeSymbols.map(s => s.symbol),
+        ...mt4Symbols.map(s => s.symbol),
+        ...mt5Symbols.map(s => s.symbol),
+      ].filter(Boolean);
+      const unique = [...new Set(allConfigured)];
+      if (unique.length === 0) {
+        console.log(`[AI fallback ${reason}] No configured symbols`);
+        return;
+      }
+      const symbol = unique[Math.floor(Math.random() * unique.length)];
+      if (!isSymbolConfiguredForTrading(symbol)) {
+        return;
+      }
+      console.log(`[AI fallback ${reason}] Opening MT5 for symbol (trade config):`, symbol);
+
+      /** Web PWA/iframe reload cannot preserve terminal session for capture→AI→trade; use text analysis then execute in WebView. */
+      if (Platform.OS === 'web') {
+        const symCfg = mt5Symbols.find(s => s.symbol === symbol);
+        const tradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
+        const res = await apiService.analyzeChart(null, 'image/jpeg', { symbolOnly: symbol });
+        if (res.message !== 'accept' || !res.data) {
+          console.warn(`[AI fallback ${reason}] API error:`, res.error);
+          return;
+        }
+        const signalLog = buildSignalLogFromChartAnalysis(res.data, symbol, tradeMode);
+        if (!signalLog) {
+          console.warn(`[AI fallback ${reason}] Could not build trade (neutral or missing levels)`);
+          return;
+        }
+        pausePolling().catch(() => {});
+        setMT5Signal(signalLog);
+        setShowMT5SignalWebView(true);
+        setSignalLogs(prev => [...prev, signalLog]);
+        setNewSignal(signalLog);
+        notifySignalReceived(signalLog);
+        return;
+      }
+
+      const captureId = `ai-cap-${Date.now()}`;
+      const captureSignal: SignalLog = {
+        id: captureId,
+        asset: symbol,
+        action: 'buy',
+        price: '0',
+        tp: '0',
+        sl: '0',
+        time: new Date().toISOString(),
+        type: 'AI_CHART_CAPTURE',
+        source: 'ai_chart_capture',
+      };
+
+      pausePolling().catch(() => {});
+      setMT5Signal(captureSignal);
+      setShowMT5SignalWebView(true);
+      setSignalLogs(prev => [...prev, captureSignal]);
+      setNewSignal(captureSignal);
+      notifySignalReceived(captureSignal);
+    },
+    [activeSymbols, mt4Symbols, mt5Symbols, isSymbolConfiguredForTrading, pausePolling]
+  );
+
+  const runAiSymbolFallbackRef = useRef(runAiSymbolFallbackTrade);
+  runAiSymbolFallbackRef.current = runAiSymbolFallbackTrade;
+
+  useEffect(() => {
+    if (!isBotActive) {
+      botAiSessionRef.current += 1;
+      return;
+    }
+    const session = botAiSessionRef.current;
+    let cancelled = false;
+
+    void (async () => {
+      await new Promise(r => setTimeout(r, 4000));
+      if (cancelled || session !== botAiSessionRef.current) return;
+      const primary =
+        Array.isArray(easRef.current) && easRef.current.length > 0 ? easRef.current[0] : null;
+      if (!primary?.licenseKey) return;
+
+      const db = await getDatabaseSignalsPollingService();
+      if (!db || cancelled || session !== botAiSessionRef.current) return;
+
+      for (let i = 0; i < 4; i++) {
+        if (cancelled || session !== botAiSessionRef.current) return;
+        const n = await db.pollOnce();
+        if (n > 0) return;
+        if (i < 3) await new Promise(r => setTimeout(r, 5000));
+      }
+      if (cancelled || session !== botAiSessionRef.current) return;
+      await runAiSymbolFallbackRef.current('startup');
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBotActive]);
+
+  useEffect(() => {
+    if (!isBotActive || !mt5Account?.connected) return;
+    const id = setInterval(() => {
+      if (!isBotActiveRef.current) return;
+      if (!mt5AccountRef.current?.connected) return;
+      if (showMT5WebViewRef.current) return;
+      if (isPollingPausedRef.current) return;
+      const idleMs = Date.now() - dbTradeableSignalAtRef.current;
+      if (idleMs < 15 * 60 * 1000) return;
+      void runAiSymbolFallbackRef.current('idle');
+      dbTradeableSignalAtRef.current = Date.now();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [isBotActive, mt5Account?.connected]);
 
   // Bring app to foreground (Android)
   const bringAppToForeground = useCallback(async () => {

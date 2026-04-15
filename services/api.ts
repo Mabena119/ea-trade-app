@@ -241,7 +241,50 @@ class ApiService {
     }
   }
 
-  async analyzeChart(imageBase64: string, mimeType = 'image/jpeg'): Promise<ChartAnalysisResponse> {
+  /**
+   * AI Scanner: `analyzeChart(imageBase64, mimeType)` — same `/api/analyze-chart` as bot.
+   * Bot symbol fallback: `analyzeChart(null, 'image/jpeg', { symbolOnly: 'EURUSD.i' })`.
+   */
+  async analyzeChart(
+    imageBase64: string | null,
+    mimeType = 'image/jpeg',
+    opts?: { symbolOnly?: string }
+  ): Promise<ChartAnalysisResponse> {
+    const sym = opts?.symbolOnly?.trim();
+    if (sym) {
+      const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/analyze-chart`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: sym }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        let data: ChartAnalysisResponse & { error?: string };
+        try {
+          data = (await res.json()) as ChartAnalysisResponse & { error?: string };
+        } catch {
+          return { message: 'error', error: res.status === 502 ? 'Server busy. Try again shortly.' : 'Analysis failed.' };
+        }
+        if (!res.ok) {
+          const errMsg = data.error || (res.status === 429 ? 'Rate limit. Wait 1 min.' : 'Analysis failed');
+          return { message: 'error', error: errMsg };
+        }
+        return data;
+      } catch (e) {
+        clearTimeout(timeoutId);
+        console.error('analyzeChart (symbol-only) error:', e);
+        const isTimeout = e instanceof Error && e.name === 'AbortError';
+        return {
+          message: 'error',
+          error: isTimeout ? 'Request timed out. Try again.' : 'Network error. Please try again.',
+        };
+      }
+    }
+
     if (!imageBase64) return { message: 'error', error: 'No image provided' };
     const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/analyze-chart`;
     const controller = new AbortController();

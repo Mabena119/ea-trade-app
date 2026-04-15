@@ -64,6 +64,147 @@ LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL 
 Output JSON only (symbol must be the literal ticker string from the chart UI, or ""):
 {"chartDetected":true,"symbol":"EXACT_TICKER_OR_EMPTY","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
 
+/** Same Gemini stack as AI Scanner chart mode — text-only when no screenshot (e.g. bot fallback). */
+const SYMBOL_ONLY_PROMPT = `You are an expert technical analyst. The user will trade this exact MT5/broker symbol (may include suffixes like .i or .m). No chart image is provided—infer a reasonable discretionary setup from typical behaviour of that instrument class (FX majors, gold, indices, crypto pairs) using current market regime assumptions.
+
+Symbol (from user request): use it verbatim in the "symbol" field.
+
+Return actionable numeric strings for entryPrice, stopLoss, takeProfit1: plausible relative levels for the instrument (e.g. 5-digit FX, gold two decimals, indices one decimal). Never use NEUTRAL unless truly flat—prefer BUY or SELL with clear reasoning.
+
+Output JSON only:
+{"symbol":"","timeframe":"H1-or-similar","currentPrice":"","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence","reasoning":"3-5 sentences: trend, key levels, risk context","suggestion":"2-3 sentences: timing and risk","entryPrice":"","stopLoss":"","takeProfit1":"","takeProfit2":"","takeProfit3":""}`;
+
+async function analyzeSymbolOnly(symbol: string, apiKey: string): Promise<Response> {
+  const userPrompt = `Trading symbol (exact broker string): "${symbol}". Respond with JSON only.`;
+  const geminiPayload = {
+    contents: [{ parts: [{ text: SYMBOL_ONLY_PROMPT }, { text: userPrompt }] }],
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 1536,
+      responseMimeType: 'application/json',
+    },
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
+  let res: Response | undefined;
+  let lastErr: string | null = null;
+
+  for (const model of MODELS) {
+    try {
+      res = await fetch(`${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(geminiPayload),
+        signal: controller.signal,
+      });
+      if (res.ok) {
+        clearTimeout(timeoutId);
+        break;
+      }
+      lastErr = await res.text();
+      if (res.status === 404) continue;
+      clearTimeout(timeoutId);
+      let hint = 'Please try again.';
+      if (res.status === 401 || res.status === 403) hint = 'Check API key in Render Environment.';
+      if (res.status === 429) hint = 'Rate limit reached. Wait 1 minute and try again.';
+      return Response.json(
+        { message: 'error', error: `AI analysis failed. ${hint}` },
+        { status: 502, headers: { 'Content-Type': 'application/json' } }
+      );
+    } catch (fetchErr: unknown) {
+      if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+        clearTimeout(timeoutId);
+        return Response.json(
+          { message: 'error', error: 'Request timed out. Try again.' },
+          { status: 502, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      lastErr = fetchErr instanceof Error ? fetchErr.message : 'Unknown';
+    }
+  }
+  clearTimeout(timeoutId);
+
+  if (!res?.ok) {
+    return Response.json(
+      { message: 'error', error: 'AI analysis failed. Please try again.' },
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const data = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+  if (!text) {
+    return Response.json(
+      { message: 'error', error: 'No analysis returned from AI' },
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  let parsed: Record<string, string>;
+  try {
+    let cleaned = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (braceMatch) cleaned = braceMatch[0];
+    cleaned = cleaned.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1');
+    parsed = JSON.parse(cleaned) as Record<string, string>;
+  } catch {
+    return Response.json(
+      { message: 'error', error: 'Could not parse AI response.' },
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  let sig = (parsed.signal || 'BUY').toUpperCase();
+  if (sig === 'NEUTRAL') {
+    const t = `${parsed.reasoning || ''} ${parsed.summary || ''}`.toLowerCase();
+    sig = t.includes('bearish') || t.includes('sell') || t.includes('short') ? 'SELL' : 'BUY';
+  }
+  if (sig !== 'BUY' && sig !== 'SELL') sig = 'BUY';
+
+  let currentPrice = parsed.currentPrice || '';
+  let entryPrice = parsed.entryPrice || currentPrice;
+  let stopLoss = parsed.stopLoss || '';
+  let takeProfit1 = parsed.takeProfit1 || '';
+
+  const entryNum = parseFloat(String(entryPrice).replace(/,/g, ''));
+  if (entryNum && !isNaN(entryNum) && (!stopLoss || !takeProfit1)) {
+    const pct = 0.005;
+    const slDist = entryNum * pct;
+    const tpDist = entryNum * (pct * 2);
+    const decimals = entryNum > 100 ? 2 : 5;
+    const fmt = (n: number) => parseFloat(n.toFixed(decimals)).toString();
+    if (!stopLoss) stopLoss = sig === 'BUY' ? fmt(entryNum - slDist) : fmt(entryNum + slDist);
+    if (!takeProfit1) takeProfit1 = sig === 'BUY' ? fmt(entryNum + tpDist) : fmt(entryNum - tpDist);
+  }
+
+  return Response.json(
+    {
+      message: 'accept',
+      data: {
+        symbol,
+        timeframe: parsed.timeframe || '',
+        currentPrice,
+        signal: sig as 'BUY' | 'SELL',
+        confidence: (parsed.confidence as 'high' | 'medium' | 'low') || 'medium',
+        summary: parsed.summary || '',
+        reasoning: parsed.reasoning || '',
+        suggestion: parsed.suggestion || '',
+        entryPrice,
+        stopLoss,
+        takeProfit1,
+        takeProfit2: parsed.takeProfit2 || '',
+        takeProfit3: parsed.takeProfit3 || '',
+      },
+    },
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
@@ -80,17 +221,33 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const body = await request.json();
-    const { image, mimeType = 'image/jpeg' } = body as { image?: string; mimeType?: string };
+    const { image, mimeType = 'image/jpeg', symbol: bodySymbol } = body as {
+      image?: string;
+      mimeType?: string;
+      symbol?: string;
+    };
+    const sym = typeof bodySymbol === 'string' ? bodySymbol.trim() : '';
+    const hasImage = Boolean(image && typeof image === 'string' && image.length > 0);
 
-    if (!image || typeof image !== 'string') {
+    // Symbol-only: same route + response shape as chart upload (AI Scanner uses chart; bot uses this branch)
+    if (sym && !hasImage) {
+      return analyzeSymbolOnly(sym, apiKey);
+    }
+
+    if (!hasImage) {
       return Response.json(
-        { message: 'error', error: 'Image data (base64) is required' },
+        {
+          message: 'error',
+          error:
+            'Send chart image as base64, or { "symbol": "BROKER.SYMBOL" } with no image for symbol-only analysis.',
+        },
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     // Strip data URL prefix if present (e.g. "data:image/jpeg;base64,...")
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+    const img = image as string;
+    const base64Data = img.replace(/^data:image\/\w+;base64,/, '');
 
     if (base64Data.length > MAX_BASE64_BYTES) {
       return Response.json(
@@ -322,5 +479,8 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function GET(): Promise<Response> {
-  return Response.json({ message: 'Use POST with image data' }, { status: 405 });
+  return Response.json(
+    { message: 'POST JSON: { image, mimeType? } for chart, or { symbol } for symbol-only (same AI as AI Scanner).' },
+    { status: 405 }
+  );
 }

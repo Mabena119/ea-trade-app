@@ -346,7 +346,7 @@ function RootLayoutNav() {
         <Stack.Screen name="ai-payment" options={{ presentation: "modal" }} />
       </Stack>
 
-      {/* MT5 Signal WebView - Opens automatically when signal is received */}
+      {/* Single MT5 terminal WebView: DB signals, AI Scanner trades, bot AI — same overlay when MT5 is connected */}
       <MT5SignalWebView
         visible={showMT5SignalWebView}
         signal={mt5Signal}

@@ -5,6 +5,9 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
+import { apiService } from '@/services/api';
+import { buildSignalLogFromChartAnalysis } from '@/utils/ai-symbol-trade';
+import { resolveConfiguredTradeSymbol } from '@/utils/symbol-resolution';
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 import { AlertCircle, X } from 'lucide-react-native';
@@ -36,7 +39,18 @@ const MT5_BROKER_URLS: Record<string, string> = {
 };
 
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
-  const { mt5Account, setMT5Account, eas, mt5Symbols, markTradeExecuted, mt5TradeOverlayMessage } = useApp();
+  const {
+    mt5Account,
+    setMT5Account,
+    setMT5Signal,
+    eas,
+    mt5Symbols,
+    mt4Symbols,
+    activeSymbols,
+    markTradeExecuted,
+    mt5TradeOverlayMessage,
+  } = useApp();
+  const chartAiBusyRef = useRef(false);
   const mt5AccountRef = useRef(mt5Account);
   useEffect(() => {
     mt5AccountRef.current = mt5Account;
@@ -95,6 +109,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
     return `
       (function() {
+        const CHART_CAPTURE_ONLY = ${signal?.type === 'AI_CHART_CAPTURE' ? 'true' : 'false'};
+        const SKIP_TO_TRADES_ONLY = ${signal?.type === 'AI_CHART_TRADE' ? 'true' : 'false'};
+
         // Prevent page reloads and navigation
         window.addEventListener('beforeunload', function(e) {
           e.preventDefault();
@@ -213,6 +230,41 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           value: originalWebSocket.prototype,
           writable: false
         });
+
+        const captureChartForAI = async () => {
+          try {
+            sendMessage('step_update', 'Capturing chart for AI analysis...');
+            await new Promise(r => setTimeout(r, 800));
+            const list = Array.from(document.querySelectorAll('canvas')).filter(function(c) {
+              try {
+                const rect = c.getBoundingClientRect();
+                return rect.width >= 100 && rect.height >= 60 && c.offsetParent !== null;
+              } catch (e) { return false; }
+            });
+            if (!list.length) {
+              sendMessage('chart_capture_failed', 'No chart canvas found');
+              return;
+            }
+            list.sort(function(a, b) { return (b.width * b.height) - (a.width * a.height); });
+            var base64 = '';
+            for (var i = 0; i < Math.min(5, list.length); i++) {
+              try {
+                var dataUrl = list[i].toDataURL('image/jpeg', 0.82);
+                if (dataUrl && dataUrl.length > 400) {
+                  base64 = dataUrl.replace(/^data:image\\/jpeg;base64,/, '');
+                  break;
+                }
+              } catch (err) { continue; }
+            }
+            if (!base64 || base64.length < 100) {
+              sendMessage('chart_capture_failed', 'Could not read chart image (canvas may be protected)');
+              return;
+            }
+            sendMessage('chart_captured', 'Chart captured', { imageBase64: base64, mimeType: 'image/jpeg' });
+          } catch (e) {
+            sendMessage('chart_capture_failed', (e && e.message) ? e.message : 'Chart capture error');
+          }
+        };
 
         // Optimized authentication function matching Android robustness
         const authenticateMT5 = async () => {
@@ -412,7 +464,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Step 3: Open chart (chart opens automatically when symbol is selected)
               await openChart('${symbol}');
               
-              // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
+              if (CHART_CAPTURE_ONLY) {
+                await captureChartForAI();
+                return;
+              }
               await executeMultipleTrades();
               
               return;
@@ -433,7 +488,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Step 3: Open chart (chart opens automatically when symbol is selected)
               await openChart('${symbol}');
               
-              // Step 4 & 5: Execute multiple trades (opens dialog and fills details for each)
+              if (CHART_CAPTURE_ONLY) {
+                await captureChartForAI();
+                return;
+              }
               await executeMultipleTrades();
               
               return;
@@ -1046,18 +1104,24 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           await new Promise(r => setTimeout(r, 1000));
         };
 
-        // Start authentication immediately when DOM is ready
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        if (SKIP_TO_TRADES_ONLY) {
+          (async function() {
+            try {
+              await executeMultipleTrades();
+            } catch (e) {
+              sendMessage('error', 'Trade execution failed: ' + ((e && e.message) ? e.message : String(e)));
+            }
+          })();
+        } else if (document.readyState === 'complete' || document.readyState === 'interactive') {
           authenticateMT5();
         } else {
           document.addEventListener('DOMContentLoaded', authenticateMT5);
-          // Fallback timeout
           setTimeout(authenticateMT5, 2000);
         }
       })();
       true;
     `;
-  }, [signal, mt5Account, getMT5Url, eas, mt5Symbols, getNumberOfTrades]);
+  }, [signal, signal?.type, mt5Account, getMT5Url, eas, mt5Symbols, getNumberOfTrades]);
 
   // Update status bar (same as MT5 auth)
   const updateStatus = useCallback((message: string) => {
@@ -1096,6 +1160,46 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setCurrentStep(data.message);
       } else if (data.type === 'equity_snapshot') {
         applyTerminalEquity();
+      } else if (data.type === 'chart_captured' && typeof data.imageBase64 === 'string' && data.imageBase64.length > 50) {
+        if (chartAiBusyRef.current) return;
+        chartAiBusyRef.current = true;
+        setCurrentStep('Analyzing chart with AI...');
+        const imageBase64 = data.imageBase64;
+        const mimeType = typeof data.mimeType === 'string' ? data.mimeType : 'image/jpeg';
+        const sig = signal;
+        void (async () => {
+          try {
+            if (!sig) return;
+            const res = await apiService.analyzeChart(imageBase64, mimeType);
+            if (res.message !== 'accept' || !res.data) {
+              setCurrentStep(res.error || 'AI analysis failed');
+              return;
+            }
+            const resolved =
+              resolveConfiguredTradeSymbol(res.data.symbol, mt5Symbols, mt4Symbols, activeSymbols) ||
+              { symbol: sig.asset };
+            const symCfg = mt5Symbols.find((s) => s.symbol === resolved.symbol);
+            const tradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
+            const built = buildSignalLogFromChartAnalysis(res.data, resolved.symbol, tradeMode, {
+              id: String(sig.id),
+              type: 'AI_CHART_TRADE',
+              source: 'ai_chart_terminal',
+            });
+            if (!built) {
+              setCurrentStep('AI did not return a tradable setup');
+              return;
+            }
+            setMT5Signal(built);
+            setCurrentStep('Placing trade...');
+          } catch (e) {
+            console.error('Chart AI error:', e);
+            setCurrentStep('AI analysis failed');
+          } finally {
+            chartAiBusyRef.current = false;
+          }
+        })();
+      } else if (data.type === 'chart_capture_failed') {
+        setCurrentStep('Chart capture failed: ' + (data.message || 'Unknown'));
       } else if (data.type === 'all_trades_completed') {
         applyTerminalEquity();
         setCurrentStep('All trades completed - Closing...');
@@ -1113,7 +1217,16 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     } catch (error) {
       console.error('Error parsing WebView message:', error);
     }
-  }, [signal, onClose, markTradeExecuted, setMT5Account]);
+  }, [
+    signal,
+    onClose,
+    markTradeExecuted,
+    setMT5Account,
+    setMT5Signal,
+    mt5Symbols,
+    mt4Symbols,
+    activeSymbols,
+  ]);
 
   // Inject script when WebView loads - ensure fresh injection for each signal
   useEffect(() => {
@@ -1273,7 +1386,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   // Build proxy URL for web (same as Android but through proxy)
   const proxyUrl = Platform.OS === 'web'
-    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}`
+    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=0.01&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}&signalType=${encodeURIComponent(signal.type || '')}`
     : null;
 
   return (

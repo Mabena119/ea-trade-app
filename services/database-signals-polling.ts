@@ -208,8 +208,27 @@ class DatabaseSignalsPollingService {
     }, 5000); // Check every 5 seconds for faster refresh
   }
 
-  // Check for new signals in database
-  private async checkForNewSignals(licenseKey: string) {
+  /**
+   * Single immediate fetch (used at bot startup: up to 4 attempts before AI fallback).
+   * Returns how many new rows were returned from the API (not how many passed app-side filters).
+   */
+  async pollOnce(): Promise<number> {
+    if (!this.currentLicenseKey || this.isPaused) {
+      return 0;
+    }
+    try {
+      return await this.checkForNewSignals(this.currentLicenseKey);
+    } catch (error) {
+      console.error('pollOnce error:', error);
+      if (this.onError) {
+        this.onError(`pollOnce: ${error}`);
+      }
+      return 0;
+    }
+  }
+
+  // Check for new signals in database — returns count of new rows from API
+  private async checkForNewSignals(licenseKey: string): Promise<number> {
     try {
       console.log('Checking for new database signals for license:', licenseKey);
 
@@ -217,7 +236,7 @@ class DatabaseSignalsPollingService {
       const ea = await this.getEAFromLicense(licenseKey);
       if (!ea) {
         console.error('Could not find EA for license:', licenseKey);
-        return;
+        return 0;
       }
 
       this.currentEA = ea;
@@ -250,6 +269,7 @@ class DatabaseSignalsPollingService {
         this.lastPollTime = new Date(Date.now() - 5000).toISOString();
       }
 
+      return signals.length;
     } catch (error) {
       console.error('Error in checkForNewSignals:', error);
       throw error;
@@ -288,7 +308,8 @@ class DatabaseSignalsPollingService {
         throw new Error(`API call failed: ${response.status}`);
       }
       const data = await response.json();
-      return data.signals;
+      const list = data.signals;
+      return Array.isArray(list) ? list : [];
     } catch (error) {
       console.error('Error fetching new signals via API:', error);
       throw new Error('Failed to fetch new signals');
