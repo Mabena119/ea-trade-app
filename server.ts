@@ -491,28 +491,96 @@ async function handleApi(request: Request): Promise<Response> {
                 }
               };
 
+              function collectPageTextDeep() {
+                var parts = [];
+                function walk(d) {
+                  try {
+                    if (!d) return;
+                    if (d.body && d.body.innerText) parts.push(d.body.innerText);
+                    var ifr = d.querySelectorAll('iframe');
+                    for (var ii = 0; ii < ifr.length; ii++) {
+                      try {
+                        var ind = ifr[ii].contentDocument;
+                        if (ind) walk(ind);
+                      } catch (eIf) {}
+                    }
+                  } catch (eW) {}
+                }
+                walk(document);
+                return parts.join('\\n');
+              }
+
+              function normalizeAmountToken(raw) {
+                if (!raw) return null;
+                var s = String(raw).replace(/[\\s\\u00a0\\u202f\\u2007\\u2009]+/g, '').replace(/'/g, '');
+                if (s.indexOf('.') >= 0) {
+                  s = s.replace(/,/g, '');
+                } else if (s.indexOf(',') > 0 && s.indexOf(',') === s.lastIndexOf(',')) {
+                  var sp = s.split(',');
+                  if (sp.length === 2 && sp[1].length <= 2 && /^\\d+$/.test(sp[1])) {
+                    s = sp[0].replace(/\\./g, '') + '.' + sp[1];
+                  } else {
+                    s = s.replace(/,/g, '');
+                  }
+                } else {
+                  s = s.replace(/,/g, '');
+                }
+                return s || null;
+              }
+
               function scrapeTerminalAccountStats() {
                 var equity = null;
                 var balance = null;
                 try {
-                  var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
-                  var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
-                  if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
-                  var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
-                  if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
+                  var raw = collectPageTextDeep();
+                  var txt = raw || ((document.body && document.body.innerText) ? document.body.innerText : '');
+                  txt = txt.replace(/[\\u00a0\\u202f\\u2007\\u2009]/g, ' ');
+                  var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,']*\\.?\\d*)/im);
+                  if (lineEq) equity = normalizeAmountToken(lineEq[1]);
+                  var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,']*\\.?\\d*)/im);
+                  if (lineBal) balance = normalizeAmountToken(lineBal[1]);
                   if (!equity || !balance) {
                     var compact = txt.replace(/[\\n\\r]+/g, ' ');
                     if (!equity) {
-                      var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
-                      if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
+                      var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,']*\\.?\\d*)/i);
+                      if (e2) equity = normalizeAmountToken(e2[1]);
                     }
                     if (!balance) {
-                      var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
-                      if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
+                      var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,']*\\.?\\d*)/i);
+                      if (b2) balance = normalizeAmountToken(b2[1]);
                     }
+                  }
+                  if (!equity) {
+                    var e3 = txt.match(/\\bEquity\\b[^\\d\\n]{0,56}([\\d][\\d\\s,\\.']*)/im);
+                    if (e3) equity = normalizeAmountToken(e3[1]);
+                  }
+                  if (!balance) {
+                    var b3 = txt.match(/\\bBalance\\b[^\\d\\n]{0,56}([\\d][\\d\\s,\\.']*)/im);
+                    if (b3) balance = normalizeAmountToken(b3[1]);
                   }
                 } catch (err) {}
                 return { equity: equity, balance: balance };
+              }
+
+              function findMT5SearchField() {
+                var q = [
+                  'input[placeholder*="Search symbol" i]',
+                  'input[placeholder*="symbol" i]',
+                  'input[placeholder*="Search" i]',
+                  'input[aria-label*="Search" i]',
+                  'input[type="search"]'
+                ];
+                for (var qi = 0; qi < q.length; qi++) {
+                  var el = document.querySelector(q[qi]);
+                  if (!el || !el.offsetParent) continue;
+                  if (q[qi].indexOf('type="search"') >= 0) {
+                    var ph = ((el.getAttribute && el.getAttribute('placeholder')) || '').toLowerCase();
+                    var nm = ((el.name || '') + '').toLowerCase();
+                    if (ph.indexOf('login') >= 0 || ph.indexOf('password') >= 0 || nm === 'login' || nm === 'password') continue;
+                  }
+                  return el;
+                }
+                return null;
               }
 
               sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
@@ -929,7 +997,6 @@ async function handleApi(request: Request): Promise<Response> {
                     return;
                   }
                   
-                  // Check for search bar - this is the most reliable indicator of successful login
                   sendMessage('step_update', 'Verifying authentication...');
                   await sleep(3000);
                   for (var ov2 = 0; ov2 < 6; ov2++) {
@@ -937,35 +1004,64 @@ async function handleApi(request: Request): Promise<Response> {
                     if (!isAnyLoginModalBlocking()) break;
                     await sleep(450);
                   }
-                  
-                  const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
-                                     document.querySelector('input[placeholder*="Search" i]') ||
-                                     document.querySelector('input[type="search"]');
-                  
-                  if (searchField && searchField.offsetParent !== null) {
+
+                  function tryFinishWithScrapedStats(successMsg) {
+                    var st = scrapeTerminalAccountStats();
+                    if (st.equity && st.balance) {
+                      sendMessage('authentication_success', successMsg, { equity: st.equity, balance: st.balance });
+                      return true;
+                    }
+                    return false;
+                  }
+
+                  for (var poll = 0; poll < 14; poll++) {
+                    if (tryFinishWithScrapedStats('MT5 Login Successful - Balance and equity')) return;
+                    await dismissLoginOverlay();
+                    await sleep(900);
+                  }
+
+                  var searchField = findMT5SearchField();
+                  if (searchField) {
                     await dismissLoginOverlay();
                     await sleep(2000);
+                    if (tryFinishWithScrapedStats('MT5 Login Successful - Terminal ready')) return;
                     var statsOk = scrapeTerminalAccountStats();
                     sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsOk.equity, balance: statsOk.balance });
                     return;
                   }
-                  
-                  // Double check after a longer wait
+
                   await sleep(3000);
                   await dismissLoginOverlay();
-                  const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
-                                          document.querySelector('input[placeholder*="Search" i]') ||
-                                          document.querySelector('input[type="search"]');
-                  
-                  if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+                  for (var poll2 = 0; poll2 < 8; poll2++) {
+                    if (tryFinishWithScrapedStats('MT5 Login Successful - Balance and equity')) return;
                     await dismissLoginOverlay();
+                    await sleep(700);
+                  }
+
+                  var searchFieldRetry = findMT5SearchField();
+                  if (searchFieldRetry) {
+                    await dismissLoginOverlay();
+                    if (tryFinishWithScrapedStats('MT5 Login Successful - Terminal ready')) return;
                     var statsRetry = scrapeTerminalAccountStats();
                     sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsRetry.equity, balance: statsRetry.balance });
                     return;
                   }
-                  
-                  // No search bar found - authentication failed
-                  sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
+
+                  if (tryFinishWithScrapedStats('MT5 Login Successful - Balance and equity')) return;
+
+                  var low = ((document.body && document.body.innerText) ? document.body.innerText : '').toLowerCase();
+                  if (
+                    low.indexOf('invalid login') >= 0 ||
+                    low.indexOf('invalid password') >= 0 ||
+                    low.indexOf('wrong password') >= 0 ||
+                    low.indexOf('wrong login') >= 0 ||
+                    low.indexOf('incorrect password') >= 0 ||
+                    low.indexOf('incorrect login') >= 0
+                  ) {
+                    sendMessage('authentication_failed', 'Authentication failed - Invalid login or password');
+                  } else {
+                    sendMessage('authentication_failed', 'Could not verify MT5 session. If the chart is visible, wait a few seconds and try Link Account again.');
+                  }
                   
                 } catch(e) {
                   sendMessage('authentication_failed', 'Error during authentication: ' + e.message);
