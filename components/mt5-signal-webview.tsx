@@ -2457,7 +2457,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const volumeFromConfig = getVolume();
   const isChartWarmupSignal = signal?.type === 'CHART_WARMUP';
 
-  /** Full-area terminal below toast so WebGL chart is composited (opacity 0 / z-index -1 can yield blank captures). */
+  /** True during chart warmup (used for AI panel step logic only — terminal uses same hidden WebView as MetaTrader link flow). */
   const chartWarmupTerminalVisible = isChartWarmupSignal;
 
   /** During warmup, maximize terminal WebView and hide AI panel so MT5 is not covered while screenshots run. */
@@ -2588,18 +2588,17 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           </View>
         ) : null}
 
-        {/* WebView: during chart warmup it stays mounted for MT5/JS but is opacity-hidden — native WKWebView draws above RN views, so overlays alone are not enough. */}
+        {/* WebView: CHART_WARMUP matches metatrader.tsx link MT5 — invisibleWebViewContainer + invisibleWebView (hiddenWebView* here). */}
         <View
           style={
-            chartWarmupTerminalVisible
-              ? styles.warmupFullWebViewContainer
+            isChartWarmupSignal
+              ? styles.hiddenWebViewContainer
               : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
                 ? warmupExpandTerminal
                   ? styles.warmupFullWebViewContainer
                   : styles.visibleDebugWebViewContainer
                 : styles.hiddenWebViewContainer
           }
-          pointerEvents={isChartWarmupSignal ? 'none' : 'auto'}
         >
           {Platform.OS === 'web' ? (
             <WebWebView
@@ -2613,20 +2612,26 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setCurrentStep('MT5 Terminal loaded');
                 console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
               }}
-              style={[
-                chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView,
-                isChartWarmupSignal && styles.chartWarmupWebViewInvisible,
-              ]}
+              style={
+                isChartWarmupSignal
+                  ? styles.hiddenWebView
+                  : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
+                    ? styles.debugWebView
+                    : styles.hiddenWebView
+              }
             />
           ) : (
             <WebView
               key={`${webViewKey}-${signal.id || 'no-signal'}`}
               ref={webViewRef}
               source={{ uri: mt5Url }}
-              style={[
-                chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView,
-                isChartWarmupSignal && styles.chartWarmupWebViewInvisible,
-              ]}
+              style={
+                isChartWarmupSignal
+                  ? styles.hiddenWebView
+                  : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
+                    ? styles.debugWebView
+                    : styles.hiddenWebView
+              }
               userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               onMessage={handleWebViewMessage}
               onLoadStart={() => {
@@ -2796,7 +2801,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(139, 92, 246, 0.85)',
     backgroundColor: '#0a0a0a',
   },
-  /** Full-area terminal below status toast — low z-index keeps it behind toast/AI card; WebView uses opacity 0 during warmup (native view draws above RN otherwise). */
+  /** Debug-only expanded terminal (not CHART_WARMUP — warmup uses hiddenWebView* like metatrader). */
   warmupFullWebViewContainer: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 96 : 84,
@@ -2806,14 +2811,11 @@ const styles = StyleSheet.create({
     zIndex: 2,
     backgroundColor: colors.background,
   },
-  /** Invisible compositing: terminal still runs MT5 export/JS; user sees only toast + backdrop. */
-  chartWarmupWebViewInvisible: {
-    opacity: 0,
-  },
+  /** Same minHeight as metatrader.tsx invisibleWebView (350). */
   hiddenWebView: {
     flex: 1,
     width: '100%',
-    minHeight: 300,
+    minHeight: 350,
     opacity: 0,
   },
   debugWebView: {
