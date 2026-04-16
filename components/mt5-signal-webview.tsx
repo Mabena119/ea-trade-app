@@ -2559,7 +2559,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               </View>
               <View style={styles.authToastInfo}>
                 <Text style={styles.authToastTitle}>
-                  {isChartWarmupSignal ? 'AI Analysing Charts...' : 'Executing Trade'}
+                  {isChartWarmupSignal ? `${robotName} Scanning Markets...` : 'Executing Trade'}
                 </Text>
                 <Text style={styles.authToastStatus}>
                   {isChartWarmupSignal
