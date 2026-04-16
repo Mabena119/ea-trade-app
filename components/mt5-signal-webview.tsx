@@ -18,6 +18,7 @@ import { useApp, SignalLog } from '@/providers/app-provider';
 import apiService, { type ChartAnalysisResult } from '@/services/api';
 import { computeFallbackSlTp, stripNumericPrice } from '@/utils/trade-mode-levels';
 import { getTradeModeForAnalysis } from '@/utils/trade-symbol-match';
+import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
 type AiTradePayload = { action: string; sl: string; tp: string; symbol: string; volume: string };
@@ -103,8 +104,16 @@ function displayStatusForChartWarmup(step: string | null | undefined): string {
 }
 
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
-  const { mt5Account, setMT5Account, eas, mt5Symbols, markTradeExecuted, mt5TradeOverlayMessage, resumePolling } =
-    useApp();
+  const {
+    mt5Account,
+    setMT5Account,
+    setMTAccount,
+    eas,
+    mt5Symbols,
+    markTradeExecuted,
+    mt5TradeOverlayMessage,
+    resumePolling,
+  } = useApp();
   const mt5AccountRef = useRef(mt5Account);
   useEffect(() => {
     mt5AccountRef.current = mt5Account;
@@ -120,6 +129,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const lastChartScreenshotAtRef = useRef(0);
   const signalRef = useRef(signal);
   const [webViewKey, setWebViewKey] = useState<number>(0);
+  const signalAuthRemountRef = useRef(0);
 
   useEffect(() => {
     signalRef.current = signal;
@@ -1404,12 +1414,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Step 1: Login ✅ (completed)
               await dismissLoginOverlay();
               var _eqAfterConnect = scrapeTerminalAccountStats();
-              if (_eqAfterConnect.equity || _eqAfterConnect.balance) {
-                sendMessage('equity_snapshot', 'MT5 session connected', {
-                  equity: _eqAfterConnect.equity,
-                  balance: _eqAfterConnect.balance,
-                });
-              }
+              sendMessage('authentication_success', 'MT5 session verified', {
+                equity: _eqAfterConnect.equity,
+                balance: _eqAfterConnect.balance,
+              });
               // Step 2: Search for symbol
               await searchForSymbol('${symbol}');
               
@@ -1448,12 +1456,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Step 1: Login ✅ (completed)
               await dismissLoginOverlay();
               var _eqAfterConnect2 = scrapeTerminalAccountStats();
-              if (_eqAfterConnect2.equity || _eqAfterConnect2.balance) {
-                sendMessage('equity_snapshot', 'MT5 session connected', {
-                  equity: _eqAfterConnect2.equity,
-                  balance: _eqAfterConnect2.balance,
-                });
-              }
+              sendMessage('authentication_success', 'MT5 session verified', {
+                equity: _eqAfterConnect2.equity,
+                balance: _eqAfterConnect2.balance,
+              });
               // Step 2: Search for symbol
               await searchForSymbol('${symbol}');
               
@@ -2198,11 +2204,48 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           setCurrentStep(data.message);
         }
       } else if (data.type === 'authentication_success') {
-        applyTerminalEquity();
-        // Don't report authentication success - just update step silently
+        signalAuthRemountRef.current = 0;
+        const acc = mt5AccountRef.current;
+        if (acc) {
+          const eq =
+            typeof data.equity === 'string' && data.equity.trim() ? data.equity.trim() : acc.equity;
+          const bal =
+            typeof data.balance === 'string' && data.balance.trim() ? data.balance.trim() : acc.balance;
+          void (async () => {
+            await setMT5Account({
+              login: acc.login.trim(),
+              password: acc.password,
+              server: acc.server.trim(),
+              connected: true,
+              equity: eq,
+              balance: bal,
+            });
+            await setMTAccount({
+              type: 'MT5',
+              login: acc.login.trim(),
+              server: acc.server.trim(),
+              connected: true,
+            });
+          })();
+        }
         setCurrentStep('Ready');
       } else if (data.type === 'authentication_failed') {
-        setCurrentStep('Authentication failed: ' + data.message);
+        const failMsg = typeof data.message === 'string' ? data.message : '';
+        if (
+          isRetriableTerminalAuthFailure(failMsg) &&
+          signalAuthRemountRef.current < MT_TERMINAL_AUTH_REMOUNTS
+        ) {
+          signalAuthRemountRef.current += 1;
+          setCurrentStep(
+            `Connection issue — retrying (${signalAuthRemountRef.current}/${MT_TERMINAL_AUTH_REMOUNTS})...`
+          );
+          setTimeout(() => {
+            setWebViewKey((k) => k + 1);
+          }, 1500);
+          return;
+        }
+        signalAuthRemountRef.current = 0;
+        setCurrentStep('Authentication failed: ' + failMsg);
       } else if (data.type === 'symbol_search') {
         setCurrentStep(data.message);
       } else if (data.type === 'symbol_selected') {
@@ -2298,6 +2341,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     onClose,
     markTradeExecuted,
     setMT5Account,
+    setMTAccount,
     resumePolling,
     buildAiTradePayloadFromAnalysis,
     runAiTradeInject,
@@ -2350,6 +2394,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   // Destroy and recreate WebView for EVERY new signal - ensure complete isolation
   useEffect(() => {
     if (visible && signal) {
+      signalAuthRemountRef.current = 0;
       // Completely reset state for new signal
       setCurrentStep('Initializing...');
       setLoading(true);
@@ -2373,6 +2418,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   // Reset when modal closes
   useEffect(() => {
     if (!visible) {
+      signalAuthRemountRef.current = 0;
       setCurrentStep('Initializing...');
       setLoading(true);
       setChartAiResult(null);

@@ -2379,9 +2379,7 @@ async function handleApi(request: Request): Promise<Response> {
                     await acceptDisclaimersAndConfirmDeep();
                     await dismissLoginOverlay();
                     var _eqSC = scrapeTerminalAccountStats();
-                    if (_eqSC.equity || _eqSC.balance) {
-                      sendMessage('equity_snapshot', 'MT5 session connected', { equity: _eqSC.equity, balance: _eqSC.balance });
-                    }
+                    sendMessage('authentication_success', 'MT5 session verified', { equity: _eqSC.equity, balance: _eqSC.balance });
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
@@ -2413,9 +2411,7 @@ async function handleApi(request: Request): Promise<Response> {
                     await acceptDisclaimersAndConfirmDeep();
                     await dismissLoginOverlay();
                     var _eqSC2 = scrapeTerminalAccountStats();
-                    if (_eqSC2.equity || _eqSC2.balance) {
-                      sendMessage('equity_snapshot', 'MT5 session connected', { equity: _eqSC2.equity, balance: _eqSC2.balance });
-                    }
+                    sendMessage('authentication_success', 'MT5 session verified', { equity: _eqSC2.equity, balance: _eqSC2.balance });
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
