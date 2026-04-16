@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  BackHandler,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
@@ -123,6 +124,16 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   useEffect(() => {
     signalRef.current = signal;
   }, [signal]);
+
+  /** Chart warmup uses in-tree overlay (not Modal); Android back should dismiss like before. */
+  useEffect(() => {
+    if (!visible || signal?.type !== 'CHART_WARMUP' || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, signal?.type, onClose]);
 
   // Get MT5 terminal URL
   const getMT5Url = useCallback(() => {
@@ -2476,23 +2487,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(mt5Account.server || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=${encodeURIComponent(volumeFromConfig)}&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}${isChartWarmupSignal ? '&chartWarmup=1' : ''}`
     : null;
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="none"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      {/* Transparent overlay - app stays visible underneath, like MT5 auth */}
+  /** Like MetaTrader link MT5: chart warmup is NOT a full-screen Modal — overlay sits on root so tabs/gradient stay visible. */
+  const signalOverlay = (
       <View style={styles.overlayContainer} pointerEvents="box-none">
-        {isChartWarmupSignal ? (
-          <View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.background, zIndex: 1 }]}
-          />
-        ) : null}
         {/* Floating toast at top - matches MT5 auth style */}
-        <View style={styles.authToastContainer}>
+        <View style={styles.authToastContainer} pointerEvents="auto">
           <LinearGradient
             colors={theme.colors.primaryGradient as [string, string, ...string[]]}
             style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
@@ -2543,7 +2542,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           (chartAiAnalyzing || chartAiResult || chartAiError) &&
           !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
           !warmupExpandTerminal ? (
-          <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]}>
+          <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]} pointerEvents="auto">
             <Text style={[styles.aiPanelTitle, { color: theme.colors.textSecondary }]}>AI trade analysis</Text>
             <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
               {chartAiAnalyzing ? (
@@ -2698,6 +2697,25 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           )}
         </View>
       </View>
+  );
+
+  if (isChartWarmupSignal) {
+    return (
+      <View style={styles.chartWarmupOverlayRoot} pointerEvents="box-none" collapsable={false}>
+        {signalOverlay}
+      </View>
+    );
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="none"
+      transparent={true}
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      onRequestClose={onClose}
+    >
+      {signalOverlay}
     </Modal>
   );
 }
@@ -2706,6 +2724,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  /** Chart warmup: same window as app (not Modal) so underlying UI stays visible. */
+  chartWarmupOverlayRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100000,
+    elevation: 100000,
   },
   overlayContainer: {
     flex: 1,
