@@ -2485,6 +2485,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     >
       {/* Transparent overlay - app stays visible underneath, like MT5 auth */}
       <View style={styles.overlayContainer} pointerEvents="box-none">
+        {isChartWarmupSignal ? (
+          <View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.background, zIndex: 1 }]}
+          />
+        ) : null}
         {/* Floating toast at top - matches MT5 auth style */}
         <View style={styles.authToastContainer}>
           <LinearGradient
@@ -2534,9 +2540,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         </View>
 
         {isChartWarmupSignal &&
-        (chartAiAnalyzing || chartAiResult || chartAiError) &&
-        !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
-        !warmupExpandTerminal ? (
+          (chartAiAnalyzing || chartAiResult || chartAiError) &&
+          !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
+          !warmupExpandTerminal ? (
           <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]}>
             <Text style={[styles.aiPanelTitle, { color: theme.colors.textSecondary }]}>AI trade analysis</Text>
             <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
@@ -2553,15 +2559,20 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                       chartAiResult.signal === 'SELL' ? styles.aiSell : styles.aiBuy,
                     ]}
                   >
-                    {chartAiResult.signal === 'SELL' ? 'SELL' : 'BUY'}
+                    {(() => {
+                      const sym = (
+                        chartAiResult.symbol ||
+                        signal?.asset ||
+                        ''
+                      ).trim();
+                      const dir = chartAiResult.signal === 'SELL' ? 'SELL' : 'BUY';
+                      return sym ? `${sym.toUpperCase()} ${dir}` : dir;
+                    })()}
                   </Text>
                   <Text style={[styles.aiLevels, { color: theme.colors.textPrimary || '#fff' }]}>
                     Entry {chartAiResult.entryPrice || chartAiResult.currentPrice || '—'} · SL{' '}
                     {chartAiResult.stopLoss || '—'} · TP {chartAiResult.takeProfit1 || '—'}
                   </Text>
-                  {chartAiResult.symbol ? (
-                    <Text style={[styles.aiMuted, { color: theme.colors.textMuted || '#888' }]}>Symbol: {chartAiResult.symbol}</Text>
-                  ) : null}
                   <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#eee' }]}>
                     {chartAiResult.summary || chartAiResult.reasoning || ''}
                   </Text>
@@ -2787,7 +2798,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(139, 92, 246, 0.85)',
     backgroundColor: '#0a0a0a',
   },
-  /** Full-area terminal below status toast during chart warmup capture (not half-screen). */
+  /** Full-area terminal below status toast during chart warmup capture (WebGL needs real layout; borderless for a clean UI). */
   warmupFullWebViewContainer: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 96 : 84,
@@ -2796,17 +2807,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 9998,
     pointerEvents: 'auto' as const,
-    borderTopWidth: 2,
-    borderTopColor: 'rgba(139, 92, 246, 0.85)',
-    backgroundColor: '#0a0a0a',
+    backgroundColor: colors.background,
   },
-  /** Opaque layer over the terminal WebView during chart warmup so MT5 is not visible; WebView stays rendered underneath for WebGL. */
+  /** Full-screen layer above the WebView (below toast / AI card) so the terminal is never visible. */
   chartWarmupTerminalCover: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 96 : 84,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     zIndex: 9999,
   },
   hiddenWebView: {
