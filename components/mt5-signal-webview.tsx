@@ -739,48 +739,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return out;
         }
 
-        function resolveTerminalDocumentForBodyFallback() {
-          var best = document;
-          var bestScore = 0;
-          function scoreDoc(d) {
-            try {
-              var maxC = 0;
-              var list = d.querySelectorAll('canvas');
-              for (var i = 0; i < list.length; i++) {
-                var a = (list[i].width || 0) * (list[i].height || 0);
-                if (a > maxC) maxC = a;
-              }
-              var txt = (d.body && d.body.innerText) ? d.body.innerText : '';
-              var bonus = 0;
-              if (/Bid/i.test(txt) && /Ask/i.test(txt)) bonus += 500000;
-              if (/Equity/i.test(txt)) bonus += 200000;
-              if (/Balance/i.test(txt)) bonus += 100000;
-              return maxC + bonus + txt.length;
-            } catch (e) {
-              return 0;
-            }
-          }
-          function walk(d) {
-            if (!d) return;
-            try {
-              var s = scoreDoc(d);
-              if (s > bestScore) {
-                bestScore = s;
-                best = d;
-              }
-              var iframes = d.querySelectorAll('iframe');
-              for (var j = 0; j < iframes.length; j++) {
-                try {
-                  var ind = iframes[j].contentDocument;
-                  if (ind) walk(ind);
-                } catch (e) {}
-              }
-            } catch (e2) {}
-          }
-          walk(document);
-          return best;
-        }
-
         function canvasHasWebGLContext(canvas) {
           try {
             if (!canvas || !canvas.getContext) return false;
@@ -818,311 +776,114 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
 
         /** Prefer main chart canvas (large rect + buffer); searches nested terminal iframes. */
-        function pickChartCaptureTarget() {
+        function findSaveChartAsImageButton() {
           try {
-            var ranked = collectRankedCanvasCandidates();
-            if (ranked.length > 0) {
-              window.__eaLastChartCanvas = ranked[0].canvas;
-              return ranked[0].canvas;
+            var exact = document.querySelector(
+              'div.icon-button.svelte-1iwf8ix[title="Save Chart as Image (Ctrl + S)"]'
+            );
+            if (exact && exact.offsetParent !== null) return exact;
+            var all = document.querySelectorAll('div.icon-button.svelte-1iwf8ix');
+            for (var bi = 0; bi < all.length; bi++) {
+              var title = (all[bi].getAttribute('title') || '');
+              if (/save chart as image/i.test(title) && all[bi].offsetParent !== null) return all[bi];
             }
           } catch (e) {}
-          window.__eaLastChartCanvas = null;
-          try {
-            var td = resolveTerminalDocumentForBodyFallback();
-            if (td && td.body) return td.body;
-          } catch (e3) {}
-          return document.body;
+          return null;
         }
 
-        function pickBodyForHtml2Canvas(useBody) {
-          if (!useBody) return null;
-          try {
-            if (window.__eaLastChartCanvas && window.__eaLastChartCanvas.ownerDocument && window.__eaLastChartCanvas.ownerDocument.body) {
-              return window.__eaLastChartCanvas.ownerDocument.body;
-            }
-            var td = resolveTerminalDocumentForBodyFallback();
-            if (td && td.body) return td.body;
-          } catch (e) {}
-          return document.body;
-        }
-
-        function pickDeepTerminalBody() {
-          try {
-            var td = resolveTerminalDocumentForBodyFallback();
-            if (td && td.body) return td.body;
-          } catch (e) {}
-          return document.body;
-        }
-
-        /** Prefer a wrapper around the chart so html2canvas captures toolbar + candles (not just one layer). */
-        function pickHtml2CanvasTarget() {
-          try {
-            var ranked = collectRankedCanvasCandidates();
-            if (ranked.length === 0) return pickChartCaptureTarget();
-            var canvas = ranked[0].canvas;
-            window.__eaLastChartCanvas = canvas;
-            var bestEl = canvas;
-            var node = canvas;
-            for (var d = 0; d < 9 && node; d++) {
-              var p = node.parentElement;
-              if (!p) break;
-              var pr = p.getBoundingClientRect();
-              if (pr.width > 180 && pr.height > 120 && pr.width < 3400) {
-                var cls = String(p.className || '');
-                if (/chart|graph|terminal|main|work|canvas|price|trading|region|panel|slot|view|content/i.test(cls) || d >= 4) {
-                  bestEl = p;
-                }
-              }
-              node = p;
-            }
-            return bestEl;
-          } catch (e2) {
-            return pickChartCaptureTarget();
-          }
-        }
-
-        function isBase64SnapshotMostlyBlack(b64) {
-          return new Promise(function(resolve) {
+        function installExportImageBlobHook() {
+          var bestBlob = null;
+          var origCreate = URL.createObjectURL.bind(URL);
+          URL.createObjectURL = function(blob) {
+            var url = origCreate(blob);
             try {
-              if (!b64 || b64.length < 80) {
-                resolve(true);
-                return;
+              if (blob && blob.type && /^image\//i.test(blob.type)) {
+                if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
               }
-              var img = new Image();
-              img.onload = function() {
-                try {
-                  var c = document.createElement('canvas');
-                  var w = Math.min(280, img.naturalWidth || img.width || 1);
-                  var h = Math.min(200, img.naturalHeight || img.height || 1);
-                  if (w < 4 || h < 4) {
-                    resolve(true);
-                    return;
-                  }
-                  c.width = w;
-                  c.height = h;
-                  var ctx = c.getContext('2d');
-                  ctx.drawImage(img, 0, 0, w, h);
-                  var id = ctx.getImageData(0, 0, w, h).data;
-                  var sum = 0;
-                  var sumSq = 0;
-                  var n = 0;
-                  for (var i = 0; i < id.length; i += 16) {
-                    var lum = (id[i] + id[i + 1] + id[i + 2]) / 3;
-                    sum += lum;
-                    sumSq += lum * lum;
-                    n++;
-                  }
-                  var mean = n ? sum / n : 0;
-                  var variance = Math.max(0, sumSq / n - mean * mean);
-                  var blank = (mean < 12 && variance < 100) || mean < 5;
-                  resolve(blank);
-                } catch (e1) {
-                  resolve(false);
+            } catch (e1) {}
+            return url;
+          };
+          return {
+            takeBestBlob: function() {
+              return bestBlob;
+            },
+            cleanup: function() {
+              try {
+                URL.createObjectURL = origCreate;
+              } catch (e2) {}
+            },
+          };
+        }
+
+        function blobToBase64(blob) {
+          return new Promise(function(resolve, reject) {
+            try {
+              var r = new FileReader();
+              r.onloadend = function() {
+                var result = r.result;
+                if (typeof result === 'string' && result.indexOf(',') >= 0) {
+                  resolve(result.split(',')[1]);
+                } else {
+                  reject(new Error('read failed'));
                 }
               };
-              img.onerror = function() {
-                resolve(true);
+              r.onerror = function() {
+                reject(new Error('read failed'));
               };
-              img.src = 'data:image/jpeg;base64,' + b64;
-            } catch (e2) {
-              resolve(false);
+              r.readAsDataURL(blob);
+            } catch (e3) {
+              reject(e3);
             }
           });
         }
 
-        function tryCanvasToDataURL(canvas) {
-          try {
-            canvas.scrollIntoView({ block: 'center', inline: 'nearest' });
-          } catch (e0) {}
-          var w = canvas.width || 0;
-          var h = canvas.height || 0;
-          if (w < 64 || h < 48) return '';
-          try {
-            var durl = canvas.toDataURL('image/jpeg', 0.88);
-            var b64 = (durl.split(',')[1] || '');
-            if (b64.length > 1400) return b64;
-          } catch (e1) {}
-          return '';
-        }
-
-        /** Fallback when WebGL preserves the default framebuffer long enough to read (same-origin terminal). */
-        function tryWebGLReadPixelsSnapshot(canvas) {
-          try {
-            var w = canvas.width;
-            var h = canvas.height;
-            if (w < 32 || h < 32 || w * h > 400000) return '';
-            var gl =
-              canvas.getContext('webgl2', { stencil: false }) ||
-              canvas.getContext('webgl', { stencil: false }) ||
-              canvas.getContext('experimental-webgl');
-            if (!gl) return '';
-            var pixels = new Uint8Array(w * h * 4);
-            gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-            var sum = 0;
-            var sample = 0;
-            for (var i = 0; i < pixels.length; i += 16) {
-              sum += pixels[i] + pixels[i + 1] + pixels[i + 2];
-              sample++;
-            }
-            if (!sample || sum / sample < 2) return '';
-            var c2 = document.createElement('canvas');
-            c2.width = w;
-            c2.height = h;
-            var ctx = c2.getContext('2d');
-            var imgData = ctx.createImageData(w, h);
-            var d = imgData.data;
-            for (var y = 0; y < h; y++) {
-              for (var x = 0; x < w; x++) {
-                var src = ((h - 1 - y) * w + x) * 4;
-                var dst = (y * w + x) * 4;
-                d[dst] = pixels[src];
-                d[dst + 1] = pixels[src + 1];
-                d[dst + 2] = pixels[src + 2];
-                d[dst + 3] = 255;
-              }
-            }
-            ctx.putImageData(imgData, 0, 0);
-            var durl = c2.toDataURL('image/jpeg', 0.82);
-            var b64 = (durl.split(',')[1] || '');
-            if (b64.length > 1400) return b64;
-          } catch (e) {}
-          return '';
-        }
-
-        function tryDirectCanvasSnapshot() {
-          var ranked = collectRankedCanvasCandidates();
-          if (ranked.length === 0) return '';
-          for (var idx = 0; idx < Math.min(ranked.length, 8); idx++) {
-            var canvas = ranked[idx].canvas;
-            window.__eaLastChartCanvas = canvas;
-            var b64 = tryCanvasToDataURL(canvas);
-            if (b64) return b64;
-            if (canvasHasWebGLContext(canvas)) {
-              b64 = tryWebGLReadPixelsSnapshot(canvas);
-              if (b64) return b64;
-            }
+        async function waitForChartExportBlob(hook, minBytes, timeoutMs) {
+          var deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            var b = hook.takeBestBlob();
+            if (b && b.size >= minBytes) return b;
+            await new Promise(function(r) {
+              setTimeout(r, 90);
+            });
           }
-          return '';
+          var last = hook.takeBestBlob();
+          return last && last.size >= minBytes ? last : null;
         }
 
-        function runHtml2CanvasCapture(resolve, opts) {
-          opts = opts || {};
-          var useBody = opts.useBody === true;
-          var useDeepIframe = opts.useDeepIframe === true;
+        async function focusChartForExport() {
           try {
-            var h2c = window.html2canvas;
-            if (typeof h2c !== 'function') {
-              sendMessage('chart_warmup_capture_failed', 'Snapshot library unavailable');
-              resolve();
+            var ranked = collectRankedCanvasCandidates();
+            var chartElement = ranked.length > 0 ? ranked[0].canvas : null;
+            if (chartElement) {
+              sendMessage('step_update', 'Focusing on chart...');
+              try {
+                chartElement.scrollIntoView({ block: 'center', inline: 'nearest' });
+              } catch (e0) {}
+              if (chartElement.focus) chartElement.focus();
+              chartElement.click();
+              await new Promise(function(r) {
+                setTimeout(r, 450);
+              });
+              sendMessage('step_update', 'Chart focused');
               return;
             }
-            var capTarget = null;
-            if (useDeepIframe) {
-              capTarget = pickDeepTerminalBody();
-            } else if (useBody) {
-              capTarget = pickBodyForHtml2Canvas(true);
-            } else {
-              capTarget = pickHtml2CanvasTarget();
-            }
-            if (!capTarget) {
-              capTarget = document.body;
-            }
-            try {
-              if (capTarget && capTarget.scrollIntoView) {
-                capTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
-              }
-            } catch (e1) {}
-            var od = capTarget.ownerDocument || document;
-            var de = od.documentElement || od.body;
-            var winW = de ? de.scrollWidth : (window.innerWidth || 1280);
-            var winH = de ? de.scrollHeight : (window.innerHeight || 800);
-            var isBodyTarget = capTarget.tagName === 'BODY';
-            var scaleCap = isBodyTarget ? 0.48 : 0.82;
-            h2c(capTarget, {
-              useCORS: true,
-              allowTaint: true,
-              scale: scaleCap,
-              logging: false,
-              backgroundColor: '#ffffff',
-              windowWidth: winW,
-              windowHeight: winH,
-              onclone: function(clonedDoc) {
-                try {
-                  var btns = clonedDoc.querySelectorAll('button, [role="button"]');
-                  for (var i = 0; i < Math.min(btns.length, 120); i++) {
-                    var t = ((btns[i].textContent || '') + '').trim();
-                    if (t === '+' || t === '−' || t === '-' || t === '×' || t === '✕') {
-                      btns[i].style.visibility = 'hidden';
-                    }
-                  }
-                } catch (e0) {}
-              }
-            })
-              .then(function(canvas) {
-                try {
-                  var dataUrl = canvas.toDataURL('image/jpeg', 0.78);
-                  var b64 = (dataUrl.split(',')[1] || '');
-                  if (!b64 || b64.length < 100) {
-                    sendMessage('chart_warmup_capture_failed', 'Empty snapshot');
-                    resolve();
-                    return;
-                  }
-                  isBase64SnapshotMostlyBlack(b64).then(function(isBlack) {
-                    if (isBlack && !useBody) {
-                      sendMessage('step_update', 'Retrying snapshot (full terminal view)...');
-                      runHtml2CanvasCapture(resolve, { useBody: true });
-                      return;
-                    }
-                    if (isBlack && useBody && !useDeepIframe) {
-                      sendMessage('step_update', 'Retrying snapshot (deep iframe body)...');
-                      runHtml2CanvasCapture(resolve, { useBody: true, useDeepIframe: true });
-                      return;
-                    }
-                    if (isBlack && useDeepIframe) {
-                      sendMessage(
-                        'chart_warmup_capture_failed',
-                        'Snapshot was blank — chart may use GPU rendering. Scroll the chart fully into view and try again.'
-                      );
-                      resolve();
-                      return;
-                    }
-                    sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: 'image/jpeg' });
-                    resolve();
-                  });
-                } catch (ce) {
-                  sendMessage('chart_warmup_capture_failed', ce && ce.message ? ce.message : 'encode failed');
-                  resolve();
-                }
-              })
-              .catch(function(err) {
-                sendMessage('chart_warmup_capture_failed', err && err.message ? err.message : 'html2canvas failed');
-                resolve();
+            var chartContainer =
+              document.querySelector('[class*="chart-container"]') ||
+              document.querySelector('[class*="trading-chart"]') ||
+              document.querySelector('div[class*="chart"]');
+            if (chartContainer) {
+              sendMessage('step_update', 'Focusing on chart...');
+              if (chartContainer.focus) chartContainer.focus();
+              chartContainer.click();
+              await new Promise(function(r) {
+                setTimeout(r, 450);
               });
-          } catch (e2) {
-            sendMessage('chart_warmup_capture_failed', e2 && e2.message ? e2.message : 'capture error');
-            resolve();
-          }
+              sendMessage('step_update', 'Chart container focused');
+            }
+          } catch (e4) {}
         }
 
-        function loadHtml2CanvasThenCapture(resolve) {
-          if (typeof window.html2canvas === 'function') {
-            runHtml2CanvasCapture(resolve, {});
-            return;
-          }
-          var scriptEl = document.createElement('script');
-          scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-          scriptEl.async = true;
-          scriptEl.onload = function() {
-            runHtml2CanvasCapture(resolve, {});
-          };
-          scriptEl.onerror = function() {
-            sendMessage('chart_warmup_capture_failed', 'Could not load snapshot library');
-            resolve();
-          };
-          (document.head || document.documentElement).appendChild(scriptEl);
-        }
-
-        async function prepareChartForSnapshot() {
+        async function prepareChartForExport() {
           try {
             var ranked = collectRankedCanvasCandidates();
             if (ranked.length > 0) {
@@ -1144,34 +905,52 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           await dismissLoginOverlay();
           window.__eaChartScreenshotSent = false;
           window.__eaLastChartCanvas = null;
-          await prepareChartForSnapshot();
-          var direct = tryDirectCanvasSnapshot();
-          if (direct) {
-            var darkBad = await isBase64SnapshotMostlyBlack(direct);
-            if (!darkBad) {
-              sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
-              return;
-            }
-          }
-          sendMessage('step_update', 'Capturing chart for AI analysis...');
+          await prepareChartForExport();
+          await focusChartForExport();
           for (var preCap = 0; preCap < 10; preCap++) {
             await acceptDisclaimersAndConfirmDeep();
             await dismissLoginOverlay();
             if (!isAnyLoginModalBlocking()) break;
-            await new Promise(function(r) { setTimeout(r, 450); });
+            await new Promise(function(r) {
+              setTimeout(r, 450);
+            });
           }
-          await prepareChartForSnapshot();
-          direct = tryDirectCanvasSnapshot();
-          if (direct) {
-            var darkBad2 = await isBase64SnapshotMostlyBlack(direct);
-            if (!darkBad2) {
-              sendMessage('chart_screenshot', 'snapshot', { image: direct, mimeType: 'image/jpeg' });
+          await prepareChartForExport();
+          await focusChartForExport();
+          sendMessage('step_update', 'Exporting chart image (Save as Image)...');
+          var hook = installExportImageBlobHook();
+          var saveBtn = findSaveChartAsImageButton();
+          if (!saveBtn) {
+            hook.cleanup();
+            sendMessage('chart_warmup_capture_failed', 'Save Chart as Image button not found');
+            return;
+          }
+          var clicked = typeof mouseClick === 'function' ? mouseClick(saveBtn) : false;
+          if (!clicked) saveBtn.click();
+          var blob = await waitForChartExportBlob(hook, 4000, 18000);
+          hook.cleanup();
+          if (!blob) {
+            sendMessage(
+              'chart_warmup_capture_failed',
+              'Chart image export timed out or image was too small — ensure the chart is focused and try again'
+            );
+            return;
+          }
+          try {
+            var b64 = await blobToBase64(blob);
+            if (!b64 || b64.length < 80) {
+              sendMessage('chart_warmup_capture_failed', 'Could not read exported chart image');
               return;
             }
+            var mime =
+              blob.type && /^image\//i.test(blob.type) ? blob.type : 'image/png';
+            sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: mime });
+          } catch (e5) {
+            sendMessage(
+              'chart_warmup_capture_failed',
+              e5 && e5.message ? e5.message : 'Could not read exported chart image'
+            );
           }
-          await new Promise(function(resolve) {
-            loadHtml2CanvasThenCapture(resolve);
-          });
         };
 
         /** Wait until not on broker login screen and chart canvas is visible (avoids AI snapshot of login page). */
