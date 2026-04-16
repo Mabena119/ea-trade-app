@@ -1062,8 +1062,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 sendMessage('chart_warmup_capture_failed', 'Could not read exported chart image');
                 return;
               }
+              var _mt = blob.type && String(blob.type).toLowerCase();
               var mime =
-                blob.type && /^image\//i.test(blob.type) ? blob.type : 'image/png';
+                _mt && _mt.indexOf('image/') === 0 ? blob.type : 'image/png';
               sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: mime });
             } catch (e5) {
               sendMessage(
