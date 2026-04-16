@@ -6,6 +6,9 @@ import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
 import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
 
+/** Chart AI warmup cycle repeats while bot is active (ms). */
+const CHART_WARMUP_INTERVAL_MS = 45 * 60 * 1000;
+
 // Define LicenseData locally to avoid importing from api service (prevents circular dependency)
 export interface LicenseData {
   id: string;
@@ -269,6 +272,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [databaseSignal, setDatabaseSignal] = useState<DatabaseSignal | null>(null);
   const [isDatabaseSignalsPolling, setIsDatabaseSignalsPolling] = useState<boolean>(false);
   const [isPollingPaused, setIsPollingPaused] = useState<boolean>(false);
+  const showMT5SignalWebViewRef = useRef(showMT5SignalWebView);
   // Track processed signal IDs to prevent duplicates
   const processedSignalIdsRef = useRef<Set<number>>(new Set());
   // Track last trade execution time per symbol (45-second cooldown)
@@ -290,7 +294,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     symbolsForBootstrapRef.current = { activeSymbols, mt4Symbols, mt5Symbols };
   }, [activeSymbols, mt4Symbols, mt5Symbols]);
 
+  useEffect(() => {
+    showMT5SignalWebViewRef.current = showMT5SignalWebView;
+  }, [showMT5SignalWebView]);
+
   const pausePollingRef = useRef<(() => Promise<void>) | null>(null);
+  const openChartWarmupTerminalRef = useRef<
+    ((source: 'db_bootstrap_chart_warmup' | 'interval_45m') => void) | null
+  >(null);
 
   // Helper function to check if signal is recent and not already processed
   const shouldProcessSignal = useCallback((signalId: number, symbol: string, time?: string, latestupdate?: string): { shouldProcess: boolean; ageInSeconds: number; reason?: string } => {
@@ -1258,52 +1269,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             }
             s.chartWarmupLaunched = true;
 
-            const acc = mt5AccountForBootstrapRef.current;
-            const { activeSymbols: asSym, mt4Symbols: m4, mt5Symbols: m5 } = symbolsForBootstrapRef.current;
-            const allConfiguredSymbols = [
-              ...asSym.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
-              ...m4.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
-              ...m5.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
-            ];
-            if (!acc?.connected || allConfiguredSymbols.length === 0) {
-              console.log('[DB Bootstrap] Chart warmup skipped — MT5 not connected or no configured symbols');
-              return;
-            }
-
-            const randomIndex = Math.floor(Math.random() * allConfiguredSymbols.length);
-            const selected = allConfiguredSymbols[randomIndex];
-            const dir = selected.direction?.toLowerCase();
-            let tradeAction: string;
-            if (dir === 'buy' || dir === 'sell') {
-              tradeAction = dir;
-            } else {
-              tradeAction = Math.random() > 0.5 ? 'buy' : 'sell';
-            }
-
-            const chartWarmupSignal: SignalLog = {
-              id: `chart-warmup-${Date.now()}`,
-              asset: selected.symbol,
-              action: tradeAction,
-              price: '0',
-              tp: '0',
-              sl: '0',
-              time: new Date().toISOString(),
-              type: 'CHART_WARMUP',
-              source: 'db_bootstrap_chart_warmup',
-              latestupdate: new Date().toISOString(),
-            };
-
-            console.log('[DB Bootstrap] No processable DB signal after 5 polls — opening MT5 chart warmup:', chartWarmupSignal.asset);
-
-            const pause = pausePollingRef.current;
-            if (pause) {
-              pause().catch(err => {
-                console.error('Error pausing polling for chart warmup:', err);
-              });
-            }
-            setMT5Signal(chartWarmupSignal);
-            setShowMT5SignalWebView(true);
-            setSignalLogs(prev => [...prev, chartWarmupSignal]);
+            console.log('[DB Bootstrap] No processable DB signal after 5 polls — launching chart warmup');
+            openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup');
           };
 
           // Start JavaScript polling for all platforms (works on web, iOS, and Android)
@@ -1395,6 +1362,76 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     pausePollingRef.current = pausePolling;
   }, [pausePolling]);
+
+  const openChartWarmupTerminal = useCallback((source: 'db_bootstrap_chart_warmup' | 'interval_45m') => {
+    if (showMT5SignalWebViewRef.current) {
+      console.log('[Chart Warmup] Skipped — MT5 overlay already open');
+      return;
+    }
+    const acc = mt5AccountForBootstrapRef.current;
+    const { activeSymbols: asSym, mt4Symbols: m4, mt5Symbols: m5 } = symbolsForBootstrapRef.current;
+    const allConfiguredSymbols = [
+      ...asSym.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
+      ...m4.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
+      ...m5.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
+    ];
+    if (!acc?.connected || allConfiguredSymbols.length === 0) {
+      console.log(`[Chart Warmup] Skipped (${source}) — MT5 not connected or no configured symbols`);
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * allConfiguredSymbols.length);
+    const selected = allConfiguredSymbols[randomIndex];
+    const dir = selected.direction?.toLowerCase();
+    let tradeAction: string;
+    if (dir === 'buy' || dir === 'sell') {
+      tradeAction = dir;
+    } else {
+      tradeAction = Math.random() > 0.5 ? 'buy' : 'sell';
+    }
+
+    const chartWarmupSignal: SignalLog = {
+      id: `chart-warmup-${Date.now()}`,
+      asset: selected.symbol,
+      action: tradeAction,
+      price: '0',
+      tp: '0',
+      sl: '0',
+      time: new Date().toISOString(),
+      type: 'CHART_WARMUP',
+      source,
+      latestupdate: new Date().toISOString(),
+    };
+
+    console.log(`[Chart Warmup] Opening (${source}):`, chartWarmupSignal.asset);
+
+    const pause = pausePollingRef.current;
+    if (pause) {
+      pause().catch(err => {
+        console.error('Error pausing polling for chart warmup:', err);
+      });
+    }
+    setMT5Signal(chartWarmupSignal);
+    setShowMT5SignalWebView(true);
+    setSignalLogs(prev => [...prev, chartWarmupSignal]);
+  }, []);
+
+  useEffect(() => {
+    openChartWarmupTerminalRef.current = openChartWarmupTerminal;
+  }, [openChartWarmupTerminal]);
+
+  /** Repeat chart warmup every 45 minutes while bot is running (same flow as bootstrap warmup). */
+  useEffect(() => {
+    if (!isBotActive) return;
+    const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+    if (!primaryEA?.licenseKey) return;
+
+    const id = setInterval(() => {
+      openChartWarmupTerminalRef.current?.('interval_45m');
+    }, CHART_WARMUP_INTERVAL_MS);
+
+    return () => clearInterval(id);
+  }, [isBotActive, eas]);
 
   // Bring app to foreground (Android)
   const bringAppToForeground = useCallback(async () => {
