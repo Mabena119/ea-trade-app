@@ -14,7 +14,7 @@ import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 
 /** Embedded MT4/MT5 terminal WebView: false = fully hidden (toast-only UX). true = bottom panel visible for debugging. */
-const SHOW_EMBEDDED_MT_WEBVIEW = true;
+const SHOW_EMBEDDED_MT_WEBVIEW = false;
 
 const EMBEDDED_WEBVIEW_HEIGHT = Math.round(Dimensions.get('window').height * 0.42);
 
@@ -1898,7 +1898,6 @@ export default function MetaTraderScreen() {
               root.style.display = 'none';
               root.style.visibility = 'hidden';
               root.style.pointerEvents = 'none';
-              sendMessage('step_update', 'Hid Trading accounts overlay');
               return true;
             }
             var all = document.querySelectorAll('div, section, aside, [role="dialog"]');
@@ -1913,7 +1912,6 @@ export default function MetaTraderScreen() {
                   ae.style.display = 'none';
                   ae.style.visibility = 'hidden';
                   ae.style.pointerEvents = 'none';
-                  sendMessage('step_update', 'Hid Trading accounts panel (text scan)');
                   return true;
                 }
               }

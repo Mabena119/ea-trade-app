@@ -476,7 +476,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               root.style.display = 'none';
               root.style.visibility = 'hidden';
               root.style.pointerEvents = 'none';
-              sendMessage('step_update', 'Hid Trading accounts overlay');
               return true;
             }
             var all = document.querySelectorAll('div, section, aside, [role="dialog"]');
@@ -491,7 +490,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   ae.style.display = 'none';
                   ae.style.visibility = 'hidden';
                   ae.style.pointerEvents = 'none';
-                  sendMessage('step_update', 'Hid Trading accounts panel (text scan)');
                   return true;
                 }
               }
