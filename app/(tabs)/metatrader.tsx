@@ -14,7 +14,7 @@ import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 
 /** Embedded MT4/MT5 terminal WebView: false = fully hidden (toast-only UX). true = bottom panel visible for debugging. */
-const SHOW_EMBEDDED_MT_WEBVIEW = false;
+const SHOW_EMBEDDED_MT_WEBVIEW = true;
 
 const EMBEDDED_WEBVIEW_HEIGHT = Math.round(Dimensions.get('window').height * 0.42);
 
