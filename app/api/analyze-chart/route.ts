@@ -75,6 +75,33 @@ Output JSON only (symbol must be the literal ticker string from the chart UI, or
 /** Second pass when the model wrongly returns chartDetected:false on a large screenshot (typical MT5 web canvas capture). */
 const CHART_RETRY_PROMPT = `This image is a screenshot from a MetaTrader web terminal (MT4/MT5) or similar broker terminal. It MUST be treated as a valid trading chart. Set "chartDetected": true. Read the visible symbol from the title bar or chart label. Output the same JSON schema as before (symbol, timeframe, signal BUY or SELL, entryPrice, stopLoss, takeProfit1, reasoning, summary, suggestion).`;
 
+function tradeModePromptAppendix(tradeMode: MT5TradeMode): string {
+  if (tradeMode === 'scalper') {
+    return `
+
+TRADING STYLE (user configuration: SCALPER):
+- Favor short-term, intraday-style interpretation: tighter reasonable SL/TP distances than swing when levels are visible on the chart.
+- Emphasize quick confirmation, noise management, and imminent structure; do not invent prices the chart does not show.`;
+  }
+  return `
+
+TRADING STYLE (user configuration: SWING):
+- Favor swing-style interpretation: wider SL/TP when justified by visible multi-session S/R and larger swings on the chart.
+- Emphasis on patience, pullbacks, and holding with trend when the structure supports it; do not invent prices the chart does not show.`;
+}
+
+function chartAnalysisTextForMode(tradeMode: MT5TradeMode): string {
+  return `${CHART_ANALYSIS_PROMPT}${tradeModePromptAppendix(tradeMode)}`;
+}
+
+function chartRetryTextForMode(tradeMode: MT5TradeMode): string {
+  const hint =
+    tradeMode === 'scalper'
+      ? ' The user trades SCALPER mode — prefer tighter intraday-style distances when inferring levels.'
+      : ' The user trades SWING mode — prefer wider swing-style distances when inferring levels.';
+  return `${CHART_RETRY_PROMPT}${hint}`;
+}
+
 function asChartString(v: unknown): string {
   if (v === null || v === undefined) return '';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
@@ -175,7 +202,7 @@ export async function POST(request: Request): Promise<Response> {
                 data: base64Data,
               },
             },
-            { text: CHART_ANALYSIS_PROMPT },
+            { text: chartAnalysisTextForMode(tradeMode) },
           ],
         },
       ],
@@ -269,7 +296,7 @@ export async function POST(request: Request): Promise<Response> {
                   data: base64Data,
                 },
               },
-              { text: CHART_RETRY_PROMPT },
+              { text: chartRetryTextForMode(tradeMode) },
             ],
           },
         ],
