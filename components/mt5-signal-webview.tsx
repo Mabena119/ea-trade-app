@@ -19,6 +19,7 @@ import apiService, { type ChartAnalysisResult } from '@/services/api';
 import { computeFallbackSlTp, stripNumericPrice } from '@/utils/trade-mode-levels';
 import { getTradeModeForAnalysis } from '@/utils/trade-symbol-match';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
+import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_TRADING } from '@/utils/web-terminal-scope';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
 type AiTradePayload = { action: string; sl: string; tp: string; symbol: string; volume: string };
@@ -2237,11 +2238,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         ) {
           signalAuthRemountRef.current += 1;
           setCurrentStep(
-            `Connection issue — retrying (${signalAuthRemountRef.current}/${MT_TERMINAL_AUTH_REMOUNTS})...`
+            `Restarting terminal (${signalAuthRemountRef.current}/${MT_TERMINAL_AUTH_REMOUNTS})...`
           );
+          clearWebTerminalByScope(WEBVIEW_SCOPE_MT5_TRADING);
           setTimeout(() => {
             setWebViewKey((k) => k + 1);
-          }, 1500);
+          }, 400);
           return;
         }
         signalAuthRemountRef.current = 0;
@@ -2418,6 +2420,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   // Reset when modal closes
   useEffect(() => {
     if (!visible) {
+      clearWebTerminalByScope(WEBVIEW_SCOPE_MT5_TRADING);
       signalAuthRemountRef.current = 0;
       setCurrentStep('Initializing...');
       setLoading(true);
@@ -2646,6 +2649,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
+              scopeId={WEBVIEW_SCOPE_MT5_TRADING}
               url={proxyUrl || ''}
               onMessage={handleWebViewMessage}
               externalEval={webExternalEval}

@@ -12,6 +12,8 @@ import { Eye, EyeOff, Search, Database, ExternalLink, Shield, RefreshCw, X } fro
 import { useApp } from '@/providers/app-provider';
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
+import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
+import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
 
 /** Embedded MT4/MT5 terminal WebView: false = fully hidden (toast-only UX). true = bottom panel visible for debugging. */
 const SHOW_EMBEDDED_MT_WEBVIEW = false;
@@ -545,6 +547,8 @@ export default function MetaTraderScreen() {
   const fallbackSuccessRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brokerFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authFinalizedRef = useRef<boolean>(false);
+  const mt5LinkAuthRemountRef = useRef(0);
+  const mt4LinkAuthRemountRef = useRef(0);
   const { mtAccount, setMTAccount, mt4Account, setMT4Account, mt5Account, setMT5Account } = useApp();
 
   // Load existing account data when tab changes
@@ -1004,6 +1008,7 @@ export default function MetaTraderScreen() {
         setAuthenticationStep(parsedData.message);
       } else if (parsedData.type === 'authentication_success') {
         console.log('MT5 authentication successful');
+        mt5LinkAuthRemountRef.current = 0;
         // Update authentication step
         setAuthenticationStep('Login Successful!');
         // Update account status to connected - use await to ensure state is saved
@@ -1025,10 +1030,24 @@ export default function MetaTraderScreen() {
         // Close WebView immediately after successful authentication
         closeMT5WebView();
       } else if (parsedData.type === 'authentication_failed') {
-        console.log('MT5 authentication failed:', parsedData.message);
-        // Update authentication step
-        setAuthenticationStep(parsedData.message || 'Authentication Failed');
-        // Update account status to disconnected - use await to ensure state is saved
+        const failMsg = typeof parsedData.message === 'string' ? parsedData.message : '';
+        console.log('MT5 authentication failed:', failMsg);
+        if (
+          isRetriableTerminalAuthFailure(failMsg) &&
+          mt5LinkAuthRemountRef.current < MT_TERMINAL_AUTH_REMOUNTS
+        ) {
+          mt5LinkAuthRemountRef.current += 1;
+          setAuthenticationStep(
+            `Connection issue — retrying (${mt5LinkAuthRemountRef.current}/${MT_TERMINAL_AUTH_REMOUNTS})...`
+          );
+          setTimeout(() => {
+            setShowMT5WebView(true);
+            setMT5WebViewKey((k) => k + 1);
+          }, 1500);
+          return;
+        }
+        mt5LinkAuthRemountRef.current = 0;
+        setAuthenticationStep(failMsg || 'Authentication Failed');
         await setMT5Account({
           login: login.trim(),
           password: password.trim(),
@@ -1043,8 +1062,7 @@ export default function MetaTraderScreen() {
           server: server.trim(),
           connected: false,
         });
-        console.log('❌ MT5 authentication failed:', parsedData.message);
-        // Close WebView after 2 seconds
+        console.log('❌ MT5 authentication failed:', failMsg);
         setTimeout(() => {
           closeMT5WebView();
         }, 2000);
@@ -1097,6 +1115,7 @@ export default function MetaTraderScreen() {
         setAuthenticationStep(parsedData.message);
       } else if (parsedData.type === 'authentication_success') {
         console.log('MT4 authentication successful');
+        mt4LinkAuthRemountRef.current = 0;
         // Update authentication step
         setAuthenticationStep('Login Successful!');
         // Update account status to connected - use await to ensure state is saved
@@ -1118,10 +1137,24 @@ export default function MetaTraderScreen() {
         // Close WebView immediately after successful authentication
         closeMT4WebView();
       } else if (parsedData.type === 'authentication_failed') {
-        console.log('MT4 authentication failed:', parsedData.message);
-        // Update authentication step
-        setAuthenticationStep(parsedData.message || 'Authentication Failed');
-        // Update account status to disconnected - use await to ensure state is saved
+        const failMsg = typeof parsedData.message === 'string' ? parsedData.message : '';
+        console.log('MT4 authentication failed:', failMsg);
+        if (
+          isRetriableTerminalAuthFailure(failMsg) &&
+          mt4LinkAuthRemountRef.current < MT_TERMINAL_AUTH_REMOUNTS
+        ) {
+          mt4LinkAuthRemountRef.current += 1;
+          setAuthenticationStep(
+            `Connection issue — retrying (${mt4LinkAuthRemountRef.current}/${MT_TERMINAL_AUTH_REMOUNTS})...`
+          );
+          setTimeout(() => {
+            setShowMT4WebView(true);
+            setMT4WebViewKey((k) => k + 1);
+          }, 1500);
+          return;
+        }
+        mt4LinkAuthRemountRef.current = 0;
+        setAuthenticationStep(failMsg || 'Authentication Failed');
         await setMT4Account({
           login: login.trim(),
           password: password.trim(),
@@ -1136,8 +1169,7 @@ export default function MetaTraderScreen() {
           server: server.trim(),
           connected: false,
         });
-        console.log('❌ MT4 authentication failed:', parsedData.message);
-        // Close WebView after 2 seconds
+        console.log('❌ MT4 authentication failed:', failMsg);
         setTimeout(() => {
           closeMT4WebView();
         }, 2000);
@@ -1606,6 +1638,7 @@ export default function MetaTraderScreen() {
   // Handle MT5 Web View
   const handleMT5WebView = () => {
     console.log('Opening MT5 Web View...');
+    mt5LinkAuthRemountRef.current = 0;
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -1613,6 +1646,7 @@ export default function MetaTraderScreen() {
   // Handle MT4 Web View
   const handleMT4WebView = () => {
     console.log('Opening MT4 Web View...');
+    mt4LinkAuthRemountRef.current = 0;
     setShowMT4WebView(true);
     setMT4WebViewKey((k) => k + 1);
   };
@@ -1621,10 +1655,7 @@ export default function MetaTraderScreen() {
   const closeMT5WebView = () => {
     console.log('Closing MT5 Web View...');
 
-    // Clear WebView cache and destroy iframe
-    if (Platform.OS === 'web' && (window as any).clearWebViewCache) {
-      (window as any).clearWebViewCache();
-    }
+    clearWebTerminalByScope(WEBVIEW_SCOPE_MT5_LINK);
 
     setShowMT5WebView(false);
     if (mt5WebViewRef.current) {
@@ -1638,11 +1669,7 @@ export default function MetaTraderScreen() {
   // Close MT4 Web View
   const closeMT4WebView = () => {
     console.log('Closing MT4 Web View...');
-
-    // Clear WebView cache and destroy iframe
-    if (Platform.OS === 'web' && (window as any).clearWebViewCache) {
-      (window as any).clearWebViewCache();
-    }
+    // Web: no WebWebView for MT4 (CustomWebView/native only). Do not call link/trading iframe clear.
 
     setShowMT4WebView(false);
     if (mt4WebViewRef.current) {
@@ -2991,6 +3018,7 @@ export default function MetaTraderScreen() {
           {Platform.OS === 'web' ? (
             <WebWebView
               key={`mt5-web-${mt5WebViewKey}`}
+              scopeId={WEBVIEW_SCOPE_MT5_LINK}
               url={`/api/mt5-proxy?url=${encodeURIComponent(MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live'])}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(server || 'RazorMarkets-Live')}`}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}

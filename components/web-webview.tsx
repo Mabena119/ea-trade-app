@@ -8,6 +8,11 @@ interface WebWebViewProps {
   onLoadEnd?: () => void;
   onDestroy?: () => void;
   style?: any;
+  /**
+   * Isolated teardown: `clearWebTerminalByScope(scopeId)` only destroys this iframe.
+   * Link vs trading must use different ids so they never clear each other.
+   */
+  scopeId?: string;
   /** When set (new id each time), eval this JS in the iframe context (same-origin proxy only). */
   externalEval?: { code: string; id: number } | null;
   onExternalEvalConsumed?: () => void;
@@ -20,6 +25,7 @@ const WebWebView: React.FC<WebWebViewProps> = ({
   onLoadEnd,
   onDestroy,
   style,
+  scopeId,
   externalEval,
   onExternalEvalConsumed,
 }) => {
@@ -57,14 +63,21 @@ const WebWebView: React.FC<WebWebViewProps> = ({
     }
   };
 
-  // Expose the clear function globally for external access
+  // Scoped iframe teardown (link vs trading use different scopeIds)
   useEffect(() => {
-    (window as any).clearWebViewCache = clearCacheAndDestroy;
-
+    if (Platform.OS !== 'web') return;
+    const id = scopeId || 'ea-web-default';
+    const w = window as unknown as { __eaWebViewClearByScope?: Record<string, () => void> };
+    w.__eaWebViewClearByScope = w.__eaWebViewClearByScope || {};
+    w.__eaWebViewClearByScope[id] = clearCacheAndDestroy;
     return () => {
-      delete (window as any).clearWebViewCache;
+      try {
+        delete w.__eaWebViewClearByScope?.[id];
+      } catch (e) {
+        /* noop */
+      }
     };
-  }, []);
+  }, [scopeId]);
 
   // Inject script into iframe when it loads
   useEffect(() => {
