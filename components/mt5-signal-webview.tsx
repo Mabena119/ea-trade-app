@@ -791,12 +791,39 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return null;
         }
 
+        /** Blocks programmatic <a download> blob navigations so the OS/WebView does not save a file — data goes to AI only. */
+        var origHtmlAnchorClick = HTMLAnchorElement.prototype.click;
+        function installChartExportDownloadSuppression() {
+          window.__eaSuppressChartFileDownload = true;
+          HTMLAnchorElement.prototype.click = function() {
+            try {
+              var href = String(this.href || '');
+              if (
+                window.__eaSuppressChartFileDownload &&
+                href.indexOf('blob:') === 0 &&
+                this.getAttribute('download') !== null
+              ) {
+                return;
+              }
+            } catch (eA) {}
+            return origHtmlAnchorClick.apply(this, arguments);
+          };
+        }
+        function uninstallChartExportDownloadSuppression() {
+          window.__eaSuppressChartFileDownload = false;
+          try {
+            HTMLAnchorElement.prototype.click = origHtmlAnchorClick;
+          } catch (eU) {}
+        }
+
         function installExportImageBlobHook() {
           var bestBlob = null;
+          var createdUrls = [];
           var origCreate = URL.createObjectURL.bind(URL);
           URL.createObjectURL = function(blob) {
             var url = origCreate(blob);
             try {
+              createdUrls.push(url);
               if (blob && blob.type && /^image\//i.test(blob.type)) {
                 if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
               }
@@ -808,6 +835,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               return bestBlob;
             },
             cleanup: function() {
+              try {
+                for (var ui = 0; ui < createdUrls.length; ui++) {
+                  try {
+                    URL.revokeObjectURL(createdUrls[ui]);
+                  } catch (eR) {}
+                }
+              } catch (eRev) {}
               try {
                 URL.createObjectURL = origCreate;
               } catch (e2) {}
@@ -917,39 +951,47 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
           await prepareChartForExport();
           await focusChartForExport();
-          sendMessage('step_update', 'Exporting chart image (Save as Image)...');
-          var hook = installExportImageBlobHook();
-          var saveBtn = findSaveChartAsImageButton();
-          if (!saveBtn) {
-            hook.cleanup();
-            sendMessage('chart_warmup_capture_failed', 'Save Chart as Image button not found');
-            return;
-          }
-          var clicked = typeof mouseClick === 'function' ? mouseClick(saveBtn) : false;
-          if (!clicked) saveBtn.click();
-          var blob = await waitForChartExportBlob(hook, 4000, 18000);
-          hook.cleanup();
-          if (!blob) {
-            sendMessage(
-              'chart_warmup_capture_failed',
-              'Chart image export timed out or image was too small — ensure the chart is focused and try again'
-            );
-            return;
-          }
+          sendMessage(
+            'step_update',
+            'Building chart image for AI analysis (not saved as a file on your device)...'
+          );
+          var hook = null;
+          installChartExportDownloadSuppression();
           try {
-            var b64 = await blobToBase64(blob);
-            if (!b64 || b64.length < 80) {
-              sendMessage('chart_warmup_capture_failed', 'Could not read exported chart image');
+            hook = installExportImageBlobHook();
+            var saveBtn = findSaveChartAsImageButton();
+            if (!saveBtn) {
+              sendMessage('chart_warmup_capture_failed', 'Save Chart as Image button not found');
               return;
             }
-            var mime =
-              blob.type && /^image\//i.test(blob.type) ? blob.type : 'image/png';
-            sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: mime });
-          } catch (e5) {
-            sendMessage(
-              'chart_warmup_capture_failed',
-              e5 && e5.message ? e5.message : 'Could not read exported chart image'
-            );
+            var clicked = typeof mouseClick === 'function' ? mouseClick(saveBtn) : false;
+            if (!clicked) saveBtn.click();
+            var blob = await waitForChartExportBlob(hook, 4000, 18000);
+            if (!blob) {
+              sendMessage(
+                'chart_warmup_capture_failed',
+                'Chart image export timed out or image was too small — ensure the chart is focused and try again'
+              );
+              return;
+            }
+            try {
+              var b64 = await blobToBase64(blob);
+              if (!b64 || b64.length < 80) {
+                sendMessage('chart_warmup_capture_failed', 'Could not read exported chart image');
+                return;
+              }
+              var mime =
+                blob.type && /^image\//i.test(blob.type) ? blob.type : 'image/png';
+              sendMessage('chart_screenshot', 'snapshot', { image: b64, mimeType: mime });
+            } catch (e5) {
+              sendMessage(
+                'chart_warmup_capture_failed',
+                e5 && e5.message ? e5.message : 'Could not read exported chart image'
+              );
+            }
+          } finally {
+            if (hook) hook.cleanup();
+            uninstallChartExportDownloadSuppression();
           }
         };
 
@@ -2020,7 +2062,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         lastChartScreenshotAtRef.current = now;
         setChartAiError(null);
         setChartAiAnalyzing(true);
-        setCurrentStep('AI is analyzing the chart snapshot...');
+        setCurrentStep('AI is analyzing the chart image...');
         void (async () => {
           let shouldResumePolling = true;
           try {
