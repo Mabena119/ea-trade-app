@@ -2588,7 +2588,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           </View>
         ) : null}
 
-        {/* WebView: hidden in production flow; debug flag shows bottom panel for inspection */}
+        {/* WebView: during chart warmup it stays mounted for MT5/JS but is opacity-hidden — native WKWebView draws above RN views, so overlays alone are not enough. */}
         <View
           style={
             chartWarmupTerminalVisible
@@ -2599,6 +2599,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   : styles.visibleDebugWebViewContainer
                 : styles.hiddenWebViewContainer
           }
+          pointerEvents={isChartWarmupSignal ? 'none' : 'auto'}
         >
           {Platform.OS === 'web' ? (
             <WebWebView
@@ -2612,14 +2613,20 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setCurrentStep('MT5 Terminal loaded');
                 console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
               }}
-              style={chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
+              style={[
+                chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView,
+                isChartWarmupSignal && styles.chartWarmupWebViewInvisible,
+              ]}
             />
           ) : (
             <WebView
               key={`${webViewKey}-${signal.id || 'no-signal'}`}
               ref={webViewRef}
               source={{ uri: mt5Url }}
-              style={chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView}
+              style={[
+                chartWarmupTerminalVisible || SHOW_MT5_SIGNAL_WEBVIEW_DEBUG ? styles.debugWebView : styles.hiddenWebView,
+                isChartWarmupSignal && styles.chartWarmupWebViewInvisible,
+              ]}
               userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               onMessage={handleWebViewMessage}
               onLoadStart={() => {
@@ -2685,15 +2692,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             />
           )}
         </View>
-        {isChartWarmupSignal ? (
-          <View
-            style={[styles.chartWarmupTerminalCover, { backgroundColor: theme.colors.background }]}
-            pointerEvents="auto"
-            accessible={false}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
-        ) : null}
       </View>
     </Modal>
   );
@@ -2798,21 +2796,19 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(139, 92, 246, 0.85)',
     backgroundColor: '#0a0a0a',
   },
-  /** Full-area terminal below status toast during chart warmup capture (WebGL needs real layout; borderless for a clean UI). */
+  /** Full-area terminal below status toast — low z-index keeps it behind toast/AI card; WebView uses opacity 0 during warmup (native view draws above RN otherwise). */
   warmupFullWebViewContainer: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 96 : 84,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 9998,
-    pointerEvents: 'auto' as const,
+    zIndex: 2,
     backgroundColor: colors.background,
   },
-  /** Full-screen layer above the WebView (below toast / AI card) so the terminal is never visible. */
-  chartWarmupTerminalCover: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
+  /** Invisible compositing: terminal still runs MT5 export/JS; user sees only toast + backdrop. */
+  chartWarmupWebViewInvisible: {
+    opacity: 0,
   },
   hiddenWebView: {
     flex: 1,
