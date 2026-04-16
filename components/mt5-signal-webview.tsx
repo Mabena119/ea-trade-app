@@ -775,76 +775,116 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return ranked;
         }
 
-        /** Prefer main chart canvas (large rect + buffer); searches nested terminal iframes. */
+        /** Toolbar save control; MT5 may mount it in a nested same-origin iframe. */
         function findSaveChartAsImageButton() {
-          try {
-            var exact = document.querySelector(
-              'div.icon-button.svelte-1iwf8ix[title="Save Chart as Image (Ctrl + S)"]'
-            );
-            if (exact && exact.offsetParent !== null) return exact;
-            var all = document.querySelectorAll('div.icon-button.svelte-1iwf8ix');
-            for (var bi = 0; bi < all.length; bi++) {
-              var title = (all[bi].getAttribute('title') || '');
-              if (/save chart as image/i.test(title) && all[bi].offsetParent !== null) return all[bi];
-            }
-          } catch (e) {}
-          return null;
-        }
-
-        /** Blocks programmatic <a download> blob navigations so the OS/WebView does not save a file — data goes to AI only. */
-        var origHtmlAnchorClick = HTMLAnchorElement.prototype.click;
-        function installChartExportDownloadSuppression() {
-          window.__eaSuppressChartFileDownload = true;
-          HTMLAnchorElement.prototype.click = function() {
+          var found = null;
+          function searchDoc(d) {
+            if (!d || found) return;
             try {
-              var href = String(this.href || '');
-              if (
-                window.__eaSuppressChartFileDownload &&
-                href.indexOf('blob:') === 0 &&
-                this.getAttribute('download') !== null
-              ) {
+              var exact = d.querySelector(
+                'div.icon-button.svelte-1iwf8ix[title="Save Chart as Image (Ctrl + S)"]'
+              );
+              if (exact && exact.offsetParent !== null) {
+                found = exact;
                 return;
               }
-            } catch (eA) {}
-            return origHtmlAnchorClick.apply(this, arguments);
-          };
-        }
-        function uninstallChartExportDownloadSuppression() {
-          window.__eaSuppressChartFileDownload = false;
-          try {
-            HTMLAnchorElement.prototype.click = origHtmlAnchorClick;
-          } catch (eU) {}
+              var all = d.querySelectorAll('div.icon-button.svelte-1iwf8ix');
+              for (var bi = 0; bi < all.length; bi++) {
+                var title = (all[bi].getAttribute('title') || '');
+                if (/save chart as image/i.test(title) && all[bi].offsetParent !== null) {
+                  found = all[bi];
+                  return;
+                }
+              }
+              var iframes = d.querySelectorAll('iframe');
+              for (var j = 0; j < iframes.length; j++) {
+                try {
+                  var ind = iframes[j].contentDocument;
+                  if (ind) searchDoc(ind);
+                } catch (e) {}
+              }
+            } catch (e) {}
+          }
+          searchDoc(document);
+          return found;
         }
 
+        /**
+         * Hooks createObjectURL on the top window and every same-origin frame so we see chart exports
+         * even when the terminal builds the blob inside an iframe. Do not block <a>.click — that was
+         * preventing export on WebKit (timeout with no blob).
+         */
         function installExportImageBlobHook() {
           var bestBlob = null;
-          var createdUrls = [];
-          var origCreate = URL.createObjectURL.bind(URL);
-          URL.createObjectURL = function(blob) {
-            var url = origCreate(blob);
+          var createdEntries = [];
+          var restoreList = [];
+          var patchedWins = [];
+
+          function considerBlob(blob) {
+            if (!blob || blob.size < 400) return;
             try {
-              createdUrls.push(url);
-              if (blob && blob.type && /^image\//i.test(blob.type)) {
-                if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
+              var t = (blob.type || '').toLowerCase();
+              var isImage = t.indexOf('image/') === 0;
+              var untypedLarge = (!t || t === '') && blob.size >= 800;
+              var octetOk = t === 'application/octet-stream' && blob.size >= 1200;
+              if (!isImage && !untypedLarge && !octetOk) return;
+              if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
+            } catch (e0) {}
+          }
+
+          function ensurePatch(win) {
+            if (!win || !win.URL) return;
+            for (var p = 0; p < patchedWins.length; p++) {
+              if (patchedWins[p] === win) return;
+            }
+            patchedWins.push(win);
+            var origCreate = win.URL.createObjectURL.bind(win.URL);
+            win.URL.createObjectURL = function(blob) {
+              var url = origCreate(blob);
+              try {
+                createdEntries.push({ w: win, url: url });
+                considerBlob(blob);
+              } catch (e1) {}
+              return url;
+            };
+            restoreList.push(function() {
+              try {
+                win.URL.createObjectURL = origCreate;
+              } catch (e2) {}
+            });
+          }
+
+          function walkInstall(doc) {
+            if (!doc) return;
+            try {
+              ensurePatch(doc.defaultView);
+              var iframes = doc.querySelectorAll('iframe');
+              for (var fi = 0; fi < iframes.length; fi++) {
+                try {
+                  var ind = iframes[fi].contentDocument;
+                  if (ind) walkInstall(ind);
+                } catch (e3) {}
               }
-            } catch (e1) {}
-            return url;
-          };
+            } catch (e4) {}
+          }
+          walkInstall(document);
+
           return {
             takeBestBlob: function() {
               return bestBlob;
             },
             cleanup: function() {
-              try {
-                for (var ui = 0; ui < createdUrls.length; ui++) {
-                  try {
-                    URL.revokeObjectURL(createdUrls[ui]);
-                  } catch (eR) {}
-                }
-              } catch (eRev) {}
-              try {
-                URL.createObjectURL = origCreate;
-              } catch (e2) {}
+              for (var ui = 0; ui < createdEntries.length; ui++) {
+                try {
+                  createdEntries[ui].w.URL.revokeObjectURL(createdEntries[ui].url);
+                } catch (eR) {}
+              }
+              createdEntries.length = 0;
+              for (var ri = 0; ri < restoreList.length; ri++) {
+                restoreList[ri]();
+              }
+              restoreList.length = 0;
+              patchedWins.length = 0;
             },
           };
         }
@@ -877,11 +917,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             var b = hook.takeBestBlob();
             if (b && b.size >= minBytes) return b;
             await new Promise(function(r) {
-              setTimeout(r, 90);
+              setTimeout(r, 80);
             });
           }
           var last = hook.takeBestBlob();
-          return last && last.size >= minBytes ? last : null;
+          if (last && last.size >= Math.min(minBytes, 800)) return last;
+          return null;
         }
 
         async function focusChartForExport() {
@@ -953,10 +994,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           await focusChartForExport();
           sendMessage(
             'step_update',
-            'Building chart image for AI analysis (not saved as a file on your device)...'
+            'Building chart image for AI analysis (in memory; file save is revoked after capture)...'
           );
           var hook = null;
-          installChartExportDownloadSuppression();
           try {
             hook = installExportImageBlobHook();
             var saveBtn = findSaveChartAsImageButton();
@@ -966,7 +1006,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             }
             var clicked = typeof mouseClick === 'function' ? mouseClick(saveBtn) : false;
             if (!clicked) saveBtn.click();
-            var blob = await waitForChartExportBlob(hook, 4000, 18000);
+            var blob = await waitForChartExportBlob(hook, 1200, 28000);
             if (!blob) {
               sendMessage(
                 'chart_warmup_capture_failed',
@@ -991,7 +1031,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             }
           } finally {
             if (hook) hook.cleanup();
-            uninstallChartExportDownloadSuppression();
           }
         };
 

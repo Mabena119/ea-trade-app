@@ -1530,73 +1530,109 @@ async function handleApi(request: Request): Promise<Response> {
               };
 
               function findSaveChartAsImageButton() {
-                try {
-                  const exact = document.querySelector(
-                    'div.icon-button.svelte-1iwf8ix[title="Save Chart as Image (Ctrl + S)"]'
-                  );
-                  if (exact && exact.offsetParent !== null) return exact;
-                  const all = document.querySelectorAll('div.icon-button.svelte-1iwf8ix');
-                  for (let bi = 0; bi < all.length; bi++) {
-                    const title = (all[bi].getAttribute('title') || '');
-                    if (/save chart as image/i.test(title) && all[bi].offsetParent !== null) return all[bi];
-                  }
-                } catch (e) {}
-                return null;
-              }
-
-              const origHtmlAnchorClick = HTMLAnchorElement.prototype.click;
-              function installChartExportDownloadSuppression() {
-                window.__eaSuppressChartFileDownload = true;
-                HTMLAnchorElement.prototype.click = function() {
+                let found = null;
+                function searchDoc(d) {
+                  if (!d || found) return;
                   try {
-                    const href = String(this.href || '');
-                    if (
-                      window.__eaSuppressChartFileDownload &&
-                      href.indexOf('blob:') === 0 &&
-                      this.getAttribute('download') !== null
-                    ) {
+                    const exact = d.querySelector(
+                      'div.icon-button.svelte-1iwf8ix[title="Save Chart as Image (Ctrl + S)"]'
+                    );
+                    if (exact && exact.offsetParent !== null) {
+                      found = exact;
                       return;
                     }
-                  } catch (eA) {}
-                  return origHtmlAnchorClick.apply(this, arguments);
-                };
-              }
-              function uninstallChartExportDownloadSuppression() {
-                window.__eaSuppressChartFileDownload = false;
-                try {
-                  HTMLAnchorElement.prototype.click = origHtmlAnchorClick;
-                } catch (eU) {}
+                    const all = d.querySelectorAll('div.icon-button.svelte-1iwf8ix');
+                    for (let bi = 0; bi < all.length; bi++) {
+                      const title = (all[bi].getAttribute('title') || '');
+                      if (/save chart as image/i.test(title) && all[bi].offsetParent !== null) {
+                        found = all[bi];
+                        return;
+                      }
+                    }
+                    const iframes = d.querySelectorAll('iframe');
+                    for (let j = 0; j < iframes.length; j++) {
+                      try {
+                        const ind = iframes[j].contentDocument;
+                        if (ind) searchDoc(ind);
+                      } catch (e) {}
+                    }
+                  } catch (e) {}
+                }
+                searchDoc(document);
+                return found;
               }
 
               function installExportImageBlobHook() {
                 let bestBlob = null;
-                const createdUrls = [];
-                const origCreate = URL.createObjectURL.bind(URL);
-                URL.createObjectURL = function(blob) {
-                  const url = origCreate(blob);
+                const createdEntries = [];
+                const restoreList = [];
+                const patchedWins = [];
+
+                function considerBlob(blob) {
+                  if (!blob || blob.size < 400) return;
                   try {
-                    createdUrls.push(url);
-                    if (blob && blob.type && /^image\//i.test(blob.type)) {
-                      if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
+                    const t = (blob.type || '').toLowerCase();
+                    const isImage = t.indexOf('image/') === 0;
+                    const untypedLarge = (!t || t === '') && blob.size >= 800;
+                    const octetOk = t === 'application/octet-stream' && blob.size >= 1200;
+                    if (!isImage && !untypedLarge && !octetOk) return;
+                    if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
+                  } catch (e0) {}
+                }
+
+                function ensurePatch(win) {
+                  if (!win || !win.URL) return;
+                  for (let p = 0; p < patchedWins.length; p++) {
+                    if (patchedWins[p] === win) return;
+                  }
+                  patchedWins.push(win);
+                  const origCreate = win.URL.createObjectURL.bind(win.URL);
+                  win.URL.createObjectURL = function(blob) {
+                    const url = origCreate(blob);
+                    try {
+                      createdEntries.push({ w: win, url: url });
+                      considerBlob(blob);
+                    } catch (e1) {}
+                    return url;
+                  };
+                  restoreList.push(() => {
+                    try {
+                      win.URL.createObjectURL = origCreate;
+                    } catch (e2) {}
+                  });
+                }
+
+                function walkInstall(doc) {
+                  if (!doc) return;
+                  try {
+                    ensurePatch(doc.defaultView);
+                    const iframes = doc.querySelectorAll('iframe');
+                    for (let fi = 0; fi < iframes.length; fi++) {
+                      try {
+                        const ind = iframes[fi].contentDocument;
+                        if (ind) walkInstall(ind);
+                      } catch (e3) {}
                     }
-                  } catch (e1) {}
-                  return url;
-                };
+                  } catch (e4) {}
+                }
+                walkInstall(document);
+
                 return {
                   takeBestBlob() {
                     return bestBlob;
                   },
                   cleanup() {
-                    try {
-                      for (let ui = 0; ui < createdUrls.length; ui++) {
-                        try {
-                          URL.revokeObjectURL(createdUrls[ui]);
-                        } catch (eR) {}
-                      }
-                    } catch (eRev) {}
-                    try {
-                      URL.createObjectURL = origCreate;
-                    } catch (e2) {}
+                    for (let ui = 0; ui < createdEntries.length; ui++) {
+                      try {
+                        createdEntries[ui].w.URL.revokeObjectURL(createdEntries[ui].url);
+                      } catch (eR) {}
+                    }
+                    createdEntries.length = 0;
+                    for (let ri = 0; ri < restoreList.length; ri++) {
+                      restoreList[ri]();
+                    }
+                    restoreList.length = 0;
+                    patchedWins.length = 0;
                   },
                 };
               }
@@ -1626,10 +1662,11 @@ async function handleApi(request: Request): Promise<Response> {
                 while (Date.now() < deadline) {
                   const b = hook.takeBestBlob();
                   if (b && b.size >= minBytes) return b;
-                  await sleep(90);
+                  await sleep(80);
                 }
                 const last = hook.takeBestBlob();
-                return last && last.size >= minBytes ? last : null;
+                if (last && last.size >= Math.min(minBytes, 800)) return last;
+                return null;
               }
 
               async function focusChartForExport() {
@@ -1693,10 +1730,9 @@ async function handleApi(request: Request): Promise<Response> {
                 await focusChartForExport();
                 sendMessage(
                   'step_update',
-                  'Building chart image for AI analysis (not saved as a file on your device)...'
+                  'Building chart image for AI analysis (in memory; file save is revoked after capture)...'
                 );
                 let hook = null;
-                installChartExportDownloadSuppression();
                 try {
                   hook = installExportImageBlobHook();
                   const saveBtn = findSaveChartAsImageButton();
@@ -1706,7 +1742,7 @@ async function handleApi(request: Request): Promise<Response> {
                   }
                   const clicked = typeof mouseClick === 'function' ? mouseClick(saveBtn) : false;
                   if (!clicked) saveBtn.click();
-                  const blob = await waitForChartExportBlob(hook, 4000, 18000);
+                  const blob = await waitForChartExportBlob(hook, 1200, 28000);
                   if (!blob) {
                     sendMessage(
                       'chart_warmup_capture_failed',
@@ -1731,7 +1767,6 @@ async function handleApi(request: Request): Promise<Response> {
                   }
                 } finally {
                   if (hook) hook.cleanup();
-                  uninstallChartExportDownloadSuppression();
                 }
               };
 
