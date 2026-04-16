@@ -857,7 +857,8 @@ async function handleApi(request: Request): Promise<Response> {
           const slValue = escapeValue(sl || '');
           const tpValue = escapeValue(tp || '');
           const volumeValue = escapeValue(volume || '0.01');
-          const robotNameValue = escapeValue(robotName || 'EA Trade');
+          const orderCommentForMt5 = `${(robotName || 'EA Trade').trim()} - EA TRADE`;
+          const robotNameValue = escapeValue(orderCommentForMt5);
           const numberOfTradesValue = escapeValue(numberOfTrades || '1');
           const isChartWarmupJs = chartWarmup ? 'true' : 'false';
 
@@ -1764,7 +1765,7 @@ async function handleApi(request: Request): Promise<Response> {
                 await focusChartForExport();
                 sendMessage(
                   'step_update',
-                  'Building chart image for AI analysis (in memory; file save is revoked after capture)...'
+                  'Analysing chart'
                 );
                 let hook = null;
                 try {
@@ -1993,6 +1994,10 @@ async function handleApi(request: Request): Promise<Response> {
                   if (searchField && searchField.offsetParent !== null) {
                     await acceptDisclaimersAndConfirmDeep();
                     await dismissLoginOverlay();
+                    var _eqSC = scrapeTerminalAccountStats();
+                    if (_eqSC.equity || _eqSC.balance) {
+                      sendMessage('equity_snapshot', 'MT5 session connected', { equity: _eqSC.equity, balance: _eqSC.balance });
+                    }
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
@@ -2003,6 +2008,10 @@ async function handleApi(request: Request): Promise<Response> {
                       if (!chartReadyOk) {
                         sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                         return;
+                      }
+                      var _eqCW = scrapeTerminalAccountStats();
+                      if (_eqCW.equity || _eqCW.balance) {
+                        sendMessage('equity_snapshot', 'Account updated', { equity: _eqCW.equity, balance: _eqCW.balance });
                       }
                       await captureChartWarmupForAi();
                       return;
@@ -2019,6 +2028,10 @@ async function handleApi(request: Request): Promise<Response> {
                   if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
                     await acceptDisclaimersAndConfirmDeep();
                     await dismissLoginOverlay();
+                    var _eqSC2 = scrapeTerminalAccountStats();
+                    if (_eqSC2.equity || _eqSC2.balance) {
+                      sendMessage('equity_snapshot', 'MT5 session connected', { equity: _eqSC2.equity, balance: _eqSC2.balance });
+                    }
                     await searchForSymbol('${symbolValue}');
                     await openChart('${symbolValue}');
                     if (isChartWarmup) {
@@ -2029,6 +2042,10 @@ async function handleApi(request: Request): Promise<Response> {
                       if (!chartReadyOk) {
                         sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                         return;
+                      }
+                      var _eqCW2 = scrapeTerminalAccountStats();
+                      if (_eqCW2.equity || _eqCW2.balance) {
+                        sendMessage('equity_snapshot', 'Account updated', { equity: _eqCW2.equity, balance: _eqCW2.balance });
                       }
                       await captureChartWarmupForAi();
                       return;
@@ -2476,7 +2493,7 @@ async function handleApi(request: Request): Promise<Response> {
                   const volume = (_p && _p.volume) ? String(_p.volume) : '${volumeValue}';
                   const sl = (_p && _p.sl != null && String(_p.sl) !== '') ? String(_p.sl) : '${slValue}';
                   const tp = (_p && _p.tp != null && String(_p.tp) !== '') ? String(_p.tp) : '${tpValue}';
-                  const robotName = '${robotNameValue}';
+                  const orderComment = '${robotNameValue}';
                   
                   const decimalInputs = Array.from(document.querySelectorAll('input[inputmode="decimal"]'));
                   
@@ -2530,7 +2547,7 @@ async function handleApi(request: Request): Promise<Response> {
                     sendMessage('step_update', '✅ Take Profit: ' + tp);
                   }
                   
-                  if (robotName) {
+                  if (orderComment) {
                     await sleep(200);
                     const commentInput = document.querySelector('input.svelte-mtorg2') ||
                                         Array.from(document.querySelectorAll('input[autocomplete="off"]')).find(inp => 
@@ -2545,11 +2562,11 @@ async function handleApi(request: Request): Promise<Response> {
                       
                       await sleep(200);
                       
-                      commentInput.value = robotName;
+                      commentInput.value = orderComment;
                       commentInput.dispatchEvent(new Event('input', { bubbles: true }));
                       commentInput.dispatchEvent(new Event('change', { bubbles: true }));
                       commentInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                      sendMessage('step_update', '✅ Comment: ' + robotName);
+                      sendMessage('step_update', '✅ Comment: ' + orderComment);
                     }
                   }
                   
@@ -2598,6 +2615,11 @@ async function handleApi(request: Request): Promise<Response> {
                 sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');
                 console.log('🎯 STRICT EXECUTION: Will execute exactly ' + numberOfTrades + ' trades, no more, no less');
                 
+                var _eqEx0 = scrapeTerminalAccountStats();
+                if (_eqEx0.equity || _eqEx0.balance) {
+                  sendMessage('equity_snapshot', 'Account updated', { equity: _eqEx0.equity, balance: _eqEx0.balance });
+                }
+                
                 let successfulTrades = 0;
                 let failedTrades = 0;
                 
@@ -2607,6 +2629,10 @@ async function handleApi(request: Request): Promise<Response> {
                   console.log('▶️ Starting trade ' + tradeNumber + '/' + numberOfTrades);
                   
                   try {
+                    var _eqPre = scrapeTerminalAccountStats();
+                    if (_eqPre.equity || _eqPre.balance) {
+                      sendMessage('equity_snapshot', 'Account updated', { equity: _eqPre.equity, balance: _eqPre.balance });
+                    }
                     const tradeSuccess = await openOrderDialogAndExecuteTrade(tradeNumber, numberOfTrades);
                     
                     if (tradeSuccess) {

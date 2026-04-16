@@ -78,8 +78,28 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Profinwealth-Live': 'https://mt5.profinwealth.com/',
 };
 
-/** When true, MT5 signal WebView uses a visible panel for debugging. Chart warmup always uses a visible terminal so WebGL paints. */
+/** When true, MT5 signal WebView uses a visible panel for debugging. Chart warmup keeps the WebView fully laid out (below cover) so WebGL still composites. */
 const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = false;
+
+/** Toast subtitle during CHART_WARMUP: single friendly line unless the step is an outcome/error. */
+function displayStatusForChartWarmup(step: string | null | undefined): string {
+  const s = (step || '').trim();
+  if (!s) return 'Analysing chart';
+  if (
+    /^error\b/i.test(s) ||
+    /^authentication failed/i.test(s) ||
+    /^chart snapshot failed/i.test(s) ||
+    /^ai analysis failed/i.test(s) ||
+    /^ai analysis error/i.test(s) ||
+    /^auto-trade failed/i.test(s) ||
+    /^ai analysis complete/i.test(s) ||
+    /^ai suggests a trade/i.test(s) ||
+    /^all trades completed/i.test(s)
+  ) {
+    return s;
+  }
+  return 'Analysing chart';
+}
 
 export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewProps) {
   const { mt5Account, setMT5Account, eas, mt5Symbols, markTradeExecuted, mt5TradeOverlayMessage, resumePolling } =
@@ -203,9 +223,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     const baseUrl = terminalUrl.replace(/\/terminal\/?/, '').replace(/\/$/, '');
     const wsUrl = `${baseUrl.replace('http://', 'wss://').replace('https://', 'wss://')}/terminal/ws`;
 
-    // Get robot/EA name
+    // Get robot/EA name (order comment = bot name + suffix on every trade)
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     const robotName = primaryEA?.name || 'EA Trade';
+    const tradeOrderCommentEscaped = escapeForJS(`${robotName.trim()} - EA TRADE`);
     const isChartWarmup = signal?.type === 'CHART_WARMUP';
     const defaultVolumeEscaped = escapeForJS(getVolume());
 
@@ -1032,10 +1053,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
           await prepareChartForExport();
           await focusChartForExport();
-          sendMessage(
-            'step_update',
-            'Building chart image for AI analysis (in memory; file save is revoked after capture)...'
-          );
+          sendMessage('step_update', 'Analysing chart');
           var hook = null;
           try {
             try {
@@ -1376,6 +1394,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // STRICTLY SEQUENTIAL FLOW - none before the other:
               // Step 1: Login ✅ (completed)
               await dismissLoginOverlay();
+              var _eqAfterConnect = scrapeTerminalAccountStats();
+              if (_eqAfterConnect.equity || _eqAfterConnect.balance) {
+                sendMessage('equity_snapshot', 'MT5 session connected', {
+                  equity: _eqAfterConnect.equity,
+                  balance: _eqAfterConnect.balance,
+                });
+              }
               // Step 2: Search for symbol
               await searchForSymbol('${symbol}');
               
@@ -1389,6 +1414,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 if (!chartReadyOk) {
                   sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                   return;
+                }
+                var _eqWarm = scrapeTerminalAccountStats();
+                if (_eqWarm.equity || _eqWarm.balance) {
+                  sendMessage('equity_snapshot', 'Account updated', { equity: _eqWarm.equity, balance: _eqWarm.balance });
                 }
                 await captureChartWarmupForAi();
                 return;
@@ -1409,6 +1438,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // STRICTLY SEQUENTIAL FLOW - none before the other:
               // Step 1: Login ✅ (completed)
               await dismissLoginOverlay();
+              var _eqAfterConnect2 = scrapeTerminalAccountStats();
+              if (_eqAfterConnect2.equity || _eqAfterConnect2.balance) {
+                sendMessage('equity_snapshot', 'MT5 session connected', {
+                  equity: _eqAfterConnect2.equity,
+                  balance: _eqAfterConnect2.balance,
+                });
+              }
               // Step 2: Search for symbol
               await searchForSymbol('${symbol}');
               
@@ -1422,6 +1458,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 if (!chartReadyOk) {
                   sendMessage('chart_warmup_capture_failed', 'Chart not ready in time — still on login or chart not visible');
                   return;
+                }
+                var _eqWarm2 = scrapeTerminalAccountStats();
+                if (_eqWarm2.equity || _eqWarm2.balance) {
+                  sendMessage('equity_snapshot', 'Account updated', { equity: _eqWarm2.equity, balance: _eqWarm2.balance });
                 }
                 await captureChartWarmupForAi();
                 return;
@@ -1904,7 +1944,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             const volume = (_p && _p.volume) ? String(_p.volume) : '${defaultVolumeEscaped}';
             const sl = (_p && _p.sl != null && String(_p.sl) !== '') ? String(_p.sl) : '${signal?.sl || ''}';
             const tp = (_p && _p.tp != null && String(_p.tp) !== '') ? String(_p.tp) : '${signal?.tp || ''}';
-            const robotName = '${robotName}';
+            const orderComment = '${tradeOrderCommentEscaped}';
             
             // Find all input fields with inputmode="decimal" (volume, SL, TP)
             const decimalInputs = Array.from(document.querySelectorAll('input[inputmode="decimal"]'));
@@ -1963,7 +2003,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             }
             
             // Set comment (input with class svelte-mtorg2)
-            if (robotName) {
+            if (orderComment) {
               await new Promise(r => setTimeout(r, 200));
               const commentInput = document.querySelector('input.svelte-mtorg2') ||
                                   Array.from(document.querySelectorAll('input[autocomplete="off"]')).find(inp => 
@@ -1978,11 +2018,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 
                 await new Promise(r => setTimeout(r, 200));
                 
-                commentInput.value = robotName;
+                commentInput.value = orderComment;
                 commentInput.dispatchEvent(new Event('input', { bubbles: true }));
                 commentInput.dispatchEvent(new Event('change', { bubbles: true }));
                 commentInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                sendMessage('step_update', '✅ Comment: ' + robotName);
+                sendMessage('step_update', '✅ Comment: ' + orderComment);
               }
             }
             
@@ -2033,6 +2073,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');
           console.log('🎯 STRICT EXECUTION: Will execute exactly ' + numberOfTrades + ' trades, no more, no less');
           
+          var _eqExecStart = scrapeTerminalAccountStats();
+          if (_eqExecStart.equity || _eqExecStart.balance) {
+            sendMessage('equity_snapshot', 'Account updated', { equity: _eqExecStart.equity, balance: _eqExecStart.balance });
+          }
+          
           let successfulTrades = 0;
           let failedTrades = 0;
           
@@ -2043,6 +2088,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             console.log('▶️ Starting trade ' + tradeNumber + '/' + numberOfTrades);
             
             try {
+              var _eqPreAttempt = scrapeTerminalAccountStats();
+              if (_eqPreAttempt.equity || _eqPreAttempt.balance) {
+                sendMessage('equity_snapshot', 'Account updated', { equity: _eqPreAttempt.equity, balance: _eqPreAttempt.balance });
+              }
               // Open order dialog, fill form, and execute trade
               const tradeSuccess = await openOrderDialogAndExecuteTrade(tradeNumber, numberOfTrades);
               
@@ -2128,6 +2177,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         if (!acc || typeof data.equity !== 'string' || !data.equity.trim()) return;
         void setMT5Account({
           ...acc,
+          connected: true,
           equity: data.equity.trim(),
           ...(typeof data.balance === 'string' && data.balance.trim() ? { balance: data.balance.trim() } : {}),
         });
@@ -2139,6 +2189,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           setCurrentStep(data.message);
         }
       } else if (data.type === 'authentication_success') {
+        applyTerminalEquity();
         // Don't report authentication success - just update step silently
         setCurrentStep('Ready');
       } else if (data.type === 'authentication_failed') {
@@ -2158,7 +2209,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         lastChartScreenshotAtRef.current = now;
         setChartAiError(null);
         setChartAiAnalyzing(true);
-        setCurrentStep('AI is analyzing the chart image...');
+        setCurrentStep('Analysing chart');
         void (async () => {
           let shouldResumePolling = true;
           try {
@@ -2456,10 +2507,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               </View>
               <View style={styles.authToastInfo}>
                 <Text style={styles.authToastTitle}>
-                  {isChartWarmupSignal ? 'Chart warmup (debug)' : 'Executing Trade'}
+                  {isChartWarmupSignal ? 'AI Analysing Charts...' : 'Executing Trade'}
                 </Text>
                 <Text style={styles.authToastStatus}>
-                  {currentStep || (loading ? 'Connecting...' : 'Initializing...')}
+                  {isChartWarmupSignal
+                    ? displayStatusForChartWarmup(currentStep || (loading ? 'Connecting...' : 'Initializing...'))
+                    : currentStep || (loading ? 'Connecting...' : 'Initializing...')}
                 </Text>
               </View>
             </View>
@@ -2489,7 +2542,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
               {chartAiAnalyzing ? (
                 <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#fff' }]}>
-                  Capturing snapshot and analyzing chart — this can take up to 30 seconds.
+                  Analysing chart — this can take up to 30 seconds.
                 </Text>
               ) : null}
               {chartAiResult ? (
@@ -2621,6 +2674,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             />
           )}
         </View>
+        {isChartWarmupSignal ? (
+          <View
+            style={[styles.chartWarmupTerminalCover, { backgroundColor: theme.colors.background }]}
+            pointerEvents="auto"
+            accessible={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        ) : null}
       </View>
     </Modal>
   );
@@ -2737,6 +2799,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 2,
     borderTopColor: 'rgba(139, 92, 246, 0.85)',
     backgroundColor: '#0a0a0a',
+  },
+  /** Opaque layer over the terminal WebView during chart warmup so MT5 is not visible; WebView stays rendered underneath for WebGL. */
+  chartWarmupTerminalCover: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 96 : 84,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
   },
   hiddenWebView: {
     flex: 1,
