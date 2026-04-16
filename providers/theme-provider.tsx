@@ -237,6 +237,80 @@ export const mintTheme: Theme = {
   },
 };
 
+// Crimson — dark red / rose accents
+export const redTheme: Theme = {
+  name: 'red',
+  isDark: true,
+  colors: {
+    background: '#140808',
+    backgroundSecondary: '#1f0c0c',
+    cardBackground: 'rgba(220, 38, 38, 0.15)',
+
+    primaryGradient: ['#7F1D1D', '#DC2626', '#FB7185'],
+    cardGradient: ['rgba(127, 29, 29, 0.45)', 'rgba(220, 38, 38, 0.28)', 'rgba(251, 113, 133, 0.12)'],
+    glowGradient: ['rgba(220, 38, 38, 0.65)', 'rgba(251, 113, 133, 0.35)', 'transparent'],
+
+    textPrimary: '#FFFFFF',
+    textSecondary: 'rgba(255, 255, 255, 0.88)',
+    textMuted: 'rgba(255, 255, 255, 0.52)',
+
+    accent: '#EF4444',
+    onAccent: '#FFFFFF',
+    accentSecondary: '#FB7185',
+    success: '#22C55E',
+    error: '#FECACA',
+    warning: '#FBBF24',
+
+    borderColor: 'rgba(220, 38, 38, 0.38)',
+    glowColor: 'rgba(239, 68, 68, 0.5)',
+    overlayColor: 'rgba(20, 8, 8, 0.78)',
+
+    statusActive: '#22C55E',
+    statusInactive: '#78716C',
+
+    navBackground: 'rgba(20, 8, 8, 0.97)',
+    navActiveColor: '#EF4444',
+    navInactiveColor: 'rgba(255, 255, 255, 0.45)',
+  },
+};
+
+// Electric lime — dark charcoal with neon lime accents
+export const limeTheme: Theme = {
+  name: 'lime',
+  isDark: true,
+  colors: {
+    background: '#0a1208',
+    backgroundSecondary: '#0f1a0c',
+    cardBackground: 'rgba(132, 204, 22, 0.14)',
+
+    primaryGradient: ['#365314', '#84CC16', '#D9F99D'],
+    cardGradient: ['rgba(54, 83, 20, 0.45)', 'rgba(132, 204, 22, 0.26)', 'rgba(217, 249, 157, 0.12)'],
+    glowGradient: ['rgba(132, 204, 22, 0.55)', 'rgba(190, 242, 100, 0.38)', 'transparent'],
+
+    textPrimary: '#FFFFFF',
+    textSecondary: 'rgba(255, 255, 255, 0.88)',
+    textMuted: 'rgba(255, 255, 255, 0.52)',
+
+    accent: '#A3E635',
+    onAccent: '#14532D',
+    accentSecondary: '#BEF264',
+    success: '#4ADE80',
+    error: '#F87171',
+    warning: '#FBBF24',
+
+    borderColor: 'rgba(132, 204, 22, 0.35)',
+    glowColor: 'rgba(163, 230, 53, 0.48)',
+    overlayColor: 'rgba(10, 18, 8, 0.8)',
+
+    statusActive: '#A3E635',
+    statusInactive: '#57534E',
+
+    navBackground: 'rgba(10, 18, 8, 0.97)',
+    navActiveColor: '#BEF264',
+    navInactiveColor: 'rgba(255, 255, 255, 0.45)',
+  },
+};
+
 // ============ PLAIN THEMES ============
 
 // Pure Black - Sleek dark AMOLED theme
@@ -314,8 +388,27 @@ export const whiteTheme: Theme = {
 };
 
 // All themes array for cycling
-export const ALL_THEMES: Theme[] = [purpleTheme, cyberTheme, sunriseTheme, oceanTheme, mintTheme, blackTheme, whiteTheme];
-export type ThemeName = 'purple' | 'cyber' | 'sunrise' | 'ocean' | 'mint' | 'black' | 'white';
+export const ALL_THEMES: Theme[] = [
+  purpleTheme,
+  cyberTheme,
+  sunriseTheme,
+  oceanTheme,
+  mintTheme,
+  redTheme,
+  limeTheme,
+  blackTheme,
+  whiteTheme,
+];
+export type ThemeName =
+  | 'purple'
+  | 'cyber'
+  | 'sunrise'
+  | 'ocean'
+  | 'mint'
+  | 'red'
+  | 'lime'
+  | 'black'
+  | 'white';
 
 interface ThemeContextType {
   theme: Theme;
