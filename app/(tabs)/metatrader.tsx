@@ -1724,6 +1724,286 @@ export default function MetaTraderScreen() {
         const loginCredential = '${loginValue}';
         const passwordCredential = '${passwordValue}';
         const serverCredential = '${serverValue}';
+
+        function isTerminalSessionVisible() {
+          try {
+            var sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                     document.querySelector('input[placeholder*="Search" i]') ||
+                     document.querySelector('input[type="search"]');
+            if (sb && sb.offsetParent) return true;
+            var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            if (/\\bEquity\\b/i.test(txt) && /\\bBalance\\b/i.test(txt)) return true;
+            if (/\\bBid\\b/i.test(txt) && /\\bAsk\\b/i.test(txt)) return true;
+            var list = document.querySelectorAll('canvas');
+            for (var ci = 0; ci < list.length; ci++) {
+              var c = list[ci];
+              if ((c.width || 0) * (c.height || 0) >= 50000) return true;
+            }
+          } catch (e) {}
+          return false;
+        }
+
+        function isConnectModalVisible() {
+          try {
+            var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            if (bt.indexOf('Connect to account') < 0) return false;
+            var pwd = document.querySelector('input[type="password"]');
+            if (!pwd || !pwd.offsetParent) return false;
+            var rr = pwd.getBoundingClientRect();
+            return rr.width > 0 && rr.height > 0;
+          } catch (e) { return false; }
+        }
+
+        function isPasswordInModalOverlay() {
+          try {
+            var pwd = document.querySelector('input[type="password"]');
+            if (!pwd || !pwd.offsetParent) return false;
+            var rr = pwd.getBoundingClientRect();
+            if (rr.width < 8 || rr.height < 8) return false;
+            var node = pwd;
+            for (var d = 0; d < 28 && node; d++) {
+              var cls = String(node.className || '');
+              var z = parseInt(window.getComputedStyle(node).zIndex, 10) || 0;
+              var tag = (node.tagName || '').toUpperCase();
+              if (tag === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || cls.indexOf('sheet') >= 0 || node.getAttribute('aria-modal') === 'true' || z > 45) {
+                return true;
+              }
+              node = node.parentElement;
+            }
+          } catch (e2) {}
+          return false;
+        }
+
+        function isTradingAccountsSheetVisible() {
+          try {
+            if (!isTerminalSessionVisible()) return false;
+            var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+            var hasTitle = bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Trading account') >= 0 ||
+              (bt.indexOf('Razor Markets') >= 0 && (bt.indexOf('Connect to account') >= 0 || bt.indexOf('Remove') >= 0));
+            if (!hasTitle) return false;
+            if (bt.indexOf('Connect to account') < 0 && bt.indexOf('Remove') < 0) return false;
+            return true;
+          } catch (e) { return false; }
+        }
+
+        function findTradingAccountsOverlayRoot() {
+          try {
+            var candidates = document.querySelectorAll('div, section, aside, [role="dialog"], dialog');
+            var best = null;
+            var minArea = 1e12;
+            for (var i = 0; i < Math.min(candidates.length, 450); i++) {
+              var el = candidates[i];
+              if (!el.offsetParent) continue;
+              var txt = (el.innerText || '').trim();
+              if (txt.length < 40 || txt.length > 2500) continue;
+              if (txt.indexOf('Trading accounts') < 0 && txt.indexOf('Razor Markets') < 0) continue;
+              if (txt.indexOf('Connect to account') < 0 && txt.indexOf('Remove') < 0) continue;
+              var r = el.getBoundingClientRect();
+              var area = r.width * r.height;
+              if (r.width > 100 && r.height > 90 && area >= 12000 && area < minArea) {
+                minArea = area;
+                best = el;
+              }
+            }
+            if (best) return best;
+            var btns = document.querySelectorAll('button, [role="button"]');
+            for (var b = 0; b < Math.min(btns.length, 120); b++) {
+              var t = ((btns[b].innerText || btns[b].textContent || '') + '').trim().toLowerCase();
+              if (t.indexOf('connect') >= 0 && t.indexOf('account') >= 0) {
+                var node = btns[b];
+                for (var d = 0; d < 22 && node; d++) {
+                  var inner = (node.innerText || '').trim();
+                  if (inner.indexOf('Trading accounts') >= 0 || inner.indexOf('Razor Markets') >= 0) return node;
+                  node = node.parentElement;
+                }
+              }
+            }
+          } catch (e2) {}
+          return null;
+        }
+
+        function hideTradingAccountsOverlayIfPresent() {
+          try {
+            if (!isTradingAccountsSheetVisible()) return false;
+            var root = findTradingAccountsOverlayRoot();
+            if (root) {
+              root.style.display = 'none';
+              root.style.visibility = 'hidden';
+              root.style.pointerEvents = 'none';
+              sendMessage('step_update', 'Hid Trading accounts overlay');
+              return true;
+            }
+            var all = document.querySelectorAll('div, section, aside, [role="dialog"]');
+            for (var ai = 0; ai < Math.min(all.length, 350); ai++) {
+              var ae = all[ai];
+              if (!ae.offsetParent) continue;
+              var atxt = (ae.innerText || '').trim();
+              if (atxt.length > 4000 || atxt.length < 35) continue;
+              if ((atxt.indexOf('Trading accounts') >= 0 || atxt.indexOf('Razor Markets') >= 0) && atxt.indexOf('Connect to account') >= 0) {
+                var ar = ae.getBoundingClientRect();
+                if (ar.width > 120 && ar.height > 80) {
+                  ae.style.display = 'none';
+                  ae.style.visibility = 'hidden';
+                  ae.style.pointerEvents = 'none';
+                  sendMessage('step_update', 'Hid Trading accounts panel (text scan)');
+                  return true;
+                }
+              }
+            }
+          } catch (e3) {}
+          return false;
+        }
+
+        function isAnyLoginModalBlocking() {
+          if (isConnectModalVisible()) return true;
+          if (isTradingAccountsSheetVisible()) return true;
+          if (isTerminalSessionVisible() && isPasswordInModalOverlay()) return true;
+          return false;
+        }
+
+        function findPasswordModalOverlayRoot() {
+          try {
+            var pwd = document.querySelector('input[type="password"]');
+            if (!pwd || !pwd.offsetParent) return null;
+            var node = pwd;
+            for (var d = 0; d < 28 && node; d++) {
+              var cls = String(node.className || '');
+              var txt = (node.innerText || '').trim();
+              var z = parseInt(window.getComputedStyle(node).zIndex, 10) || 0;
+              var tag = (node.tagName || '').toUpperCase();
+              if (txt.indexOf('Connect to account') >= 0) return node;
+              if (txt.indexOf('Server') >= 0 && txt.indexOf('Password') >= 0 && txt.length < 500) return node;
+              if (tag === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || cls.indexOf('sheet') >= 0 || node.getAttribute('aria-modal') === 'true' || z > 50) {
+                return node;
+              }
+              node = node.parentElement;
+            }
+          } catch (e2) {}
+          return null;
+        }
+
+        function setInputValueForOverlay(el, val) {
+          if (!el || val == null || val === '') return;
+          try {
+            el.focus();
+            el.value = '';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            var nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') && Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            if (nativeSetter) nativeSetter.call(el, val);
+            else el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true }));
+          } catch (e) {}
+        }
+
+        const dismissLoginOverlay = async function() {
+          var pw = passwordCredential;
+          try {
+            hideTradingAccountsOverlayIfPresent();
+          } catch (eT) {}
+          try {
+            if (pw && isAnyLoginModalBlocking()) {
+              var pwdIn = document.querySelector('input[type="password"]');
+              if (pwdIn && (!pwdIn.value || String(pwdIn.value).trim() === '')) {
+                setInputValueForOverlay(pwdIn, pw);
+                await new Promise(function(r) { setTimeout(r, 400); });
+                var btns0 = document.querySelectorAll('button');
+                for (var b0 = 0; b0 < btns0.length; b0++) {
+                  var t0 = ((btns0[b0].innerText || btns0[b0].textContent || '') + '').trim().toLowerCase();
+                  if (t0.indexOf('connect') >= 0 && t0.indexOf('account') >= 0) {
+                    btns0[b0].click();
+                    sendMessage('step_update', 'Login modal: submitted password (Connect to account)');
+                    await new Promise(function(r) { setTimeout(r, 2200); });
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (e0) {}
+          try {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+            await new Promise(function(r) { setTimeout(r, 120); });
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+          } catch (e) {}
+          await new Promise(function(r) { setTimeout(r, 200); });
+          try {
+            var cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
+            for (var ci = 0; ci < Math.min(cand.length, 80); ci++) {
+              var el = cand[ci];
+              var lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
+              var tx = ((el.innerText || el.textContent || '') + '').trim();
+              if (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') {
+                el.click();
+                await new Promise(function(r) { setTimeout(r, 150); });
+              }
+            }
+          } catch (e2) {}
+          try {
+            var root = findPasswordModalOverlayRoot();
+            if (root) {
+              root.style.display = 'none';
+              root.style.visibility = 'hidden';
+              root.style.pointerEvents = 'none';
+              sendMessage('step_update', 'Hid login modal overlay (password form root)');
+            } else if (isAnyLoginModalBlocking()) {
+              var all = document.querySelectorAll('div, section, [role="dialog"], dialog');
+              for (var ai = 0; ai < Math.min(all.length, 250); ai++) {
+                var ae = all[ai];
+                if (!ae.offsetParent) continue;
+                var atxt = (ae.innerText || '').trim();
+                if (atxt.length > 500) continue;
+                if (atxt.indexOf('Connect to account') >= 0 || (atxt.indexOf('Server') >= 0 && atxt.indexOf('Password') >= 0 && atxt.indexOf('Login') >= 0)) {
+                  var ar = ae.getBoundingClientRect();
+                  if (ar.width > 160 && ar.height > 100) {
+                    ae.style.display = 'none';
+                    ae.style.visibility = 'hidden';
+                    ae.style.pointerEvents = 'none';
+                    sendMessage('step_update', 'Hid login modal (text match)');
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (e3) {}
+          try {
+            if (isTerminalSessionVisible() && isPasswordInModalOverlay()) {
+              var root2 = findPasswordModalOverlayRoot();
+              if (root2) {
+                root2.style.display = 'none';
+                root2.style.visibility = 'hidden';
+                root2.style.pointerEvents = 'none';
+                sendMessage('step_update', 'Removed second login layer so terminal stays visible');
+              }
+            }
+          } catch (e5) {}
+          try {
+            var pwd = document.querySelector('input[type="password"]');
+            var sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
+                     document.querySelector('input[placeholder*="Search" i]') ||
+                     document.querySelector('input[type="search"]');
+            if (pwd && pwd.offsetParent && sb && sb.offsetParent) {
+              var node = pwd;
+              for (var d = 0; d < 18 && node; d++) {
+                node = node.parentElement;
+                if (!node) break;
+                var cls = String(node.className || '');
+                var z = parseInt(window.getComputedStyle(node).zIndex, 10) || 0;
+                if (node.tagName === 'DIALOG' || cls.indexOf('dialog') >= 0 || cls.indexOf('modal') >= 0 || cls.indexOf('popup') >= 0 || cls.indexOf('overlay') >= 0 || cls.indexOf('backdrop') >= 0 || z > 40) {
+                  node.style.display = 'none';
+                  node.style.visibility = 'hidden';
+                  node.style.pointerEvents = 'none';
+                  sendMessage('step_update', 'Dismissed login layer blocking chart');
+                  break;
+                }
+              }
+            }
+          } catch (e4) {}
+          try {
+            hideTradingAccountsOverlayIfPresent();
+          } catch (eT2) {}
+        };
         
         const authenticateMT5 = async () => {
           try {
@@ -1834,6 +2114,10 @@ export default function MetaTraderScreen() {
               if (loginButton) {
                 loginButton.click();
                 await sleep(8000);
+                for (var ov = 0; ov < 6; ov++) {
+                  await dismissLoginOverlay();
+                  await sleep(600);
+                }
             } else {
               sendMessage('authentication_failed', 'Login button not found');
               return;
@@ -1842,12 +2126,18 @@ export default function MetaTraderScreen() {
             // Check for search bar - this is the most reliable indicator of successful login
             sendMessage('step_update', 'Verifying authentication...');
               await sleep(3000);
+            for (var ov2 = 0; ov2 < 6; ov2++) {
+              await dismissLoginOverlay();
+              if (!isAnyLoginModalBlocking()) break;
+              await sleep(450);
+            }
             
             const searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
                                document.querySelector('input[placeholder*="Search" i]') ||
                                document.querySelector('input[type="search"]');
             
             if (searchField && searchField.offsetParent !== null) {
+              await dismissLoginOverlay();
               await sleep(2000);
               var statsOk = scrapeTerminalAccountStats();
               sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsOk.equity, balance: statsOk.balance });
@@ -1856,11 +2146,13 @@ export default function MetaTraderScreen() {
             
             // Double check after a longer wait
             await sleep(3000);
+            await dismissLoginOverlay();
             const searchFieldRetry = document.querySelector('input[placeholder*="Search symbol" i]') ||
                                     document.querySelector('input[placeholder*="Search" i]') ||
                                     document.querySelector('input[type="search"]');
             
             if (searchFieldRetry && searchFieldRetry.offsetParent !== null) {
+              await dismissLoginOverlay();
               var statsRetry = scrapeTerminalAccountStats();
               sendMessage('authentication_success', 'MT5 Login Successful - Search bar detected', { equity: statsRetry.equity, balance: statsRetry.balance });
               return;
