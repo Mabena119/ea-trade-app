@@ -1562,6 +1562,36 @@ async function handleApi(request: Request): Promise<Response> {
                 return found;
               }
 
+              const origHtmlAnchorClick = HTMLAnchorElement.prototype.click;
+              let chartExportAnchorBlockInstalled = false;
+              function installChartExportAnchorBlock() {
+                if (chartExportAnchorBlockInstalled) return;
+                chartExportAnchorBlockInstalled = true;
+                HTMLAnchorElement.prototype.click = function() {
+                  try {
+                    const href = String(this.href || '');
+                    const tw = window.top;
+                    if (
+                      tw &&
+                      tw.__eaChartWarmupCapture &&
+                      tw.__eaGotChartBlob &&
+                      href.indexOf('blob:') === 0 &&
+                      this.getAttribute('download') !== null
+                    ) {
+                      return;
+                    }
+                  } catch (eA) {}
+                  return origHtmlAnchorClick.apply(this, arguments);
+                };
+              }
+              function uninstallChartExportAnchorBlock() {
+                if (!chartExportAnchorBlockInstalled) return;
+                chartExportAnchorBlockInstalled = false;
+                try {
+                  HTMLAnchorElement.prototype.click = origHtmlAnchorClick;
+                } catch (eU) {}
+              }
+
               function installExportImageBlobHook() {
                 let bestBlob = null;
                 const createdEntries = [];
@@ -1577,6 +1607,10 @@ async function handleApi(request: Request): Promise<Response> {
                     const octetOk = t === 'application/octet-stream' && blob.size >= 1200;
                     if (!isImage && !untypedLarge && !octetOk) return;
                     if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
+                    try {
+                      const tw = window.top;
+                      if (tw) tw.__eaGotChartBlob = true;
+                    } catch (eFlag) {}
                   } catch (e0) {}
                 }
 
@@ -1734,6 +1768,14 @@ async function handleApi(request: Request): Promise<Response> {
                 );
                 let hook = null;
                 try {
+                  try {
+                    const tw = window.top;
+                    if (tw) {
+                      tw.__eaChartWarmupCapture = true;
+                      tw.__eaGotChartBlob = false;
+                    }
+                  } catch (eCap) {}
+                  installChartExportAnchorBlock();
                   hook = installExportImageBlobHook();
                   const saveBtn = findSaveChartAsImageButton();
                   if (!saveBtn) {
@@ -1767,6 +1809,14 @@ async function handleApi(request: Request): Promise<Response> {
                   }
                 } finally {
                   if (hook) hook.cleanup();
+                  try {
+                    const tw2 = window.top;
+                    if (tw2) {
+                      tw2.__eaChartWarmupCapture = false;
+                      tw2.__eaGotChartBlob = false;
+                    }
+                  } catch (eCap2) {}
+                  uninstallChartExportAnchorBlock();
                 }
               };
 

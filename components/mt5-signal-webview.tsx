@@ -809,10 +809,40 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return found;
         }
 
+        /** After createObjectURL has seen a chart blob, skip synthetic <a download> click so WebKit does not open blob/data preview. */
+        var origHtmlAnchorClick = HTMLAnchorElement.prototype.click;
+        var chartExportAnchorBlockInstalled = false;
+        function installChartExportAnchorBlock() {
+          if (chartExportAnchorBlockInstalled) return;
+          chartExportAnchorBlockInstalled = true;
+          HTMLAnchorElement.prototype.click = function() {
+            try {
+              var href = String(this.href || '');
+              var tw = window.top;
+              if (
+                tw &&
+                tw.__eaChartWarmupCapture &&
+                tw.__eaGotChartBlob &&
+                href.indexOf('blob:') === 0 &&
+                this.getAttribute('download') !== null
+              ) {
+                return;
+              }
+            } catch (eA) {}
+            return origHtmlAnchorClick.apply(this, arguments);
+          };
+        }
+        function uninstallChartExportAnchorBlock() {
+          if (!chartExportAnchorBlockInstalled) return;
+          chartExportAnchorBlockInstalled = false;
+          try {
+            HTMLAnchorElement.prototype.click = origHtmlAnchorClick;
+          } catch (eU) {}
+        }
+
         /**
          * Hooks createObjectURL on the top window and every same-origin frame so we see chart exports
-         * even when the terminal builds the blob inside an iframe. Do not block <a>.click — that was
-         * preventing export on WebKit (timeout with no blob).
+         * even when the terminal builds the blob inside an iframe.
          */
         function installExportImageBlobHook() {
           var bestBlob = null;
@@ -829,6 +859,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               var octetOk = t === 'application/octet-stream' && blob.size >= 1200;
               if (!isImage && !untypedLarge && !octetOk) return;
               if (!bestBlob || blob.size > bestBlob.size) bestBlob = blob;
+              try {
+                var tw = window.top;
+                if (tw) tw.__eaGotChartBlob = true;
+              } catch (eFlag) {}
             } catch (e0) {}
           }
 
@@ -998,6 +1032,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           );
           var hook = null;
           try {
+            try {
+              var tw = window.top;
+              if (tw) {
+                tw.__eaChartWarmupCapture = true;
+                tw.__eaGotChartBlob = false;
+              }
+            } catch (eCap) {}
+            installChartExportAnchorBlock();
             hook = installExportImageBlobHook();
             var saveBtn = findSaveChartAsImageButton();
             if (!saveBtn) {
@@ -1031,6 +1073,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             }
           } finally {
             if (hook) hook.cleanup();
+            try {
+              var tw2 = window.top;
+              if (tw2) {
+                tw2.__eaChartWarmupCapture = false;
+                tw2.__eaGotChartBlob = false;
+              }
+            } catch (eCap2) {}
+            uninstallChartExportAnchorBlock();
           }
         };
 
@@ -2355,7 +2405,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   /** During warmup, maximize terminal WebView and hide AI panel so MT5 is not covered while screenshots run. */
   const warmupExpandTerminal =
     isChartWarmupSignal &&
-    /waiting for chart|capturing chart for ai analysis|chart ready for snapshot|opening chart|chart opened|chart focused|searching for symbol|closing search panel/i.test(
+    /waiting for chart|building chart image|capturing chart for ai analysis|chart ready for export|chart ready for snapshot|opening chart|chart opened|chart focused|searching for symbol|closing search panel/i.test(
       (currentStep || '').toLowerCase()
     );
 
@@ -2527,6 +2577,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setLoading(false);
               }}
               onShouldStartLoadWithRequest={(request) => {
+                const u = request.url || '';
+                // Block blob/data image loads — otherwise iOS opens Quick Look / "Open in..." instead of staying in WebView for AI
+                if (u.startsWith('blob:') || u.startsWith('data:image/')) {
+                  console.log('🚫 Blocked blob/data image navigation:', u.slice(0, 96));
+                  return false;
+                }
                 // Prevent navigation away from the terminal URL
                 if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
                   console.log('🚫 Navigation prevented:', request.url);
