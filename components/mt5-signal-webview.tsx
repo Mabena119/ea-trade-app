@@ -2536,215 +2536,215 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   /** Like MetaTrader link MT5: chart warmup is NOT a full-screen Modal — overlay sits on root so tabs/gradient stay visible. */
   const signalOverlay = (
-      <View style={styles.overlayContainer} pointerEvents="box-none">
-        {/* Floating toast at top - matches MT5 auth style */}
-        <View style={styles.authToastContainer} pointerEvents="auto">
-          <LinearGradient
-            colors={theme.colors.primaryGradient as [string, string, ...string[]]}
-            style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-          <View style={styles.authToastContent}>
-            <View style={styles.authToastLeft}>
-              <View style={styles.authToastIcon}>
-                {Platform.OS === 'ios' && (
-                  <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-                )}
-                <LinearGradient
-                  colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
-                  style={StyleSheet.absoluteFill}
-                />
-                <ActivityIndicator size="small" color="#25D366" />
-              </View>
-              <View style={styles.authToastInfo}>
-                <Text style={styles.authToastTitle}>
-                  {isChartWarmupSignal ? `${robotName} Scanning Markets...` : 'Executing Trade'}
-                </Text>
-                <Text style={styles.authToastStatus}>
-                  {isChartWarmupSignal
-                    ? displayStatusForChartWarmup(currentStep || (loading ? 'Connecting...' : 'Initializing...'))
-                    : currentStep || (loading ? 'Connecting...' : 'Initializing...')}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.authToastCloseButton}
-              onPress={onClose}
-              activeOpacity={0.8}
-            >
+    <View style={styles.overlayContainer} pointerEvents="box-none">
+      {/* Floating toast at top - matches MT5 auth style */}
+      <View style={styles.authToastContainer} pointerEvents="auto">
+        <LinearGradient
+          colors={theme.colors.primaryGradient as [string, string, ...string[]]}
+          style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <View style={styles.authToastContent}>
+          <View style={styles.authToastLeft}>
+            <View style={styles.authToastIcon}>
               {Platform.OS === 'ios' && (
                 <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
               )}
               <LinearGradient
-                colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+                colors={['rgba(37, 211, 102, 0.2)', 'rgba(37, 211, 102, 0.1)']}
                 style={StyleSheet.absoluteFill}
               />
-              <X color="#FFFFFF" size={16} />
-            </TouchableOpacity>
+              <ActivityIndicator size="small" color="#25D366" />
+            </View>
+            <View style={styles.authToastInfo}>
+              <Text style={styles.authToastTitle}>
+                {isChartWarmupSignal ? `${robotName} Scanning Markets...` : 'Executing Trade'}
+              </Text>
+              <Text style={styles.authToastStatus}>
+                {isChartWarmupSignal
+                  ? displayStatusForChartWarmup(currentStep || (loading ? 'Connecting...' : 'Initializing...'))
+                  : currentStep || (loading ? 'Connecting...' : 'Initializing...')}
+              </Text>
+            </View>
           </View>
-        </View>
-
-        {isChartWarmupSignal &&
-          (chartAiAnalyzing || chartAiResult || chartAiError) &&
-          !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
-          !warmupExpandTerminal ? (
-          <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]} pointerEvents="auto">
-            <Text style={[styles.aiPanelTitle, { color: theme.colors.textSecondary }]}>AI trade analysis</Text>
-            <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
-              {chartAiAnalyzing ? (
-                <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#fff' }]}>
-                  Analysing chart — this can take up to 30 seconds.
-                </Text>
-              ) : null}
-              {chartAiResult ? (
-                <View>
-                  <Text
-                    style={[
-                      styles.aiDirection,
-                      chartAiResult.signal === 'SELL' ? styles.aiSell : styles.aiBuy,
-                    ]}
-                  >
-                    {(() => {
-                      const sym = (
-                        chartAiResult.symbol ||
-                        signal?.asset ||
-                        ''
-                      ).trim();
-                      const dir = chartAiResult.signal === 'SELL' ? 'SELL' : 'BUY';
-                      return sym ? `${sym.toUpperCase()} ${dir}` : dir;
-                    })()}
-                  </Text>
-                  <Text style={[styles.aiLevels, { color: theme.colors.textPrimary || '#fff' }]}>
-                    Entry {chartAiResult.entryPrice || chartAiResult.currentPrice || '—'} · SL{' '}
-                    {chartAiResult.stopLoss || '—'} · TP {chartAiResult.takeProfit1 || '—'}
-                  </Text>
-                  <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#eee' }]}>
-                    {chartAiResult.summary || chartAiResult.reasoning || ''}
-                  </Text>
-                  {chartAiResult.suggestion ? (
-                    <Text style={[styles.aiMuted, { color: theme.colors.textMuted || '#999' }]}>{chartAiResult.suggestion}</Text>
-                  ) : null}
-                </View>
-              ) : null}
-              {chartAiError ? (
-                <Text style={styles.aiErrorText}>{chartAiError}</Text>
-              ) : null}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {/* WebView: CHART_WARMUP matches metatrader.tsx link MT5 — invisibleWebViewContainer + invisibleWebView (hiddenWebView* here). */}
-        <View
-          style={
-            isChartWarmupSignal
-              ? styles.hiddenWebViewContainer
-              : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
-                ? warmupExpandTerminal
-                  ? styles.warmupFullWebViewContainer
-                  : styles.visibleDebugWebViewContainer
-                : styles.hiddenWebViewContainer
-          }
-        >
-          {Platform.OS === 'web' ? (
-            <WebWebView
-              key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
-              scopeId={WEBVIEW_SCOPE_MT5_TRADING}
-              url={proxyUrl || ''}
-              onMessage={handleWebViewMessage}
-              externalEval={webExternalEval}
-              onExternalEvalConsumed={onWebExternalEvalConsumed}
-              onLoadEnd={() => {
-                setLoading(false);
-                setCurrentStep('MT5 Terminal loaded');
-                console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-              }}
-              style={
-                isChartWarmupSignal
-                  ? styles.hiddenWebView
-                  : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
-                    ? styles.debugWebView
-                    : styles.hiddenWebView
-              }
+          <TouchableOpacity
+            style={styles.authToastCloseButton}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
+            {Platform.OS === 'ios' && (
+              <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+            )}
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
+              style={StyleSheet.absoluteFill}
             />
-          ) : (
-            <WebView
-              key={`${webViewKey}-${signal.id || 'no-signal'}`}
-              ref={webViewRef}
-              source={{ uri: mt5Url }}
-              style={
-                isChartWarmupSignal
-                  ? styles.hiddenWebView
-                  : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
-                    ? styles.debugWebView
-                    : styles.hiddenWebView
-              }
-              userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-              onMessage={handleWebViewMessage}
-              onLoadStart={() => {
-                setLoading(true);
-                setCurrentStep('Loading MT5 Terminal...');
-                console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
-              }}
-              onLoadEnd={() => {
-                setLoading(false);
-                setCurrentStep('MT5 Terminal loaded');
-                console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-                // Inject script when page loads (Android only - script is pre-injected for web via proxy)
-                const script = generateMT5AuthScript();
-                if (script && webViewRef.current) {
-                  setTimeout(() => {
-                    if (webViewRef.current) {
-                      webViewRef.current.injectJavaScript(script);
-                    }
-                  }, 2000);
-                }
-              }}
-              onError={(syntheticEvent) => {
-                const { nativeEvent } = syntheticEvent;
-                console.error('❌ WebView error for signal:', signal.asset, 'ID:', signal.id, nativeEvent);
-                setCurrentStep('Error loading MT5 Terminal');
-                setLoading(false);
-              }}
-              onShouldStartLoadWithRequest={(request) => {
-                const u = request.url || '';
-                // Block blob/data image loads — otherwise iOS opens Quick Look / "Open in..." instead of staying in WebView for AI
-                if (u.startsWith('blob:') || u.startsWith('data:image/')) {
-                  console.log('🚫 Blocked blob/data image navigation:', u.slice(0, 96));
-                  return false;
-                }
-                // Prevent navigation away from the terminal URL
-                if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
-                  console.log('🚫 Navigation prevented:', request.url);
-                  return false;
-                }
-                return true;
-              }}
-              onNavigationStateChange={(navState) => {
-                // Prevent reloads and navigation away
-                if (navState.loading) {
-                  // Only allow navigation if it's the initial load or same URL
-                  if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
-                    console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
-                    if (webViewRef.current) {
-                      webViewRef.current.stopLoading();
-                    }
-                  }
-                }
-              }}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              startInLoadingState={true}
-              scalesPageToFit={false}
-              mixedContentMode="always"
-              allowsInlineMediaPlayback={true}
-              mediaPlaybackRequiresUserAction={false}
-              cacheEnabled={false}
-              incognito={true}
-            />
-          )}
+            <X color="#FFFFFF" size={16} />
+          </TouchableOpacity>
         </View>
       </View>
+
+      {isChartWarmupSignal &&
+        (chartAiAnalyzing || chartAiResult || chartAiError) &&
+        !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
+        !warmupExpandTerminal ? (
+        <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]} pointerEvents="auto">
+          <Text style={[styles.aiPanelTitle, { color: theme.colors.textSecondary }]}>AI trade analysis</Text>
+          <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
+            {chartAiAnalyzing ? (
+              <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#fff' }]}>
+                Analysing chart — this can take up to 30 seconds.
+              </Text>
+            ) : null}
+            {chartAiResult ? (
+              <View>
+                <Text
+                  style={[
+                    styles.aiDirection,
+                    chartAiResult.signal === 'SELL' ? styles.aiSell : styles.aiBuy,
+                  ]}
+                >
+                  {(() => {
+                    const sym = (
+                      chartAiResult.symbol ||
+                      signal?.asset ||
+                      ''
+                    ).trim();
+                    const dir = chartAiResult.signal === 'SELL' ? 'SELL' : 'BUY';
+                    return sym ? `${sym.toUpperCase()} ${dir}` : dir;
+                  })()}
+                </Text>
+                <Text style={[styles.aiLevels, { color: theme.colors.textPrimary || '#fff' }]}>
+                  Entry {chartAiResult.entryPrice || chartAiResult.currentPrice || '—'} · SL{' '}
+                  {chartAiResult.stopLoss || '—'} · TP {chartAiResult.takeProfit1 || '—'}
+                </Text>
+                <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#eee' }]}>
+                  {chartAiResult.summary || chartAiResult.reasoning || ''}
+                </Text>
+                {chartAiResult.suggestion ? (
+                  <Text style={[styles.aiMuted, { color: theme.colors.textMuted || '#999' }]}>{chartAiResult.suggestion}</Text>
+                ) : null}
+              </View>
+            ) : null}
+            {chartAiError ? (
+              <Text style={styles.aiErrorText}>{chartAiError}</Text>
+            ) : null}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {/* WebView: CHART_WARMUP matches metatrader.tsx link MT5 — invisibleWebViewContainer + invisibleWebView (hiddenWebView* here). */}
+      <View
+        style={
+          isChartWarmupSignal
+            ? styles.hiddenWebViewContainer
+            : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
+              ? warmupExpandTerminal
+                ? styles.warmupFullWebViewContainer
+                : styles.visibleDebugWebViewContainer
+              : styles.hiddenWebViewContainer
+        }
+      >
+        {Platform.OS === 'web' ? (
+          <WebWebView
+            key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
+            scopeId={WEBVIEW_SCOPE_MT5_TRADING}
+            url={proxyUrl || ''}
+            onMessage={handleWebViewMessage}
+            externalEval={webExternalEval}
+            onExternalEvalConsumed={onWebExternalEvalConsumed}
+            onLoadEnd={() => {
+              setLoading(false);
+              setCurrentStep('MT5 Terminal loaded');
+              console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+            }}
+            style={
+              isChartWarmupSignal
+                ? styles.hiddenWebView
+                : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
+                  ? styles.debugWebView
+                  : styles.hiddenWebView
+            }
+          />
+        ) : (
+          <WebView
+            key={`${webViewKey}-${signal.id || 'no-signal'}`}
+            ref={webViewRef}
+            source={{ uri: mt5Url }}
+            style={
+              isChartWarmupSignal
+                ? styles.hiddenWebView
+                : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
+                  ? styles.debugWebView
+                  : styles.hiddenWebView
+            }
+            userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            onMessage={handleWebViewMessage}
+            onLoadStart={() => {
+              setLoading(true);
+              setCurrentStep('Loading MT5 Terminal...');
+              console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
+            }}
+            onLoadEnd={() => {
+              setLoading(false);
+              setCurrentStep('MT5 Terminal loaded');
+              console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
+              // Inject script when page loads (Android only - script is pre-injected for web via proxy)
+              const script = generateMT5AuthScript();
+              if (script && webViewRef.current) {
+                setTimeout(() => {
+                  if (webViewRef.current) {
+                    webViewRef.current.injectJavaScript(script);
+                  }
+                }, 2000);
+              }
+            }}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.error('❌ WebView error for signal:', signal.asset, 'ID:', signal.id, nativeEvent);
+              setCurrentStep('Error loading MT5 Terminal');
+              setLoading(false);
+            }}
+            onShouldStartLoadWithRequest={(request) => {
+              const u = request.url || '';
+              // Block blob/data image loads — otherwise iOS opens Quick Look / "Open in..." instead of staying in WebView for AI
+              if (u.startsWith('blob:') || u.startsWith('data:image/')) {
+                console.log('🚫 Blocked blob/data image navigation:', u.slice(0, 96));
+                return false;
+              }
+              // Prevent navigation away from the terminal URL
+              if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
+                console.log('🚫 Navigation prevented:', request.url);
+                return false;
+              }
+              return true;
+            }}
+            onNavigationStateChange={(navState) => {
+              // Prevent reloads and navigation away
+              if (navState.loading) {
+                // Only allow navigation if it's the initial load or same URL
+                if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
+                  console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
+                  if (webViewRef.current) {
+                    webViewRef.current.stopLoading();
+                  }
+                }
+              }
+            }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            scalesPageToFit={false}
+            mixedContentMode="always"
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            cacheEnabled={false}
+            incognito={true}
+          />
+        )}
+      </View>
+    </View>
   );
 
   if (isChartWarmupSignal) {

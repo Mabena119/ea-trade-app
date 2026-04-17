@@ -3,8 +3,8 @@ import Constants from 'expo-constants';
 // For native builds, read from app.json extra config
 // For web/dev, read from process.env
 const BASE_URL = (
-  process.env.EXPO_PUBLIC_API_BASE_URL || 
-  Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL || 
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL ||
   ''
 ).replace(/\/$/, '');
 
@@ -110,6 +110,18 @@ export interface ChartAnalysisResult {
 export interface ChartAnalysisResponse {
   message: 'accept' | 'error';
   data?: ChartAnalysisResult;
+  error?: string;
+}
+
+export interface Mt5TradeSizingRow {
+  symbol: string;
+  lotSize: string;
+  numberOfTrades: string;
+}
+
+export interface Mt5TradeSizingResponse {
+  message: 'accept' | 'error';
+  data?: Mt5TradeSizingRow[];
   error?: string;
 }
 
@@ -238,6 +250,48 @@ class ApiService {
       });
     } catch (e) {
       console.error('revokeScannerAccess error:', e);
+    }
+  }
+
+  async fetchMt5TradeSizing(body: {
+    equity?: string | null;
+    balance?: string | null;
+    symbols: { symbol: string; instrumentClass: string }[];
+  }): Promise<Mt5TradeSizingResponse> {
+    if (!body.symbols?.length) return { message: 'error', error: 'No symbols' };
+    const endpoint = `${BASE_URL ? `${BASE_URL}` : ''}/api/mt5-trade-sizing`;
+    if (!BASE_URL) {
+      return { message: 'error', error: 'API base URL not configured' };
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          equity: body.equity ?? '',
+          balance: body.balance ?? '',
+          symbols: body.symbols,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const data = (await res.json()) as Mt5TradeSizingResponse & { error?: string };
+      if (!res.ok) {
+        return {
+          message: 'error',
+          error: data.error || (res.status === 503 ? 'AI sizing not configured on server' : 'Sizing failed'),
+        };
+      }
+      return data;
+    } catch (e) {
+      clearTimeout(timeoutId);
+      const isTimeout = e instanceof Error && e.name === 'AbortError';
+      return {
+        message: 'error',
+        error: isTimeout ? 'Sizing request timed out.' : 'Network error.',
+      };
     }
   }
 

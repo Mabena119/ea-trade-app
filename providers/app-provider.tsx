@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert, AppState, Linking } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
-import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
+import apiService from '@/services/api';
+import { classifyInstrumentSymbol, getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
 
 /** Chart AI warmup cycle repeats while bot is active (ms). */
 const CHART_WARMUP_INTERVAL_MS = 45 * 60 * 1000;
@@ -287,12 +288,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const mt5AccountForBootstrapRef = useRef(mt5Account);
   const symbolsForBootstrapRef = useRef({ activeSymbols, mt4Symbols, mt5Symbols });
+  const mt5SizingAccountRef = useRef(mt5Account);
+  const mt5SizingSymbolsRef = useRef(mt5Symbols);
+  const lastProcessedMt5SizingKeyRef = useRef<string>('');
+  const mt5SizingReqIdRef = useRef(0);
   useEffect(() => {
     mt5AccountForBootstrapRef.current = mt5Account;
   }, [mt5Account]);
   useEffect(() => {
     symbolsForBootstrapRef.current = { activeSymbols, mt4Symbols, mt5Symbols };
   }, [activeSymbols, mt4Symbols, mt5Symbols]);
+  useEffect(() => {
+    mt5SizingAccountRef.current = mt5Account;
+  }, [mt5Account]);
+  useEffect(() => {
+    mt5SizingSymbolsRef.current = mt5Symbols;
+  }, [mt5Symbols]);
+  useEffect(() => {
+    if (!mt5Account?.connected) lastProcessedMt5SizingKeyRef.current = '';
+  }, [mt5Account?.connected]);
 
   useEffect(() => {
     showMT5SignalWebViewRef.current = showMT5SignalWebView;
@@ -778,7 +792,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const activateSymbol = useCallback(async (symbolConfig: Omit<ActiveSymbol, 'activatedAt'>) => {
     let effective = symbolConfig;
     if (symbolConfig.platform === 'MT5') {
-      const p = getEquityBasedMT5Preset(mt5Account?.equity);
+      const p = getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
       effective = {
         ...symbolConfig,
         lotSize: p.lotSize,
@@ -868,7 +882,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const activateMT5Symbol = useCallback(async (symbolConfig: Omit<MT5Symbol, 'activatedAt'>) => {
-    const preset = getEquityBasedMT5Preset(mt5Account?.equity);
+    const preset = getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
     const tradeMode: MT5TradeMode = symbolConfig.tradeMode === 'scalper' ? 'scalper' : 'swing';
     const newActiveSymbol: MT5Symbol = {
       symbol: symbolConfig.symbol,
@@ -908,35 +922,103 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     });
   }, [mt5Account?.equity]);
 
+  /** After MT5 login / equity refresh: ask AI for per-symbol lot + trade count; fallback to equity heuristics. */
   useEffect(() => {
-    if (!mt5Account?.connected) return;
-    const preset = getEquityBasedMT5Preset(mt5Account.equity);
-    setMT5Symbols(current => {
-      if (current.length === 0) return current;
-      let changed = false;
-      const next = current.map(s => {
-        if (
-          s.lotSize === preset.lotSize &&
-          s.direction === 'BOTH' &&
-          s.numberOfTrades === preset.numberOfTrades
-        ) {
-          return s;
+    if (!mt5Account?.connected || !String(mt5Account.equity ?? '').trim()) return;
+    const symList = mt5SizingSymbolsRef.current;
+    if (symList.length === 0) return;
+
+    const key = `${mt5Account.login ?? ''}|${mt5Account.equity}|${symList.map(s => s.symbol).sort().join(';')}`;
+    if (lastProcessedMt5SizingKeyRef.current === key) return;
+
+    const reqId = ++mt5SizingReqIdRef.current;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const acc = mt5SizingAccountRef.current;
+        const sym = mt5SizingSymbolsRef.current;
+        if (!acc?.connected || !String(acc.equity ?? '').trim() || sym.length === 0) return;
+        const currentKey = `${acc.login ?? ''}|${acc.equity}|${sym.map(s => s.symbol).sort().join(';')}`;
+        if (currentKey !== key) return;
+        if (reqId !== mt5SizingReqIdRef.current) return;
+
+        const res = await apiService.fetchMt5TradeSizing({
+          equity: acc.equity,
+          balance: acc.balance,
+          symbols: sym.map(s => ({
+            symbol: s.symbol,
+            instrumentClass: classifyInstrumentSymbol(s.symbol),
+          })),
+        });
+
+        if (reqId !== mt5SizingReqIdRef.current) return;
+
+        const applyDeterministic = (list: MT5Symbol[]) =>
+          list.map(s => {
+            const p = getEquityBasedMT5Preset(acc.equity, s.symbol);
+            return {
+              ...s,
+              lotSize: p.lotSize,
+              direction: 'BOTH' as const,
+              numberOfTrades: p.numberOfTrades,
+            };
+          });
+
+        if (res.message === 'accept' && res.data?.length) {
+          const byUpper = new Map(res.data.map(r => [r.symbol.toUpperCase(), r]));
+          setMT5Symbols(current => {
+            if (reqId !== mt5SizingReqIdRef.current) return current;
+            const next = current.map(s => {
+              const hit = byUpper.get(s.symbol.toUpperCase());
+              if (!hit) {
+                const p = getEquityBasedMT5Preset(acc.equity, s.symbol);
+                return {
+                  ...s,
+                  lotSize: p.lotSize,
+                  direction: 'BOTH' as const,
+                  numberOfTrades: p.numberOfTrades,
+                };
+              }
+              return {
+                ...s,
+                lotSize: hit.lotSize,
+                direction: 'BOTH' as const,
+                numberOfTrades: hit.numberOfTrades,
+              };
+            });
+            AsyncStorage.setItem('mt5Symbols', JSON.stringify(next)).catch(err => {
+              console.error('Error saving MT5 symbols:', err);
+            });
+            return next;
+          });
+        } else {
+          setMT5Symbols(current => {
+            if (reqId !== mt5SizingReqIdRef.current) return current;
+            const next = applyDeterministic(current);
+            let changed = false;
+            for (let i = 0; i < current.length; i++) {
+              if (
+                current[i].lotSize !== next[i].lotSize ||
+                current[i].numberOfTrades !== next[i].numberOfTrades
+              ) {
+                changed = true;
+                break;
+              }
+            }
+            if (!changed) return current;
+            AsyncStorage.setItem('mt5Symbols', JSON.stringify(next)).catch(err => {
+              console.error('Error saving MT5 symbols:', err);
+            });
+            return next;
+          });
         }
-        changed = true;
-        return {
-          ...s,
-          lotSize: preset.lotSize,
-          direction: 'BOTH' as const,
-          numberOfTrades: preset.numberOfTrades,
-        };
-      });
-      if (!changed) return current;
-      AsyncStorage.setItem('mt5Symbols', JSON.stringify(next)).catch(error => {
-        console.error('Error saving MT5 symbols:', error);
-      });
-      return next;
-    });
-  }, [mt5Account?.connected, mt5Account?.equity]);
+
+        if (reqId !== mt5SizingReqIdRef.current) return;
+        lastProcessedMt5SizingKeyRef.current = key;
+      })();
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [mt5Account?.connected, mt5Account?.equity, mt5Account?.balance, mt5Account?.login, mt5Symbols]);
 
   const deactivateMT4Symbol = useCallback(async (symbol: string) => {
     setMT4Symbols(currentSymbols => {

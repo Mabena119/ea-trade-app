@@ -21,7 +21,10 @@ export default function TradeConfigScreen() {
   } = useApp();
   const { theme } = useTheme();
 
-  const preset = useMemo(() => getEquityBasedMT5Preset(mt5Account?.equity), [mt5Account?.equity]);
+  const preset = useMemo(
+    () => getEquityBasedMT5Preset(mt5Account?.equity, symbol),
+    [mt5Account?.equity, symbol]
+  );
 
   const [tradeMode, setTradeMode] = useState<MT5TradeMode>('swing');
 
@@ -75,9 +78,10 @@ export default function TradeConfigScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.notice, { color: theme.colors.textSecondary }]}>
-          Lot size and number of trades follow your linked MT5 account equity. Direction is BOTH; platform
-          is MT5. Choose how this symbol is traded: Scalper (tighter risk levels, single execution round)
-          or Swing (wider levels, equity-based trade count).
+          After you connect MT5, lot size and number of trades are set by AI from your account equity
+          and instrument type (with a formula fallback if AI is unavailable). Direction is BOTH;
+          platform is MT5. Choose how this symbol is traded: Scalper (tighter risk levels, single
+          execution round) or Swing (wider levels, equity-based trade count).
         </Text>
         {!mt5Account?.connected && (
           <Text style={[styles.warn, { color: theme.colors.warning }]}>

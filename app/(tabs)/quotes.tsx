@@ -132,7 +132,7 @@ export default function QuotesScreen() {
         }
 
         // Default preview: equity-based MT5 preset (not user-editable)
-        const fb = getEquityBasedMT5Preset(mt5Account?.equity);
+        const fb = getEquityBasedMT5Preset(mt5Account?.equity, symbolName);
         return {
           symbol: symbolName,
           lotSize: Number.parseFloat(fb.lotSize) || 0.01,
