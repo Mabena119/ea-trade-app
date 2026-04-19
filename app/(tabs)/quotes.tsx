@@ -238,9 +238,11 @@ export default function QuotesScreen() {
     hasConnectedEA,
     primaryEA?.id,
     primaryEA?.phoneSecretKey,
-    activeSymbols.length,
-    mt4Symbols.length,
-    mt5Symbols.length,
+    /** Full arrays (not .length) so lot/trade edits re-merge without adding/removing symbols */
+    activeSymbols,
+    mt4Symbols,
+    mt5Symbols,
+    mt5LotSizingMode,
     fetchSymbols,
   ]);
 

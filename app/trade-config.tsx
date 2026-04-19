@@ -10,7 +10,13 @@ import colors from '@/constants/colors';
 import { getEquityBasedMT5Preset, sanitizeManualLotSize, sanitizeManualTradesCount } from '@/utils/equity-trade-preset';
 
 export default function TradeConfigScreen() {
-  const { symbol } = useLocalSearchParams<{ symbol: string }>();
+  const { symbol: symbolParam } = useLocalSearchParams<{ symbol?: string | string[] }>();
+  const symbol = useMemo(() => {
+    const raw = symbolParam == null ? '' : Array.isArray(symbolParam) ? symbolParam[0] : symbolParam;
+    const s = String(raw ?? '').trim();
+    return s.length > 0 ? s : undefined;
+  }, [symbolParam]);
+
   const {
     activeSymbols,
     deactivateSymbol,
@@ -27,6 +33,14 @@ export default function TradeConfigScreen() {
     () => getEquityBasedMT5Preset(mt5Account?.equity, symbol),
     [mt5Account?.equity, symbol]
   );
+
+  /** Saved row for this symbol — same source as Quotes list (always show live stored values in Auto). */
+  const savedMt5 = useMemo(
+    () => (symbol ? mt5Symbols.find((s) => s.symbol === symbol) : undefined),
+    [symbol, mt5Symbols]
+  );
+  const autoLotDisplay = savedMt5 ? savedMt5.lotSize : preset.lotSize;
+  const autoTradesDisplay = savedMt5 ? savedMt5.numberOfTrades : preset.numberOfTrades;
 
   const [tradeMode, setTradeMode] = useState<MT5TradeMode>('swing');
   const [manualLot, setManualLot] = useState('0.01');
@@ -221,8 +235,8 @@ export default function TradeConfigScreen() {
 
             {mt5LotSizingMode === 'auto' ? (
               <>
-                <ReadOnlyRow label="LOT SIZE" value={preset.lotSize} />
-                <ReadOnlyRow label="NUMBER OF TRADES" value={preset.numberOfTrades} />
+                <ReadOnlyRow label="LOT SIZE" value={autoLotDisplay} />
+                <ReadOnlyRow label="NUMBER OF TRADES" value={String(autoTradesDisplay)} />
               </>
             ) : (
               <>
