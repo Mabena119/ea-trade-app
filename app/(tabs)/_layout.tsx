@@ -67,7 +67,7 @@ export default function TabLayout() {
             }} />
           )
         ),
-        tabBarActiveTintColor: theme.colors.textPrimary,
+        tabBarActiveTintColor: theme.colors.navActiveColor,
         tabBarInactiveTintColor: theme.colors.navInactiveColor,
         tabBarLabelStyle: {
           fontSize: 10,
@@ -99,7 +99,7 @@ export default function TabLayout() {
               }
             ]}>
               <Home
-                color={focused ? theme.colors.textPrimary : theme.colors.navInactiveColor}
+                color={focused ? theme.colors.navActiveColor : theme.colors.navInactiveColor}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
@@ -126,7 +126,7 @@ export default function TabLayout() {
               }
             ]}>
               <Scan
-                color={focused ? theme.colors.textPrimary : theme.colors.navInactiveColor}
+                color={focused ? theme.colors.navActiveColor : theme.colors.navInactiveColor}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />
@@ -159,7 +159,7 @@ export default function TabLayout() {
               }
             ]}>
               <Wallet
-                color={focused ? theme.colors.textPrimary : theme.colors.navInactiveColor}
+                color={focused ? theme.colors.navActiveColor : theme.colors.navInactiveColor}
                 size={25}
                 strokeWidth={focused ? 2.8 : 2.2}
               />

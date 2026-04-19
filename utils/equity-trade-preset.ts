@@ -116,3 +116,18 @@ export function getEquityBasedMT5Preset(equityInput?: string | null, symbol?: st
   const cls = classifyInstrumentSymbol(symbol ?? '');
   return applyVolatilityToBase(base, cls, eq);
 }
+
+/** Clamp user-entered lot (manual mode). */
+export function sanitizeManualLotSize(raw: string | undefined | null): string {
+  const n = parseFloat(String(raw ?? '').replace(',', '.'));
+  if (!Number.isFinite(n) || n < 0.01) return '0.01';
+  const r = Math.round(Math.min(50, n) * 100) / 100;
+  return r.toFixed(2);
+}
+
+/** Clamp user-entered trade count (manual mode). */
+export function sanitizeManualTradesCount(raw: string | undefined | null): string {
+  const n = parseInt(String(raw ?? '').replace(/\D/g, ''), 10);
+  if (!Number.isFinite(n) || n < 1) return '1';
+  return String(Math.min(50, n));
+}

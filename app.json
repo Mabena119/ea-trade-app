@@ -2,7 +2,7 @@
   "expo": {
     "name": "EA Trade",
     "slug": "ea-trade-app-bf6qtmx7-6jkhyg7w",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -54,6 +54,7 @@
       }
     },
     "android": {
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"

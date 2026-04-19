@@ -1,11 +1,16 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert, AppState, Linking } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
 import apiService from '@/services/api';
-import { classifyInstrumentSymbol, getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
+import {
+  classifyInstrumentSymbol,
+  getEquityBasedMT5Preset,
+  sanitizeManualLotSize,
+  sanitizeManualTradesCount,
+} from '@/utils/equity-trade-preset';
 
 /** Chart AI warmup cycle repeats while bot is active (ms). */
 const CHART_WARMUP_INTERVAL_MS = 45 * 60 * 1000;
@@ -192,6 +197,9 @@ export interface MT4Symbol {
 
 export type MT5TradeMode = 'scalper' | 'swing';
 
+/** Auto: AI + equity heuristics update lots. Manual: user-defined per symbol (trade config). */
+export type MT5LotSizingMode = 'auto' | 'manual';
+
 export interface MT5Symbol {
   symbol: string;
   lotSize: string;
@@ -212,6 +220,8 @@ interface AppState {
   activeSymbols: ActiveSymbol[];
   mt4Symbols: MT4Symbol[];
   mt5Symbols: MT5Symbol[];
+  /** Lot sizing: auto (AI/equity) vs manual (user sets in trade config). */
+  mt5LotSizingMode: MT5LotSizingMode;
   isBotActive: boolean;
   signalLogs: SignalLog[];
   isSignalsMonitoring: boolean;
@@ -232,6 +242,7 @@ interface AppState {
   setMTAccount: (account: MTAccount) => void;
   setMT4Account: (account: MT4Account) => void;
   setMT5Account: (account: MT5Account) => void;
+  setMt5LotSizingMode: (mode: MT5LotSizingMode) => Promise<void>;
   setIsFirstTime: (isFirstTime: boolean) => void;
   activateSymbol: (symbolConfig: Omit<ActiveSymbol, 'activatedAt'>) => void;
   activateMT4Symbol: (symbolConfig: Omit<MT4Symbol, 'activatedAt'>) => void;
@@ -263,6 +274,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [activeSymbols, setActiveSymbols] = useState<ActiveSymbol[]>([]);
   const [mt4Symbols, setMT4Symbols] = useState<MT4Symbol[]>([]);
   const [mt5Symbols, setMT5Symbols] = useState<MT5Symbol[]>([]);
+  const [mt5LotSizingMode, setMt5LotSizingModeState] = useState<MT5LotSizingMode>('auto');
+  const mt5LotSizingModeRef = useRef<MT5LotSizingMode>('auto');
   const [isBotActive, setIsBotActive] = useState<boolean>(false);
   const [signalLogs, setSignalLogs] = useState<SignalLog[]>([]);
   const [isSignalsMonitoring, setIsSignalsMonitoring] = useState<boolean>(false);
@@ -304,6 +317,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     mt5SizingSymbolsRef.current = mt5Symbols;
   }, [mt5Symbols]);
+  useLayoutEffect(() => {
+    mt5LotSizingModeRef.current = mt5LotSizingMode;
+  }, [mt5LotSizingMode]);
   useEffect(() => {
     if (!mt5Account?.connected) lastProcessedMt5SizingKeyRef.current = '';
   }, [mt5Account?.connected]);
@@ -395,7 +411,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('Loading persisted data...');
 
       // Load all data in parallel but handle each independently
-      const [userData, easData, mtData, mt4Data, mt5Data, firstTimeData, activeSymbolsData, mt4SymbolsData, mt5SymbolsData, botActiveData] = await Promise.allSettled([
+      const [userData, easData, mtData, mt4Data, mt5Data, firstTimeData, activeSymbolsData, mt4SymbolsData, mt5SymbolsData, botActiveData, mt5LotSizingModeData] = await Promise.allSettled([
         AsyncStorage.getItem('user'),
         AsyncStorage.getItem('eas'),
         AsyncStorage.getItem('mtAccount'),
@@ -405,7 +421,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         AsyncStorage.getItem('activeSymbols'),
         AsyncStorage.getItem('mt4Symbols'),
         AsyncStorage.getItem('mt5Symbols'),
-        AsyncStorage.getItem('isBotActive')
+        AsyncStorage.getItem('isBotActive'),
+        AsyncStorage.getItem('mt5LotSizingMode'),
       ]);
 
       // Handle user data
@@ -601,6 +618,18 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       }
 
+      if (mt5LotSizingModeData.status === 'fulfilled' && mt5LotSizingModeData.value) {
+        try {
+          const parsed = JSON.parse(mt5LotSizingModeData.value);
+          if (parsed === 'manual' || parsed === 'auto') {
+            setMt5LotSizingModeState(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing mt5 lot sizing mode:', parseError);
+          AsyncStorage.removeItem('mt5LotSizingMode').catch(console.error);
+        }
+      }
+
       console.log('Persisted data loading completed');
     } catch (error) {
       console.error('Critical error loading persisted data:', error);
@@ -789,10 +818,30 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, []);
 
+  const setMt5LotSizingMode = useCallback(async (mode: MT5LotSizingMode) => {
+    setMt5LotSizingModeState(mode);
+    if (mode === 'auto') {
+      lastProcessedMt5SizingKeyRef.current = '';
+    }
+    try {
+      await AsyncStorage.setItem('mt5LotSizingMode', JSON.stringify(mode));
+    } catch (error) {
+      console.error('Error saving mt5 lot sizing mode:', error);
+    }
+  }, []);
+
   const activateSymbol = useCallback(async (symbolConfig: Omit<ActiveSymbol, 'activatedAt'>) => {
     let effective = symbolConfig;
     if (symbolConfig.platform === 'MT5') {
-      const p = getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
+      const p =
+        mt5LotSizingMode === 'manual'
+          ? {
+              lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
+              numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
+              direction: 'BOTH' as const,
+              platform: 'MT5' as const,
+            }
+          : getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
       effective = {
         ...symbolConfig,
         lotSize: p.lotSize,
@@ -832,7 +881,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       return updatedSymbols;
     });
-  }, [mt5Account?.equity]);
+  }, [mt5Account?.equity, mt5LotSizingMode]);
 
   const deactivateSymbol = useCallback(async (symbol: string) => {
     setActiveSymbols(currentSymbols => {
@@ -882,7 +931,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const activateMT5Symbol = useCallback(async (symbolConfig: Omit<MT5Symbol, 'activatedAt'>) => {
-    const preset = getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
+    const preset =
+      mt5LotSizingMode === 'manual'
+        ? {
+            lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
+            numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
+            direction: 'BOTH' as const,
+          }
+        : getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
     const tradeMode: MT5TradeMode = symbolConfig.tradeMode === 'scalper' ? 'scalper' : 'swing';
     const newActiveSymbol: MT5Symbol = {
       symbol: symbolConfig.symbol,
@@ -920,10 +976,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('MT5 symbol activated:', symbolConfig.symbol);
       return updatedSymbols;
     });
-  }, [mt5Account?.equity]);
+  }, [mt5Account?.equity, mt5LotSizingMode]);
 
-  /** After MT5 login / equity refresh: ask AI for per-symbol lot + trade count; fallback to equity heuristics. */
+  /** After MT5 login / equity refresh: ask AI for per-symbol lot + trade count; fallback to equity heuristics. Manual mode: never touch lots when equity updates. */
   useEffect(() => {
+    if (mt5LotSizingMode === 'manual') return;
     if (!mt5Account?.connected || !String(mt5Account.equity ?? '').trim()) return;
     const symList = mt5SizingSymbolsRef.current;
     if (symList.length === 0) return;
@@ -934,12 +991,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     const reqId = ++mt5SizingReqIdRef.current;
     const timer = setTimeout(() => {
       void (async () => {
+        if (mt5LotSizingModeRef.current === 'manual') return;
         const acc = mt5SizingAccountRef.current;
         const sym = mt5SizingSymbolsRef.current;
         if (!acc?.connected || !String(acc.equity ?? '').trim() || sym.length === 0) return;
         const currentKey = `${acc.login ?? ''}|${acc.equity}|${sym.map(s => s.symbol).sort().join(';')}`;
         if (currentKey !== key) return;
         if (reqId !== mt5SizingReqIdRef.current) return;
+        if (mt5LotSizingModeRef.current === 'manual') return;
 
         const res = await apiService.fetchMt5TradeSizing({
           equity: acc.equity,
@@ -951,6 +1010,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         });
 
         if (reqId !== mt5SizingReqIdRef.current) return;
+        if (mt5LotSizingModeRef.current === 'manual') return;
 
         const applyDeterministic = (list: MT5Symbol[]) =>
           list.map(s => {
@@ -1018,7 +1078,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [mt5Account?.connected, mt5Account?.equity, mt5Account?.balance, mt5Account?.login, mt5Symbols]);
+  }, [
+    mt5LotSizingMode,
+    mt5Account?.connected,
+    mt5Account?.equity,
+    mt5Account?.balance,
+    mt5Account?.login,
+    mt5Symbols,
+  ]);
 
   const deactivateMT4Symbol = useCallback(async (symbol: string) => {
     setMT4Symbols(currentSymbols => {
@@ -2240,6 +2307,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     activeSymbols,
     mt4Symbols,
     mt5Symbols,
+    mt5LotSizingMode,
     isBotActive,
     signalLogs,
     isSignalsMonitoring,
@@ -2259,6 +2327,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setMTAccount,
     setMT4Account,
     setMT5Account,
+    setMt5LotSizingMode,
     setIsFirstTime,
     activateSymbol,
     activateMT4Symbol,
@@ -2278,12 +2347,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     markTradeExecuted,
     isSymbolConfiguredForTrading,
   }), [
-    user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols,
+    user, eas, mtAccount, mt4Account, mt5Account, isFirstTime, activeSymbols, mt4Symbols, mt5Symbols, mt5LotSizingMode,
     isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal, mt5TradeOverlayMessage,
     databaseSignal, isDatabaseSignalsPolling, isPollingPaused,
     // Functions are stable due to useCallback, but removing from deps to prevent initialization issues
     pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account,
-    setMT5Account, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol,
+    setMT5Account, setMt5LotSizingMode, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol,
     deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission,
     startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal,
     setShowMT5SignalWebViewCallback, setMT5SignalCallback, setMT5TradeOverlayMessageCallback, markTradeExecuted,

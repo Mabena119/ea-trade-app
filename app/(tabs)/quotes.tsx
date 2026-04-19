@@ -14,6 +14,7 @@ import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
 interface Quote {
   symbol: string;
   lotSize: number;
+  numberOfTrades: number;
   platform: string;
   direction: 'BUY' | 'SELL' | 'BOTH';
   isActive?: boolean;
@@ -22,7 +23,7 @@ interface Quote {
 
 
 export default function QuotesScreen() {
-  const { eas, activeSymbols, mt4Symbols, mt5Symbols, mt5Account } = useApp();
+  const { eas, activeSymbols, mt4Symbols, mt5Symbols, mt5Account, mt5LotSizingMode, setMt5LotSizingMode } = useApp();
   const { theme } = useTheme();
 
   const hasMt5Linked = Boolean(
@@ -100,24 +101,51 @@ export default function QuotesScreen() {
         const mt4Config = mt4Symbols.find(s => s.symbol === symbolName);
         const mt5Config = mt5Symbols.find(s => s.symbol === symbolName);
 
-        type Unified = { platform: 'MT4' | 'MT5'; lotSize: number; direction: 'BUY' | 'SELL' | 'BOTH'; activatedAt: Date };
+        type Unified = {
+          platform: 'MT4' | 'MT5';
+          lotSize: number;
+          numberOfTrades: number;
+          direction: 'BUY' | 'SELL' | 'BOTH';
+          activatedAt: Date;
+        };
 
         const candidates: Unified[] = [];
 
         if (legacyConfig) {
           const lot = Number.parseFloat(legacyConfig.lotSize ?? '0.01');
+          const nt = Number.parseInt(String(legacyConfig.numberOfTrades ?? '1'), 10);
           const act = legacyConfig.activatedAt instanceof Date ? legacyConfig.activatedAt : new Date(legacyConfig.activatedAt as unknown as string);
-          candidates.push({ platform: legacyConfig.platform, lotSize: Number.isFinite(lot) ? lot : 0.01, direction: legacyConfig.direction, activatedAt: act });
+          candidates.push({
+            platform: legacyConfig.platform,
+            lotSize: Number.isFinite(lot) ? lot : 0.01,
+            numberOfTrades: Number.isFinite(nt) && nt >= 1 ? nt : 1,
+            direction: legacyConfig.direction,
+            activatedAt: act,
+          });
         }
         if (mt4Config) {
           const lot = Number.parseFloat(mt4Config.lotSize ?? '0.01');
+          const nt = Number.parseInt(String(mt4Config.numberOfTrades ?? '1'), 10);
           const act = mt4Config.activatedAt instanceof Date ? mt4Config.activatedAt : new Date(mt4Config.activatedAt as unknown as string);
-          candidates.push({ platform: 'MT4', lotSize: Number.isFinite(lot) ? lot : 0.01, direction: mt4Config.direction, activatedAt: act });
+          candidates.push({
+            platform: 'MT4',
+            lotSize: Number.isFinite(lot) ? lot : 0.01,
+            numberOfTrades: Number.isFinite(nt) && nt >= 1 ? nt : 1,
+            direction: mt4Config.direction,
+            activatedAt: act,
+          });
         }
         if (mt5Config) {
           const lot = Number.parseFloat(mt5Config.lotSize ?? '0.01');
+          const nt = Number.parseInt(String(mt5Config.numberOfTrades ?? '1'), 10);
           const act = mt5Config.activatedAt instanceof Date ? mt5Config.activatedAt : new Date(mt5Config.activatedAt as unknown as string);
-          candidates.push({ platform: 'MT5', lotSize: Number.isFinite(lot) ? lot : 0.01, direction: mt5Config.direction, activatedAt: act });
+          candidates.push({
+            platform: 'MT5',
+            lotSize: Number.isFinite(lot) ? lot : 0.01,
+            numberOfTrades: Number.isFinite(nt) && nt >= 1 ? nt : 1,
+            direction: mt5Config.direction,
+            activatedAt: act,
+          });
         }
 
         if (candidates.length > 0) {
@@ -126,16 +154,18 @@ export default function QuotesScreen() {
           return {
             symbol: symbolName,
             lotSize: latest.lotSize,
+            numberOfTrades: latest.numberOfTrades,
             platform: latest.platform,
             direction: latest.direction,
           };
         }
 
-        // Default preview: equity-based MT5 preset (not user-editable)
+        // Default preview: equity-based MT5 preset (or manual preview uses same suggestion until symbol is set)
         const fb = getEquityBasedMT5Preset(mt5Account?.equity, symbolName);
         return {
           symbol: symbolName,
           lotSize: Number.parseFloat(fb.lotSize) || 0.01,
+          numberOfTrades: Number.parseInt(String(fb.numberOfTrades), 10) || 1,
           platform: 'MT5' as const,
           direction: fb.direction,
         };
@@ -170,6 +200,7 @@ export default function QuotesScreen() {
     mt4Symbols,
     mt5Symbols,
     mt5Account?.equity,
+    mt5LotSizingMode,
   ]);
 
   // Initial load and refresh when symbols change or active bot switches
@@ -283,8 +314,19 @@ export default function QuotesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
+        <TouchableOpacity
+          style={[
+            styles.backButton,
+            {
+              backgroundColor: `${theme.colors.accent}33`,
+              borderColor: `${theme.colors.accent}66`,
+              shadowColor: theme.colors.accent,
+            },
+          ]}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
           {Platform.OS === 'ios' && (
             <BlurView intensity={60} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
           )}
@@ -309,7 +351,15 @@ export default function QuotesScreen() {
 
         {hasConnectedEA && (
           <TouchableOpacity
-            style={[styles.refreshButton, refreshing && styles.refreshButtonDisabled]}
+            style={[
+              styles.refreshButton,
+              {
+                backgroundColor: `${theme.colors.accent}33`,
+                borderColor: `${theme.colors.accent}66`,
+                shadowColor: theme.colors.accent,
+              },
+              refreshing && styles.refreshButtonDisabled,
+            ]}
             onPress={handleRefresh}
             disabled={refreshing}
             activeOpacity={refreshing ? 1 : 0.7}
@@ -337,6 +387,33 @@ export default function QuotesScreen() {
         )}
       </View>
 
+      <View style={[styles.sizingModeBar, { borderBottomColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]}>
+        <Text style={[styles.sizingModeLabel, { color: theme.colors.textSecondary }]}>LOT SIZING</Text>
+        <View style={styles.sizingModeChips}>
+          {(['auto', 'manual'] as const).map((m) => {
+            const selected = mt5LotSizingMode === m;
+            return (
+              <TouchableOpacity
+                key={m}
+                onPress={() => void setMt5LotSizingMode(m)}
+                activeOpacity={0.75}
+                style={[
+                  styles.sizingModeChip,
+                  {
+                    borderColor: selected ? theme.colors.accent : theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+                    backgroundColor: selected ? `${theme.colors.accent}55` : theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                  },
+                ]}
+              >
+                <Text style={[styles.sizingModeChipText, { color: theme.colors.textPrimary, fontWeight: selected ? '800' : '600' }]}>
+                  {m === 'auto' ? 'Auto (AI)' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
       {/* Content */}
       <View style={styles.content}>
         {loading && !refreshing ? (
@@ -348,14 +425,36 @@ export default function QuotesScreen() {
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
             {hasConnectedEA ? (
-              <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={[
+                  styles.retryButton,
+                  {
+                    backgroundColor: `${theme.colors.accent}40`,
+                    borderColor: `${theme.colors.accent}66`,
+                    shadowColor: theme.colors.glowColor,
+                  },
+                ]}
+                onPress={handleRetry}
+                activeOpacity={0.7}
+              >
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
                 )}
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/license')} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={[
+                  styles.retryButton,
+                  {
+                    backgroundColor: `${theme.colors.accent}40`,
+                    borderColor: `${theme.colors.accent}66`,
+                    shadowColor: theme.colors.glowColor,
+                  },
+                ]}
+                onPress={() => router.push('/license')}
+                activeOpacity={0.7}
+              >
                 {Platform.OS === 'ios' && (
                   <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
                 )}
@@ -377,7 +476,15 @@ export default function QuotesScreen() {
                   key={quote.symbol}
                   style={[
                     styles.quoteCard,
-                    quote.isActive && styles.activeQuoteCard
+                    { shadowColor: theme.colors.glowColor },
+                    quote.isActive && [
+                      styles.activeQuoteCard,
+                      {
+                        borderColor: `${theme.colors.accent}99`,
+                        borderTopColor: `${theme.colors.accent}CC`,
+                        shadowColor: theme.colors.accent,
+                      },
+                    ],
                   ]}
                   onPress={() => handleQuoteTap(quote.symbol)}
                   activeOpacity={0.7}
@@ -423,12 +530,16 @@ export default function QuotesScreen() {
                       <Text style={styles.priceLabel}>LOT SIZE</Text>
                       <Text style={styles.priceValue}>{formatLotSize(quote.lotSize)}</Text>
                     </View>
-
+                    <View style={styles.priceColumn}>
+                      <Text style={styles.priceLabel}>TRADES</Text>
+                      <Text style={styles.priceValue}>{quote.numberOfTrades}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.priceContainer}>
                     <View style={styles.priceColumn}>
                       <Text style={styles.priceLabel}>PLATFORM</Text>
                       <Text style={styles.platformValue}>{quote.platform}</Text>
                     </View>
-
                     <View style={styles.priceColumn}>
                       <Text style={styles.priceLabel}>DIRECTION</Text>
                       <Text style={[
@@ -466,11 +577,8 @@ const styles = StyleSheet.create({
     marginRight: 16,
     padding: 10,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -502,6 +610,36 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
   },
+  sizingModeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  sizingModeLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  sizingModeChips: {
+    flexDirection: 'row',
+    gap: 8,
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sizingModeChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  sizingModeChipText: {
+    fontSize: 13,
+    letterSpacing: 0.3,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
@@ -511,11 +649,8 @@ const styles = StyleSheet.create({
     padding: 10,
     marginLeft: 8,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -551,14 +686,11 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   retryButton: {
-    backgroundColor: 'rgba(139, 92, 246, 0.25)',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -597,7 +729,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.25)',
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.5,
     shadowRadius: 24,
@@ -658,13 +789,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   activeQuoteCard: {
-    borderColor: 'rgba(139, 92, 246, 0.6)',
     borderWidth: 2,
     borderTopWidth: 2.5,
-    shadowOpacity: 0.7,
+    shadowOpacity: 0.45,
     shadowRadius: 30,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 18,
   },
 
   priceContainer: {

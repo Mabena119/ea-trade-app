@@ -520,6 +520,96 @@ const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 
 export default function MetaTraderScreen() {
   const { theme } = useTheme();
+  const mtChrome = useMemo(
+    () => ({
+      tab: {
+        paddingVertical: 14,
+        paddingHorizontal: 36,
+        borderRadius: 24,
+        backgroundColor: theme.colors.cardBackground,
+        alignItems: 'center' as const,
+        borderWidth: 1,
+        borderColor: theme.colors.borderColor,
+        overflow: 'hidden' as const,
+        shadowColor: theme.colors.glowColor,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        elevation: 8,
+      },
+      tabActive: {
+        backgroundColor: `${theme.colors.accent}40`,
+        borderColor: theme.colors.accent,
+        borderWidth: 2,
+        shadowOpacity: 0.55,
+      },
+      input: {
+        backgroundColor: theme.colors.cardBackground,
+        borderWidth: 1,
+        borderColor: theme.colors.borderColor,
+        borderRadius: 20,
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        fontSize: 16,
+        color: theme.colors.textPrimary,
+        fontWeight: '600' as const,
+        shadowColor: theme.colors.glowColor,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 6,
+        zIndex: 1,
+        position: 'relative' as const,
+      },
+      accentControl: {
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        backgroundColor: `${theme.colors.accent}33`,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: `${theme.colors.accent}55`,
+        overflow: 'hidden' as const,
+        shadowColor: theme.colors.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 4,
+      },
+      linkButton: {
+        backgroundColor: `${theme.colors.accent}44`,
+        paddingVertical: 18,
+        borderRadius: 24,
+        marginTop: 24,
+        borderWidth: 1,
+        borderColor: `${theme.colors.accent}66`,
+        overflow: 'hidden' as const,
+        shadowColor: theme.colors.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 16,
+        elevation: 10,
+      },
+      brokerListChrome: {
+        backgroundColor: theme.colors.background,
+        borderColor: theme.colors.borderColor,
+        shadowColor: theme.colors.glowColor,
+      },
+      brokerItemChrome: {
+        shadowColor: theme.colors.glowColor,
+      },
+      framedPanel: {
+        borderColor: `${theme.colors.accent}55`,
+        borderTopColor: theme.colors.accent,
+        shadowColor: theme.colors.glowColor,
+      },
+      toastFrame: {
+        borderColor: `${theme.colors.accent}70`,
+        borderTopColor: theme.colors.accent,
+        shadowColor: theme.colors.glowColor,
+      },
+    }),
+    [theme]
+  );
   const [activeTab, setActiveTab] = useState<'MT5' | 'MT4'>('MT5');
   const [login, setLogin] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -2537,7 +2627,7 @@ export default function MetaTraderScreen() {
           {/* Account Type Tabs */}
           <View style={styles.tabContainer}>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'MT5' && styles.activeTab, styles.centeredTab]}
+              style={[mtChrome.tab, activeTab === 'MT5' && mtChrome.tabActive, styles.centeredTab]}
               onPress={() => setActiveTab('MT5')}
               activeOpacity={0.8}
             >
@@ -2550,7 +2640,14 @@ export default function MetaTraderScreen() {
                   : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={[styles.tabText, activeTab === 'MT5' && styles.activeTabText]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === 'MT5'
+                    ? { color: theme.colors.textPrimary, fontWeight: '800' }
+                    : { color: theme.colors.textMuted },
+                ]}
+              >
                 MT5 ACCOUNT
               </Text>
             </TouchableOpacity>
@@ -2558,17 +2655,31 @@ export default function MetaTraderScreen() {
 
           {/* Connection Status */}
           <View style={styles.statusContainer}>
-            <View testID="connection-status-dot" style={[
-              styles.statusDot,
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedDot,
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedDot
-            ]} />
-            <Text style={[
-              styles.statusText,
-              { color: theme.colors.textPrimary },
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && styles.connectedText,
-              (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && styles.disconnectedText,
-            ]}>
+            <View
+              testID="connection-status-dot"
+              style={[
+                styles.statusDot,
+                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true && {
+                  backgroundColor: theme.colors.statusActive,
+                },
+                (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false && {
+                  backgroundColor: theme.colors.error,
+                },
+              ]}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                {
+                  color:
+                    (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === true
+                      ? theme.colors.accent
+                      : (activeTab === 'MT4' ? mt4Account?.connected : mt5Account?.connected) === false
+                        ? theme.colors.error
+                        : theme.colors.textMuted,
+                },
+              ]}
+            >
               MT5
             </Text>
           </View>
@@ -2659,7 +2770,7 @@ export default function MetaTraderScreen() {
 
           {/* Authentication Status Display - Only shown during authentication */}
           {isAuthenticating && (
-            <View style={styles.authStatusDisplay}>
+            <View style={[styles.authStatusDisplay, mtChrome.framedPanel]}>
               {/* Gradient background */}
               <LinearGradient
                 colors={theme.colors.primaryGradient as [string, string, ...string[]]}
@@ -2679,7 +2790,7 @@ export default function MetaTraderScreen() {
           )}
 
           {/* Login Form */}
-          <View style={styles.formCard}>
+          <View style={[styles.formCard, { shadowColor: theme.colors.glowColor }]}>
             {/* Gradient background */}
             <LinearGradient
               colors={theme.colors.primaryGradient as [string, string, ...string[]]}
@@ -2712,9 +2823,9 @@ export default function MetaTraderScreen() {
                   pointerEvents="none"
                 />
                 <TextInput
-                  style={styles.input}
+                  style={mtChrome.input}
                   placeholder="Login"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor={theme.colors.textMuted}
                   value={login}
                   onChangeText={(text) => {
                     console.log('Login input changed:', text);
@@ -2735,9 +2846,9 @@ export default function MetaTraderScreen() {
                   pointerEvents="none"
                 />
                 <TextInput
-                  style={styles.passwordInput}
+                  style={[styles.passwordInput, { color: theme.colors.textPrimary }]}
                   placeholder="Password"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor={theme.colors.textMuted}
                   value={password}
                   onChangeText={(text) => {
                     console.log('Password input changed:', text);
@@ -2747,7 +2858,7 @@ export default function MetaTraderScreen() {
                   editable={true}
                 />
                 <TouchableOpacity
-                  style={styles.eyeButton}
+                  style={[styles.eyeButton, mtChrome.accentControl]}
                   onPress={() => setShowPassword(!showPassword)}
                   activeOpacity={0.8}
                 >
@@ -2755,9 +2866,9 @@ export default function MetaTraderScreen() {
                     <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                   )}
                   {showPassword ? (
-                    <EyeOff color="#999999" size={18} />
+                    <EyeOff color={theme.colors.textMuted} size={18} />
                   ) : (
-                    <Eye color="#999999" size={18} />
+                    <Eye color={theme.colors.textMuted} size={18} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -2772,11 +2883,11 @@ export default function MetaTraderScreen() {
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"
                   />
-                  <Database color="#999999" size={18} style={styles.serverIcon} />
+                  <Database color={theme.colors.textMuted} size={18} style={styles.serverIcon} />
                   <TextInput
-                    style={styles.serverInput}
+                    style={[styles.serverInput, { color: theme.colors.textPrimary }]}
                     placeholder={activeTab === 'MT4' ? "Search MT4 Broker Server..." : "Search MT5 Broker Server..."}
-                    placeholderTextColor="#999999"
+                    placeholderTextColor={theme.colors.textMuted}
                     value={server}
                     onChangeText={(text) => {
                       console.log('Server input changed:', text);
@@ -2791,7 +2902,7 @@ export default function MetaTraderScreen() {
                   />
                   {server.length > 0 && (
                     <TouchableOpacity
-                      style={styles.clearButton}
+                      style={[styles.clearButton, mtChrome.accentControl]}
                       onPress={() => {
                         setServer('');
                         setShowBrokerList(false);
@@ -2807,7 +2918,7 @@ export default function MetaTraderScreen() {
                 </View>
 
                 {showBrokerList && (
-                  <View style={styles.brokerListContainer}>
+                  <View style={[styles.brokerListContainer, mtChrome.brokerListChrome]}>
                     <View style={styles.brokerListHeader}>
                       <Text style={styles.brokerListTitle}>Active {activeTab} Brokers</Text>
                       <View style={styles.brokerListActions}>
@@ -2859,7 +2970,7 @@ export default function MetaTraderScreen() {
                         return (
                           <TouchableOpacity
                             key={`${item}-${index}`}
-                            style={styles.brokerItem}
+                            style={[styles.brokerItem, mtChrome.brokerItemChrome]}
                             onPress={() => {
                               console.log('Broker selected:', item);
                               setServer(item); // Allow selection of any broker from the list
@@ -2913,10 +3024,10 @@ export default function MetaTraderScreen() {
 
               <TouchableOpacity
                 style={[
-                  styles.linkButton,
+                  mtChrome.linkButton,
                   isAuthenticating && styles.linkButtonDisabled,
                   activeTab === 'MT4' && styles.linkButtonComingSoon,
-                  { zIndex: 1 }
+                  { zIndex: 1 },
                 ]}
                 onPress={activeTab === 'MT4' ? undefined : handleLinkAccount}
                 disabled={isAuthenticating || activeTab === 'MT4'}
@@ -2933,15 +3044,15 @@ export default function MetaTraderScreen() {
                 />
                 {isAuthenticating ? (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={styles.linkButtonText}>
+                    <ActivityIndicator color={theme.colors.onAccent} size="small" />
+                    <Text style={[styles.linkButtonText, { color: theme.colors.onAccent }]}>
                       AUTHENTICATING...
                     </Text>
                   </View>
                 ) : activeTab === 'MT4' ? (
                   <View style={styles.buttonContent}>
-                    <Shield color="#999999" size={16} style={styles.buttonIcon} />
-                    <Text style={styles.linkButtonText}>
+                    <Shield color={theme.colors.textMuted} size={16} style={styles.buttonIcon} />
+                    <Text style={[styles.linkButtonText, { color: theme.colors.textSecondary }]}>
                       LINK MT4 ACCOUNT DETAILS
                     </Text>
                     <Text style={styles.comingSoonText}>
@@ -2950,7 +3061,7 @@ export default function MetaTraderScreen() {
                   </View>
                 ) : (
                   <View style={styles.buttonContent}>
-                    <Text style={styles.linkButtonText}>
+                    <Text style={[styles.linkButtonText, { color: theme.colors.onAccent }]}>
                       CONNECT
                     </Text>
                   </View>
@@ -2963,7 +3074,7 @@ export default function MetaTraderScreen() {
 
       {/* MT5 Authentication Toast */}
       {showMT5WebView && (
-        <View style={styles.authToastContainer}>
+        <View style={[styles.authToastContainer, mtChrome.toastFrame]}>
           {/* Gradient background for toast */}
           <LinearGradient
             colors={theme.colors.primaryGradient as [string, string, ...string[]]}
@@ -3039,7 +3150,7 @@ export default function MetaTraderScreen() {
 
       {/* MT4 Authentication Toast */}
       {showMT4WebView && (
-        <View style={styles.authToastContainer}>
+        <View style={[styles.authToastContainer, mtChrome.toastFrame]}>
           {/* Gradient background for toast */}
           <LinearGradient
             colors={theme.colors.primaryGradient as [string, string, ...string[]]}
@@ -3123,39 +3234,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     justifyContent: 'center',
   },
-  tab: {
-    paddingVertical: 14,
-    paddingHorizontal: 36,
-    borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    overflow: 'hidden',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
   centeredTab: {
     alignSelf: 'center',
-  },
-  activeTab: {
-    backgroundColor: 'rgba(139, 92, 246, 0.3)',
-    borderColor: 'rgba(139, 92, 246, 0.5)',
-    borderWidth: 2,
-    shadowOpacity: 0.5,
   },
   tabText: {
     fontSize: 13,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.6)',
     letterSpacing: 0.5,
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
   },
   statusContainer: {
     flexDirection: 'row',
@@ -3171,16 +3256,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#999999', // Default gray when no account
     marginRight: 10,
   },
-  connectedDot: {
-    backgroundColor: '#8B5CF6', // Purple when connected
-  },
-  disconnectedDot: {
-    backgroundColor: '#DC2626', // Red when authentication failed
-  },
   statusText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#CCCCCC',
     letterSpacing: 1,
   },
   equityStrip: {
@@ -3204,12 +3282,6 @@ const styles = StyleSheet.create({
   equityStripSep: {
     fontSize: 14,
     marginHorizontal: 4,
-  },
-  connectedText: {
-    color: '#8B5CF6',
-  },
-  disconnectedText: {
-    color: '#DC2626',
   },
   logoContainer: {
     alignItems: 'center',
@@ -3241,7 +3313,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.25)',
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'visible',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.5,
     shadowRadius: 24,
@@ -3290,24 +3361,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  input: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-    zIndex: 1,
-    position: 'relative',
-  },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3329,41 +3382,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#FFFFFF',
     zIndex: 1,
     position: 'relative',
   },
   eyeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     marginLeft: 8,
-    overflow: 'hidden',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  linkButton: {
-    backgroundColor: 'rgba(139, 92, 246, 0.25)',
-    paddingVertical: 18,
-    borderRadius: 24,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
-    overflow: 'hidden',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 10,
   },
   linkButtonText: {
-    color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '800',
     textAlign: 'center',
@@ -3427,23 +3452,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#FFFFFF',
     zIndex: 1,
     position: 'relative',
   },
   clearButton: {
     paddingHorizontal: 14,
     paddingVertical: 14,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
   clearButtonText: {
     color: '#999999',
@@ -3458,10 +3474,8 @@ const styles = StyleSheet.create({
     height: 240,
     backgroundColor: '#000000',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.5)',
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: {
       width: 0,
       height: 12,
@@ -3512,7 +3526,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.25)',
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -3625,10 +3638,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderWidth: 1.5,
     borderTopWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
-    borderTopColor: 'rgba(139, 92, 246, 0.6)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -3814,9 +3824,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderTopWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.5)',
-    borderTopColor: 'rgba(139, 92, 246, 0.7)',
-    shadowColor: '#8B5CF6',
     shadowOffset: {
       width: 0,
       height: 12,

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -120,6 +120,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     mt5AccountRef.current = mt5Account;
   }, [mt5Account]);
   const { theme } = useTheme();
+  const authToastChrome = useMemo(
+    () => ({
+      borderColor: `${theme.colors.accent}80`,
+      borderTopColor: `${theme.colors.accent}B3`,
+      shadowColor: theme.colors.glowColor,
+    }),
+    [theme]
+  );
   const [loading, setLoading] = useState<boolean>(true);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
   const [chartAiResult, setChartAiResult] = useState<ChartAnalysisResult | null>(null);
@@ -2457,7 +2465,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return (
       <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
         <View style={styles.overlayContainer} pointerEvents="box-none">
-          <View style={styles.authToastContainer}>
+          <View style={[styles.authToastContainer, authToastChrome]}>
             <LinearGradient
               colors={theme.colors.primaryGradient as [string, string, ...string[]]}
               style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
@@ -2538,7 +2546,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const signalOverlay = (
     <View style={styles.overlayContainer} pointerEvents="box-none">
       {/* Floating toast at top - matches MT5 auth style */}
-      <View style={styles.authToastContainer} pointerEvents="auto">
+      <View style={[styles.authToastContainer, authToastChrome]} pointerEvents="auto">
         <LinearGradient
           colors={theme.colors.primaryGradient as [string, string, ...string[]]}
           style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
@@ -2642,7 +2650,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
               ? warmupExpandTerminal
                 ? styles.warmupFullWebViewContainer
-                : styles.visibleDebugWebViewContainer
+                : [styles.visibleDebugWebViewContainer, { borderTopColor: `${theme.colors.accent}D9` }]
               : styles.hiddenWebViewContainer
         }
       >
@@ -2791,9 +2799,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderTopWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.5)',
-    borderTopColor: 'rgba(139, 92, 246, 0.7)',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.8,
     shadowRadius: 24,
@@ -2870,7 +2875,6 @@ const styles = StyleSheet.create({
     zIndex: 9998,
     pointerEvents: 'auto' as const,
     borderTopWidth: 2,
-    borderTopColor: 'rgba(139, 92, 246, 0.85)',
     backgroundColor: '#0a0a0a',
   },
   /** Debug-only expanded terminal (not CHART_WARMUP — warmup uses hiddenWebView* like metatrader). */

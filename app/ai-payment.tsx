@@ -32,8 +32,19 @@ export default function AIPaymentScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
+        <TouchableOpacity
+          style={[
+            styles.backButton,
+            {
+              backgroundColor: `${theme.colors.accent}33`,
+              borderColor: `${theme.colors.accent}66`,
+              shadowColor: theme.colors.accent,
+            },
+          ]}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
           {Platform.OS === 'ios' && (
             <BlurView intensity={60} tint={theme.isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           )}
@@ -109,16 +120,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.3,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   backButton: {
     marginRight: 16,
     padding: 10,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
   headerContent: {
     flex: 1,

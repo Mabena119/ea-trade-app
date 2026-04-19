@@ -224,6 +224,7 @@ export default function HomeScreen() {
       backgroundColor: `${theme.colors.accent}40`,
       borderColor: `${theme.colors.accent}66`,
       borderTopColor: `${theme.colors.accent}99`,
+      shadowColor: theme.colors.accent,
     },
   };
 
@@ -248,7 +249,7 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
-          <View style={[styles.heroContent, { shadowColor: theme.colors.accent }]}>
+          <View style={[styles.heroContent, { shadowColor: theme.colors.glowColor }]}>
             {/* Beautiful gradient background with glass effect */}
             <LinearGradient
               colors={theme.colors.primaryGradient as [string, string, ...string[]]}
@@ -407,7 +408,15 @@ export default function HomeScreen() {
                   {otherEAs.map((ea, index) => (
                     <TouchableOpacity
                       key={`${ea.id}-${index}`}
-                      style={[styles.botCard, { borderColor: `${theme.colors.accent}4D`, borderTopColor: `${theme.colors.accent}80` }]}
+                      style={[
+                        styles.botCard,
+                        {
+                          backgroundColor: `${theme.colors.accent}26`,
+                          borderColor: `${theme.colors.accent}4D`,
+                          borderTopColor: `${theme.colors.accent}80`,
+                          shadowColor: theme.colors.glowColor,
+                        },
+                      ]}
                       onPress={async () => {
                         try {
                           console.log('Switching active EA to:', ea.name, ea.id);
@@ -429,7 +438,7 @@ export default function HomeScreen() {
                         <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
                       )}
                       <View style={styles.botCardContent}>
-                        <View style={styles.botIcon}>
+                        <View style={[styles.botIcon, { shadowColor: theme.colors.glowColor }]}>
                           {getEAImageUrl(ea as unknown as EA) ? (
                             <Image
                               testID={`ea-logo-small-${index}`}
@@ -453,7 +462,11 @@ export default function HomeScreen() {
 
 
 
-              <TouchableOpacity style={styles.addEAButton} onPress={handleAddNewEA} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={[styles.addEAButton, { shadowColor: theme.colors.glowColor }]}
+                onPress={handleAddNewEA}
+                activeOpacity={0.7}
+              >
                 {/* Gradient background */}
                 <LinearGradient
                   colors={theme.colors.primaryGradient as [string, string, ...string[]]}
@@ -522,14 +535,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   splashStartButton: {
-    backgroundColor: 'rgba(139, 92, 246, 0.3)',
     paddingHorizontal: 64,
     paddingVertical: 18,
     borderRadius: 28,
     minWidth: 220,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.5)',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
@@ -678,7 +688,6 @@ const styles = StyleSheet.create({
     paddingTop: 28,
     paddingBottom: 24,
     zIndex: 10,
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.6,
     shadowRadius: 60,
@@ -864,15 +873,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(139, 92, 246, 0.25)',
     borderWidth: 1,
     borderTopWidth: 1.5,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
-    borderTopColor: 'rgba(139, 92, 246, 0.6)',
     minWidth: 36,
     alignItems: 'center',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
@@ -885,15 +890,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   botCard: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
     borderRadius: 24,
     marginBottom: 14,
     overflow: 'hidden',
     borderWidth: 1,
     borderTopWidth: 1.5,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    borderTopColor: 'rgba(139, 92, 246, 0.5)',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -914,7 +915,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 16,
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -959,7 +959,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.25)',
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.5,
     shadowRadius: 24,

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Platform, TextInput } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Trash2 } from 'lucide-react-native';
@@ -7,7 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useApp, type MT5TradeMode } from '@/providers/app-provider';
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
-import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
+import { getEquityBasedMT5Preset, sanitizeManualLotSize, sanitizeManualTradesCount } from '@/utils/equity-trade-preset';
 
 export default function TradeConfigScreen() {
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
@@ -18,6 +18,8 @@ export default function TradeConfigScreen() {
     activateMT5Symbol,
     deactivateMT5Symbol,
     mt5Account,
+    mt5LotSizingMode,
+    setMt5LotSizingMode,
   } = useApp();
   const { theme } = useTheme();
 
@@ -27,12 +29,27 @@ export default function TradeConfigScreen() {
   );
 
   const [tradeMode, setTradeMode] = useState<MT5TradeMode>('swing');
+  const [manualLot, setManualLot] = useState('0.01');
+  const [manualTrades, setManualTrades] = useState('1');
 
   useEffect(() => {
     if (!symbol) return;
     const existing = mt5Symbols.find((s) => s.symbol === symbol);
     setTradeMode(existing?.tradeMode === 'scalper' ? 'scalper' : 'swing');
   }, [symbol, mt5Symbols]);
+
+  useEffect(() => {
+    if (!symbol) return;
+    const existing = mt5Symbols.find((s) => s.symbol === symbol);
+    const fb = getEquityBasedMT5Preset(mt5Account?.equity, symbol);
+    if (existing) {
+      setManualLot(existing.lotSize);
+      setManualTrades(existing.numberOfTrades);
+    } else {
+      setManualLot(fb.lotSize);
+      setManualTrades(fb.numberOfTrades);
+    }
+  }, [symbol, mt5Symbols, mt5Account?.equity, mt5LotSizingMode]);
 
   const isSymbolActive =
     mt5Symbols.some(s => s.symbol === symbol) || activeSymbols.some(s => s.symbol === symbol);
@@ -43,11 +60,15 @@ export default function TradeConfigScreen() {
 
   const handleSetSymbol = () => {
     if (!symbol) return;
+    const lot =
+      mt5LotSizingMode === 'manual' ? sanitizeManualLotSize(manualLot) : preset.lotSize;
+    const numberOfTrades =
+      mt5LotSizingMode === 'manual' ? sanitizeManualTradesCount(manualTrades) : preset.numberOfTrades;
     activateMT5Symbol({
       symbol,
-      lotSize: preset.lotSize,
+      lotSize: lot,
       direction: 'BOTH',
-      numberOfTrades: preset.numberOfTrades,
+      numberOfTrades,
       tradeMode,
     });
     router.back();
@@ -62,8 +83,19 @@ export default function TradeConfigScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: `${theme.colors.accent}15` }]}>
-        <TouchableOpacity style={[styles.backButton, { backgroundColor: `${theme.colors.accent}33`, borderColor: `${theme.colors.accent}66` }]} onPress={handleBack} activeOpacity={0.7}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
+        <TouchableOpacity
+          style={[
+            styles.backButton,
+            {
+              backgroundColor: `${theme.colors.accent}33`,
+              borderColor: `${theme.colors.accent}66`,
+              shadowColor: theme.colors.accent,
+            },
+          ]}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
           {Platform.OS === 'ios' && (
             <BlurView intensity={60} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
           )}
@@ -78,19 +110,24 @@ export default function TradeConfigScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.notice, { color: theme.colors.textSecondary }]}>
-          After you connect MT5, lot size and number of trades are set by AI from your account equity
-          and instrument type (with a formula fallback if AI is unavailable). Direction is BOTH;
-          platform is MT5. Choose how this symbol is traded: Scalper (tighter risk levels, single
-          execution round) or Swing (wider levels, equity-based trade count).
+          Lots: Auto/Manual on Quotes · Scalper/Swing = execution style
         </Text>
         {!mt5Account?.connected && (
           <Text style={[styles.warn, { color: theme.colors.warning }]}>
-            Connect your account on MetaTrader for equity-based sizing. Until then, baseline sizing
-            applies (0.01 lot, 1 trade).
+            Connect MetaTrader for live equity in Auto mode.
           </Text>
         )}
 
-        <View style={[styles.heroCard, { shadowColor: theme.colors.accent, borderColor: `${theme.colors.accent}40`, borderTopColor: `${theme.colors.accent}66` }]}>
+        <View
+          style={[
+            styles.heroCard,
+            {
+              shadowColor: theme.colors.glowColor,
+              borderColor: `${theme.colors.accent}40`,
+              borderTopColor: `${theme.colors.accent}66`,
+            },
+          ]}
+        >
           <LinearGradient
             colors={theme.colors.primaryGradient as [string, string, ...string[]]}
             style={styles.gradientBackground}
@@ -110,6 +147,42 @@ export default function TradeConfigScreen() {
           />
 
           <View style={styles.cardContent}>
+            <View style={styles.configSection}>
+              <Text
+                style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}
+              >
+                LOT SIZING
+              </Text>
+              <View style={styles.modeRow}>
+                {(['auto', 'manual'] as const).map((m) => {
+                  const selected = mt5LotSizingMode === m;
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => void setMt5LotSizingMode(m)}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.modeChip,
+                        {
+                          borderColor: selected ? theme.colors.accent : theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+                          backgroundColor: selected ? `${theme.colors.accent}44` : theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.modeChipText,
+                          { color: theme.colors.textPrimary, fontWeight: selected ? '800' : '600' },
+                        ]}
+                      >
+                        {m === 'auto' ? 'Auto (AI)' : 'Manual'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
             <View style={styles.configSection}>
               <Text
                 style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}
@@ -146,10 +219,29 @@ export default function TradeConfigScreen() {
               </View>
             </View>
 
-            <ReadOnlyRow label="LOT SIZE" value={preset.lotSize} />
+            {mt5LotSizingMode === 'auto' ? (
+              <>
+                <ReadOnlyRow label="LOT SIZE" value={preset.lotSize} />
+                <ReadOnlyRow label="NUMBER OF TRADES" value={preset.numberOfTrades} />
+              </>
+            ) : (
+              <>
+                <ManualFieldRow
+                  label="LOT SIZE"
+                  value={manualLot}
+                  onChangeText={setManualLot}
+                  keyboardType="decimal-pad"
+                />
+                <ManualFieldRow
+                  label="NUMBER OF TRADES"
+                  value={manualTrades}
+                  onChangeText={setManualTrades}
+                  keyboardType="number-pad"
+                />
+              </>
+            )}
             <ReadOnlyRow label="DIRECTION" value="BOTH" />
             <ReadOnlyRow label="PLATFORM" value="MT5" />
-            <ReadOnlyRow label="NUMBER OF TRADES" value={preset.numberOfTrades} />
             {mt5Account?.equity != null && mt5Account.equity !== '' && (
               <ReadOnlyRow label="ACCOUNT EQUITY (REFERENCE)" value={String(mt5Account.equity)} />
             )}
@@ -189,6 +281,41 @@ export default function TradeConfigScreen() {
   );
 }
 
+function ManualFieldRow({
+  label,
+  value,
+  onChangeText,
+  keyboardType,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (t: string) => void;
+  keyboardType: 'decimal-pad' | 'number-pad';
+}) {
+  const { theme } = useTheme();
+  return (
+    <View style={styles.configSection}>
+      <Text style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}>
+        {label}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        placeholderTextColor={theme.isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'}
+        style={[
+          styles.manualInput,
+          {
+            color: theme.isDark ? '#FFFFFF' : '#000000',
+            borderColor: theme.isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)',
+            backgroundColor: theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)',
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
 function ReadOnlyRow({ label, value }: { label: string; value: string }) {
   const { theme } = useTheme();
   return (
@@ -217,18 +344,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.3,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
     backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.glass.background,
   },
   backButton: {
     marginRight: 16,
     padding: 10,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
+    borderWidth: 1,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -272,7 +395,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderRadius: 40,
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.6,
     shadowRadius: 60,
@@ -340,6 +462,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     zIndex: 1,
+  },
+  manualInput: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    fontWeight: '700',
   },
   modeRow: {
     flexDirection: 'row',

@@ -598,8 +598,19 @@ export default function AIScannerScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
+        <TouchableOpacity
+          style={[
+            styles.backButton,
+            {
+              backgroundColor: `${theme.colors.accent}33`,
+              borderColor: `${theme.colors.accent}66`,
+              shadowColor: theme.colors.accent,
+            },
+          ]}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
           {Platform.OS === 'ios' && (
             <BlurView intensity={60} tint={theme.isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           )}
@@ -655,8 +666,15 @@ export default function AIScannerScreen() {
           {imageUri ? (
             <View style={styles.previewContainer}>
               <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="contain" />
-              <TouchableOpacity style={styles.clearButton} onPress={clearImage} activeOpacity={0.8}>
-                <Text style={styles.clearButtonText}>Change</Text>
+              <TouchableOpacity
+                style={[
+                  styles.clearButton,
+                  { backgroundColor: `${theme.colors.accent}44`, borderColor: `${theme.colors.accent}66` },
+                ]}
+                onPress={clearImage}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.clearButtonText, { color: theme.colors.textPrimary }]}>Change</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -942,16 +960,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.3,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   backButton: {
     marginRight: 16,
     padding: 10,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
     overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   headerContent: {
     flex: 1,
@@ -1068,11 +1087,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingHorizontal: 20,
     paddingVertical: 8,
-    backgroundColor: 'rgba(139, 92, 246, 0.3)',
     borderRadius: 20,
+    borderWidth: 1,
   },
   clearButtonText: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
