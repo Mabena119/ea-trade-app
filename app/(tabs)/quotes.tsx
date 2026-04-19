@@ -9,7 +9,7 @@ import { useApp } from '@/providers/app-provider';
 import { useTheme } from '@/providers/theme-provider';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
-import { getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
+import { formatLotSizeForDisplay, getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
 
 interface Quote {
   symbol: string;
@@ -295,9 +295,7 @@ export default function QuotesScreen() {
     fetchSymbols();
   };
 
-  const formatLotSize = (lotSize: number) => {
-    return lotSize.toFixed(2);
-  };
+  const formatLotSize = (lotSize: number) => formatLotSizeForDisplay(lotSize);
 
 
 

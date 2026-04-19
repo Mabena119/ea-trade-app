@@ -2,6 +2,29 @@
  * MT5 auto trade sizing from linked-account equity, adjusted by instrument type
  * (volatility proxy: indices vs metals vs FX, etc.). Values are not user-editable.
  */
+
+/** Broker-style micro lots: allow up to 5 decimal places (e.g. 0.00005). */
+export const MIN_LOT = 0.00001;
+export const MAX_LOT = 50;
+const LOT_DECIMAL_PLACES = 5;
+const LOT_SCALE = 10 ** LOT_DECIMAL_PLACES;
+
+function roundLotStep(n: number): number {
+  return Math.round(n * LOT_SCALE) / LOT_SCALE;
+}
+
+/** Clamp to [MIN_LOT, MAX_LOT] and round to 5 dp. */
+function clampLotRange(n: number): number {
+  return roundLotStep(Math.max(MIN_LOT, Math.min(MAX_LOT, n)));
+}
+
+/** User-facing lot string (trims trailing zeros, max 5 decimals). */
+export function formatLotSizeForDisplay(n: number): string {
+  if (!Number.isFinite(n)) return '0.01';
+  const v = clampLotRange(n);
+  return v.toFixed(LOT_DECIMAL_PLACES).replace(/\.?0+$/, '');
+}
+
 export function parseEquityNumber(raw?: string | null): number | null {
   if (raw == null || raw === '') return null;
   const n = Number(String(raw).replace(/,/g, '').replace(/\s/g, ''));
@@ -39,12 +62,11 @@ export function classifyInstrumentSymbol(symbol: string): InstrumentVolatilityCl
 }
 
 function clampLot(lot: number): number {
-  const v = Math.max(0.01, Math.min(50, lot));
-  return Math.round(v * 100) / 100;
+  return clampLotRange(lot);
 }
 
 function formatLot(lot: number): string {
-  return clampLot(lot).toFixed(2);
+  return formatLotSizeForDisplay(clampLot(lot));
 }
 
 interface BaseLadder {
@@ -93,7 +115,7 @@ function applyVolatilityToBase(base: BaseLadder, cls: InstrumentVolatilityClass,
   const lot0 = base.lot;
   const trades0 = base.trades;
   const exposure = lot0 * trades0;
-  let lot = Math.max(0.01, lot0 * mult);
+  let lot = Math.max(MIN_LOT, lot0 * mult);
   lot = clampLot(lot);
   let trades = Math.max(1, Math.round(exposure / lot));
   trades = Math.min(trades, maxTradesForEquity(equity));
@@ -120,9 +142,9 @@ export function getEquityBasedMT5Preset(equityInput?: string | null, symbol?: st
 /** Clamp user-entered lot (manual mode). */
 export function sanitizeManualLotSize(raw: string | undefined | null): string {
   const n = parseFloat(String(raw ?? '').replace(',', '.'));
-  if (!Number.isFinite(n) || n < 0.01) return '0.01';
-  const r = Math.round(Math.min(50, n) * 100) / 100;
-  return r.toFixed(2);
+  if (!Number.isFinite(n) || n <= 0) return '0.01';
+  if (n < MIN_LOT) return formatLotSizeForDisplay(MIN_LOT);
+  return formatLotSizeForDisplay(n);
 }
 
 /** Clamp user-entered trade count (manual mode). */

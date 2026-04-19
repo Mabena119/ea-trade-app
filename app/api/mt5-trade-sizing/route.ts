@@ -3,6 +3,8 @@
  * Uses Gemini (same env as analyze-chart). Text-only JSON output.
  */
 
+import { sanitizeManualLotSize } from '@/utils/equity-trade-preset';
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as const;
 const GEMINI_TIMEOUT_MS = 20000;
@@ -15,7 +17,7 @@ You receive JSON with:
 - symbols: array of { "symbol": string, "instrumentClass": string } where instrumentClass is one of: forex, metal, index, crypto, commodity, other
 
 Task: For EACH input symbol, recommend:
-- lotSize: string, minimum "0.01", step 0.01, at most two decimal places (e.g. "0.03", "0.01")
+- lotSize: string, minimum "0.00001", at most five decimal places (e.g. "0.03", "0.00005", "0.00125")
 - numberOfTrades: string integer, minimum "1", maximum "15"
 
 Rules:
@@ -164,13 +166,6 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const normalizeLot = (s: string): string => {
-      const n = parseFloat(String(s).replace(',', '.'));
-      if (!Number.isFinite(n) || n < 0.01) return '0.01';
-      const r = Math.round(Math.min(50, n) * 100) / 100;
-      return r.toFixed(2);
-    };
-
     const normalizeTrades = (s: string): string => {
       const n = parseInt(String(s).replace(/\D/g, ''), 10);
       if (!Number.isFinite(n) || n < 1) return '1';
@@ -179,7 +174,7 @@ export async function POST(request: Request): Promise<Response> {
 
     rows = rows.map((r) => ({
       symbol: r.symbol,
-      lotSize: normalizeLot(r.lotSize),
+      lotSize: sanitizeManualLotSize(r.lotSize),
       numberOfTrades: normalizeTrades(r.numberOfTrades),
     }));
 
