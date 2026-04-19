@@ -12,6 +12,9 @@
     "serve:dist": "bun server.ts",
     "start:render": "bun run build:web && bun run serve:dist",
     "android": "expo run:android",
+    "android:bump": "node scripts/bump-apk-version.mjs",
+    "android:bump:patch": "node scripts/bump-apk-version.mjs --patch",
+    "android:apk": "node scripts/bump-apk-version.mjs && cd android && ./gradlew assembleRelease",
     "ios": "expo run:ios"
   },
   "dependencies": {
