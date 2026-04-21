@@ -2614,13 +2614,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         (chartAiAnalyzing || chartAiResult || chartAiError) &&
         !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
         !warmupExpandTerminal ? (
-        <View style={[styles.aiAnalysisPanel, { borderColor: theme.colors.borderColor }]} pointerEvents="auto">
-          <Text style={[styles.aiPanelTitle, { color: theme.colors.textSecondary }]}>AI trade analysis</Text>
+        <View
+          style={[styles.aiAnalysisPanel, { borderColor: 'rgba(255, 255, 255, 0.22)' }]}
+          pointerEvents="auto"
+        >
+          <Text style={styles.aiPanelTitle}>AI trade analysis</Text>
           <ScrollView style={styles.aiScroll} keyboardShouldPersistTaps="handled">
             {chartAiAnalyzing ? (
-              <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#fff' }]}>
-                Analysing chart — this can take up to 30 seconds.
-              </Text>
+              <Text style={styles.aiBody}>Analysing chart — this can take up to 30 seconds.</Text>
             ) : null}
             {chartAiResult ? (
               <View>
@@ -2640,15 +2641,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                     return sym ? `${sym.toUpperCase()} ${dir}` : dir;
                   })()}
                 </Text>
-                <Text style={[styles.aiLevels, { color: theme.colors.textPrimary || '#fff' }]}>
+                <Text style={styles.aiLevels}>
                   Entry {chartAiResult.entryPrice || chartAiResult.currentPrice || '—'} · SL{' '}
                   {chartAiResult.stopLoss || '—'} · TP {chartAiResult.takeProfit1 || '—'}
                 </Text>
-                <Text style={[styles.aiBody, { color: theme.colors.textPrimary || '#eee' }]}>
-                  {chartAiResult.summary || chartAiResult.reasoning || ''}
-                </Text>
+                <Text style={styles.aiBody}>{chartAiResult.summary || chartAiResult.reasoning || ''}</Text>
                 {chartAiResult.suggestion ? (
-                  <Text style={[styles.aiMuted, { color: theme.colors.textMuted || '#999' }]}>{chartAiResult.suggestion}</Text>
+                  <Text style={styles.aiMuted}>{chartAiResult.suggestion}</Text>
                 ) : null}
               </View>
             ) : null}
@@ -2927,7 +2926,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
-    backgroundColor: 'rgba(0,0,0,0.88)',
+    /** Opaque black so theme never leaks through; text below is always light. */
+    backgroundColor: '#000000',
   },
   aiPanelTitle: {
     fontSize: 11,
@@ -2935,6 +2935,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: 8,
+    color: 'rgba(255, 255, 255, 0.75)',
   },
   aiScroll: {
     maxHeight: 200,
@@ -2954,19 +2955,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 6,
+    color: 'rgba(255, 255, 255, 0.95)',
   },
   aiMuted: {
     fontSize: 11,
     marginBottom: 6,
+    color: 'rgba(255, 255, 255, 0.72)',
+    lineHeight: 15,
   },
   aiBody: {
     fontSize: 12,
     lineHeight: 17,
     marginTop: 4,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   aiErrorText: {
     fontSize: 12,
-    color: '#fca5a5',
+    color: '#fecaca',
     lineHeight: 17,
   },
 });
