@@ -287,8 +287,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [isDatabaseSignalsPolling, setIsDatabaseSignalsPolling] = useState<boolean>(false);
   const [isPollingPaused, setIsPollingPaused] = useState<boolean>(false);
   const showMT5SignalWebViewRef = useRef(showMT5SignalWebView);
-  // Track processed signal IDs to prevent duplicates
-  const processedSignalIdsRef = useRef<Set<number>>(new Set());
+  /** Processed signal keys: id + version stamp (latestupdate/time) so DB row updates / new scans are not treated as duplicates */
+  const processedSignalKeysRef = useRef<Set<string>>(new Set());
   // Track last trade execution time per symbol (45-second cooldown)
   const lastTradeExecutionRef = useRef<Map<string, number>>(new Map());
 
@@ -333,10 +333,37 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     ((source: 'db_bootstrap_chart_warmup' | 'interval_45m') => void) | null
   >(null);
 
+  const buildSignalProcessKey = useCallback(
+    (
+      signalId: string | number,
+      time?: string,
+      latestupdate?: string,
+      contentFingerprint?: string
+    ): string => {
+      const id = String(signalId);
+      const ver =
+        (latestupdate && String(latestupdate).trim()) ||
+        (time && String(time).trim()) ||
+        '';
+      const base = ver ? `${id}\x1f${ver}` : id;
+      const fp = (contentFingerprint && String(contentFingerprint).trim()) || '';
+      return fp ? `${base}\x1f${fp}` : base;
+    },
+    []
+  );
+
   // Helper function to check if signal is recent and not already processed
-  const shouldProcessSignal = useCallback((signalId: number, symbol: string, time?: string, latestupdate?: string): { shouldProcess: boolean; ageInSeconds: number; reason?: string } => {
-    // Check if signal was already processed
-    if (processedSignalIdsRef.current.has(signalId)) {
+  const shouldProcessSignal = useCallback(
+    (
+      signalId: string | number,
+      symbol: string,
+      time?: string,
+      latestupdate?: string,
+      /** When set, new SL/TP/action vs same DB row still processes (scan content changed). */
+      contentFingerprint?: string
+    ): { shouldProcess: boolean; ageInSeconds: number; reason?: string; cooldownRemaining?: number } => {
+    const processKey = buildSignalProcessKey(signalId, time, latestupdate, contentFingerprint);
+    if (processedSignalKeysRef.current.has(processKey)) {
       return { shouldProcess: false, ageInSeconds: -1, reason: 'already_processed' };
     }
 
@@ -366,18 +393,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     const isRecent = ageInSeconds <= 30;
 
     if (isRecent) {
-      // Mark as processed
-      processedSignalIdsRef.current.add(signalId);
-      // Clean up old IDs (keep only last 1000 to prevent memory leak)
-      if (processedSignalIdsRef.current.size > 1000) {
-        const idsArray = Array.from(processedSignalIdsRef.current);
-        processedSignalIdsRef.current.clear();
-        idsArray.slice(-500).forEach(id => processedSignalIdsRef.current.add(id));
+      processedSignalKeysRef.current.add(processKey);
+      if (processedSignalKeysRef.current.size > 1000) {
+        const keysArray = Array.from(processedSignalKeysRef.current);
+        processedSignalKeysRef.current.clear();
+        keysArray.slice(-500).forEach((k) => processedSignalKeysRef.current.add(k));
       }
     }
 
     return { shouldProcess: isRecent, ageInSeconds };
-  }, []);
+  },
+    [buildSignalProcessKey]
+  );
+
+  const tradeLevelsFingerprint = useCallback(
+    (action?: string, sl?: string, tp?: string, price?: string) =>
+      `${action ?? ''}\x1f${sl ?? ''}\x1f${tp ?? ''}\x1f${price ?? ''}`,
+    []
+  );
 
   /** Same notion as Quotes “active” — symbol must appear in legacy, MT4, or MT5 configured lists. */
   const isSymbolConfiguredForTrading = useCallback(
@@ -1341,7 +1374,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             console.log('🎯 Database signal found:', signal);
 
             // Check if signal should be processed (recent and not duplicate)
-            const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+            const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
+              signal.id,
+              signal.asset,
+              signal.time,
+              signal.latestupdate,
+              tradeLevelsFingerprint(signal.action, signal.sl, signal.tp, signal.price)
+            );
 
             if (!shouldProcess) {
               if (reason === 'already_processed') {
@@ -1456,7 +1495,18 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       // Revert state on error
       setIsBotActive(!active);
     }
-  }, [requestOverlayPermission, eas, isPollingPaused, mt5Account, activeSymbols, mt4Symbols, mt5Symbols, isSymbolConfiguredForTrading]);
+  }, [
+    requestOverlayPermission,
+    eas,
+    isPollingPaused,
+    mt5Account,
+    activeSymbols,
+    mt4Symbols,
+    mt5Symbols,
+    isSymbolConfiguredForTrading,
+    shouldProcessSignal,
+    tradeLevelsFingerprint,
+  ]);
   // Note: pausePolling is intentionally not in deps - it's defined after this callback
   // and is only used in setTimeout callbacks which will have the correct reference
 
@@ -1686,7 +1736,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('Signal received in app provider:', signal);
 
       // Check if signal should be processed (recent and not duplicate)
-      const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+      const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
+        signal.id,
+        signal.asset,
+        signal.time,
+        signal.latestupdate,
+        tradeLevelsFingerprint(signal.action, signal.sl, signal.tp, signal.price)
+      );
 
       if (!shouldProcess) {
         if (reason === 'already_processed') {
@@ -1753,7 +1809,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     signalsMonitorService.startMonitoring(phoneSecret, onSignalReceived, onError);
     setIsSignalsMonitoring(true);
-  }, [activeSymbols, mt4Symbols, mt5Symbols, mt5Account]);
+  }, [activeSymbols, mt4Symbols, mt5Symbols, mt5Account, shouldProcessSignal, tradeLevelsFingerprint]);
 
   const stopSignalsMonitoring = useCallback(async () => {
     console.log('Stopping signals monitoring');
@@ -1826,7 +1882,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         signal.id,
         signal.asset,
         signal.time,
-        signal.latestupdate
+        signal.latestupdate,
+        tradeLevelsFingerprint(
+          signal.action,
+          signal.sl?.toString?.() ?? String(signal.sl ?? ''),
+          signal.tp?.toString?.() ?? String(signal.tp ?? ''),
+          signal.price?.toString?.() ?? String(signal.price ?? '')
+        )
       );
 
       if (!shouldProcess) {
@@ -1905,7 +1967,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         backgroundMonitoringService.removeListener();
       }
     };
-  }, [isBotActive, mt5Account, shouldProcessSignal, pausePolling, isSymbolConfiguredForTrading]);
+  }, [isBotActive, mt5Account, shouldProcessSignal, tradeLevelsFingerprint, pausePolling, isSymbolConfiguredForTrading]);
 
   // On web/PWA: keep server awake, poll on resume, re-subscribe for Web Push
   useEffect(() => {
@@ -1989,7 +2051,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 console.log('🎯 Database signal found (foreground):', signal);
 
                 // Check if signal should be processed (recent and not duplicate)
-                const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+                const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
+                  signal.id,
+                  signal.asset,
+                  signal.time,
+                  signal.latestupdate,
+                  tradeLevelsFingerprint(signal.action, signal.sl, signal.tp, signal.price)
+                );
 
                 if (!shouldProcess) {
                   if (reason === 'already_processed') {
@@ -2071,7 +2139,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               console.log('🎯 Database signal found (background):', signal);
 
               // Check if signal should be processed (recent and not duplicate)
-              const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+              const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
+                signal.id,
+                signal.asset,
+                signal.time,
+                signal.latestupdate,
+                tradeLevelsFingerprint(signal.action, signal.sl, signal.tp, signal.price)
+              );
 
               if (!shouldProcess) {
                 if (reason === 'already_processed') {
@@ -2149,7 +2223,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               console.log('🎯 Database signal found (background):', signal);
 
               // Check if signal should be processed (recent and not duplicate)
-              const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(signal.id, signal.asset, signal.time, signal.latestupdate);
+              const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
+                signal.id,
+                signal.asset,
+                signal.time,
+                signal.latestupdate,
+                tradeLevelsFingerprint(signal.action, signal.sl, signal.tp, signal.price)
+              );
 
               if (!shouldProcess) {
                 if (reason === 'already_processed') {
@@ -2226,7 +2306,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
-  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring, mt5Account, shouldProcessSignal, pausePolling, bringAppToForeground, isSymbolConfiguredForTrading]);
+  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring, mt5Account, shouldProcessSignal, tradeLevelsFingerprint, pausePolling, bringAppToForeground, isSymbolConfiguredForTrading]);
 
   // Update iOS widget whenever EAs or bot state changes (native app or PWA)
   useEffect(() => {

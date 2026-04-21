@@ -144,6 +144,19 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     signalRef.current = signal;
   }, [signal]);
 
+  /** Bumps WebView when DB row is updated (new scan) or SL/TP/action change — avoids executing stale baked-in script. */
+  const signalExecutionKey = useMemo(() => {
+    if (!signal) return '';
+    const lu = signal.latestupdate ?? '';
+    return [String(signal.id), lu, signal.action ?? '', signal.sl ?? '', signal.tp ?? '', signal.price ?? ''].join(
+      '\x1f'
+    );
+  }, [signal]);
+  const signalExecutionKeyRef = useRef(signalExecutionKey);
+  useEffect(() => {
+    signalExecutionKeyRef.current = signalExecutionKey;
+  }, [signalExecutionKey]);
+
   /** Chart warmup uses in-tree overlay (not Modal); Android back should dismiss like before. */
   useEffect(() => {
     if (!visible || signal?.type !== 'CHART_WARMUP' || Platform.OS !== 'android') return;
@@ -263,6 +276,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return `
       (function() {
         var isChartWarmup = ${isChartWarmup ? 'true' : 'false'};
+        try { window.__eaActiveTradePayload = null; } catch (e) {}
         // Prevent page reloads and navigation
         window.addEventListener('beforeunload', function(e) {
           e.preventDefault();
@@ -2274,6 +2288,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setCurrentStep('Analysing chart');
         void (async () => {
           let shouldResumePolling = true;
+          const aiRunKey = signalExecutionKeyRef.current;
           try {
             const asset = signalRef.current?.asset || '';
             const tradeModeForApi = getTradeModeForAnalysis(asset, mt5Symbols);
@@ -2282,6 +2297,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               (data.mimeType as string) || 'image/jpeg',
               { tradeMode: tradeModeForApi }
             );
+            if (signalExecutionKeyRef.current !== aiRunKey) {
+              console.log('MT5: discarding chart AI result — newer signal or scan is active');
+              return;
+            }
             if (result.message === 'accept' && result.data) {
               setChartAiResult(result.data);
               const payload = buildAiTradePayloadFromAnalysis(result.data);
@@ -2392,7 +2411,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
       };
     }
-  }, [visible, signal?.id, mt5Account, generateMT5AuthScript]); // Re-inject when signal ID changes
+  }, [visible, signalExecutionKey, mt5Account, generateMT5AuthScript]);
 
   // Update status when WebView opens
   useEffect(() => {
@@ -2403,27 +2422,25 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   // Destroy and recreate WebView for EVERY new signal - ensure complete isolation
   useEffect(() => {
-    if (visible && signal) {
-      signalAuthRemountRef.current = 0;
-      // Completely reset state for new signal
-      setCurrentStep('Initializing...');
-      setLoading(true);
+    if (!visible || !signalExecutionKey) return;
+    signalAuthRemountRef.current = 0;
+    setCurrentStep('Initializing...');
+    setLoading(true);
+    setChartAiResult(null);
+    setChartAiError(null);
+    setChartAiAnalyzing(false);
+    lastChartScreenshotAtRef.current = 0;
 
-      // Destroy previous WebView by incrementing key
-      // This forces React to unmount the old WebView and mount a fresh one
-      setWebViewKey(prev => {
-        const newKey = prev + 1;
-        console.log('🔄 Destroying WebView (key:', prev, ') and recreating (key:', newKey, ') for new signal:', signal.asset, 'ID:', signal.id);
-        return newKey;
-      });
+    setWebViewKey(prev => {
+      const newKey = prev + 1;
+      console.log('🔄 WebView remount, executionKey:', signalExecutionKey.slice(0, 120));
+      return newKey;
+    });
 
-      // Clear WebView ref to ensure no stale references
-      if (webViewRef.current) {
-        console.log('🧹 Clearing WebView ref');
-        webViewRef.current = null;
-      }
+    if (webViewRef.current) {
+      webViewRef.current = null;
     }
-  }, [visible, signal?.id]); // Recreate when signal ID changes (new signal)
+  }, [visible, signalExecutionKey]);
 
   // Reset when modal closes
   useEffect(() => {
@@ -2656,7 +2673,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       >
         {Platform.OS === 'web' ? (
           <WebWebView
-            key={`web-trading-${webViewKey}-${signal.id || 'no-signal'}`}
+            key={`web-trading-${webViewKey}-${signalExecutionKey || 'no-signal'}`}
             scopeId={WEBVIEW_SCOPE_MT5_TRADING}
             url={proxyUrl || ''}
             onMessage={handleWebViewMessage}
@@ -2677,7 +2694,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           />
         ) : (
           <WebView
-            key={`${webViewKey}-${signal.id || 'no-signal'}`}
+            key={`${webViewKey}-${signalExecutionKey || 'no-signal'}`}
             ref={webViewRef}
             source={{ uri: mt5Url }}
             style={
