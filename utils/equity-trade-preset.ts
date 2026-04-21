@@ -65,8 +65,23 @@ function clampLot(lot: number): number {
   return clampLotRange(lot);
 }
 
+const AUTO_SIZED_LOT_DP = 2;
+
+/**
+ * Lot string for AI sizing + equity-heuristic auto mode: 2 decimal places, minimum 0.01.
+ * Manual trade config uses {@link sanitizeManualLotSize} (up to 5 dp).
+ */
+export function formatAutoSizedLotString(raw: string | number | undefined | null): string {
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '').replace(',', '.'));
+  if (!Number.isFinite(n) || n <= 0) return '0.01';
+  let v = Math.round(n * 10 ** AUTO_SIZED_LOT_DP) / 10 ** AUTO_SIZED_LOT_DP;
+  v = Math.max(0.01, Math.min(MAX_LOT, v));
+  const s = v.toFixed(AUTO_SIZED_LOT_DP).replace(/\.?0+$/, '');
+  return s || '0.01';
+}
+
 function formatLot(lot: number): string {
-  return formatLotSizeForDisplay(clampLot(lot));
+  return formatAutoSizedLotString(clampLot(lot));
 }
 
 interface BaseLadder {

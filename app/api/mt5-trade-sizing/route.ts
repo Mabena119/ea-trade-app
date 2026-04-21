@@ -3,7 +3,7 @@
  * Uses Gemini (same env as analyze-chart). Text-only JSON output.
  */
 
-import { sanitizeManualLotSize } from '@/utils/equity-trade-preset';
+import { formatAutoSizedLotString } from '@/utils/equity-trade-preset';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as const;
@@ -174,7 +174,7 @@ export async function POST(request: Request): Promise<Response> {
 
     rows = rows.map((r) => ({
       symbol: r.symbol,
-      lotSize: sanitizeManualLotSize(r.lotSize),
+      lotSize: formatAutoSizedLotString(r.lotSize),
       numberOfTrades: normalizeTrades(r.numberOfTrades),
     }));
 

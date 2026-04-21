@@ -19,6 +19,7 @@ import apiService, { type ChartAnalysisResult } from '@/services/api';
 import { computeFallbackSlTp, stripNumericPrice } from '@/utils/trade-mode-levels';
 import { getTradeModeForAnalysis } from '@/utils/trade-symbol-match';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
+import { formatAutoSizedLotString, sanitizeManualLotSize } from '@/utils/equity-trade-preset';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_TRADING } from '@/utils/web-terminal-scope';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
@@ -111,6 +112,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     setMTAccount,
     eas,
     mt5Symbols,
+    mt5LotSizingMode,
     markTradeExecuted,
     mt5TradeOverlayMessage,
     resumePolling,
@@ -193,10 +195,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     }
     const symbolConfig = mt5Symbols.find(s => s.symbol === signal.asset);
     if (!symbolConfig?.lotSize) return '0.01';
-    const n = parseFloat(String(symbolConfig.lotSize).replace(',', '.'));
-    if (Number.isNaN(n) || n <= 0) return '0.01';
-    return String(n);
-  }, [signal, mt5Symbols]);
+    return mt5LotSizingMode === 'manual'
+      ? sanitizeManualLotSize(symbolConfig.lotSize)
+      : formatAutoSizedLotString(symbolConfig.lotSize);
+  }, [signal, mt5Symbols, mt5LotSizingMode]);
 
   const buildAiTradePayloadFromAnalysis = useCallback(
     (data: ChartAnalysisResult): AiTradePayload | null => {
@@ -208,7 +210,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       const tradeMode: MT5TradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
       const lot = symCfg?.lotSize;
       const volume =
-        lot && !Number.isNaN(parseFloat(String(lot))) ? String(parseFloat(String(lot))) : '0.01';
+        lot && !Number.isNaN(parseFloat(String(lot)))
+          ? mt5LotSizingMode === 'manual'
+            ? sanitizeManualLotSize(lot)
+            : formatAutoSizedLotString(lot)
+          : '0.01';
 
       const dir = data.signal === 'SELL' ? 'SELL' : 'BUY';
       let sl = stripNumericPrice(data.stopLoss);
@@ -225,7 +231,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       if (!sl || !tp) return null; // Same as AI scanner: need valid levels to send to MT5
       return { action, sl, tp, symbol: sym, volume };
     },
-    [mt5Symbols]
+    [mt5Symbols, mt5LotSizingMode]
   );
 
   const runAiTradeInject = useCallback(
