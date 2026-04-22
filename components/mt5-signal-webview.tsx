@@ -141,6 +141,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const signalRef = useRef(signal);
   const [webViewKey, setWebViewKey] = useState<number>(0);
   const signalAuthRemountRef = useRef(0);
+  /** True after `all_trades_completed` — so we do not `resumePolling` on dismiss (normal signals use markTrade 35s cooldown). */
+  const mt5FlowCompletedRef = useRef(false);
+  const mt5FlowPrevVisibleRef = useRef(visible);
 
   useEffect(() => {
     signalRef.current = signal;
@@ -168,6 +171,23 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     });
     return () => sub.remove();
   }, [visible, signal?.type, onClose]);
+
+  useEffect(() => {
+    if (visible) {
+      mt5FlowCompletedRef.current = false;
+    }
+  }, [visible]);
+
+  /** If the user dismisses the overlay without a terminal "completion" message, DB polling may stay paused — resume. */
+  useEffect(() => {
+    const was = mt5FlowPrevVisibleRef.current;
+    if (was && !visible && !mt5FlowCompletedRef.current) {
+      void Promise.resolve(resumePolling()).catch((err: unknown) => {
+        console.error('Error resuming polling after MT5 WebView dismiss (no completion):', err);
+      });
+    }
+    mt5FlowPrevVisibleRef.current = visible;
+  }, [visible, resumePolling]);
 
   // Get MT5 terminal URL
   const getMT5Url = useCallback(() => {
@@ -2250,83 +2270,148 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
         };
 
-        var EA_PROFIT_LOCK_RATIO = 0.3;
+        /** Remaining path to TP vs full entry→TP: auto-close only in last 20% (never "Close all" or equity% sweep). */
+        var EA_TP_NEAR_REMAIN_FRAC = 0.2;
 
-        async function tryCloseOpenPositionsForProfitLock() {
-          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-          var bj, b, t, ti, tb, th, rowBtns, rk, el, u, ulow, bi;
-          for (bj = 0; bj < 120; bj++) {
-            b = document.querySelectorAll('button, [role="button"]')[bj];
-            if (!b || !b.offsetParent) continue;
-            t = (b.innerText || b.textContent || '').trim().toLowerCase();
-            if (t && (t === 'close all' || t === 'close all positions' || t.indexOf('close all') === 0)) {
-              b.click();
-              await sleep(900);
-              return true;
+        function isNearTakeProfitProgress(openRaw, currentRaw, tpRaw, isBuy) {
+          var o = parseTerminalMoney(String(openRaw));
+          var c = parseTerminalMoney(String(currentRaw));
+          var t = parseTerminalMoney(String(tpRaw));
+          if (o == null || c == null || t == null) return false;
+          if (isBuy) {
+            if (t <= o) return false;
+            var fullB = t - o;
+            if (fullB <= 0) return false;
+            var remB = t - c;
+            if (remB <= 0) return true;
+            return remB / fullB <= EA_TP_NEAR_REMAIN_FRAC;
+          }
+          if (o <= t) return false;
+          var fullS = o - t;
+          if (fullS <= 0) return false;
+          var remS = c - t;
+          if (remS <= 0) return true;
+          return remS / fullS <= EA_TP_NEAR_REMAIN_FRAC;
+        }
+
+        function mapPositionTableColumnIndices(headerCells) {
+          var headers = [];
+          for (var hi = 0; hi < headerCells.length; hi++) {
+            headers.push((headerCells[hi].innerText || '').trim().toLowerCase());
+          }
+          var idxOpen = -1, idxTp = -1, idxPrice = -1, idxType = -1;
+          for (var hj = 0; hj < headers.length; hj++) {
+            var hx = headers[hj];
+            if (idxType < 0 && (hx === 'type' || (hx.length <= 6 && hx.indexOf('type') === 0))) idxType = hj;
+            if (idxTp < 0 && (hx.indexOf('t/p') >= 0 || hx === 'tp' || hx.indexOf('take') >= 0)) idxTp = hj;
+            if (idxOpen < 0 && (hx === 'open price' || hx === 'opening price' || (hx.indexOf('open') >= 0 && hx.indexOf('price') >= 0))) idxOpen = hj;
+            if (idxPrice < 0 && (hx === 'price' || hx === 'current' || hx === 'current price' || hx === 'last' || hx === 'bid' || (hx.length <= 8 && hx.indexOf('quot') >= 0))) idxPrice = hj;
+          }
+          if (idxOpen < 0) {
+            for (var h2 = 0; h2 < headers.length; h2++) {
+              if (headers[h2] === 'open' && headers[h2].indexOf('time') < 0) { idxOpen = h2; break; }
             }
           }
-          bi = 0;
-          for (ti = 0; ti < Math.min(document.querySelectorAll('table').length, 60); ti++) {
-            tb = document.querySelectorAll('table')[ti];
-            th = (tb.innerText || '').slice(0, 900);
-            if (!/Symbol|Instrument|Order|Open/i.test(th) || !/Profit|Volume|P\\/?L/i.test(th)) continue;
-            rowBtns = tb.querySelectorAll('button, [role="button"], [title*="lose" i]');
-            for (rk = 0; rk < Math.min(rowBtns.length, 24); rk++) {
-              el = rowBtns[rk];
-              if (!el.offsetParent) continue;
-              u = (el.getAttribute('title') || el.innerText || el.textContent || '').trim();
-              if (!u) continue;
-              ulow = u.toLowerCase();
-              if (ulow.length <= 24 && (ulow === 'x' || ulow === 'close' || ulow.indexOf('close') === 0)) {
-                if (typeof mouseClick === 'function') mouseClick(el);
-                else el.click();
-                bi++;
-                await sleep(500);
-                if (bi >= 6) return true;
+          return { idxOpen: idxOpen, idxTp: idxTp, idxPrice: idxPrice, idxType: idxType };
+        }
+
+        function findOpenPositionsHeaderRow(tb) {
+          var hr = tb.querySelector('thead tr');
+          if (hr) return hr;
+          var trs = tb.querySelectorAll('tr');
+          for (var hri = 0; hri < Math.min(4, trs.length); hri++) {
+            var ttxt = (trs[hri].innerText || '').toLowerCase();
+            if (ttxt.indexOf('t/p') >= 0 && (ttxt.indexOf('open') >= 0 || ttxt.indexOf('type') >= 0)) return trs[hri];
+            var tnh = trs[hri].querySelectorAll('th');
+            if (tnh.length >= 4) return trs[hri];
+          }
+          return trs[0] || null;
+        }
+
+        async function tryCloseOpenPositionsOnlyNearTP() {
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          var closedAny = false;
+          for (var ti = 0; ti < Math.min(document.querySelectorAll('table').length, 60); ti++) {
+            var tb = document.querySelectorAll('table')[ti];
+            var thPreview = (tb.innerText || '').slice(0, 900);
+            if (!/Symbol|Instrument|Order|Open/i.test(thPreview) || !/Profit|Volume|P\\/?L/i.test(thPreview)) continue;
+            var headerRow = findOpenPositionsHeaderRow(tb);
+            if (!headerRow) continue;
+            var headerCells = headerRow.querySelectorAll('th, td');
+            if (headerCells.length < 4) continue;
+            var map = mapPositionTableColumnIndices(headerCells);
+            if (map.idxOpen < 0 || map.idxTp < 0 || map.idxPrice < 0) continue;
+            var rows = tb.querySelectorAll('tbody tr');
+            if (!rows || rows.length === 0) rows = tb.querySelectorAll('tr');
+            for (var ri = 0; ri < rows.length; ri++) {
+              var tr = rows[ri];
+              if (tr === headerRow) continue;
+              var tds = tr.querySelectorAll('td');
+              if (tds.length < 4) continue;
+              var need = Math.max(map.idxOpen, map.idxTp, map.idxPrice) + 1;
+              if (tds.length < need) continue;
+              var isBuy;
+              var isSell;
+              if (map.idxType >= 0 && tds.length > map.idxType) {
+                var typeText = (tds[map.idxType].innerText || '').toLowerCase();
+                isBuy = typeText.indexOf('buy') >= 0;
+                isSell = typeText.indexOf('sell') >= 0;
+              } else {
+                var rline = (tr.innerText || '').toLowerCase();
+                var iB = rline.indexOf('buy');
+                var iS = rline.indexOf('sell');
+                isBuy = iB >= 0 && (iS < 0 || iB < iS);
+                isSell = iS >= 0 && (iB < 0 || iS < iB);
+              }
+              if (!isBuy && !isSell) continue;
+              var oVal = tds[map.idxOpen].innerText;
+              var tpVal = tds[map.idxTp].innerText;
+              var cVal = tds[map.idxPrice].innerText;
+              if (!isNearTakeProfitProgress(oVal, cVal, tpVal, isBuy)) continue;
+              var rowBt = tr.querySelectorAll('button, [role="button"]');
+              for (var bii = 0; bii < rowBt.length; bii++) {
+                var el = rowBt[bii];
+                if (!el.offsetParent) continue;
+                var u = (el.getAttribute('title') || el.innerText || el.textContent || '').trim();
+                var ulow = u.toLowerCase();
+                if (ulow.indexOf('close all') === 0) continue;
+                if (ulow.length <= 32 && (ulow === 'x' || ulow === 'close' || (ulow.indexOf('close') === 0 && ulow.length < 22))) {
+                  if (typeof mouseClick === 'function') mouseClick(el);
+                  else el.click();
+                  closedAny = true;
+                  await sleep(500);
+                  break;
+                }
               }
             }
           }
-          return bi > 0;
+          return closedAny;
         }
 
-        // Execute multiple trades based on configured number - EXACTLY as configured
+        // Flow: near-TP close (optional) → margin check → N sequential trades → all_trades_completed(executionOutcome).
+        // Aborted runs use executionOutcome 'aborted' so the app resumes polling without the 35s post-trade mark.
         const executeMultipleTrades = async () => {
           const numberOfTrades = parseInt('${getNumberOfTrades()}', 10);
           if (isNaN(numberOfTrades) || numberOfTrades < 1) {
             sendMessage('error', 'Invalid number of trades configured: ' + numberOfTrades);
-            return;
-          }
-
-          var stPol = scrapeTerminalAccountStats();
-          var eqN = 0;
-          var fpN = null;
-          try {
-            if (stPol.equity) eqN = parseTerminalMoney(String(stPol.equity)) || 0;
-          } catch (e) {}
-          try {
-            if (stPol.floatingProfit != null && stPol.floatingProfit !== '') {
-              fpN = parseTerminalMoney(String(stPol.floatingProfit));
-            }
-          } catch (e2) {}
-          if (eqN > 0 && fpN != null && !isNaN(fpN) && fpN > 0 && fpN >= EA_PROFIT_LOCK_RATIO * eqN) {
-            sendMessage('step_update', '💰 Floating profit is at/above 30% of equity — locking gains (app policy).');
-            var didClose = await tryCloseOpenPositionsForProfitLock();
-            sendMessage(
-              'step_update',
-              didClose ? '✅ Close actions sent. Skipping new market entries this run.' : '⚠️ Use Close all in the terminal to lock gains. Skipping new entries this run.'
-            );
-            var stA = scrapeTerminalAccountStats();
-            sendMessage('all_trades_completed', 'Profit lock: floating P/L ≥ 30% of equity; new entries skipped.', {
-              equity: stA.equity,
-              balance: stA.balance,
-            });
-            await new Promise((r) => setTimeout(r, 1000));
+            sendMessage('all_trades_completed', 'Invalid trade count', { executionOutcome: 'aborted' });
             try {
               window.__eaActiveTradePayload = null;
             } catch (e) {}
             return;
           }
 
+          var didCloseNear = await tryCloseOpenPositionsOnlyNearTP();
+          if (didCloseNear) {
+            sendMessage('step_update', '✅ Closed only position(s) within last 20% to take profit. Adding new trades is still allowed if margin allows.');
+            await new Promise((r) => setTimeout(r, 600));
+          }
+
+          var stPol = scrapeTerminalAccountStats();
+          var eqN = 0;
+          try {
+            if (stPol.equity) eqN = parseTerminalMoney(String(stPol.equity)) || 0;
+          } catch (e) {}
           var stMarg = scrapeTerminalAccountStats();
           var mCheck = isMarginSufficientForNewTrades(stMarg, eqN);
           if (!mCheck.ok) {
@@ -2335,6 +2420,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             sendMessage('all_trades_completed', mCheck.summary, {
               equity: stM.equity,
               balance: stM.balance,
+              executionOutcome: 'aborted',
             });
             await new Promise((r) => setTimeout(r, 800));
             try {
@@ -2406,9 +2492,17 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           await new Promise(r => setTimeout(r, 2000));
           var statsFinal = scrapeTerminalAccountStats();
           if (successfulTrades === numberOfTrades) {
-            sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', { equity: statsFinal.equity, balance: statsFinal.balance });
+            sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', {
+              equity: statsFinal.equity,
+              balance: statsFinal.balance,
+              executionOutcome: 'completed',
+            });
           } else {
-            sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', { equity: statsFinal.equity, balance: statsFinal.balance });
+            sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', {
+              equity: statsFinal.equity,
+              balance: statsFinal.balance,
+              executionOutcome: 'completed',
+            });
           }
           
           // Close after brief delay
@@ -2442,7 +2536,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     setCurrentStep(message);
   }, []);
 
-  // Handle WebView messages
+  /**
+   * Terminal → app message flow (no deadlocks):
+   * - `pausePolling` runs when the overlay opens (provider). Any path that ends the session must either
+   *   `resumePolling` (chart warmup, margin abort, dismiss without completion) or `markTradeExecuted` (real
+   *   execution; 35s delayed resume). `all_trades_completed` sets `executionOutcome` so margin skips do not mark.
+   * - Dismiss without a completion message: `resumePolling` via effect on `visible` so polling never stays stuck.
+   */
   const handleWebViewMessage = useCallback((event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
@@ -2464,6 +2564,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         if (!data.message.includes('Market Watch already visible')) {
           setCurrentStep(data.message);
         }
+      } else if (data.type === 'error' && typeof data.message === 'string') {
+        setCurrentStep(data.message);
       } else if (data.type === 'authentication_success') {
         signalAuthRemountRef.current = 0;
         const acc = mt5AccountRef.current;
@@ -2542,29 +2644,30 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             if (result.message === 'accept' && result.data) {
               setChartAiResult(result.data);
               const conf = String(result.data.confidence || '').toLowerCase();
-              const isLowConfidence = conf === 'low';
-              if (isLowConfidence && signalRef.current?.type === 'CHART_WARMUP') {
-                setCurrentStep('AI: low confidence — auto-trade skipped; review levels below');
+              const isLowConfidence = conf === 'low' && signalRef.current?.type === 'CHART_WARMUP';
+              if (isLowConfidence) {
+                setCurrentStep('AI: low confidence — auto-trading with smaller conviction (per policy)');
                 setChartAiError(
-                  'Low confidence: the setup is unclear. Auto-trade is disabled; confirm manually if you take the trade.'
+                  'Low confidence: the model sees a weaker edge; auto-trade is still on — confirm levels before relying on the move.'
                 );
               } else {
                 setChartAiError(null);
               }
-              const payload =
-                !isLowConfidence || signalRef.current?.type !== 'CHART_WARMUP'
-                  ? buildAiTradePayloadFromAnalysis(result.data)
-                  : null;
-              if (payload && signalRef.current?.type === 'CHART_WARMUP' && !isLowConfidence) {
-                setCurrentStep('AI suggests a trade — placing order in MT5...');
+              const payload = buildAiTradePayloadFromAnalysis(result.data);
+              if (payload && signalRef.current?.type === 'CHART_WARMUP') {
+                setCurrentStep(
+                  isLowConfidence
+                    ? 'AI: low confidence — placing order in MT5...'
+                    : 'AI suggests a trade — placing order in MT5...'
+                );
                 shouldResumePolling = false;
                 runAiTradeInject(payload);
-              } else if (signalRef.current?.type === 'CHART_WARMUP' && !payload && !isLowConfidence) {
+              } else if (signalRef.current?.type === 'CHART_WARMUP' && !payload) {
                 setChartAiError(
                   'Could not derive SL/TP for auto-trade. Check symbol trade config (Scalper/Swing) and that entry price is visible.'
                 );
                 setCurrentStep('AI analysis complete — see suggestion below');
-              } else if (!(signalRef.current?.type === 'CHART_WARMUP' && isLowConfidence)) {
+              } else {
                 setCurrentStep('AI analysis complete — see suggestion below');
               }
             } else {
@@ -2597,18 +2700,23 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           console.error('Error resuming polling after capture failure:', err);
         });
       } else if (data.type === 'all_trades_completed') {
+        mt5FlowCompletedRef.current = true;
         applyTerminalEquity();
         setCurrentStep('All trades completed - Closing...');
+        const aborted = data.executionOutcome === 'aborted';
         if (signal?.type === 'CHART_WARMUP') {
           void Promise.resolve(resumePolling()).catch((err: unknown) => {
             console.error('Error resuming polling after chart warmup trade:', err);
           });
-        } else if (signal?.asset) {
+        } else if (signal?.asset && !aborted) {
           void Promise.resolve(markTradeExecuted(signal.asset)).catch((err: unknown) => {
             console.error('Error marking trade as executed:', err);
           });
+        } else if (aborted) {
+          void Promise.resolve(resumePolling()).catch((err: unknown) => {
+            console.error('Error resuming polling after aborted MT5 run:', err);
+          });
         }
-        // Close immediately
         setTimeout(() => {
           onClose();
         }, 500);

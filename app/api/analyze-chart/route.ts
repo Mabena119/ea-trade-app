@@ -97,7 +97,7 @@ ACCOUNT & PORTFOLIO (this app’s execution policy — reflect in summary/sugges
 - Prefer **diversification** across uncorrelated symbols when the account may already have risk; avoid over-concentrating one idea if multiple symbols are in play.
 - **Profitable style**: plan entries with clear invalidation, avoid revenge/add-on logic that assumes prior trades will be closed by the system, and treat large unrealized profit as a signal to protect capital.
 - **Reward:risk:** Prefer at least **~2:1** potential profit vs risk (further is fine). Place SL at a real invalidation; TP should warrant taking the risk.
-- **confidence:** Set **"high"** or **"medium"** only when trend/S/R and signal align. Set **"low"** for choppy, unclear, or conflicting structure — the app will **not** auto-execute on **low** confidence (user can still trade manually from your levels).
+- **confidence:** Set **"high"** or **"medium"** when trend/S/R and signal align. Set **"low"** for choppy, unclear, or conflicting structure — the app may still auto-execute on **low** confidence per user policy (sizing/levels must still be valid).
 
 LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL or TP empty.
 

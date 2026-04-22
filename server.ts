@@ -3123,79 +3123,144 @@ async function handleApi(request: Request): Promise<Response> {
                 }
               };
 
-              var EA_PROFIT_LOCK_RATIO = 0.3;
+              var EA_TP_NEAR_REMAIN_FRAC = 0.2;
 
-              async function tryCloseOpenPositionsForProfitLock() {
-                for (var bj2 = 0; bj2 < 120; bj2++) {
-                  const b0 = document.querySelectorAll('button, [role="button"]')[bj2];
-                  if (!b0 || !b0.offsetParent) continue;
-                  const t0 = (b0.innerText || b0.textContent || '').trim().toLowerCase();
-                  if (t0 && (t0 === 'close all' || t0 === 'close all positions' || t0.indexOf('close all') === 0)) {
-                    b0.click();
-                    await sleep(900);
-                    return true;
+              function isNearTakeProfitProgress(openRaw, currentRaw, tpRaw, isBuy) {
+                const o = parseTerminalMoney(String(openRaw));
+                const c = parseTerminalMoney(String(currentRaw));
+                const t = parseTerminalMoney(String(tpRaw));
+                if (o == null || c == null || t == null) return false;
+                if (isBuy) {
+                  if (t <= o) return false;
+                  const fullB = t - o;
+                  if (fullB <= 0) return false;
+                  const remB = t - c;
+                  if (remB <= 0) return true;
+                  return remB / fullB <= EA_TP_NEAR_REMAIN_FRAC;
+                }
+                if (o <= t) return false;
+                const fullS = o - t;
+                if (fullS <= 0) return false;
+                const remS = c - t;
+                if (remS <= 0) return true;
+                return remS / fullS <= EA_TP_NEAR_REMAIN_FRAC;
+              }
+
+              function mapPositionTableColumnIndices(headerCells) {
+                const headers = [];
+                for (let hi = 0; hi < headerCells.length; hi++) {
+                  headers.push((headerCells[hi].innerText || '').trim().toLowerCase());
+                }
+                let idxOpen = -1, idxTp = -1, idxPrice = -1, idxType = -1;
+                for (let hj = 0; hj < headers.length; hj++) {
+                  const hx = headers[hj];
+                  if (idxType < 0 && (hx === 'type' || (hx.length <= 6 && hx.indexOf('type') === 0))) idxType = hj;
+                  if (idxTp < 0 && (hx.indexOf('t/p') >= 0 || hx === 'tp' || hx.indexOf('take') >= 0)) idxTp = hj;
+                  if (idxOpen < 0 && (hx === 'open price' || hx === 'opening price' || (hx.indexOf('open') >= 0 && hx.indexOf('price') >= 0))) idxOpen = hj;
+                  if (idxPrice < 0 && (hx === 'price' || hx === 'current' || hx === 'current price' || hx === 'last' || hx === 'bid' || (hx.length <= 8 && hx.indexOf('quot') >= 0))) idxPrice = hj;
+                }
+                if (idxOpen < 0) {
+                  for (let h2 = 0; h2 < headers.length; h2++) {
+                    if (headers[h2] === 'open' && headers[h2].indexOf('time') < 0) { idxOpen = h2; break; }
                   }
                 }
-                var bi0 = 0;
-                for (var ti0 = 0; ti0 < Math.min(document.querySelectorAll('table').length, 60); ti0++) {
-                  const tb0 = document.querySelectorAll('table')[ti0];
-                  const th0 = (tb0.innerText || '').slice(0, 900);
-                  if (!/Symbol|Instrument|Order|Open/i.test(th0) || !/Profit|Volume|P\\/?L/i.test(th0)) continue;
-                  const rowBtns0 = tb0.querySelectorAll('button, [role="button"], [title*="lose" i]');
-                  for (var rk0 = 0; rk0 < Math.min(rowBtns0.length, 24); rk0++) {
-                    const el0 = rowBtns0[rk0];
-                    if (!el0.offsetParent) continue;
-                    const u0 = (el0.getAttribute('title') || el0.innerText || el0.textContent || '').trim();
-                    if (!u0) continue;
-                    const ulow0 = u0.toLowerCase();
-                    if (ulow0.length <= 24 && (ulow0 === 'x' || ulow0 === 'close' || ulow0.indexOf('close') === 0)) {
-                      mouseClick(el0);
-                      bi0++;
-                      await sleep(500);
-                      if (bi0 >= 6) return true;
+                return { idxOpen, idxTp, idxPrice, idxType };
+              }
+
+              function findOpenPositionsHeaderRow(tb) {
+                let hr = tb.querySelector('thead tr');
+                if (hr) return hr;
+                const trs = tb.querySelectorAll('tr');
+                for (let hri = 0; hri < Math.min(4, trs.length); hri++) {
+                  const ttxt = (trs[hri].innerText || '').toLowerCase();
+                  if (ttxt.indexOf('t/p') >= 0 && (ttxt.indexOf('open') >= 0 || ttxt.indexOf('type') >= 0)) return trs[hri];
+                  const tnh = trs[hri].querySelectorAll('th');
+                  if (tnh.length >= 4) return trs[hri];
+                }
+                return trs[0] || null;
+              }
+
+              async function tryCloseOpenPositionsOnlyNearTP() {
+                let closedAny = false;
+                for (let ti = 0; ti < Math.min(document.querySelectorAll('table').length, 60); ti++) {
+                  const tb = document.querySelectorAll('table')[ti];
+                  const thPreview = (tb.innerText || '').slice(0, 900);
+                  if (!/Symbol|Instrument|Order|Open/i.test(thPreview) || !/Profit|Volume|P\\/?L/i.test(thPreview)) continue;
+                  const headerRow = findOpenPositionsHeaderRow(tb);
+                  if (!headerRow) continue;
+                  const headerCells = headerRow.querySelectorAll('th, td');
+                  if (headerCells.length < 4) continue;
+                  const map = mapPositionTableColumnIndices(headerCells);
+                  if (map.idxOpen < 0 || map.idxTp < 0 || map.idxPrice < 0) continue;
+                  let rows = tb.querySelectorAll('tbody tr');
+                  if (!rows || rows.length === 0) rows = tb.querySelectorAll('tr');
+                  for (let ri = 0; ri < rows.length; ri++) {
+                    const tr = rows[ri];
+                    if (tr === headerRow) continue;
+                    const tds = tr.querySelectorAll('td');
+                    if (tds.length < 4) continue;
+                    const need = Math.max(map.idxOpen, map.idxTp, map.idxPrice) + 1;
+                    if (tds.length < need) continue;
+                    let isBuy;
+                    let isSell;
+                    if (map.idxType >= 0 && tds.length > map.idxType) {
+                      const typeText = (tds[map.idxType].innerText || '').toLowerCase();
+                      isBuy = typeText.indexOf('buy') >= 0;
+                      isSell = typeText.indexOf('sell') >= 0;
+                    } else {
+                      const rline = (tr.innerText || '').toLowerCase();
+                      const iB = rline.indexOf('buy');
+                      const iS = rline.indexOf('sell');
+                      isBuy = iB >= 0 && (iS < 0 || iB < iS);
+                      isSell = iS >= 0 && (iB < 0 || iS < iB);
+                    }
+                    if (!isBuy && !isSell) continue;
+                    const oVal = tds[map.idxOpen].innerText;
+                    const tpVal = tds[map.idxTp].innerText;
+                    const cVal = tds[map.idxPrice].innerText;
+                    if (!isNearTakeProfitProgress(oVal, cVal, tpVal, isBuy)) continue;
+                    const rowBt = tr.querySelectorAll('button, [role="button"]');
+                    for (let bii = 0; bii < rowBt.length; bii++) {
+                      const el = rowBt[bii];
+                      if (!el.offsetParent) continue;
+                      const u = (el.getAttribute('title') || el.innerText || el.textContent || '').trim();
+                      const ulow = u.toLowerCase();
+                      if (ulow.indexOf('close all') === 0) continue;
+                      if (ulow.length <= 32 && (ulow === 'x' || ulow === 'close' || (ulow.indexOf('close') === 0 && ulow.length < 22))) {
+                        mouseClick(el);
+                        closedAny = true;
+                        await sleep(500);
+                        break;
+                      }
                     }
                   }
                 }
-                return bi0 > 0;
+                return closedAny;
               }
 
-              // Execute multiple trades based on configured number - EXACTLY as configured
+              // Flow: near-TP close (optional) → margin check → N trades → all_trades_completed(executionOutcome).
               const executeMultipleTrades = async () => {
                 const numberOfTrades = parseInt('${numberOfTradesValue}', 10);
                 if (isNaN(numberOfTrades) || numberOfTrades < 1) {
                   sendMessage('error', 'Invalid number of trades configured: ' + numberOfTrades);
-                  return;
-                }
-
-                const stPol = scrapeTerminalAccountStats();
-                let eqN = 0;
-                let fpN = null;
-                try {
-                  if (stPol.equity) eqN = parseTerminalMoney(String(stPol.equity)) || 0;
-                } catch (e) {}
-                try {
-                  if (stPol.floatingProfit != null && stPol.floatingProfit !== '') {
-                    fpN = parseTerminalMoney(String(stPol.floatingProfit));
-                  }
-                } catch (e2) {}
-                if (eqN > 0 && fpN != null && !isNaN(fpN) && fpN > 0 && fpN >= EA_PROFIT_LOCK_RATIO * eqN) {
-                  sendMessage('step_update', '💰 Floating profit is at/above 30% of equity — locking gains (app policy).');
-                  const didClose = await tryCloseOpenPositionsForProfitLock();
-                  sendMessage(
-                    'step_update',
-                    didClose ? '✅ Close actions sent. Skipping new market entries this run.' : '⚠️ Use Close all in the terminal to lock gains. Skipping new entries this run.'
-                  );
-                  const stA = scrapeTerminalAccountStats();
-                  sendMessage('all_trades_completed', 'Profit lock: floating P/L ≥ 30% of equity; new entries skipped.', {
-                    equity: stA.equity,
-                    balance: stA.balance,
-                  });
-                  await sleep(1000);
+                  sendMessage('all_trades_completed', 'Invalid trade count', { executionOutcome: 'aborted' });
                   try {
                     window.__eaActiveTradePayload = null;
                   } catch (e) {}
                   return;
                 }
+
+                const didCloseNear = await tryCloseOpenPositionsOnlyNearTP();
+                if (didCloseNear) {
+                  sendMessage('step_update', '✅ Closed only position(s) within last 20% to take profit. Adding new trades is still allowed if margin allows.');
+                  await sleep(600);
+                }
+
+                const stPol = scrapeTerminalAccountStats();
+                let eqN = 0;
+                try {
+                  if (stPol.equity) eqN = parseTerminalMoney(String(stPol.equity)) || 0;
+                } catch (e) {}
 
                 const stMarg = scrapeTerminalAccountStats();
                 const mCheck = isMarginSufficientForNewTrades(stMarg, eqN);
@@ -3205,6 +3270,7 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('all_trades_completed', mCheck.summary, {
                     equity: stM.equity,
                     balance: stM.balance,
+                    executionOutcome: 'aborted',
                   });
                   await sleep(800);
                   try {
@@ -3272,9 +3338,17 @@ async function handleApi(request: Request): Promise<Response> {
                 await sleep(2000);
                 var statsFinal = scrapeTerminalAccountStats();
                 if (successfulTrades === numberOfTrades) {
-                  sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', { equity: statsFinal.equity, balance: statsFinal.balance });
+                  sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', {
+                    equity: statsFinal.equity,
+                    balance: statsFinal.balance,
+                    executionOutcome: 'completed',
+                  });
                 } else {
-                  sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', { equity: statsFinal.equity, balance: statsFinal.balance });
+                  sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', {
+                    equity: statsFinal.equity,
+                    balance: statsFinal.balance,
+                    executionOutcome: 'completed',
+                  });
                 }
                 
                 await sleep(1000);
