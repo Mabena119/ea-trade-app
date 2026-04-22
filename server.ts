@@ -1305,6 +1305,8 @@ async function handleApi(request: Request): Promise<Response> {
                 var equity = null;
                 var balance = null;
                 var fpOut = null;
+                var freeMargin = null;
+                var marginLevel = null;
                 try {
                   var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
                   var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
@@ -1330,8 +1332,61 @@ async function handleApi(request: Request): Promise<Response> {
                     var gf2 = cfx.match(/\\bP\\s*\\/?\\s*L\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
                     if (gf2) fpOut = gf2[1].replace(/\\s/g, '').replace(/,/g, '');
                   }
+                  var fm1s = cfx.match(/\\bFree\\s*margin\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
+                  if (fm1s) freeMargin = fm1s[1].replace(/\\s/g, '').replace(/,/g, '');
+                  var ml1s = cfx.match(/\\bMargin\\s*level\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%?/i);
+                  if (ml1s) marginLevel = ml1s[1].replace(/\\s/g, '').replace(/,/g, '');
+                  if (marginLevel == null) {
+                    var ml2s = cfx.match(/\\bLevel\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%/i);
+                    if (ml2s) marginLevel = ml2s[1].replace(/\\s/g, '').replace(/,/g, '');
+                  }
                 } catch (err) {}
-                return { equity: equity, balance: balance, floatingProfit: fpOut };
+                return { equity: equity, balance: balance, floatingProfit: fpOut, freeMargin: freeMargin, marginLevel: marginLevel };
+              }
+
+              var EA_MIN_MARGIN_LEVEL_PCT = 150;
+              var EA_MIN_FREE_MARGIN_FRAC = 0.01;
+              function isMarginSufficientForNewTrades(st, equityNum) {
+                var level = null;
+                var free = null;
+                var eqN = 0;
+                try {
+                  if (st && st.marginLevel != null && st.marginLevel !== '') {
+                    level = parseFloat(String(st.marginLevel).replace(/%/g, '').replace(/,/g, ''));
+                  }
+                } catch (e) {}
+                try {
+                  if (st && st.freeMargin != null && st.freeMargin !== '') {
+                    free = parseFloat(String(st.freeMargin).replace(/,/g, ''));
+                  }
+                } catch (e2) {}
+                try {
+                  if (equityNum && !isNaN(equityNum)) eqN = equityNum;
+                  else if (st && st.equity) eqN = parseFloat(String(st.equity).replace(/,/g, ''));
+                } catch (e3) {}
+                if (level != null && !isNaN(level) && level > 0 && level < EA_MIN_MARGIN_LEVEL_PCT) {
+                  return {
+                    ok: false,
+                    message:
+                      '⏸️ Skipping new entries: margin level ' + level + '% (below ' + EA_MIN_MARGIN_LEVEL_PCT + '%). Add when margin allows; app never closes other symbols to open this.',
+                    summary: 'Skipped: low margin level',
+                  };
+                }
+                if (eqN > 0 && free != null && !isNaN(free) && free < eqN * EA_MIN_FREE_MARGIN_FRAC) {
+                  return {
+                    ok: false,
+                    message: '⏸️ Skipping: free margin too small vs equity (avoid margin call). Add only when free margin recovers; no auto-close of other symbol trades.',
+                    summary: 'Skipped: insufficient free margin',
+                  };
+                }
+                if (free != null && !isNaN(free) && free <= 0) {
+                  return {
+                    ok: false,
+                    message: '⏸️ Skipping: no free margin. Fund or reduce use of margin; app does not close other symbols.',
+                    summary: 'Skipped: no free margin',
+                  };
+                }
+                return { ok: true };
               }
 
               sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
@@ -3080,6 +3135,22 @@ async function handleApi(request: Request): Promise<Response> {
                     balance: stA.balance,
                   });
                   await sleep(1000);
+                  try {
+                    window.__eaActiveTradePayload = null;
+                  } catch (e) {}
+                  return;
+                }
+
+                const stMarg = scrapeTerminalAccountStats();
+                const mCheck = isMarginSufficientForNewTrades(stMarg, eqN);
+                if (!mCheck.ok) {
+                  sendMessage('step_update', mCheck.message);
+                  const stM = scrapeTerminalAccountStats();
+                  sendMessage('all_trades_completed', mCheck.summary, {
+                    equity: stM.equity,
+                    balance: stM.balance,
+                  });
+                  await sleep(800);
                   try {
                     window.__eaActiveTradePayload = null;
                   } catch (e) {}
