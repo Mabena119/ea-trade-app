@@ -15,6 +15,15 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
+/** Tight sampling so the same chart image yields the same setup across repeated API calls. */
+const CHART_GENERATION_CONFIG = {
+  temperature: 0,
+  topP: 0.75,
+  topK: 20,
+  maxOutputTokens: 2048,
+  responseMimeType: 'application/json' as const,
+};
+
 /** Keep broker symbol text usable for app matching (exact ticker, no prose). */
 function normalizeSymbolFromChart(raw: unknown): string {
   if (raw === null || raw === undefined) return '';
@@ -40,7 +49,7 @@ function normalizeSymbolFromChart(raw: unknown): string {
   return stripped.length <= 32 ? stripped : stripped.slice(0, 32);
 }
 
-const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this chart image.
+const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. You apply a **fixed, rule-based** methodology. Your job is **reproducibility**: the **same** chart image (same pixels) must yield the **same** JSON fields — same \`signal\` (BUY/SELL), same numeric \`entryPrice\` / \`stopLoss\` / \`takeProfit1\` (only minor rounding), and same \`confidence\` tier — on every run. **Change** signal or levels **only** when the **visible** price structure, labels, or candles **change** (a new image or updated chart). Do not vary interpretation for variety, a "new angle", or creativity.
 
 chartDetected rules (critical):
 - Set "chartDetected": true if the image shows ANY MetaTrader / MT4 / MT5 / web terminal / cTrader / broker webtrader screenshot that includes a price chart area, candlesticks, bars, or a line chart — even with side panels, toolbars, or account bars visible.
@@ -53,15 +62,25 @@ SYMBOL (critical for automated trading — read from the image, do not guess):
 - If the chart window shows one primary symbol, use that only — not a watchlist of other pairs.
 - If the symbol text is unreadable or not visible, use "" for symbol (never invent a ticker from the asset class alone).
 
-APPROACH - Use a structured strategy. First OBSERVE what you see, then CONCLUDE.
+FIXED METHODOLOGY — FOLLOW IN ORDER EVERY TIME (same image → same outcome):
+- **Step 1 — Classify structure (one label only, from the visible chart):**  
+  (A) **Uptrend** = you see a sequence including **higher swing lows** or **higher swing highs** in the on-screen history.  
+  (B) **Downtrend** = **lower swing highs** or **lower swing lows** dominate.  
+  (C) **Range** = price is **not** clearly printing new HH+HL (uptrend) or LH+LL (downtrend); it is **chopping** between a visible high **H** and low **L** you can read from the price scale.
+- **Step 2 — Set \`signal\` (deterministic; no alternate story):**  
+  - If **(A) Uptrend** → \`"BUY"\`.  
+  - If **(B) Downtrend** → \`"SELL"\`.  
+  - If **(C) Range** → Read **H** and **L** from the chart, compute **M = (H + L) / 2**, **P** = best visible last/current price (or last candle close on screen). If **P > M** → \`"BUY"\`. If **P < M** → \`"SELL"\`. If P is **on** M (visually indistinguishable), use the **last full visible candle body**: **bullish/green** → \`"BUY"\`, **bearish/red** → \`"SELL"\`. If the candle is a doji, use **P > M** with tiny tolerance: if still tied, \`"BUY"\` if **P** is **not below** M, else \`"SELL"\`.  
+- **Step 3 — Set levels from the same structure:** \`entryPrice\` = **P** (or a clear limit shown on the chart). \`stopLoss\` = the nearest **structural** invalidation **on the correct side** (below last swing low for BUY; above last swing high for SELL) using only prices you can read. \`takeProfit1\` = the next **readable** S/R in the **trade direction**; must respect reward:risk guidance below. **Reuse the same H/L/M/P** if you re-analyze the same picture — do not re-pick different swings without a new candle.
+- **Step 4 — \`reasoning\`:** First sentence = structure label (A/B/C) + the rule that set \`signal\` (e.g. "Uptrend → BUY" or "Range, P>M → BUY"). Then 3–5 sentences: S/R, patterns, or indicators you see — but **do not** contradict Step 2.
 
-OBSERVATIONS (for "reasoning" field - write 4-6 unique sentences):
-- Describe the TREND: higher highs/lows (bullish) or lower highs/lows (bearish)? Is it strong or weak?
-- Name specific SUPPORT and RESISTANCE levels you see on the chart (use price scale numbers)
-- Note any CANDLE PATTERNS: engulfing, doji, hammer, etc.
-- If indicators are visible: RSI overbought/oversold? MACD crossover? Moving average alignment?
-- What is the MOMENTUM and VOLUME suggesting?
-- Conclude: Based on these observations, BUY or SELL and why.
+APPROACH - Use a structured strategy. First apply FIXED METHODOLOGY above, then OBSERVE, then output JSON.
+
+OBSERVATIONS (for "reasoning" field - write 4-6 unique sentences, after the first fixed sentence):
+- Name specific SUPPORT and RESISTANCE levels you use (use price scale numbers)
+- Note any CANDLE PATTERNS if relevant
+- If indicators are visible, mention briefly — but **signal** was already set by Step 1–2
+- Do not "re-decide" BUY/SELL here; it must match Step 2
 
 Do NOT repeat "Chart analysis completed" or generic phrases. Do NOT just list Entry/SL/TP. Describe what you SEE and your reasoning.
 
@@ -85,7 +104,7 @@ Output JSON only (symbol must be the literal ticker string from the chart UI, or
 {"chartDetected":true,"symbol":"EXACT_TICKER_OR_EMPTY","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
 
 /** Second pass when the model wrongly returns chartDetected:false on a large screenshot (typical MT5 web canvas capture). */
-const CHART_RETRY_PROMPT = `This image is a screenshot from a MetaTrader web terminal (MT4/MT5) or similar broker terminal. It MUST be treated as a valid trading chart. Set "chartDetected": true. Read the visible symbol from the title bar or chart label. Output the same JSON schema as before (symbol, timeframe, signal BUY or SELL, entryPrice, stopLoss, takeProfit1, reasoning, summary, suggestion).`;
+const CHART_RETRY_PROMPT = `This image is a screenshot from a MetaTrader web terminal (MT4/MT5) or similar broker terminal. It MUST be treated as a valid trading chart. Set "chartDetected": true. Read the visible symbol from the title bar or chart label. **Use the same fixed trend/range/midpoint → BUY/SELL rules as a primary analysis** so a repeat of this image would still yield the same signal. Output the same JSON schema as before (symbol, timeframe, signal BUY or SELL, entryPrice, stopLoss, takeProfit1, reasoning, summary, suggestion).`;
 
 function tradeModePromptAppendix(tradeMode: MT5TradeMode): string {
   if (tradeMode === 'scalper') {
@@ -218,11 +237,7 @@ export async function POST(request: Request): Promise<Response> {
           ],
         },
       ],
-      generationConfig: {
-        temperature: 0.25,
-        maxOutputTokens: 2048,
-        responseMimeType: 'application/json',
-      },
+      generationConfig: CHART_GENERATION_CONFIG,
     };
 
     const controller = new AbortController();
