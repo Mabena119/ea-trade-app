@@ -601,6 +601,53 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (e) {}
         }
 
+        /**
+         * True if clicking this would close a real position/order in the trade grid.
+         * dismissLoginOverlay must NOT auto-click these — only dialog/panel close buttons.
+         */
+        function eaIsPositionOrOrderCloseAction(el) {
+          try {
+            if (!el || !el.offsetParent) return false;
+            var full = (
+              ' ' +
+              (el.getAttribute('title') || '') +
+              ' ' +
+              (el.getAttribute('aria-label') || '') +
+              ' ' +
+              (el.innerText || el.textContent || '') +
+              ' '
+            ).toLowerCase();
+            if (
+              full.indexOf('close position') >= 0 ||
+              full.indexOf('close order') >= 0 ||
+              full.indexOf('close deal') >= 0
+            ) {
+              return true;
+            }
+            var tx = ((el.innerText || el.textContent || '') + '').trim().toLowerCase();
+            var tb = el.closest('table');
+            if (tb) {
+              var th = (tb.innerText || '').slice(0, 4000);
+              if (
+                (th.indexOf('Symbol') >= 0 || th.indexOf('Ticket') >= 0 || th.indexOf('Inst') >= 0) &&
+                (th.indexOf('Profit') >= 0 || th.indexOf('P/L') >= 0 || th.indexOf('Volume') >= 0)
+              ) {
+                if (tx === 'close' || tx === '×' || tx === '✕' || full.indexOf('close') >= 0) {
+                  return true;
+                }
+              }
+            }
+            var tr = el.closest('tr');
+            if (tr && (tx === 'close' || tx === '×' || tx === '✕')) {
+              var rtxt = (tr.innerText || '');
+              if (rtxt.length < 800 && rtxt.length > 0 && (/(Buy|Sell|BUY|SELL)/.test(rtxt) || /[0-9][0-9.,]{3,}/.test(rtxt))) {
+                return true;
+              }
+            }
+          } catch (e) {}
+          return false;
+        }
+
         /** Dismiss any post-login modal so only the logged-in terminal (and chart) remains visible. */
         const dismissLoginOverlay = async function() {
           var pw = '${passwordVal}';
@@ -638,7 +685,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               var el = cand[ci];
               var lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
               var tx = ((el.innerText || el.textContent || '') + '').trim();
-              if (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') {
+              if (
+                (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') &&
+                !eaIsPositionOrOrderCloseAction(el)
+              ) {
                 el.click();
                 await new Promise(function(r) { setTimeout(r, 150); });
               }
