@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
 import apiService, { type ChartAnalysisResult } from '@/services/api';
-import { computeFallbackSlTp, stripNumericPrice } from '@/utils/trade-mode-levels';
+import { computeFallbackSlTp, ensureMinRewardRisk, stripNumericPrice } from '@/utils/trade-mode-levels';
 import { getTradeModeForAnalysis } from '@/utils/trade-symbol-match';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import { formatAutoSizedLotString, sanitizeManualLotSize } from '@/utils/equity-trade-preset';
@@ -229,6 +229,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
       }
       if (!sl || !tp) return null; // Same as AI scanner: need valid levels to send to MT5
+      if (entryNum && Number.isFinite(entryNum)) {
+        const slN = parseFloat(String(sl).replace(/,/g, ''));
+        const tpN = parseFloat(String(tp).replace(/,/g, ''));
+        if (Number.isFinite(slN) && Number.isFinite(tpN)) {
+          tp = ensureMinRewardRisk(dir, entryNum, slN, tpN);
+        }
+      }
       return { action, sl, tp, symbol: sym, volume };
     },
     [mt5Symbols, mt5LotSizingMode]
@@ -2390,17 +2397,30 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             }
             if (result.message === 'accept' && result.data) {
               setChartAiResult(result.data);
-              const payload = buildAiTradePayloadFromAnalysis(result.data);
-              if (payload && signalRef.current?.type === 'CHART_WARMUP') {
+              const conf = String(result.data.confidence || '').toLowerCase();
+              const isLowConfidence = conf === 'low';
+              if (isLowConfidence && signalRef.current?.type === 'CHART_WARMUP') {
+                setCurrentStep('AI: low confidence — auto-trade skipped; review levels below');
+                setChartAiError(
+                  'Low confidence: the setup is unclear. Auto-trade is disabled; confirm manually if you take the trade.'
+                );
+              } else {
+                setChartAiError(null);
+              }
+              const payload =
+                !isLowConfidence || signalRef.current?.type !== 'CHART_WARMUP'
+                  ? buildAiTradePayloadFromAnalysis(result.data)
+                  : null;
+              if (payload && signalRef.current?.type === 'CHART_WARMUP' && !isLowConfidence) {
                 setCurrentStep('AI suggests a trade — placing order in MT5...');
                 shouldResumePolling = false;
                 runAiTradeInject(payload);
-              } else if (signalRef.current?.type === 'CHART_WARMUP' && !payload) {
+              } else if (signalRef.current?.type === 'CHART_WARMUP' && !payload && !isLowConfidence) {
                 setChartAiError(
                   'Could not derive SL/TP for auto-trade. Check symbol trade config (Scalper/Swing) and that entry price is visible.'
                 );
                 setCurrentStep('AI analysis complete — see suggestion below');
-              } else {
+              } else if (!(signalRef.current?.type === 'CHART_WARMUP' && isLowConfidence)) {
                 setCurrentStep('AI analysis complete — see suggestion below');
               }
             } else {

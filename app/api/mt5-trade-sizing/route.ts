@@ -27,6 +27,7 @@ Rules:
 4) Keep total exposure retail-safe: prefer many small trades over one huge lot.
 5) Output one row per input symbol; "symbol" must match the input exactly (same spelling/case).
 6) Portfolio (profitable, aligned with the app): Assume **add-on** risk across symbols is allowed, but the system does **not** close existing positions to free margin for new ones — keep per-symbol lot and numberOfTrades **conservative** when many symbols are active. When equity is high enough for multiple ideas, **diversify** (spread trades across uncorrelated symbols) instead of one oversized leg. Large unrealized profit vs equity (e.g. **~30%+**) should be treated as a prompt to **reduce** risk or bank gains in the narrative sense (smaller new lots, not more simultaneous correlation).
+7) **Edge & sizing:** Favor **fewer, higher-conviction** per-symbol lot sizes over maxing out trade count. When instrumentClass is choppy (crypto, indices), err on the **smaller** lot and **fewer** parallel trades. Prefer a mental **reward-to-risk** mindset: new risk should be justified by clear volatility + equity headroom.
 
 Return ONLY valid JSON, no markdown:
 {"symbols":[{"symbol":"EURUSD","lotSize":"0.03","numberOfTrades":"2"},{"symbol":"XAUUSD","lotSize":"0.01","numberOfTrades":"4"}]}`;

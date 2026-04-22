@@ -9,6 +9,19 @@ export function stripNumericPrice(s: string | undefined): string {
 }
 
 /**
+ * How far TP is from entry relative to SL distance (reward:risk in price).
+ * Slightly above 2:1 to improve net expectancy after costs.
+ */
+const TP_RISK_MULTIPLIER: Record<MT5TradeMode, number> = {
+  scalper: 2.4,
+  swing: 2.75,
+};
+
+export function getTakeProfitRiskMultiple(tradeMode: MT5TradeMode): number {
+  return TP_RISK_MULTIPLIER[tradeMode] ?? 2.5;
+}
+
+/**
  * When AI omits SL/TP, derive distances from entry by trade mode (same rules as analyze-chart API).
  * Scalper: tighter; swing: wider.
  */
@@ -20,7 +33,8 @@ export function computeFallbackSlTp(
   if (!entryNumeric || !Number.isFinite(entryNumeric)) return null;
   const pct = tradeMode === 'scalper' ? 0.0025 : 0.007;
   const slDist = entryNumeric * pct;
-  const tpDist = entryNumeric * (pct * 2);
+  const mult = getTakeProfitRiskMultiple(tradeMode);
+  const tpDist = entryNumeric * pct * mult;
   const decimals = entryNumeric > 100 ? 2 : 5;
   const fmt = (n: number) => parseFloat(n.toFixed(decimals)).toString();
   if (direction === 'BUY') {
@@ -29,7 +43,33 @@ export function computeFallbackSlTp(
   return { sl: fmt(entryNumeric + slDist), tp: fmt(entryNumeric - tpDist) };
 }
 
-/** Percent of price used for SL distance (TP uses 2× this distance). */
+/** Percent of price used for SL distance (TP uses getTakeProfitRiskMultiple × this distance). */
 export function getSlTpPercentForTradeMode(tradeMode: MT5TradeMode): number {
   return tradeMode === 'scalper' ? 0.0025 : 0.007;
+}
+
+const DEFAULT_MIN_RR = 1.85;
+
+/**
+ * Widen take-profit to meet a minimum reward:risk when the model returns a tight target.
+ * Does not change SL or flip invalid direction (TP on wrong side of entry).
+ */
+export function ensureMinRewardRisk(
+  direction: 'BUY' | 'SELL',
+  entry: number,
+  sl: number,
+  tp: number,
+  minRR: number = DEFAULT_MIN_RR
+): string {
+  if (![entry, sl, tp].every((n) => Number.isFinite(n))) return String(tp);
+  const risk = Math.abs(entry - sl);
+  if (risk <= 0) return String(tp);
+  const reward = direction === 'BUY' ? tp - entry : entry - tp;
+  const decimals = entry > 100 ? 2 : 5;
+  const fmt = (n: number) => parseFloat(n.toFixed(decimals)).toString();
+  if (reward <= 0) return String(tp);
+  if (reward / risk >= minRR) return fmt(tp);
+  const needDist = minRR * risk;
+  const newTp = direction === 'BUY' ? entry + needDist : entry - needDist;
+  return fmt(newTp);
 }

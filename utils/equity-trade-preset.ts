@@ -115,10 +115,10 @@ function maxTradesForEquity(eq: number | null): number {
 const VOL_LOT_MULT: Record<InstrumentVolatilityClass, number> = {
   forex: 1,
   metal: 0.62,
-  index: 0.35,
-  crypto: 0.42,
-  commodity: 0.72,
-  other: 0.88,
+  index: 0.33,
+  crypto: 0.4,
+  commodity: 0.7,
+  other: 0.86,
 };
 
 /**

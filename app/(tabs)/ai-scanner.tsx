@@ -43,7 +43,7 @@ import {
   type SignalLog,
 } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
-import { stripNumericPrice, computeFallbackSlTp } from '@/utils/trade-mode-levels';
+import { stripNumericPrice, computeFallbackSlTp, ensureMinRewardRisk } from '@/utils/trade-mode-levels';
 import { normalizeSymbolKey, symbolsAreSimilar, getTradeModeForAnalysis } from '@/utils/trade-symbol-match';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
@@ -557,6 +557,13 @@ export default function AIScannerScreen() {
     if (!sl || !tp) {
       openTradingNotice('Unable to read prices — add SL and TP to the analysis or retake the scan.');
       return;
+    }
+    if (entryNum && Number.isFinite(entryNum)) {
+      const slN = parseFloat(String(sl).replace(/,/g, ''));
+      const tpN = parseFloat(String(tp).replace(/,/g, ''));
+      if (Number.isFinite(slN) && Number.isFinite(tpN)) {
+        tp = ensureMinRewardRisk(dir, entryNum, slN, tpN);
+      }
     }
 
     const signal = buildSignalFromScanner(result, resolved.symbol, { sl, tp });

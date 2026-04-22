@@ -3,7 +3,11 @@
  * Requires GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable
  */
 
-import { getSlTpPercentForTradeMode } from '@/utils/trade-mode-levels';
+import {
+  getSlTpPercentForTradeMode,
+  getTakeProfitRiskMultiple,
+  ensureMinRewardRisk,
+} from '@/utils/trade-mode-levels';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -72,6 +76,8 @@ ACCOUNT & PORTFOLIO (this app’s execution policy — reflect in summary/sugges
 - When floating profit is an unusually large share of equity (e.g. **around 30% or more** of equity in combined open P/L), **prioritize** banking gains or reducing size in your suggestion: take-profit discipline, scale-out, or partial close — not blindly adding the same risk.
 - Prefer **diversification** across uncorrelated symbols when the account may already have risk; avoid over-concentrating one idea if multiple symbols are in play.
 - **Profitable style**: plan entries with clear invalidation, avoid revenge/add-on logic that assumes prior trades will be closed by the system, and treat large unrealized profit as a signal to protect capital.
+- **Reward:risk:** Prefer at least **~2:1** potential profit vs risk (further is fine). Place SL at a real invalidation; TP should warrant taking the risk.
+- **confidence:** Set **"high"** or **"medium"** only when trend/S/R and signal align. Set **"low"** for choppy, unclear, or conflicting structure — the app will **not** auto-execute on **low** confidence (user can still trade manually from your levels).
 
 LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL or TP empty.
 
@@ -385,11 +391,25 @@ export async function POST(request: Request): Promise<Response> {
     if (entryNum && !isNaN(entryNum) && (!stopLoss || !takeProfit1)) {
       const pct = getSlTpPercentForTradeMode(tradeMode);
       const slDist = entryNum * pct;
-      const tpDist = entryNum * (pct * 2);
+      const mult = getTakeProfitRiskMultiple(tradeMode);
+      const tpDist = entryNum * pct * mult;
       const decimals = entryNum > 100 ? 2 : 5;
       const fmt = (n: number) => parseFloat(n.toFixed(decimals)).toString();
       if (!stopLoss) stopLoss = signal === 'BUY' ? fmt(entryNum - slDist) : fmt(entryNum + slDist);
       if (!takeProfit1) takeProfit1 = signal === 'BUY' ? fmt(entryNum + tpDist) : fmt(entryNum - tpDist);
+    }
+
+    // Enforce minimum reward:risk (improves expectancy vs tight model TPs)
+    const eN = parseFloat(String(entryPrice).replace(/,/g, ''));
+    const slN = parseFloat(String(stopLoss).replace(/,/g, ''));
+    const tpN = parseFloat(String(takeProfit1).replace(/,/g, ''));
+    if (eN && !isNaN(eN) && !isNaN(slN) && !isNaN(tpN) && (signal === 'BUY' || signal === 'SELL')) {
+      takeProfit1 = ensureMinRewardRisk(
+        signal as 'BUY' | 'SELL',
+        eN,
+        slN,
+        tpN
+      );
     }
 
     const symbolNormalized = normalizeSymbolFromChart(parsed.symbol);
