@@ -91,11 +91,11 @@ SUGGESTION (strategic advice - 2-3 sentences):
 Do NOT just repeat "Place order at X, SL Y, TP Z" - add strategy.
 
 ACCOUNT & PORTFOLIO (this app’s execution policy — reflect in summary/suggestion when relevant):
-- The automated terminal **never** closes open positions just to make room for a new order on the same symbol, or to “switch” the book. A new signal on a **different** symbol also **adds** to the account — the app does **not** close running trades on other pairs to free margin, except the separate **lock-gains** rule when floating profit is very large vs equity.
-- If **free margin** or **margin level** is too low to support more risk, new entries are **skipped** (no automatic mass-close of other symbols). Suggest the user add funds, reduce size elsewhere, or wait — not “close winners to open this.”
-- When floating profit is an unusually large share of equity (e.g. **around 30% or more** of equity in combined open P/L), **prioritize** banking gains or reducing size in your suggestion: take-profit discipline, scale-out, or partial close — not blindly adding the same risk.
+- The automated terminal **never** programmatically closes existing open positions (no near-TP auto-close, no “make room” closes, no mass close). New orders only **add** to the book when margin allows.
+- If **free margin** or **margin level** is too low to support more risk, new entries are **skipped** — the app will not close other symbols. Suggest the user add funds, reduce size manually elsewhere, or wait.
+- When floating profit is large vs equity, you may still suggest **user-managed** take-profit or scale-out in your wording; the app itself does not close trades for that.
 - Prefer **diversification** across uncorrelated symbols when the account may already have risk; avoid over-concentrating one idea if multiple symbols are in play.
-- **Profitable style**: plan entries with clear invalidation, avoid revenge/add-on logic that assumes prior trades will be closed by the system, and treat large unrealized profit as a signal to protect capital.
+- **Profitable style**: plan entries with clear invalidation; do not assume the system will close prior trades to manage the book.
 - **Reward:risk:** Prefer at least **~2:1** potential profit vs risk (further is fine). Place SL at a real invalidation; TP should warrant taking the risk.
 - **confidence:** Set **"high"** or **"medium"** when trend/S/R and signal align. Set **"low"** for choppy, unclear, or conflicting structure — the app may still auto-execute on **low** confidence per user policy (sizing/levels must still be valid).
 
