@@ -601,53 +601,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (e) {}
         }
 
-        /**
-         * True if clicking this would close a real position/order in the trade grid.
-         * dismissLoginOverlay must NOT auto-click these — only dialog/panel close buttons.
-         */
-        function eaIsPositionOrOrderCloseAction(el) {
-          try {
-            if (!el || !el.offsetParent) return false;
-            var full = (
-              ' ' +
-              (el.getAttribute('title') || '') +
-              ' ' +
-              (el.getAttribute('aria-label') || '') +
-              ' ' +
-              (el.innerText || el.textContent || '') +
-              ' '
-            ).toLowerCase();
-            if (
-              full.indexOf('close position') >= 0 ||
-              full.indexOf('close order') >= 0 ||
-              full.indexOf('close deal') >= 0
-            ) {
-              return true;
-            }
-            var tx = ((el.innerText || el.textContent || '') + '').trim().toLowerCase();
-            var tb = el.closest('table');
-            if (tb) {
-              var th = (tb.innerText || '').slice(0, 4000);
-              if (
-                (th.indexOf('Symbol') >= 0 || th.indexOf('Ticket') >= 0 || th.indexOf('Inst') >= 0) &&
-                (th.indexOf('Profit') >= 0 || th.indexOf('P/L') >= 0 || th.indexOf('Volume') >= 0)
-              ) {
-                if (tx === 'close' || tx === '×' || tx === '✕' || full.indexOf('close') >= 0) {
-                  return true;
-                }
-              }
-            }
-            var tr = el.closest('tr');
-            if (tr && (tx === 'close' || tx === '×' || tx === '✕')) {
-              var rtxt = (tr.innerText || '');
-              if (rtxt.length < 800 && rtxt.length > 0 && (/(Buy|Sell|BUY|SELL)/.test(rtxt) || /[0-9][0-9.,]{3,}/.test(rtxt))) {
-                return true;
-              }
-            }
-          } catch (e) {}
-          return false;
-        }
-
         /** Dismiss any post-login modal so only the logged-in terminal (and chart) remains visible. */
         const dismissLoginOverlay = async function() {
           var pw = '${passwordVal}';
@@ -679,21 +632,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
           } catch (e) {}
           await new Promise(function(r) { setTimeout(r, 200); });
-          try {
-            var cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
-            for (var ci = 0; ci < Math.min(cand.length, 80); ci++) {
-              var el = cand[ci];
-              var lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
-              var tx = ((el.innerText || el.textContent || '') + '').trim();
-              if (
-                (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') &&
-                !eaIsPositionOrOrderCloseAction(el)
-              ) {
-                el.click();
-                await new Promise(function(r) { setTimeout(r, 150); });
-              }
-            }
-          } catch (e2) {}
           try {
             var root = findPasswordModalOverlayRoot();
             if (root) {
@@ -1898,54 +1836,51 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           try {
             sendMessage('step_update', '📋 Opening order dialog for trade ' + tradeNumber + '/' + totalTrades + '...');
             
-            // PRIMARY: Find and click "Show Trade Form (F9)" button using mouse click
-            let orderDialogTrigger = document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Show Trade Form (F9)"]') ||
-                                   Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find(btn => {
-                                     const title = btn.getAttribute('title') || '';
-                                     return title.includes('Show Trade Form') || (title.includes('Trade Form') && title.includes('Show'));
-                                   });
-            
-            if (orderDialogTrigger) {
-              const clicked = mouseClick(orderDialogTrigger);
-              if (clicked) {
-                sendMessage('step_update', '✅ Order dialog opened (mouse click)');
-              } else {
-                // Fallback to regular click if mouse click fails
-                orderDialogTrigger.click();
-                sendMessage('step_update', '✅ Order dialog opened (fallback click)');
-              }
+            // "Hide Trade Form" = panel already OPEN (do NOT click — that would close it).
+            // "Show Trade Form" = panel closed — click once to open.
+            var findHideTradeToolbar = function() {
+              return document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Hide Trade Form (F9)"]') ||
+                Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find(function(btn) {
+                  var title = btn.getAttribute('title') || '';
+                  return title.indexOf('Hide Trade Form') >= 0 || (title.indexOf('Trade Form') >= 0 && title.indexOf('Hide') >= 0);
+                });
+            };
+            var findShowTradeToolbar = function() {
+              return document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Show Trade Form (F9)"]') ||
+                Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find(function(btn) {
+                  var title = btn.getAttribute('title') || '';
+                  return title.indexOf('Show Trade Form') >= 0 || (title.indexOf('Trade Form') >= 0 && title.indexOf('Show') >= 0);
+                });
+            };
+
+            var hideToolbarBtn = findHideTradeToolbar();
+            var orderDialogTrigger = null;
+            if (hideToolbarBtn && hideToolbarBtn.offsetParent) {
+              orderDialogTrigger = hideToolbarBtn;
+              sendMessage('step_update', '✅ Order panel already open (not toggling Hide — avoids close)');
             } else {
-              // Fallback 1: Try group div
-              orderDialogTrigger = document.querySelector('div.group.svelte-aqy1pm') ||
-                                 Array.from(document.querySelectorAll('div.group.svelte-aqy1pm')).find(el => 
-                                   el.offsetParent !== null
-                                 );
-              
+              orderDialogTrigger = findShowTradeToolbar();
               if (orderDialogTrigger) {
                 const clicked = mouseClick(orderDialogTrigger);
                 if (clicked) {
-                  sendMessage('step_update', '✅ Order dialog opened via group div (mouse click)');
+                  sendMessage('step_update', '✅ Order dialog opened (mouse click)');
                 } else {
                   orderDialogTrigger.click();
-                  sendMessage('step_update', '✅ Order dialog opened via group div (fallback click)');
+                  sendMessage('step_update', '✅ Order dialog opened (fallback click)');
                 }
               } else {
-                // Fallback 2: Try "Hide Trade Form" button (in case it's already hidden)
-                const hideTradeFormButton = document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Hide Trade Form (F9)"]') ||
-                                           Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find(btn => {
-                                             const title = btn.getAttribute('title') || '';
-                                             return title.includes('Hide Trade Form') || (title.includes('Trade Form') && title.includes('Hide'));
-                                           });
-                
-                if (hideTradeFormButton) {
-                  const clicked = mouseClick(hideTradeFormButton);
-                  if (clicked) {
-                    sendMessage('step_update', '✅ Order dialog opened via Hide Trade Form button (mouse click)');
+                orderDialogTrigger = document.querySelector('div.group.svelte-aqy1pm') ||
+                  Array.from(document.querySelectorAll('div.group.svelte-aqy1pm')).find(function(el) {
+                    return el.offsetParent !== null;
+                  });
+                if (orderDialogTrigger) {
+                  const clicked2 = mouseClick(orderDialogTrigger);
+                  if (clicked2) {
+                    sendMessage('step_update', '✅ Order dialog opened via group div (mouse click)');
                   } else {
-                    hideTradeFormButton.click();
-                    sendMessage('step_update', '✅ Order dialog opened via Hide Trade Form button (fallback click)');
+                    orderDialogTrigger.click();
+                    sendMessage('step_update', '✅ Order dialog opened via group div (fallback click)');
                   }
-                  orderDialogTrigger = hideTradeFormButton;
                 }
               }
             }
@@ -2026,9 +1961,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             sendMessage('step_update', '⏳ Confirming trade ' + tradeNumber + '...');
             await new Promise(r => setTimeout(r, 1500));
             
-            // Click OK button to close confirmation dialog
+            // Dismiss post-order confirmation only (never confuse with Buy/Sell)
             const okButton = Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot')).find(btn => {
               const text = (btn.innerText || btn.textContent || '').trim();
+              if (/^(buy|sell)/i.test(text)) return false;
               return text === 'OK' || text === 'ok';
             });
             
@@ -2183,7 +2119,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             return;
           }
 
-          sendMessage('step_update', '📌 Add-on only: new market orders stack on existing positions; this app does not close running trades here.');
           sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');
           console.log('🎯 STRICT EXECUTION: Will execute exactly ' + numberOfTrades + ' trades, no more, no less');
           

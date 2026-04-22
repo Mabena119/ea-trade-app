@@ -2081,49 +2081,6 @@ export default function MetaTraderScreen() {
           } catch (e) {}
         }
 
-        function eaIsPositionOrOrderCloseAction(el) {
-          try {
-            if (!el || !el.offsetParent) return false;
-            var full = (
-              ' ' +
-              (el.getAttribute('title') || '') +
-              ' ' +
-              (el.getAttribute('aria-label') || '') +
-              ' ' +
-              (el.innerText || el.textContent || '') +
-              ' '
-            ).toLowerCase();
-            if (
-              full.indexOf('close position') >= 0 ||
-              full.indexOf('close order') >= 0 ||
-              full.indexOf('close deal') >= 0
-            ) {
-              return true;
-            }
-            var tx = ((el.innerText || el.textContent || '') + '').trim().toLowerCase();
-            var tb = el.closest('table');
-            if (tb) {
-              var th = (tb.innerText || '').slice(0, 4000);
-              if (
-                (th.indexOf('Symbol') >= 0 || th.indexOf('Ticket') >= 0 || th.indexOf('Inst') >= 0) &&
-                (th.indexOf('Profit') >= 0 || th.indexOf('P/L') >= 0 || th.indexOf('Volume') >= 0)
-              ) {
-                if (tx === 'close' || tx === '×' || tx === '✕' || full.indexOf('close') >= 0) {
-                  return true;
-                }
-              }
-            }
-            var tr = el.closest('tr');
-            if (tr && (tx === 'close' || tx === '×' || tx === '✕')) {
-              var rtxt = (tr.innerText || '');
-              if (rtxt.length < 800 && rtxt.length > 0 && (/(Buy|Sell|BUY|SELL)/.test(rtxt) || /[0-9][0-9.,]{3,}/.test(rtxt))) {
-                return true;
-              }
-            }
-          } catch (e) {}
-          return false;
-        }
-
         const dismissLoginOverlay = async function() {
           var pw = passwordCredential;
           try {
@@ -2154,21 +2111,6 @@ export default function MetaTraderScreen() {
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
           } catch (e) {}
           await new Promise(function(r) { setTimeout(r, 200); });
-          try {
-            var cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
-            for (var ci = 0; ci < Math.min(cand.length, 80); ci++) {
-              var el = cand[ci];
-              var lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
-              var tx = ((el.innerText || el.textContent || '') + '').trim();
-              if (
-                (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') &&
-                !eaIsPositionOrOrderCloseAction(el)
-              ) {
-                el.click();
-                await new Promise(function(r) { setTimeout(r, 150); });
-              }
-            }
-          } catch (e2) {}
           try {
             var root = findPasswordModalOverlayRoot();
             if (root) {

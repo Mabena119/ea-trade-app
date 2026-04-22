@@ -783,49 +783,6 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch (e) {}
               }
 
-              function eaIsPositionOrOrderCloseAction(el) {
-                try {
-                  if (!el || !el.offsetParent) return false;
-                  var full = (
-                    ' ' +
-                    (el.getAttribute('title') || '') +
-                    ' ' +
-                    (el.getAttribute('aria-label') || '') +
-                    ' ' +
-                    (el.innerText || el.textContent || '') +
-                    ' '
-                  ).toLowerCase();
-                  if (
-                    full.indexOf('close position') >= 0 ||
-                    full.indexOf('close order') >= 0 ||
-                    full.indexOf('close deal') >= 0
-                  ) {
-                    return true;
-                  }
-                  var tx = ((el.innerText || el.textContent || '') + '').trim().toLowerCase();
-                  var tb = el.closest('table');
-                  if (tb) {
-                    var th = (tb.innerText || '').slice(0, 4000);
-                    if (
-                      (th.indexOf('Symbol') >= 0 || th.indexOf('Ticket') >= 0 || th.indexOf('Inst') >= 0) &&
-                      (th.indexOf('Profit') >= 0 || th.indexOf('P/L') >= 0 || th.indexOf('Volume') >= 0)
-                    ) {
-                      if (tx === 'close' || tx === '×' || tx === '✕' || full.indexOf('close') >= 0) {
-                        return true;
-                      }
-                    }
-                  }
-                  var tr = el.closest('tr');
-                  if (tr && (tx === 'close' || tx === '×' || tx === '✕')) {
-                    var rtxt = (tr.innerText || '');
-                    if (rtxt.length < 800 && rtxt.length > 0 && (/(Buy|Sell|BUY|SELL)/.test(rtxt) || /[0-9][0-9.,]{3,}/.test(rtxt))) {
-                      return true;
-                    }
-                  }
-                } catch (e) {}
-                return false;
-              }
-
               const dismissLoginOverlay = async function() {
                 var pw = passwordCredential;
                 try {
@@ -856,21 +813,6 @@ async function handleApi(request: Request): Promise<Response> {
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
                 } catch (e) {}
                 await new Promise(function(r) { setTimeout(r, 200); });
-                try {
-                  var cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
-                  for (var ci = 0; ci < Math.min(cand.length, 80); ci++) {
-                    var el = cand[ci];
-                    var lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
-                    var tx = ((el.innerText || el.textContent || '') + '').trim();
-                    if (
-                      (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') &&
-                      !eaIsPositionOrOrderCloseAction(el)
-                    ) {
-                      el.click();
-                      await new Promise(function(r) { setTimeout(r, 150); });
-                    }
-                  }
-                } catch (e2) {}
                 try {
                   var root = findPasswordModalOverlayRoot();
                   if (root) {
@@ -1739,49 +1681,6 @@ async function handleApi(request: Request): Promise<Response> {
                 }
               }
 
-              function eaIsPositionOrOrderCloseAction2(el) {
-                try {
-                  if (!el || !el.offsetParent) return false;
-                  const full = (
-                    ' ' +
-                    (el.getAttribute('title') || '') +
-                    ' ' +
-                    (el.getAttribute('aria-label') || '') +
-                    ' ' +
-                    (el.innerText || el.textContent || '') +
-                    ' '
-                  ).toLowerCase();
-                  if (
-                    full.indexOf('close position') >= 0 ||
-                    full.indexOf('close order') >= 0 ||
-                    full.indexOf('close deal') >= 0
-                  ) {
-                    return true;
-                  }
-                  const tx = ((el.innerText || el.textContent || '') + '').trim().toLowerCase();
-                  const tb = el.closest('table');
-                  if (tb) {
-                    const th = (tb.innerText || '').slice(0, 4000);
-                    if (
-                      (th.indexOf('Symbol') >= 0 || th.indexOf('Ticket') >= 0 || th.indexOf('Inst') >= 0) &&
-                      (th.indexOf('Profit') >= 0 || th.indexOf('P/L') >= 0 || th.indexOf('Volume') >= 0)
-                    ) {
-                      if (tx === 'close' || tx === '×' || tx === '✕' || full.indexOf('close') >= 0) {
-                        return true;
-                      }
-                    }
-                  }
-                  const tr = el.closest('tr');
-                  if (tr && (tx === 'close' || tx === '×' || tx === '✕')) {
-                    const rtxt = (tr.innerText || '');
-                    if (rtxt.length < 800 && rtxt.length > 0 && (/(Buy|Sell|BUY|SELL)/.test(rtxt) || /[0-9][0-9.,]{3,}/.test(rtxt))) {
-                      return true;
-                    }
-                  }
-                } catch (e) {}
-                return false;
-              }
-
               const dismissLoginOverlay = async () => {
                 try {
                   hideTradingAccountsOverlayIfPresent();
@@ -1811,21 +1710,6 @@ async function handleApi(request: Request): Promise<Response> {
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
                 } catch (e) {}
                 await sleep(200);
-                try {
-                  const cand = document.querySelectorAll('button, div.icon-button, [role="button"]');
-                  for (let ci = 0; ci < Math.min(cand.length, 80); ci++) {
-                    const el = cand[ci];
-                    const lab = ((el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.innerText || el.textContent || '')).toLowerCase();
-                    const tx = ((el.innerText || el.textContent || '') + '').trim();
-                    if (
-                      (lab.indexOf('close') >= 0 || tx === '×' || tx === '✕' || tx.toLowerCase() === 'cancel') &&
-                      !eaIsPositionOrOrderCloseAction2(el)
-                    ) {
-                      el.click();
-                      await sleep(150);
-                    }
-                  }
-                } catch (e2) {}
                 try {
                   const root = findPasswordModalOverlayRoot();
                   if (root) {
@@ -2848,50 +2732,45 @@ async function handleApi(request: Request): Promise<Response> {
                 try {
                   sendMessage('step_update', '📋 Opening order dialog for trade ' + tradeNumber + '/' + totalTrades + '...');
                   
-                  let orderDialogTrigger = document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Show Trade Form (F9)"]') ||
-                                         Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find(btn => {
-                                           const title = btn.getAttribute('title') || '';
-                                           return title.includes('Show Trade Form') || (title.includes('Trade Form') && title.includes('Show'));
-                                         });
-                  
-                  if (orderDialogTrigger) {
-                    const clicked = mouseClick(orderDialogTrigger);
-                    if (clicked) {
-                      sendMessage('step_update', '✅ Order dialog opened (mouse click)');
-                    } else {
-                      orderDialogTrigger.click();
-                      sendMessage('step_update', '✅ Order dialog opened (fallback click)');
-                    }
+                  const findHideToolbar = () =>
+                    document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Hide Trade Form (F9)"]') ||
+                    Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find((btn) => {
+                      const title = btn.getAttribute('title') || '';
+                      return title.includes('Hide Trade Form') || (title.includes('Trade Form') && title.includes('Hide'));
+                    });
+                  const findShowToolbar = () =>
+                    document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Show Trade Form (F9)"]') ||
+                    Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find((btn) => {
+                      const title = btn.getAttribute('title') || '';
+                      return title.includes('Show Trade Form') || (title.includes('Trade Form') && title.includes('Show'));
+                    });
+
+                  let orderDialogTrigger = null;
+                  const hideToolbarBtn2 = findHideToolbar();
+                  if (hideToolbarBtn2 && hideToolbarBtn2.offsetParent) {
+                    orderDialogTrigger = hideToolbarBtn2;
+                    sendMessage('step_update', '✅ Order panel already open (not toggling Hide — avoids close)');
                   } else {
-                    orderDialogTrigger = document.querySelector('div.group.svelte-aqy1pm') ||
-                                       Array.from(document.querySelectorAll('div.group.svelte-aqy1pm')).find(el => 
-                                         el.offsetParent !== null
-                                       );
-                    
+                    orderDialogTrigger = findShowToolbar();
                     if (orderDialogTrigger) {
                       const clicked = mouseClick(orderDialogTrigger);
                       if (clicked) {
-                        sendMessage('step_update', '✅ Order dialog opened via group div (mouse click)');
+                        sendMessage('step_update', '✅ Order dialog opened (mouse click)');
                       } else {
                         orderDialogTrigger.click();
-                        sendMessage('step_update', '✅ Order dialog opened via group div (fallback click)');
-                       }
-                     } else {
-                      const hideTradeFormButton = document.querySelector('div.icon-button.svelte-1iwf8ix.withText[title="Hide Trade Form (F9)"]') ||
-                                                 Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix.withText')).find(btn => {
-                                                   const title = btn.getAttribute('title') || '';
-                                                   return title.includes('Hide Trade Form') || (title.includes('Trade Form') && title.includes('Hide'));
-                                                 });
-                      
-                      if (hideTradeFormButton) {
-                        const clicked = mouseClick(hideTradeFormButton);
-                        if (clicked) {
-                          sendMessage('step_update', '✅ Order dialog opened via Hide Trade Form button (mouse click)');
+                        sendMessage('step_update', '✅ Order dialog opened (fallback click)');
+                      }
+                    } else {
+                      orderDialogTrigger = document.querySelector('div.group.svelte-aqy1pm') ||
+                        Array.from(document.querySelectorAll('div.group.svelte-aqy1pm')).find((el) => el.offsetParent !== null);
+                      if (orderDialogTrigger) {
+                        const clickedG = mouseClick(orderDialogTrigger);
+                        if (clickedG) {
+                          sendMessage('step_update', '✅ Order dialog opened via group div (mouse click)');
                         } else {
-                          hideTradeFormButton.click();
-                          sendMessage('step_update', '✅ Order dialog opened via Hide Trade Form button (fallback click)');
+                          orderDialogTrigger.click();
+                          sendMessage('step_update', '✅ Order dialog opened via group div (fallback click)');
                         }
-                        orderDialogTrigger = hideTradeFormButton;
                       }
                     }
                   }
@@ -2964,8 +2843,9 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('step_update', '⏳ Confirming trade ' + tradeNumber + '...');
                   await sleep(1500);
                   
-                  const okButton = Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot')).find(btn => {
+                  const okButton = Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot')).find((btn) => {
                     const text = (btn.innerText || btn.textContent || '').trim();
+                    if (/^(buy|sell)/i.test(text)) return false;
                     return text === 'OK' || text === 'ok';
                   });
                   
@@ -3112,7 +2992,6 @@ async function handleApi(request: Request): Promise<Response> {
                   return;
                 }
 
-                sendMessage('step_update', '📌 Add-on only: new market orders stack on existing positions; this app does not close running trades here.');
                 sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');
                 console.log('🎯 STRICT EXECUTION: Will execute exactly ' + numberOfTrades + ' trades, no more, no less');
                 
