@@ -1301,13 +1301,46 @@ async function handleApi(request: Request): Promise<Response> {
                 }
               };
 
+              function parseTerminalMoney(raw) {
+                if (raw == null || raw === '') return null;
+                var s = String(raw).replace(/[\\s\\u00a0\\u202f]+/g, '').replace(/'/g, '');
+                s = s.replace(/,/g, '');
+                var n = parseFloat(s);
+                return isNaN(n) ? null : n;
+              }
+
+              function scrapeTerminalBarDom() {
+                var out = { equity: null, balance: null, marginUsed: null, freeMargin: null, marginLevel: null };
+                try {
+                  var candidates = document.querySelectorAll('div.td, div.layout.svelte-1w81fi8, div.svelte-1w81fi8, [class*="svelte-1w81fi8"]');
+                  for (var ci = 0; ci < Math.min(candidates.length, 50); ci++) {
+                    var t = (candidates[ci] && candidates[ci].innerText) ? candidates[ci].innerText : '';
+                    if (!t || t.indexOf('Free margin') < 0) continue;
+                    var lineEqB = t.match(/Equity\\s*:\\s*([-+0-9\\s,.']+)/i);
+                    var lineBalB = t.match(/Balance\\s*:\\s*([-+0-9\\s,.']+)/i);
+                    var lineMuS = t.match(/Margin\\s*:\\s*([-+0-9\\s,.']+?)(?=\\s*Free\\s*margin)/i);
+                    var lineFu = t.match(/Free\\s*margin\\s*:\\s*([-+0-9\\s,.']+)/i);
+                    var lineLv = t.match(/Level\\s*:\\s*([-+0-9\\s,.']+)\\s*%/i);
+                    if (lineEqB) out.equity = lineEqB[1].replace(/\\s/g, '').replace(/,/g, '');
+                    if (lineBalB) out.balance = lineBalB[1].replace(/\\s/g, '').replace(/,/g, '');
+                    if (lineMuS) out.marginUsed = lineMuS[1].replace(/\\s/g, '').replace(/,/g, '');
+                    if (lineFu) out.freeMargin = lineFu[1].replace(/\\s/g, '').replace(/,/g, '');
+                    if (lineLv) out.marginLevel = String(lineLv[1]).replace(/\\s/g, '').replace(/,/g, '');
+                    if (out.freeMargin) break;
+                  }
+                } catch (e) {}
+                return out;
+              }
+
               function scrapeTerminalAccountStats() {
                 var equity = null;
                 var balance = null;
                 var fpOut = null;
                 var freeMargin = null;
                 var marginLevel = null;
+                var marginUsed = null;
                 try {
+                  var domB = scrapeTerminalBarDom();
                   var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
                   var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
                   if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
@@ -1316,15 +1349,19 @@ async function handleApi(request: Request): Promise<Response> {
                   if (!equity || !balance) {
                     var compact = txt.replace(/[\\n\\r]+/g, ' ');
                     if (!equity) {
-                      var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                      var e2 = compact.match(/Equity\\s*:\\s*([\\d][\\d\\s,]*\\.?\\d*)/i);
                       if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
                     }
                     if (!balance) {
-                      var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                      var b2 = compact.match(/Balance\\s*:\\s*([\\d][\\d\\s,]*\\.?\\d*)/i);
                       if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
                     }
                   }
-                  fpOut = null;
+                  if (domB.equity) equity = domB.equity;
+                  if (domB.balance) balance = domB.balance;
+                  if (domB.freeMargin) freeMargin = domB.freeMargin;
+                  if (domB.marginLevel) marginLevel = domB.marginLevel;
+                  if (domB.marginUsed) marginUsed = domB.marginUsed;
                   var cfx = txt.replace(/[\\n\\r\\t]+/g, ' ').replace(/\\s+/g, ' ');
                   var gf1 = cfx.match(/(?:Floating|Unrealized)\\s*(?:P\\/?L|Profit)?\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
                   if (gf1) fpOut = gf1[1].replace(/\\s/g, '').replace(/,/g, '');
@@ -1332,8 +1369,14 @@ async function handleApi(request: Request): Promise<Response> {
                     var gf2 = cfx.match(/\\bP\\s*\\/?\\s*L\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
                     if (gf2) fpOut = gf2[1].replace(/\\s/g, '').replace(/,/g, '');
                   }
-                  var fm1s = cfx.match(/\\bFree\\s*margin\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
-                  if (fm1s) freeMargin = fm1s[1].replace(/\\s/g, '').replace(/,/g, '');
+                  if (freeMargin == null) {
+                    var fm1s = cfx.match(/\\bFree\\s*margin\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
+                    if (fm1s) freeMargin = fm1s[1].replace(/\\s/g, '').replace(/,/g, '');
+                  }
+                  if (marginUsed == null) {
+                    var muSep = cfx.match(/\\bMargin\\s*:\\s*([-+0-9\\s,.']+?)(?=\\s*Free\\s*margin)/i);
+                    if (muSep) marginUsed = muSep[1].replace(/\\s/g, '').replace(/,/g, '');
+                  }
                   var ml1s = cfx.match(/\\bMargin\\s*level\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%?/i);
                   if (ml1s) marginLevel = ml1s[1].replace(/\\s/g, '').replace(/,/g, '');
                   if (marginLevel == null) {
@@ -1341,50 +1384,63 @@ async function handleApi(request: Request): Promise<Response> {
                     if (ml2s) marginLevel = ml2s[1].replace(/\\s/g, '').replace(/,/g, '');
                   }
                 } catch (err) {}
-                return { equity: equity, balance: balance, floatingProfit: fpOut, freeMargin: freeMargin, marginLevel: marginLevel };
+                return { equity: equity, balance: balance, floatingProfit: fpOut, freeMargin: freeMargin, marginLevel: marginLevel, marginUsed: marginUsed };
               }
 
               var EA_MIN_MARGIN_LEVEL_PCT = 150;
-              var EA_MIN_FREE_MARGIN_FRAC = 0.01;
+              var EA_MIN_FREE_MARGIN_FRAC = 0.005;
               function isMarginSufficientForNewTrades(st, equityNum) {
                 var level = null;
                 var free = null;
                 var eqN = 0;
+                var mUsed = null;
                 try {
                   if (st && st.marginLevel != null && st.marginLevel !== '') {
-                    level = parseFloat(String(st.marginLevel).replace(/%/g, '').replace(/,/g, ''));
+                    level = parseTerminalMoney(st.marginLevel);
                   }
                 } catch (e) {}
                 try {
                   if (st && st.freeMargin != null && st.freeMargin !== '') {
-                    free = parseFloat(String(st.freeMargin).replace(/,/g, ''));
+                    free = parseTerminalMoney(st.freeMargin);
                   }
                 } catch (e2) {}
                 try {
+                  if (st && st.marginUsed != null && st.marginUsed !== '') {
+                    mUsed = parseTerminalMoney(st.marginUsed);
+                  }
+                } catch (e2b) {}
+                try {
                   if (equityNum && !isNaN(equityNum)) eqN = equityNum;
-                  else if (st && st.equity) eqN = parseFloat(String(st.equity).replace(/,/g, ''));
+                  else if (st && st.equity) eqN = parseTerminalMoney(String(st.equity)) || 0;
                 } catch (e3) {}
-                if (level != null && !isNaN(level) && level > 0 && level < EA_MIN_MARGIN_LEVEL_PCT) {
+                var levelN = level != null && !isNaN(level) ? level : null;
+                if (levelN != null && levelN > 0.01 && levelN < EA_MIN_MARGIN_LEVEL_PCT) {
                   return {
                     ok: false,
-                    message:
-                      '⏸️ Skipping new entries: margin level ' + level + '% (below ' + EA_MIN_MARGIN_LEVEL_PCT + '%). Add when margin allows; app never closes other symbols to open this.',
+                    message: '⏸️ Skipping: margin level ' + levelN + '% (below ' + EA_MIN_MARGIN_LEVEL_PCT + '%).',
                     summary: 'Skipped: low margin level',
                   };
                 }
-                if (eqN > 0 && free != null && !isNaN(free) && free < eqN * EA_MIN_FREE_MARGIN_FRAC) {
-                  return {
-                    ok: false,
-                    message: '⏸️ Skipping: free margin too small vs equity (avoid margin call). Add only when free margin recovers; no auto-close of other symbol trades.',
-                    summary: 'Skipped: insufficient free margin',
-                  };
-                }
                 if (free != null && !isNaN(free) && free <= 0) {
-                  return {
-                    ok: false,
-                    message: '⏸️ Skipping: no free margin. Fund or reduce use of margin; app does not close other symbols.',
-                    summary: 'Skipped: no free margin',
-                  };
+                  return { ok: false, message: '⏸️ Skipping: no free margin.', summary: 'Skipped: no free margin' };
+                }
+                if (eqN > 0 && free != null && !isNaN(free) && free < eqN * EA_MIN_FREE_MARGIN_FRAC) {
+                  return { ok: false, message: '⏸️ Skipping: free margin < ' + (EA_MIN_FREE_MARGIN_FRAC * 100) + '% of equity.', summary: 'Skipped: insufficient free margin' };
+                }
+                if (free != null && !isNaN(free) && eqN > 0) {
+                  var ratio = free / eqN;
+                  if (ratio >= 0.005) {
+                    if (mUsed != null && mUsed < 0.0001 && ratio >= 0.5) {
+                      return { ok: true, addMessage: '✅ High free margin, no used margin — adding trades (no auto-close of other symbols).' };
+                    }
+                    if (ratio >= 0.02) {
+                      return { ok: true, addMessage: '✅ Free margin OK — adding on top of running trades.' };
+                    }
+                    return { ok: true, addMessage: '✅ Enough free margin — adding to open positions.' };
+                  }
+                }
+                if (mUsed != null && mUsed < 0.0001 && (free == null || (eqN > 0 && free >= eqN * 0.5))) {
+                  return { ok: true, addMessage: '✅ Sufficient free margin — adding to open exposure (no auto-close of other symbols).' };
                 }
                 return { ok: true };
               }
@@ -3115,11 +3171,11 @@ async function handleApi(request: Request): Promise<Response> {
                 let eqN = 0;
                 let fpN = null;
                 try {
-                  if (stPol.equity) eqN = parseFloat(String(stPol.equity).replace(/,/g, ''));
+                  if (stPol.equity) eqN = parseTerminalMoney(String(stPol.equity)) || 0;
                 } catch (e) {}
                 try {
                   if (stPol.floatingProfit != null && stPol.floatingProfit !== '') {
-                    fpN = parseFloat(String(stPol.floatingProfit).replace(/,/g, ''));
+                    fpN = parseTerminalMoney(String(stPol.floatingProfit));
                   }
                 } catch (e2) {}
                 if (eqN > 0 && fpN != null && !isNaN(fpN) && fpN > 0 && fpN >= EA_PROFIT_LOCK_RATIO * eqN) {
@@ -3155,6 +3211,9 @@ async function handleApi(request: Request): Promise<Response> {
                     window.__eaActiveTradePayload = null;
                   } catch (e) {}
                   return;
+                }
+                if (mCheck.addMessage) {
+                  sendMessage('step_update', mCheck.addMessage);
                 }
                 
                 sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');

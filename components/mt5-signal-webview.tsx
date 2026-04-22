@@ -369,29 +369,68 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
         };
 
+        function parseTerminalMoney(raw) {
+          if (raw == null || raw === '') return null;
+          var s = String(raw).replace(/[\\s\\u00a0\\u202f]+/g, '').replace(/'/g, '');
+          s = s.replace(/,/g, '');
+          var n = parseFloat(s);
+          return isNaN(n) ? null : n;
+        }
+
+        function scrapeTerminalBarDom() {
+          var out = { equity: null, balance: null, marginUsed: null, freeMargin: null, marginLevel: null };
+          try {
+            var candidates = document.querySelectorAll('div.td, div.layout.svelte-1w81fi8, div.svelte-1w81fi8, [class*="svelte-1w81fi8"]');
+            for (var ci = 0; ci < Math.min(candidates.length, 50); ci++) {
+              var el = candidates[ci];
+              var t = (el && el.innerText) ? el.innerText : '';
+              if (!t || t.indexOf('Free margin') < 0) continue;
+              var lineEqB = t.match(/Equity\\s*:\\s*([-+0-9\\s,.']+)/i);
+              var lineBalB = t.match(/Balance\\s*:\\s*([-+0-9\\s,.']+)/i);
+              var lineMuS = t.match(/Margin\\s*:\\s*([-+0-9\\s,.']+?)(?=\\s*Free\\s*margin)/i);
+              var lineFu = t.match(/Free\\s*margin\\s*:\\s*([-+0-9\\s,.']+)/i);
+              var lineLv = t.match(/Level\\s*:\\s*([-+0-9\\s,.']+)\\s*%/i);
+              if (lineEqB) out.equity = lineEqB[1].replace(/\\s/g, '').replace(/,/g, '');
+              if (lineBalB) out.balance = lineBalB[1].replace(/\\s/g, '').replace(/,/g, '');
+              if (lineMuS) out.marginUsed = lineMuS[1].replace(/\\s/g, '').replace(/,/g, '');
+              if (lineFu) out.freeMargin = lineFu[1].replace(/\\s/g, '').replace(/,/g, '');
+              if (lineLv) out.marginLevel = String(lineLv[1]).replace(/\\s/g, '').replace(/,/g, '');
+              if (out.freeMargin) break;
+            }
+          } catch (e) {}
+          return out;
+        }
+
         function scrapeTerminalAccountStats() {
           var equity = null;
           var balance = null;
           var floatingProfit = null;
           var freeMargin = null;
           var marginLevel = null;
+          var marginUsed = null;
           try {
+            var domB = scrapeTerminalBarDom();
             var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
             var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
             if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
             var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
             if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
             if (!equity || !balance) {
-              var compact = txt.replace(/[\\n\\r]+/g, ' ');
+              var compact0 = txt.replace(/[\\n\\r]+/g, ' ');
               if (!equity) {
-                var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                var e2 = compact0.match(/Equity\\s*:\\s*([\\d][\\d\\s,]*\\.?\\d*)/i);
                 if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
               }
               if (!balance) {
-                var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
+                var b2 = compact0.match(/Balance\\s*:\\s*([\\d][\\d\\s,]*\\.?\\d*)/i);
                 if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
               }
             }
+            if (domB.equity) equity = domB.equity;
+            if (domB.balance) balance = domB.balance;
+            if (domB.freeMargin) freeMargin = domB.freeMargin;
+            if (domB.marginLevel) marginLevel = domB.marginLevel;
+            if (domB.marginUsed) marginUsed = domB.marginUsed;
             var cfp = txt.replace(/[\\n\\r\\t]+/g, ' ').replace(/\\s+/g, ' ');
             var fp1 = cfp.match(/(?:Floating|Unrealized)\\s*(?:P\\/?L|Profit)?\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
             if (fp1) floatingProfit = fp1[1].replace(/\\s/g, '').replace(/,/g, '');
@@ -403,61 +442,90 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               var fp3 = cfp.match(/\\bMargin\\b[^0-9]{0,8}[0-9][\\d\\s,]*\\.?\\d*[^0-9]{0,20}\\bProfit\\b\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
               if (fp3) floatingProfit = fp3[1].replace(/\\s/g, '').replace(/,/g, '');
             }
-            var fm1 = cfp.match(/\\bFree\\s*margin\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
-            if (fm1) freeMargin = fm1[1].replace(/\\s/g, '').replace(/,/g, '');
-            var ml1 = cfp.match(/\\bMargin\\s*level\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%?/i);
-            if (ml1) marginLevel = ml1[1].replace(/\\s/g, '').replace(/,/g, '');
+            if (freeMargin == null) {
+              var fm1 = cfp.match(/\\bFree\\s*margin\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,']*\\.?\\d*)/i);
+              if (fm1) freeMargin = fm1[1].replace(/\\s/g, '').replace(/,/g, '').replace(/'/g, '');
+            }
+            if (marginUsed == null) {
+              var muSep = cfp.match(/\\bMargin\\s*:\\s*([-+0-9\\s,.']+?)(?=\\s*Free\\s*margin)/i);
+              if (muSep) marginUsed = muSep[1].replace(/\\s/g, '').replace(/,/g, '').replace(/'/g, '');
+            }
+            if (marginLevel == null) {
+              var ml1 = cfp.match(/\\bMargin\\s*level\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%?/i);
+              if (ml1) marginLevel = ml1[1].replace(/\\s/g, '').replace(/,/g, '');
+            }
             if (marginLevel == null) {
               var ml2 = cfp.match(/\\bLevel\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%/i);
               if (ml2) marginLevel = ml2[1].replace(/\\s/g, '').replace(/,/g, '');
             }
           } catch (err) {}
-          return { equity: equity, balance: balance, floatingProfit: floatingProfit, freeMargin: freeMargin, marginLevel: marginLevel };
+          return { equity: equity, balance: balance, floatingProfit: floatingProfit, freeMargin: freeMargin, marginLevel: marginLevel, marginUsed: marginUsed };
         }
 
         var EA_MIN_MARGIN_LEVEL_PCT = 150;
-        var EA_MIN_FREE_MARGIN_FRAC = 0.01;
+        var EA_MIN_FREE_MARGIN_FRAC = 0.005;
 
         function isMarginSufficientForNewTrades(st, equityNum) {
           var level = null;
           var free = null;
           var eqN = 0;
+          var mUsed = null;
           try {
             if (st && st.marginLevel != null && st.marginLevel !== '') {
-              level = parseFloat(String(st.marginLevel).replace(/%/g, '').replace(/,/g, ''));
+              level = parseTerminalMoney(st.marginLevel);
             }
           } catch (e) {}
           try {
             if (st && st.freeMargin != null && st.freeMargin !== '') {
-              free = parseFloat(String(st.freeMargin).replace(/,/g, ''));
+              free = parseTerminalMoney(st.freeMargin);
             }
           } catch (e2) {}
           try {
+            if (st && st.marginUsed != null && st.marginUsed !== '') {
+              mUsed = parseTerminalMoney(st.marginUsed);
+            }
+          } catch (e2b) {}
+          try {
             if (equityNum && !isNaN(equityNum)) eqN = equityNum;
-            else if (st && st.equity) eqN = parseFloat(String(st.equity).replace(/,/g, ''));
+            else if (st && st.equity) eqN = parseTerminalMoney(String(st.equity)) || 0;
           } catch (e3) {}
-          if (level != null && !isNaN(level) && level > 0 && level < EA_MIN_MARGIN_LEVEL_PCT) {
+          var levelN = level != null && !isNaN(level) ? level : null;
+          if (levelN != null && levelN > 0.01 && levelN < EA_MIN_MARGIN_LEVEL_PCT) {
             return {
               ok: false,
               message:
-                '⏸️ Skipping new entries: margin level ' + level + '% (below ' + EA_MIN_MARGIN_LEVEL_PCT + '%). Add to positions only when margin allows; never closing other symbols.',
-              summary: 'Skipped: low margin level — reduce risk in terminal or deposit before adding',
-            };
-          }
-          if (eqN > 0 && free != null && !isNaN(free) && free < eqN * EA_MIN_FREE_MARGIN_FRAC) {
-            return {
-              ok: false,
-              message:
-                '⏸️ Skipping new entries: free margin too small vs equity (app policy — avoid margin call). Do not close other symbol trades; add only when free margin recovers.',
-              summary: 'Skipped: insufficient free margin for new exposure',
+                '⏸️ Skipping new entries: margin level ' + levelN + '% (below ' + EA_MIN_MARGIN_LEVEL_PCT + '%). Add when margin allows; never auto-close other symbols.',
+              summary: 'Skipped: low margin level',
             };
           }
           if (free != null && !isNaN(free) && free <= 0) {
             return {
               ok: false,
-              message: '⏸️ Skipping new entries: no free margin. Fund or reduce use of margin; app does not close other symbols to open this trade.',
+              message: '⏸️ Skipping: no free margin. Add funds or free margin; app does not close other symbols to open this.',
               summary: 'Skipped: no free margin',
             };
+          }
+          if (eqN > 0 && free != null && !isNaN(free) && free < eqN * EA_MIN_FREE_MARGIN_FRAC) {
+            return {
+              ok: false,
+              message: '⏸️ Skipping: free margin too small vs equity (min ~' + EA_MIN_FREE_MARGIN_FRAC * 100 + '% of equity).',
+              summary: 'Skipped: insufficient free margin',
+            };
+          }
+          if (free != null && !isNaN(free) && eqN > 0) {
+            var ratio = free / eqN;
+            if (ratio >= 0.005) {
+              if (mUsed != null && mUsed < 0.0001 && ratio >= 0.5) {
+                return { ok: true, addMessage: '✅ High free margin, no use margin — adding trades to current list (no auto-close of other symbols).' };
+              }
+              if (ratio >= 0.02) {
+                return { ok: true, addMessage: '✅ Free margin OK — adding on top of running trades.' };
+              }
+              return { ok: true, addMessage: '✅ Enough free margin — adding to open positions.' };
+            }
+          }
+          if (mUsed != null && mUsed < 0.0001 && (free == null || (eqN > 0 && free >= eqN * 0.5))) {
+            return { ok: true, addMessage: '✅ Sufficient free margin — adding to open exposure (no auto-close of other symbols).' };
           }
           return { ok: true };
         }
@@ -2233,11 +2301,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           var eqN = 0;
           var fpN = null;
           try {
-            if (stPol.equity) eqN = parseFloat(String(stPol.equity).replace(/,/g, ''));
+            if (stPol.equity) eqN = parseTerminalMoney(String(stPol.equity)) || 0;
           } catch (e) {}
           try {
             if (stPol.floatingProfit != null && stPol.floatingProfit !== '') {
-              fpN = parseFloat(String(stPol.floatingProfit).replace(/,/g, ''));
+              fpN = parseTerminalMoney(String(stPol.floatingProfit));
             }
           } catch (e2) {}
           if (eqN > 0 && fpN != null && !isNaN(fpN) && fpN > 0 && fpN >= EA_PROFIT_LOCK_RATIO * eqN) {
@@ -2273,6 +2341,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               window.__eaActiveTradePayload = null;
             } catch (e) {}
             return;
+          }
+          if (mCheck.addMessage) {
+            sendMessage('step_update', mCheck.addMessage);
           }
           
           sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');
