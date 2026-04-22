@@ -67,6 +67,12 @@ SUGGESTION (strategic advice - 2-3 sentences):
 - Risk note (e.g. "Tighten SL if price holds above 1.3350")
 Do NOT just repeat "Place order at X, SL Y, TP Z" - add strategy.
 
+ACCOUNT & PORTFOLIO (this app’s execution policy — reflect in summary/suggestion when relevant):
+- The automated terminal **never** closes open positions just to make room for a new order on the same symbol, or to “switch” the book. New signals **add** exposure (including on other symbols) rather than mass-closing existing trades first.
+- When floating profit is an unusually large share of equity (e.g. **around 30% or more** of equity in combined open P/L), **prioritize** banking gains or reducing size in your suggestion: take-profit discipline, scale-out, or partial close — not blindly adding the same risk.
+- Prefer **diversification** across uncorrelated symbols when the account may already have risk; avoid over-concentrating one idea if multiple symbols are in play.
+- **Profitable style**: plan entries with clear invalidation, avoid revenge/add-on logic that assumes prior trades will be closed by the system, and treat large unrealized profit as a signal to protect capital.
+
 LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL or TP empty.
 
 Output JSON only (symbol must be the literal ticker string from the chart UI, or ""):

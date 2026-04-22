@@ -26,6 +26,7 @@ Rules:
 3) Lot vs trades: when you choose a LOWER lot per trade for a volatile instrument, you MAY INCREASE numberOfTrades so total workflow stays useful (several smaller legs). Do NOT cap trades at 2 — use equity and volatility to choose a dynamic count up to 15.
 4) Keep total exposure retail-safe: prefer many small trades over one huge lot.
 5) Output one row per input symbol; "symbol" must match the input exactly (same spelling/case).
+6) Portfolio (profitable, aligned with the app): Assume **add-on** risk across symbols is allowed, but the system does **not** close existing positions to free margin for new ones — keep per-symbol lot and numberOfTrades **conservative** when many symbols are active. When equity is high enough for multiple ideas, **diversify** (spread trades across uncorrelated symbols) instead of one oversized leg. Large unrealized profit vs equity (e.g. **~30%+**) should be treated as a prompt to **reduce** risk or bank gains in the narrative sense (smaller new lots, not more simultaneous correlation).
 
 Return ONLY valid JSON, no markdown:
 {"symbols":[{"symbol":"EURUSD","lotSize":"0.03","numberOfTrades":"2"},{"symbol":"XAUUSD","lotSize":"0.01","numberOfTrades":"4"}]}`;

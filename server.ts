@@ -542,6 +542,7 @@ async function handleApi(request: Request): Promise<Response> {
               function scrapeTerminalAccountStats() {
                 var equity = null;
                 var balance = null;
+                var floatingProfit = null;
                 try {
                   var raw = collectPageTextDeep();
                   var txt = raw || ((document.body && document.body.innerText) ? document.body.innerText : '');
@@ -569,8 +570,15 @@ async function handleApi(request: Request): Promise<Response> {
                     var b3 = txt.match(/\\bBalance\\b[^\\d\\n]{0,56}([\\d][\\d\\s,\\.']*)/im);
                     if (b3) balance = normalizeAmountToken(b3[1]);
                   }
+                  var cfp = txt.replace(/[\\n\\r\\t]+/g, ' ').replace(/\\s+/g, ' ');
+                  var g1 = cfp.match(/(?:Floating|Unrealized)\\s*(?:P\\/?L|Profit)?\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,']*\\.?\\d*)/i);
+                  if (g1) floatingProfit = normalizeAmountToken(g1[1]);
+                  if (floatingProfit == null) {
+                    var g2 = cfp.match(/\\bP\\s*\\/?\\s*L\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,']*\\.?\\d*)/i);
+                    if (g2) floatingProfit = normalizeAmountToken(g2[1]);
+                  }
                 } catch (err) {}
-                return { equity: equity, balance: balance };
+                return { equity: equity, balance: balance, floatingProfit: floatingProfit };
               }
 
               function findMT5SearchField() {
@@ -1296,6 +1304,7 @@ async function handleApi(request: Request): Promise<Response> {
               function scrapeTerminalAccountStats() {
                 var equity = null;
                 var balance = null;
+                var fpOut = null;
                 try {
                   var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
                   var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
@@ -1313,8 +1322,16 @@ async function handleApi(request: Request): Promise<Response> {
                       if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
                     }
                   }
+                  fpOut = null;
+                  var cfx = txt.replace(/[\\n\\r\\t]+/g, ' ').replace(/\\s+/g, ' ');
+                  var gf1 = cfx.match(/(?:Floating|Unrealized)\\s*(?:P\\/?L|Profit)?\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
+                  if (gf1) fpOut = gf1[1].replace(/\\s/g, '').replace(/,/g, '');
+                  if (fpOut == null) {
+                    var gf2 = cfx.match(/\\bP\\s*\\/?\\s*L\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
+                    if (gf2) fpOut = gf2[1].replace(/\\s/g, '').replace(/,/g, '');
+                  }
                 } catch (err) {}
-                return { equity: equity, balance: balance };
+                return { equity: equity, balance: balance, floatingProfit: fpOut };
               }
 
               sendMessage('mt5_loaded', 'MT5 terminal loaded successfully');
@@ -2995,11 +3012,77 @@ async function handleApi(request: Request): Promise<Response> {
                 }
               };
 
+              var EA_PROFIT_LOCK_RATIO = 0.3;
+
+              async function tryCloseOpenPositionsForProfitLock() {
+                for (var bj2 = 0; bj2 < 120; bj2++) {
+                  const b0 = document.querySelectorAll('button, [role="button"]')[bj2];
+                  if (!b0 || !b0.offsetParent) continue;
+                  const t0 = (b0.innerText || b0.textContent || '').trim().toLowerCase();
+                  if (t0 && (t0 === 'close all' || t0 === 'close all positions' || t0.indexOf('close all') === 0)) {
+                    b0.click();
+                    await sleep(900);
+                    return true;
+                  }
+                }
+                var bi0 = 0;
+                for (var ti0 = 0; ti0 < Math.min(document.querySelectorAll('table').length, 60); ti0++) {
+                  const tb0 = document.querySelectorAll('table')[ti0];
+                  const th0 = (tb0.innerText || '').slice(0, 900);
+                  if (!/Symbol|Instrument|Order|Open/i.test(th0) || !/Profit|Volume|P\\/?L/i.test(th0)) continue;
+                  const rowBtns0 = tb0.querySelectorAll('button, [role="button"], [title*="lose" i]');
+                  for (var rk0 = 0; rk0 < Math.min(rowBtns0.length, 24); rk0++) {
+                    const el0 = rowBtns0[rk0];
+                    if (!el0.offsetParent) continue;
+                    const u0 = (el0.getAttribute('title') || el0.innerText || el0.textContent || '').trim();
+                    if (!u0) continue;
+                    const ulow0 = u0.toLowerCase();
+                    if (ulow0.length <= 24 && (ulow0 === 'x' || ulow0 === 'close' || ulow0.indexOf('close') === 0)) {
+                      mouseClick(el0);
+                      bi0++;
+                      await sleep(500);
+                      if (bi0 >= 6) return true;
+                    }
+                  }
+                }
+                return bi0 > 0;
+              }
+
               // Execute multiple trades based on configured number - EXACTLY as configured
               const executeMultipleTrades = async () => {
                 const numberOfTrades = parseInt('${numberOfTradesValue}', 10);
                 if (isNaN(numberOfTrades) || numberOfTrades < 1) {
                   sendMessage('error', 'Invalid number of trades configured: ' + numberOfTrades);
+                  return;
+                }
+
+                const stPol = scrapeTerminalAccountStats();
+                let eqN = 0;
+                let fpN = null;
+                try {
+                  if (stPol.equity) eqN = parseFloat(String(stPol.equity).replace(/,/g, ''));
+                } catch (e) {}
+                try {
+                  if (stPol.floatingProfit != null && stPol.floatingProfit !== '') {
+                    fpN = parseFloat(String(stPol.floatingProfit).replace(/,/g, ''));
+                  }
+                } catch (e2) {}
+                if (eqN > 0 && fpN != null && !isNaN(fpN) && fpN > 0 && fpN >= EA_PROFIT_LOCK_RATIO * eqN) {
+                  sendMessage('step_update', '💰 Floating profit is at/above 30% of equity — locking gains (app policy).');
+                  const didClose = await tryCloseOpenPositionsForProfitLock();
+                  sendMessage(
+                    'step_update',
+                    didClose ? '✅ Close actions sent. Skipping new market entries this run.' : '⚠️ Use Close all in the terminal to lock gains. Skipping new entries this run.'
+                  );
+                  const stA = scrapeTerminalAccountStats();
+                  sendMessage('all_trades_completed', 'Profit lock: floating P/L ≥ 30% of equity; new entries skipped.', {
+                    equity: stA.equity,
+                    balance: stA.balance,
+                  });
+                  await sleep(1000);
+                  try {
+                    window.__eaActiveTradePayload = null;
+                  } catch (e) {}
                   return;
                 }
                 

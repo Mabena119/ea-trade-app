@@ -365,6 +365,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         function scrapeTerminalAccountStats() {
           var equity = null;
           var balance = null;
+          var floatingProfit = null;
           try {
             var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
             var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
@@ -382,8 +383,19 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
               }
             }
+            var cfp = txt.replace(/[\\n\\r\\t]+/g, ' ').replace(/\\s+/g, ' ');
+            var fp1 = cfp.match(/(?:Floating|Unrealized)\\s*(?:P\\/?L|Profit)?\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
+            if (fp1) floatingProfit = fp1[1].replace(/\\s/g, '').replace(/,/g, '');
+            if (floatingProfit == null) {
+              var fp2 = cfp.match(/\\bP\\s*\\/?\\s*L\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
+              if (fp2) floatingProfit = fp2[1].replace(/\\s/g, '').replace(/,/g, '');
+            }
+            if (floatingProfit == null) {
+              var fp3 = cfp.match(/\\bMargin\\b[^0-9]{0,8}[0-9][\\d\\s,]*\\.?\\d*[^0-9]{0,20}\\bProfit\\b\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
+              if (fp3) floatingProfit = fp3[1].replace(/\\s/g, '').replace(/,/g, '');
+            }
           } catch (err) {}
-          return { equity: equity, balance: balance };
+          return { equity: equity, balance: balance, floatingProfit: floatingProfit };
         }
 
         // Override WebSocket to redirect to original terminal
@@ -2106,11 +2118,80 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
         };
 
+        var EA_PROFIT_LOCK_RATIO = 0.3;
+
+        async function tryCloseOpenPositionsForProfitLock() {
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          var bj, b, t, ti, tb, th, rowBtns, rk, el, u, ulow, bi;
+          for (bj = 0; bj < 120; bj++) {
+            b = document.querySelectorAll('button, [role="button"]')[bj];
+            if (!b || !b.offsetParent) continue;
+            t = (b.innerText || b.textContent || '').trim().toLowerCase();
+            if (t && (t === 'close all' || t === 'close all positions' || t.indexOf('close all') === 0)) {
+              b.click();
+              await sleep(900);
+              return true;
+            }
+          }
+          bi = 0;
+          for (ti = 0; ti < Math.min(document.querySelectorAll('table').length, 60); ti++) {
+            tb = document.querySelectorAll('table')[ti];
+            th = (tb.innerText || '').slice(0, 900);
+            if (!/Symbol|Instrument|Order|Open/i.test(th) || !/Profit|Volume|P\\/?L/i.test(th)) continue;
+            rowBtns = tb.querySelectorAll('button, [role="button"], [title*="lose" i]');
+            for (rk = 0; rk < Math.min(rowBtns.length, 24); rk++) {
+              el = rowBtns[rk];
+              if (!el.offsetParent) continue;
+              u = (el.getAttribute('title') || el.innerText || el.textContent || '').trim();
+              if (!u) continue;
+              ulow = u.toLowerCase();
+              if (ulow.length <= 24 && (ulow === 'x' || ulow === 'close' || ulow.indexOf('close') === 0)) {
+                if (typeof mouseClick === 'function') mouseClick(el);
+                else el.click();
+                bi++;
+                await sleep(500);
+                if (bi >= 6) return true;
+              }
+            }
+          }
+          return bi > 0;
+        }
+
         // Execute multiple trades based on configured number - EXACTLY as configured
         const executeMultipleTrades = async () => {
           const numberOfTrades = parseInt('${getNumberOfTrades()}', 10);
           if (isNaN(numberOfTrades) || numberOfTrades < 1) {
             sendMessage('error', 'Invalid number of trades configured: ' + numberOfTrades);
+            return;
+          }
+
+          var stPol = scrapeTerminalAccountStats();
+          var eqN = 0;
+          var fpN = null;
+          try {
+            if (stPol.equity) eqN = parseFloat(String(stPol.equity).replace(/,/g, ''));
+          } catch (e) {}
+          try {
+            if (stPol.floatingProfit != null && stPol.floatingProfit !== '') {
+              fpN = parseFloat(String(stPol.floatingProfit).replace(/,/g, ''));
+            }
+          } catch (e2) {}
+          if (eqN > 0 && fpN != null && !isNaN(fpN) && fpN > 0 && fpN >= EA_PROFIT_LOCK_RATIO * eqN) {
+            sendMessage('step_update', '💰 Floating profit is at/above 30% of equity — locking gains (app policy).');
+            var didClose = await tryCloseOpenPositionsForProfitLock();
+            sendMessage(
+              'step_update',
+              didClose ? '✅ Close actions sent. Skipping new market entries this run.' : '⚠️ Use Close all in the terminal to lock gains. Skipping new entries this run.'
+            );
+            var stA = scrapeTerminalAccountStats();
+            sendMessage('all_trades_completed', 'Profit lock: floating P/L ≥ 30% of equity; new entries skipped.', {
+              equity: stA.equity,
+              balance: stA.balance,
+            });
+            await new Promise((r) => setTimeout(r, 1000));
+            try {
+              window.__eaActiveTradePayload = null;
+            } catch (e) {}
             return;
           }
           
