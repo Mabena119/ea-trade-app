@@ -141,9 +141,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const signalRef = useRef(signal);
   const [webViewKey, setWebViewKey] = useState<number>(0);
   const signalAuthRemountRef = useRef(0);
-  /** True after `all_trades_completed` — so we do not `resumePolling` on dismiss (normal signals use markTrade 35s cooldown). */
-  const mt5FlowCompletedRef = useRef(false);
-  const mt5FlowPrevVisibleRef = useRef(visible);
 
   useEffect(() => {
     signalRef.current = signal;
@@ -171,23 +168,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     });
     return () => sub.remove();
   }, [visible, signal?.type, onClose]);
-
-  useEffect(() => {
-    if (visible) {
-      mt5FlowCompletedRef.current = false;
-    }
-  }, [visible]);
-
-  /** If the user dismisses the overlay without a terminal "completion" message, DB polling may stay paused — resume. */
-  useEffect(() => {
-    const was = mt5FlowPrevVisibleRef.current;
-    if (was && !visible && !mt5FlowCompletedRef.current) {
-      void Promise.resolve(resumePolling()).catch((err: unknown) => {
-        console.error('Error resuming polling after MT5 WebView dismiss (no completion):', err);
-      });
-    }
-    mt5FlowPrevVisibleRef.current = visible;
-  }, [visible, resumePolling]);
 
   // Get MT5 terminal URL
   const getMT5Url = useCallback(() => {
@@ -389,68 +369,27 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
         };
 
-        function parseTerminalMoney(raw) {
-          if (raw == null || raw === '') return null;
-          var s = String(raw).replace(/[\\s\\u00a0\\u202f]+/g, '').replace(/'/g, '');
-          s = s.replace(/,/g, '');
-          var n = parseFloat(s);
-          return isNaN(n) ? null : n;
-        }
-
-        function scrapeTerminalBarDom() {
-          var out = { equity: null, balance: null, marginUsed: null, freeMargin: null, marginLevel: null };
-          try {
-            var candidates = document.querySelectorAll('div.td, div.layout.svelte-1w81fi8, div.svelte-1w81fi8, [class*="svelte-1w81fi8"]');
-            for (var ci = 0; ci < Math.min(candidates.length, 50); ci++) {
-              var el = candidates[ci];
-              var t = (el && el.innerText) ? el.innerText : '';
-              if (!t || t.indexOf('Free margin') < 0) continue;
-              var lineEqB = t.match(/Equity\\s*:\\s*([-+0-9\\s,.']+)/i);
-              var lineBalB = t.match(/Balance\\s*:\\s*([-+0-9\\s,.']+)/i);
-              var lineMuS = t.match(/Margin\\s*:\\s*([-+0-9\\s,.']+?)(?=\\s*Free\\s*margin)/i);
-              var lineFu = t.match(/Free\\s*margin\\s*:\\s*([-+0-9\\s,.']+)/i);
-              var lineLv = t.match(/Level\\s*:\\s*([-+0-9\\s,.']+)\\s*%/i);
-              if (lineEqB) out.equity = lineEqB[1].replace(/\\s/g, '').replace(/,/g, '');
-              if (lineBalB) out.balance = lineBalB[1].replace(/\\s/g, '').replace(/,/g, '');
-              if (lineMuS) out.marginUsed = lineMuS[1].replace(/\\s/g, '').replace(/,/g, '');
-              if (lineFu) out.freeMargin = lineFu[1].replace(/\\s/g, '').replace(/,/g, '');
-              if (lineLv) out.marginLevel = String(lineLv[1]).replace(/\\s/g, '').replace(/,/g, '');
-              if (out.freeMargin) break;
-            }
-          } catch (e) {}
-          return out;
-        }
-
         function scrapeTerminalAccountStats() {
           var equity = null;
           var balance = null;
           var floatingProfit = null;
-          var freeMargin = null;
-          var marginLevel = null;
-          var marginUsed = null;
           try {
-            var domB = scrapeTerminalBarDom();
             var txt = (document.body && document.body.innerText) ? document.body.innerText : '';
             var lineEq = txt.match(/(?:^|[\\n\\r])\\s*Equity\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
             if (lineEq) equity = lineEq[1].replace(/\\s/g, '').replace(/,/g, '');
             var lineBal = txt.match(/(?:^|[\\n\\r])\\s*Balance\\s*[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/im);
             if (lineBal) balance = lineBal[1].replace(/\\s/g, '').replace(/,/g, '');
             if (!equity || !balance) {
-              var compact0 = txt.replace(/[\\n\\r]+/g, ' ');
+              var compact = txt.replace(/[\\n\\r]+/g, ' ');
               if (!equity) {
-                var e2 = compact0.match(/Equity\\s*:\\s*([\\d][\\d\\s,]*\\.?\\d*)/i);
+                var e2 = compact.match(/Equity[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
                 if (e2) equity = e2[1].replace(/\\s/g, '').replace(/,/g, '');
               }
               if (!balance) {
-                var b2 = compact0.match(/Balance\\s*:\\s*([\\d][\\d\\s,]*\\.?\\d*)/i);
+                var b2 = compact.match(/Balance[:\\s]+([\\d][\\d\\s,]*\\.?\\d*)/i);
                 if (b2) balance = b2[1].replace(/\\s/g, '').replace(/,/g, '');
               }
             }
-            if (domB.equity) equity = domB.equity;
-            if (domB.balance) balance = domB.balance;
-            if (domB.freeMargin) freeMargin = domB.freeMargin;
-            if (domB.marginLevel) marginLevel = domB.marginLevel;
-            if (domB.marginUsed) marginUsed = domB.marginUsed;
             var cfp = txt.replace(/[\\n\\r\\t]+/g, ' ').replace(/\\s+/g, ' ');
             var fp1 = cfp.match(/(?:Floating|Unrealized)\\s*(?:P\\/?L|Profit)?\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
             if (fp1) floatingProfit = fp1[1].replace(/\\s/g, '').replace(/,/g, '');
@@ -462,92 +401,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               var fp3 = cfp.match(/\\bMargin\\b[^0-9]{0,8}[0-9][\\d\\s,]*\\.?\\d*[^0-9]{0,20}\\bProfit\\b\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,]*\\.?\\d*)/i);
               if (fp3) floatingProfit = fp3[1].replace(/\\s/g, '').replace(/,/g, '');
             }
-            if (freeMargin == null) {
-              var fm1 = cfp.match(/\\bFree\\s*margin\\s*[:#]?\\s*([-+]?[\\d][\\d\\s,']*\\.?\\d*)/i);
-              if (fm1) freeMargin = fm1[1].replace(/\\s/g, '').replace(/,/g, '').replace(/'/g, '');
-            }
-            if (marginUsed == null) {
-              var muSep = cfp.match(/\\bMargin\\s*:\\s*([-+0-9\\s,.']+?)(?=\\s*Free\\s*margin)/i);
-              if (muSep) marginUsed = muSep[1].replace(/\\s/g, '').replace(/,/g, '').replace(/'/g, '');
-            }
-            if (marginLevel == null) {
-              var ml1 = cfp.match(/\\bMargin\\s*level\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%?/i);
-              if (ml1) marginLevel = ml1[1].replace(/\\s/g, '').replace(/,/g, '');
-            }
-            if (marginLevel == null) {
-              var ml2 = cfp.match(/\\bLevel\\s*[:#]?\\s*([\\d][\\d\\s,]*\\.?\\d*)\\s*%/i);
-              if (ml2) marginLevel = ml2[1].replace(/\\s/g, '').replace(/,/g, '');
-            }
           } catch (err) {}
-          return { equity: equity, balance: balance, floatingProfit: floatingProfit, freeMargin: freeMargin, marginLevel: marginLevel, marginUsed: marginUsed };
-        }
-
-        var EA_MIN_MARGIN_LEVEL_PCT = 150;
-        var EA_MIN_FREE_MARGIN_FRAC = 0.005;
-
-        function isMarginSufficientForNewTrades(st, equityNum) {
-          var level = null;
-          var free = null;
-          var eqN = 0;
-          var mUsed = null;
-          try {
-            if (st && st.marginLevel != null && st.marginLevel !== '') {
-              level = parseTerminalMoney(st.marginLevel);
-            }
-          } catch (e) {}
-          try {
-            if (st && st.freeMargin != null && st.freeMargin !== '') {
-              free = parseTerminalMoney(st.freeMargin);
-            }
-          } catch (e2) {}
-          try {
-            if (st && st.marginUsed != null && st.marginUsed !== '') {
-              mUsed = parseTerminalMoney(st.marginUsed);
-            }
-          } catch (e2b) {}
-          try {
-            if (equityNum && !isNaN(equityNum)) eqN = equityNum;
-            else if (st && st.equity) eqN = parseTerminalMoney(String(st.equity)) || 0;
-          } catch (e3) {}
-          var levelN = level != null && !isNaN(level) ? level : null;
-          if (levelN != null && levelN > 0.01 && levelN < EA_MIN_MARGIN_LEVEL_PCT) {
-            return {
-              ok: false,
-              message:
-                '⏸️ Skipping new entries: margin level ' + levelN + '% (below ' + EA_MIN_MARGIN_LEVEL_PCT + '%). Add when margin allows; never auto-close other symbols.',
-              summary: 'Skipped: low margin level',
-            };
-          }
-          if (free != null && !isNaN(free) && free <= 0) {
-            return {
-              ok: false,
-              message: '⏸️ Skipping: no free margin. Add funds or free margin; app does not close other symbols to open this.',
-              summary: 'Skipped: no free margin',
-            };
-          }
-          if (eqN > 0 && free != null && !isNaN(free) && free < eqN * EA_MIN_FREE_MARGIN_FRAC) {
-            return {
-              ok: false,
-              message: '⏸️ Skipping: free margin too small vs equity (min ~' + EA_MIN_FREE_MARGIN_FRAC * 100 + '% of equity).',
-              summary: 'Skipped: insufficient free margin',
-            };
-          }
-          if (free != null && !isNaN(free) && eqN > 0) {
-            var ratio = free / eqN;
-            if (ratio >= 0.005) {
-              if (mUsed != null && mUsed < 0.0001 && ratio >= 0.5) {
-                return { ok: true, addMessage: '✅ High free margin, no use margin — adding trades to current list (no auto-close of other symbols).' };
-              }
-              if (ratio >= 0.02) {
-                return { ok: true, addMessage: '✅ Free margin OK — adding on top of running trades.' };
-              }
-              return { ok: true, addMessage: '✅ Enough free margin — adding to open positions.' };
-            }
-          }
-          if (mUsed != null && mUsed < 0.0001 && (free == null || (eqN > 0 && free >= eqN * 0.5))) {
-            return { ok: true, addMessage: '✅ Sufficient free margin — adding to open exposure (no auto-close of other symbols).' };
-          }
-          return { ok: true };
+          return { equity: equity, balance: balance, floatingProfit: floatingProfit };
         }
 
         // Override WebSocket to redirect to original terminal
@@ -2270,44 +2125,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
         };
 
-        // App never auto-closes open positions. Flow: margin check → N sequential new trades → all_trades_completed(executionOutcome).
-        // Aborted runs use executionOutcome 'aborted' so the app resumes polling without the 35s post-trade mark.
+        // Execute multiple trades based on configured number - EXACTLY as configured
         const executeMultipleTrades = async () => {
           const numberOfTrades = parseInt('${getNumberOfTrades()}', 10);
           if (isNaN(numberOfTrades) || numberOfTrades < 1) {
             sendMessage('error', 'Invalid number of trades configured: ' + numberOfTrades);
-            sendMessage('all_trades_completed', 'Invalid trade count', { executionOutcome: 'aborted' });
-            try {
-              window.__eaActiveTradePayload = null;
-            } catch (e) {}
             return;
           }
 
-          var stPol = scrapeTerminalAccountStats();
-          var eqN = 0;
-          try {
-            if (stPol.equity) eqN = parseTerminalMoney(String(stPol.equity)) || 0;
-          } catch (e) {}
-          var stMarg = scrapeTerminalAccountStats();
-          var mCheck = isMarginSufficientForNewTrades(stMarg, eqN);
-          if (!mCheck.ok) {
-            sendMessage('step_update', mCheck.message);
-            var stM = scrapeTerminalAccountStats();
-            sendMessage('all_trades_completed', mCheck.summary, {
-              equity: stM.equity,
-              balance: stM.balance,
-              executionOutcome: 'aborted',
-            });
-            await new Promise((r) => setTimeout(r, 800));
-            try {
-              window.__eaActiveTradePayload = null;
-            } catch (e) {}
-            return;
-          }
-          if (mCheck.addMessage) {
-            sendMessage('step_update', mCheck.addMessage);
-          }
-          
+          sendMessage('step_update', '📌 Add-on only: new market orders stack on existing positions; this app does not close running trades here.');
           sendMessage('step_update', '📊 Configured to execute EXACTLY ' + numberOfTrades + ' trade(s)');
           console.log('🎯 STRICT EXECUTION: Will execute exactly ' + numberOfTrades + ' trades, no more, no less');
           
@@ -2368,17 +2194,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           await new Promise(r => setTimeout(r, 2000));
           var statsFinal = scrapeTerminalAccountStats();
           if (successfulTrades === numberOfTrades) {
-            sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', {
-              equity: statsFinal.equity,
-              balance: statsFinal.balance,
-              executionOutcome: 'completed',
-            });
+            sendMessage('all_trades_completed', 'All ' + numberOfTrades + ' trades completed successfully', { equity: statsFinal.equity, balance: statsFinal.balance });
           } else {
-            sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', {
-              equity: statsFinal.equity,
-              balance: statsFinal.balance,
-              executionOutcome: 'completed',
-            });
+            sendMessage('all_trades_completed', successfulTrades + '/' + numberOfTrades + ' trades completed', { equity: statsFinal.equity, balance: statsFinal.balance });
           }
           
           // Close after brief delay
@@ -2412,13 +2230,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     setCurrentStep(message);
   }, []);
 
-  /**
-   * Terminal → app message flow (no deadlocks):
-   * - `pausePolling` runs when the overlay opens (provider). Any path that ends the session must either
-   *   `resumePolling` (chart warmup, margin abort, dismiss without completion) or `markTradeExecuted` (real
-   *   execution; 35s delayed resume). `all_trades_completed` sets `executionOutcome` so margin skips do not mark.
-   * - Dismiss without a completion message: `resumePolling` via effect on `visible` so polling never stays stuck.
-   */
+  // Handle WebView messages
   const handleWebViewMessage = useCallback((event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
@@ -2440,8 +2252,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         if (!data.message.includes('Market Watch already visible')) {
           setCurrentStep(data.message);
         }
-      } else if (data.type === 'error' && typeof data.message === 'string') {
-        setCurrentStep(data.message);
       } else if (data.type === 'authentication_success') {
         signalAuthRemountRef.current = 0;
         const acc = mt5AccountRef.current;
@@ -2520,30 +2330,29 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             if (result.message === 'accept' && result.data) {
               setChartAiResult(result.data);
               const conf = String(result.data.confidence || '').toLowerCase();
-              const isLowConfidence = conf === 'low' && signalRef.current?.type === 'CHART_WARMUP';
-              if (isLowConfidence) {
-                setCurrentStep('AI: low confidence — auto-trading with smaller conviction (per policy)');
+              const isLowConfidence = conf === 'low';
+              if (isLowConfidence && signalRef.current?.type === 'CHART_WARMUP') {
+                setCurrentStep('AI: low confidence — auto-trade skipped; review levels below');
                 setChartAiError(
-                  'Low confidence: the model sees a weaker edge; auto-trade is still on — confirm levels before relying on the move.'
+                  'Low confidence: the setup is unclear. Auto-trade is disabled; confirm manually if you take the trade.'
                 );
               } else {
                 setChartAiError(null);
               }
-              const payload = buildAiTradePayloadFromAnalysis(result.data);
-              if (payload && signalRef.current?.type === 'CHART_WARMUP') {
-                setCurrentStep(
-                  isLowConfidence
-                    ? 'AI: low confidence — placing order in MT5...'
-                    : 'AI suggests a trade — placing order in MT5...'
-                );
+              const payload =
+                !isLowConfidence || signalRef.current?.type !== 'CHART_WARMUP'
+                  ? buildAiTradePayloadFromAnalysis(result.data)
+                  : null;
+              if (payload && signalRef.current?.type === 'CHART_WARMUP' && !isLowConfidence) {
+                setCurrentStep('AI suggests a trade — placing order in MT5...');
                 shouldResumePolling = false;
                 runAiTradeInject(payload);
-              } else if (signalRef.current?.type === 'CHART_WARMUP' && !payload) {
+              } else if (signalRef.current?.type === 'CHART_WARMUP' && !payload && !isLowConfidence) {
                 setChartAiError(
                   'Could not derive SL/TP for auto-trade. Check symbol trade config (Scalper/Swing) and that entry price is visible.'
                 );
                 setCurrentStep('AI analysis complete — see suggestion below');
-              } else {
+              } else if (!(signalRef.current?.type === 'CHART_WARMUP' && isLowConfidence)) {
                 setCurrentStep('AI analysis complete — see suggestion below');
               }
             } else {
@@ -2576,23 +2385,18 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           console.error('Error resuming polling after capture failure:', err);
         });
       } else if (data.type === 'all_trades_completed') {
-        mt5FlowCompletedRef.current = true;
         applyTerminalEquity();
         setCurrentStep('All trades completed - Closing...');
-        const aborted = data.executionOutcome === 'aborted';
         if (signal?.type === 'CHART_WARMUP') {
           void Promise.resolve(resumePolling()).catch((err: unknown) => {
             console.error('Error resuming polling after chart warmup trade:', err);
           });
-        } else if (signal?.asset && !aborted) {
+        } else if (signal?.asset) {
           void Promise.resolve(markTradeExecuted(signal.asset)).catch((err: unknown) => {
             console.error('Error marking trade as executed:', err);
           });
-        } else if (aborted) {
-          void Promise.resolve(resumePolling()).catch((err: unknown) => {
-            console.error('Error resuming polling after aborted MT5 run:', err);
-          });
         }
+        // Close immediately
         setTimeout(() => {
           onClose();
         }, 500);

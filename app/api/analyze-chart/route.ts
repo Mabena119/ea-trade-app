@@ -15,15 +15,6 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 
-/** Tight sampling so the same chart image yields the same setup across repeated API calls. */
-const CHART_GENERATION_CONFIG = {
-  temperature: 0,
-  topP: 0.75,
-  topK: 20,
-  maxOutputTokens: 2048,
-  responseMimeType: 'application/json' as const,
-};
-
 /** Keep broker symbol text usable for app matching (exact ticker, no prose). */
 function normalizeSymbolFromChart(raw: unknown): string {
   if (raw === null || raw === undefined) return '';
@@ -49,7 +40,19 @@ function normalizeSymbolFromChart(raw: unknown): string {
   return stripped.length <= 32 ? stripped : stripped.slice(0, 32);
 }
 
-const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. You apply a **fixed, rule-based** methodology. Your job is **reproducibility**: the **same** chart image (same pixels) must yield the **same** JSON fields — same \`signal\` (BUY/SELL), same numeric \`entryPrice\` / \`stopLoss\` / \`takeProfit1\` (only minor rounding), and same \`confidence\` tier — on every run. **Change** signal or levels **only** when the **visible** price structure, labels, or candles **change** (a new image or updated chart). Do not vary interpretation for variety, a "new angle", or creativity.
+const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this chart image.
+
+FIXED ANALYSIS PROTOCOL (mandatory — follow the SAME steps in the SAME order every time. Do not skip steps, do not reorder, do not "reinterpret creatively"):
+1) **Visible structure only:** List the most recent **swing high** and **swing low** (or clearest S/R) using prices actually printed on the chart or inferable from the last clear swing before the right edge. Use the chart's time axis — last closed candles visible, not future bars.
+2) **Trend class (objective):** Uptrend = higher swing lows AND higher swing highs in the visible window; downtrend = lower swing highs AND lower swing lows; range = neither condition clearly holds. State this explicitly in "reasoning".
+3) **Signal rule (apply exactly):** 
+   - If **uptrend** and price is **not** showing a fresh breakdown below the last important swing low → **signal "BUY"** (with-trend or pullback in trend).
+   - If **downtrend** and price is **not** showing a clear reclaim above the last important swing high → **signal "SELL"**.
+   - If **range**, choose the side of the **nearest** rejected boundary: bounce up from lower range → **BUY**; rejection down from upper range → **SELL**. If exactly mid-range, pick the side of the **smallest** distance to a clear boundary in the direction of the last 2–3 candle **close** direction (higher closes → BUY, lower closes → SELL).
+4) **"signal" must be ONLY "BUY" or "SELL"** — never "NEUTRAL" (if unsure, still pick BUY or SELL using step 3).
+5) **Reproducibility (critical):** The **identical** chart image (same pixels: no new candle, no new tick, no zoom change) must yield the **same** "signal" and **the same** entryPrice, stopLoss, takeProfit1 (round prices consistently to the chart's precision: indices/metals often 2–5 dp as shown). **Only** change the output if visible price **structure** changes (e.g. new candle breaks a swing, new high/low, clear S/R break). Do not randomize, hedge, or vary the trade direction for stylistic variety.
+
+APPROACH - After the protocol, write observations for "reasoning" (4–6 unique sentences) tied to steps 1–3.
 
 chartDetected rules (critical):
 - Set "chartDetected": true if the image shows ANY MetaTrader / MT4 / MT5 / web terminal / cTrader / broker webtrader screenshot that includes a price chart area, candlesticks, bars, or a line chart — even with side panels, toolbars, or account bars visible.
@@ -62,27 +65,14 @@ SYMBOL (critical for automated trading — read from the image, do not guess):
 - If the chart window shows one primary symbol, use that only — not a watchlist of other pairs.
 - If the symbol text is unreadable or not visible, use "" for symbol (never invent a ticker from the asset class alone).
 
-FIXED METHODOLOGY — FOLLOW IN ORDER EVERY TIME (same image → same outcome):
-- **Step 1 — Classify structure (one label only, from the visible chart):**  
-  (A) **Uptrend** = you see a sequence including **higher swing lows** or **higher swing highs** in the on-screen history.  
-  (B) **Downtrend** = **lower swing highs** or **lower swing lows** dominate.  
-  (C) **Range** = price is **not** clearly printing new HH+HL (uptrend) or LH+LL (downtrend); it is **chopping** between a visible high **H** and low **L** you can read from the price scale.
-- **Step 2 — Set \`signal\` (deterministic; no alternate story):**  
-  - If **(A) Uptrend** → \`"BUY"\`.  
-  - If **(B) Downtrend** → \`"SELL"\`.  
-  - If **(C) Range** → Read **H** and **L** from the chart, compute **M = (H + L) / 2**, **P** = best visible last/current price (or last candle close on screen). If **P > M** → \`"BUY"\`. If **P < M** → \`"SELL"\`. If P is **on** M (visually indistinguishable), use the **last full visible candle body**: **bullish/green** → \`"BUY"\`, **bearish/red** → \`"SELL"\`. If the candle is a doji, use **P > M** with tiny tolerance: if still tied, \`"BUY"\` if **P** is **not below** M, else \`"SELL"\`.  
-- **Step 3 — Set levels from the same structure:** \`entryPrice\` = **P** (or a clear limit shown on the chart). \`stopLoss\` = the nearest **structural** invalidation **on the correct side** (below last swing low for BUY; above last swing high for SELL) using only prices you can read. \`takeProfit1\` = the next **readable** S/R in the **trade direction**; must respect reward:risk guidance below. **Reuse the same H/L/M/P** if you re-analyze the same picture — do not re-pick different swings without a new candle.
-- **Step 4 — \`reasoning\`:** First sentence = structure label (A/B/C) + the rule that set \`signal\` (e.g. "Uptrend → BUY" or "Range, P>M → BUY"). Then 3–5 sentences: S/R, patterns, or indicators you see — but **do not** contradict Step 2.
-
-APPROACH - Use a structured strategy. First apply FIXED METHODOLOGY above, then OBSERVE, then output JSON.
-
-OBSERVATIONS (for "reasoning" field - write 4-6 unique sentences, after the first fixed sentence):
-- Name specific SUPPORT and RESISTANCE levels you use (use price scale numbers)
+OBSERVATIONS (for "reasoning" field - write 4-6 unique sentences, aligned with the FIXED PROTOCOL above):
+- Cite the swing high/low (or S/R) from step 1 with numbers; state trend from step 2; explain why step 3 produced BUY or SELL.
+- Name specific SUPPORT and RESISTANCE (use price scale numbers)
 - Note any CANDLE PATTERNS if relevant
-- If indicators are visible, mention briefly — but **signal** was already set by Step 1–2
-- Do not "re-decide" BUY/SELL here; it must match Step 2
+- If indicators are visible, mention briefly
+- Reiterate: same chart → same read unless structure on the image changes
 
-Do NOT repeat "Chart analysis completed" or generic phrases. Do NOT just list Entry/SL/TP. Describe what you SEE and your reasoning.
+Do NOT repeat "Chart analysis completed" or generic phrases. Do NOT just list Entry/SL/TP without tying to the protocol.
 
 SUGGESTION (strategic advice - 2-3 sentences):
 - Entry timing: immediate or wait for pullback/confirmation?
@@ -91,13 +81,12 @@ SUGGESTION (strategic advice - 2-3 sentences):
 Do NOT just repeat "Place order at X, SL Y, TP Z" - add strategy.
 
 ACCOUNT & PORTFOLIO (this app’s execution policy — reflect in summary/suggestion when relevant):
-- The automated terminal **never** programmatically closes existing open positions (no near-TP auto-close, no “make room” closes, no mass close). New orders only **add** to the book when margin allows.
-- If **free margin** or **margin level** is too low to support more risk, new entries are **skipped** — the app will not close other symbols. Suggest the user add funds, reduce size manually elsewhere, or wait.
-- When floating profit is large vs equity, you may still suggest **user-managed** take-profit or scale-out in your wording; the app itself does not close trades for that.
+- The automated terminal **never** closes open positions just to make room for a new order on the same symbol, or to “switch” the book. New signals **add** exposure (including on other symbols) rather than mass-closing existing trades first.
+- When floating profit is an unusually large share of equity (e.g. **around 30% or more** of equity in combined open P/L), **prioritize** banking gains or reducing size in your suggestion: take-profit discipline, scale-out, or partial close — not blindly adding the same risk.
 - Prefer **diversification** across uncorrelated symbols when the account may already have risk; avoid over-concentrating one idea if multiple symbols are in play.
-- **Profitable style**: plan entries with clear invalidation; do not assume the system will close prior trades to manage the book.
+- **Profitable style**: plan entries with clear invalidation, avoid revenge/add-on logic that assumes prior trades will be closed by the system, and treat large unrealized profit as a signal to protect capital.
 - **Reward:risk:** Prefer at least **~2:1** potential profit vs risk (further is fine). Place SL at a real invalidation; TP should warrant taking the risk.
-- **confidence:** Set **"high"** or **"medium"** when trend/S/R and signal align. Set **"low"** for choppy, unclear, or conflicting structure — the app may still auto-execute on **low** confidence per user policy (sizing/levels must still be valid).
+- **confidence:** Set **"high"** or **"medium"** only when trend/S/R and signal align. Set **"low"** for choppy, unclear, or conflicting structure — the app will **not** auto-execute on **low** confidence (user can still trade manually from your levels).
 
 LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL or TP empty.
 
@@ -105,7 +94,7 @@ Output JSON only (symbol must be the literal ticker string from the chart UI, or
 {"chartDetected":true,"symbol":"EXACT_TICKER_OR_EMPTY","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
 
 /** Second pass when the model wrongly returns chartDetected:false on a large screenshot (typical MT5 web canvas capture). */
-const CHART_RETRY_PROMPT = `This image is a screenshot from a MetaTrader web terminal (MT4/MT5) or similar broker terminal. It MUST be treated as a valid trading chart. Set "chartDetected": true. Read the visible symbol from the title bar or chart label. **Use the same fixed trend/range/midpoint → BUY/SELL rules as a primary analysis** so a repeat of this image would still yield the same signal. Output the same JSON schema as before (symbol, timeframe, signal BUY or SELL, entryPrice, stopLoss, takeProfit1, reasoning, summary, suggestion).`;
+const CHART_RETRY_PROMPT = `This image is a screenshot from a MetaTrader web terminal (MT4/MT5) or similar broker terminal. It MUST be treated as a valid trading chart. Set "chartDetected": true. Read the visible symbol from the title bar or chart label. Use the same FIXED ANALYSIS PROTOCOL: objective swing S/R, trend class, then BUY or SELL (never NEUTRAL). The same static image should give the same signal and key prices; only differ if the visible structure would differ. Output the same JSON schema as before (symbol, timeframe, signal BUY or SELL, entryPrice, stopLoss, takeProfit1, reasoning, summary, suggestion).`;
 
 function tradeModePromptAppendix(tradeMode: MT5TradeMode): string {
   if (tradeMode === 'scalper') {
@@ -238,7 +227,13 @@ export async function POST(request: Request): Promise<Response> {
           ],
         },
       ],
-      generationConfig: CHART_GENERATION_CONFIG,
+      generationConfig: {
+        temperature: 0,
+        topP: 0.95,
+        topK: 1,
+        maxOutputTokens: 2048,
+        responseMimeType: 'application/json',
+      },
     };
 
     const controller = new AbortController();
@@ -379,11 +374,18 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Force BUY or SELL only - convert NEUTRAL based on reasoning/summary
+    // Force BUY or SELL only - convert NEUTRAL with deterministic structure keywords
     let signal = (asChartString(parsed.signal) || 'BUY').toUpperCase();
     if (signal === 'NEUTRAL') {
       const text = `${asChartString(parsed.reasoning)} ${asChartString(parsed.summary)}`.toLowerCase();
-      signal = text.includes('bearish') || text.includes('sell') || text.includes('down') || text.includes('short') ? 'SELL' : 'BUY';
+      const sellHints =
+        /\b(sell|bearish|downtrend|lower high|resistance|rejection|breakdown|short)\b/.test(text);
+      const buyHints =
+        /\b(buy|bullish|uptrend|higher low|support|bounce|breakout|long)\b/.test(text);
+      if (sellHints && !buyHints) signal = 'SELL';
+      else if (buyHints && !sellHints) signal = 'BUY';
+      else
+        signal = text.includes('bearish') || text.includes('downtrend') || text.includes('sell') || text.includes('down') || text.includes('short') ? 'SELL' : 'BUY';
     }
 
     let currentPrice = asChartString(parsed.currentPrice);
