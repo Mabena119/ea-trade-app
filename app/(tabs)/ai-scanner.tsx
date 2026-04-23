@@ -461,36 +461,43 @@ export default function AIScannerScreen() {
     setAnalyzing(true);
     setError(null);
     setResult(null);
+    const maxAttempts = 4;
+    const tradeModeOpt = { tradeMode: getTradeModeForAnalysis(undefined, mt5Symbols) };
     try {
-      const response = await apiService.analyzeChart(imageBase64, mimeType, {
-        tradeMode: getTradeModeForAnalysis(undefined, mt5Symbols),
-      });
-      if (response.message === 'accept' && response.data) {
-        setResult(response.data);
-        if (imageUri) {
-          const newCount = await saveToHistory(imageUri, imageBase64, response.data);
-          if (newCount >= MAX_UPLOADS) {
-            let email = user?.email;
-            if (!email) {
-              try {
-                const stored = await AsyncStorage.getItem('user');
-                if (stored) {
-                  const parsed = JSON.parse(stored) as { email?: string };
-                  email = parsed?.email;
+      let lastErr = 'Analysis failed. Please try again.';
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (attempt > 1) {
+          await new Promise((r) => setTimeout(r, 600 + attempt * 350));
+        }
+        const response = await apiService.analyzeChart(imageBase64, mimeType, tradeModeOpt);
+        if (response.message === 'accept' && response.data) {
+          setResult(response.data);
+          if (imageUri) {
+            const newCount = await saveToHistory(imageUri, imageBase64, response.data);
+            if (newCount >= MAX_UPLOADS) {
+              let email = user?.email;
+              if (!email) {
+                try {
+                  const stored = await AsyncStorage.getItem('user');
+                  if (stored) {
+                    const parsed = JSON.parse(stored) as { email?: string };
+                    email = parsed?.email;
+                  }
+                } catch {
+                  /* ignore */
                 }
-              } catch {
-                /* ignore */
+              }
+              if (email) {
+                await apiService.revokeScannerAccess(email);
+                setScannerUnlocked(false);
               }
             }
-            if (email) {
-              await apiService.revokeScannerAccess(email);
-              setScannerUnlocked(false);
-            }
           }
+          return;
         }
-      } else {
-        setError(response.error || 'Analysis failed. Please try again.');
+        lastErr = response.error || lastErr;
       }
+      setError(lastErr);
     } catch (e) {
       setError('Something went wrong. Please try again.');
     } finally {

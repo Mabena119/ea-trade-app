@@ -85,6 +85,9 @@ const MT5_BROKER_URLS: Record<string, string> = {
 /** When true, MT5 signal WebView uses a visible panel for debugging. Chart warmup keeps the WebView fully laid out (below cover) so WebGL still composites. */
 const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = false;
 
+/** Same chart image: server cache + low model temp; client retries transient network/API errors with same snapshot. */
+const CHART_AI_ANALYSIS_MAX_ATTEMPTS = 4;
+
 /** Toast subtitle during CHART_WARMUP: single friendly line unless the step is an outcome/error. */
 function displayStatusForChartWarmup(step: string | null | undefined): string {
   const s = (step || '').trim();
@@ -2300,19 +2303,52 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         void (async () => {
           let shouldResumePolling = true;
           const aiRunKey = signalExecutionKeyRef.current;
+          const imageB64 = data.image as string;
+          const imageMime = (data.mimeType as string) || 'image/jpeg';
+          let result: Awaited<ReturnType<typeof apiService.analyzeChart>> | null = null;
           try {
             const asset = signalRef.current?.asset || '';
             const tradeModeForApi = getTradeModeForAnalysis(asset, mt5Symbols);
-            const result = await apiService.analyzeChart(
-              data.image as string,
-              (data.mimeType as string) || 'image/jpeg',
-              { tradeMode: tradeModeForApi }
-            );
+            for (let attempt = 1; attempt <= CHART_AI_ANALYSIS_MAX_ATTEMPTS; attempt++) {
+              if (signalExecutionKeyRef.current !== aiRunKey) {
+                console.log('MT5: discarding chart AI result — newer signal or scan is active');
+                return;
+              }
+              if (attempt > 1) {
+                setCurrentStep(`AI analysis — retrying (${attempt}/${CHART_AI_ANALYSIS_MAX_ATTEMPTS})...`);
+                setChartAiError(null);
+                await new Promise((r) => setTimeout(r, 600 + attempt * 350));
+              }
+              if (signalExecutionKeyRef.current !== aiRunKey) {
+                console.log('MT5: discarding chart AI result — newer signal or scan is active');
+                return;
+              }
+              try {
+                result = await apiService.analyzeChart(imageB64, imageMime, { tradeMode: tradeModeForApi });
+              } catch (e) {
+                result = {
+                  message: 'error' as const,
+                  error: e instanceof Error ? e.message : 'Analysis error',
+                };
+              }
+              if (signalExecutionKeyRef.current !== aiRunKey) {
+                console.log('MT5: discarding chart AI result — newer signal or scan is active');
+                return;
+              }
+              if (result?.message === 'accept' && result.data) {
+                break;
+              }
+              if (attempt === CHART_AI_ANALYSIS_MAX_ATTEMPTS) {
+                setChartAiError(result?.error || 'Analysis failed');
+                setCurrentStep('AI analysis failed — polling resumed');
+              }
+            }
+
             if (signalExecutionKeyRef.current !== aiRunKey) {
               console.log('MT5: discarding chart AI result — newer signal or scan is active');
               return;
             }
-            if (result.message === 'accept' && result.data) {
+            if (result?.message === 'accept' && result.data) {
               setChartAiResult(result.data);
               const conf = String(result.data.confidence || '').toLowerCase();
               const isLowConfidence = conf === 'low';
@@ -2340,9 +2376,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               } else if (!(signalRef.current?.type === 'CHART_WARMUP' && isLowConfidence)) {
                 setCurrentStep('AI analysis complete — see suggestion below');
               }
-            } else {
-              setChartAiError(result.error || 'Analysis failed');
-              setCurrentStep('AI analysis failed — polling resumed');
             }
           } catch (e) {
             setChartAiError(e instanceof Error ? e.message : 'Analysis error');

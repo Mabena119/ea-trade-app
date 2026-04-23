@@ -3,6 +3,7 @@
  * Requires GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable
  */
 
+import { createHash } from 'node:crypto';
 import {
   getSlTpPercentForTradeMode,
   getTakeProfitRiskMultiple,
@@ -14,6 +15,64 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as const;
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
+const CHART_CACHE_MAX = 200;
+
+/** Same image bytes + trade mode → identical API output (avoids model drift; speeds retries). */
+const chartAnalysisResultCache = new Map<
+  string,
+  {
+    data: {
+      symbol: string;
+      timeframe: string;
+      currentPrice: string;
+      signal: 'BUY' | 'SELL';
+      confidence: string;
+      summary: string;
+      reasoning: string;
+      suggestion: string;
+      entryPrice: string;
+      stopLoss: string;
+      takeProfit1: string;
+      takeProfit2: string;
+      takeProfit3: string;
+    };
+  }
+>();
+
+function cacheKeyForChart(base64Data: string, tradeMode: MT5TradeMode): string {
+  return createHash('sha256').update(base64Data, 'utf8').update('\n').update(tradeMode).digest('hex');
+}
+
+function cacheGetChart(base64Data: string, tradeMode: MT5TradeMode) {
+  const k = cacheKeyForChart(base64Data, tradeMode);
+  return chartAnalysisResultCache.get(k) ?? null;
+}
+
+function cacheSetChart(
+  base64Data: string,
+  tradeMode: MT5TradeMode,
+  data: {
+    symbol: string;
+    timeframe: string;
+    currentPrice: string;
+    signal: 'BUY' | 'SELL';
+    confidence: string;
+    summary: string;
+    reasoning: string;
+    suggestion: string;
+    entryPrice: string;
+    stopLoss: string;
+    takeProfit1: string;
+    takeProfit2: string;
+    takeProfit3: string;
+  }
+) {
+  if (chartAnalysisResultCache.size >= CHART_CACHE_MAX) {
+    const first = chartAnalysisResultCache.keys().next().value;
+    if (first) chartAnalysisResultCache.delete(first);
+  }
+  chartAnalysisResultCache.set(cacheKeyForChart(base64Data, tradeMode), { data });
+}
 
 /** Keep broker symbol text usable for app matching (exact ticker, no prose). */
 function normalizeSymbolFromChart(raw: unknown): string {
@@ -213,6 +272,14 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    const cached = cacheGetChart(base64Data, tradeMode);
+    if (cached) {
+      return Response.json(
+        { message: 'accept' as const, data: { ...cached.data } },
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const geminiPayload = {
       contents: [
         {
@@ -229,7 +296,7 @@ export async function POST(request: Request): Promise<Response> {
       ],
       generationConfig: {
         temperature: 0,
-        topP: 0.95,
+        topP: 0.1,
         topK: 1,
         maxOutputTokens: 2048,
         responseMimeType: 'application/json',
@@ -432,34 +499,37 @@ export async function POST(request: Request): Promise<Response> {
 
     const symbolNormalized = normalizeSymbolFromChart(parsed.symbol);
 
+    const responseData = {
+      symbol: symbolNormalized,
+      timeframe: asChartString(parsed.timeframe),
+      currentPrice,
+      signal: signal as 'BUY' | 'SELL',
+      confidence: asChartString(parsed.confidence) || 'low',
+      summary: asChartString(parsed.summary),
+      reasoning: (() => {
+        const r = asChartString(parsed.reasoning).replace(/chart analysis completed\.?/gi, '').trim();
+        const summary = asChartString(parsed.summary).trim();
+        if (r && r.length > 80 && !/entry\s*\d|consider trend|technical analysis indicates/i.test(r)) return r;
+        if (summary && summary.length > 30 && !/chart analysis completed/i.test(summary)) return summary;
+        return r || summary;
+      })(),
+      suggestion: (() => {
+        const s = (suggestion || '').replace(/review.*levels above\.?/gi, '').trim();
+        if (s && s.length > 50 && !/^place\s*(buy|sell)\s*order\s*at\s*[\d.]+\.?\s*stop\s*loss:/i.test(s)) return s;
+        return s || (stopLoss && takeProfit1 ? `SL: ${stopLoss}, TP: ${takeProfit1}. Use proper position sizing.` : '');
+      })(),
+      entryPrice,
+      stopLoss,
+      takeProfit1,
+      takeProfit2: asChartString(parsed.takeProfit2),
+      takeProfit3: asChartString(parsed.takeProfit3),
+    };
+    cacheSetChart(base64Data, tradeMode, responseData);
+
     return Response.json(
       {
         message: 'accept',
-        data: {
-          symbol: symbolNormalized,
-          timeframe: asChartString(parsed.timeframe),
-          currentPrice,
-          signal: signal as 'BUY' | 'SELL',
-          confidence: asChartString(parsed.confidence) || 'low',
-          summary: asChartString(parsed.summary),
-          reasoning: (() => {
-            const r = asChartString(parsed.reasoning).replace(/chart analysis completed\.?/gi, '').trim();
-            const summary = asChartString(parsed.summary).trim();
-            if (r && r.length > 80 && !/entry\s*\d|consider trend|technical analysis indicates/i.test(r)) return r;
-            if (summary && summary.length > 30 && !/chart analysis completed/i.test(summary)) return summary;
-            return r || summary;
-          })(),
-          suggestion: (() => {
-            const s = (suggestion || '').replace(/review.*levels above\.?/gi, '').trim();
-            if (s && s.length > 50 && !/^place\s*(buy|sell)\s*order\s*at\s*[\d.]+\.?\s*stop\s*loss:/i.test(s)) return s;
-            return s || (stopLoss && takeProfit1 ? `SL: ${stopLoss}, TP: ${takeProfit1}. Use proper position sizing.` : '');
-          })(),
-          entryPrice,
-          stopLoss,
-          takeProfit1,
-          takeProfit2: asChartString(parsed.takeProfit2),
-          takeProfit3: asChartString(parsed.takeProfit3),
-        },
+        data: responseData,
       },
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
