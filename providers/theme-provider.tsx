@@ -450,10 +450,13 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/** Light scrim: enough to hide accidental light iOS layers; matrix rain stays visible. */
-export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.44)';
+/**
+ * Matrix: fully transparent so the root #000 + MatrixBackground shows true black
+ * and green digits. A scrim (e.g. rgba black at 0.4) composites as flat grey.
+ */
+export const MATRIX_SCREEN_SCRIM = 'transparent';
 
-/** Tab / screen root — matrix uses a light scrim so 0/1 rain stays visible. */
+/** Tab / screen root — matrix uses transparent over the global matrix layer. */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
   return themeName === 'matrix' ? MATRIX_SCREEN_SCRIM : theme.colors.background;
 }
