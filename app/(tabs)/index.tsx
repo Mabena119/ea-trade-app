@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/providers/app-provider';
 import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import type { EA } from '@/providers/app-provider';
+import { matrixFlatSurface, matrixHomeGlass } from '@/constants/matrix-theme';
 import colors from '@/constants/colors';
 
 export default function HomeScreen() {
@@ -164,28 +165,6 @@ export default function HomeScreen() {
 
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const isMatrix = themeName === 'matrix';
-  /** Let MatrixBackground show through hero / cards (tinted glass, not solid green). */
-  /** Ultra-light tint — heavy iOS card shadows on translucent fills read as “solid grey/silver”. */
-  const matrixCardGradient = useMemo(
-    () =>
-      [
-        'rgba(0, 50, 25, 0.06)',
-        'rgba(0, 30, 15, 0.04)',
-        'rgba(0, 70, 35, 0.08)',
-      ] as [string, string, string],
-    []
-  );
-
-  const matrixFlatSurface = useMemo(
-    () =>
-      ({
-        shadowOpacity: 0,
-        shadowRadius: 0,
-        shadowOffset: { width: 0, height: 0 },
-        elevation: 0,
-      }) as const,
-    []
-  );
 
   // Block rendering if not authenticated
   if (!isAuthenticated) {
@@ -290,7 +269,9 @@ export default function HomeScreen() {
           >
             <LinearGradient
               colors={
-                isMatrix ? matrixCardGradient : (theme.colors.primaryGradient as [string, string, ...string[]])
+                isMatrix
+                  ? matrixHomeGlass
+                  : (theme.colors.primaryGradient as [string, string, ...string[]])
               }
               style={[styles.gradientBackground, isMatrix && { opacity: 1 }]}
               start={{ x: 0, y: 0 }}
@@ -476,7 +457,7 @@ export default function HomeScreen() {
                       <LinearGradient
                         colors={
                           isMatrix
-                            ? matrixCardGradient
+                            ? matrixHomeGlass
                             : (theme.colors.cardGradient as [string, string, ...string[]])
                         }
                         style={StyleSheet.absoluteFill}
@@ -523,7 +504,7 @@ export default function HomeScreen() {
                 <LinearGradient
                   colors={
                     isMatrix
-                      ? matrixCardGradient
+                      ? matrixHomeGlass
                       : (theme.colors.primaryGradient as [string, string, ...string[]])
                   }
                   style={styles.addEAGradientBackground}

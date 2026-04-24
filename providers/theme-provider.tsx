@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Platform, Vibration } from 'react-native';
 import { Accelerometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { matrixVisual } from '@/constants/matrix-theme';
 
 // Theme definitions
 export interface ThemeColors {
@@ -313,40 +314,43 @@ export const limeTheme: Theme = {
 
 // ============ PLAIN THEMES ============
 
-// Matrix — black terminal, neon green, digital-rain background (see MatrixBackground in _layout)
+// Matrix — black + neon; rain from MatrixBackground (see `matrixVisual` for glass tokens)
 export const matrixTheme: Theme = {
   name: 'matrix',
   isDark: true,
   colors: {
-    background: '#000000',
-    backgroundSecondary: '#010801',
-    cardBackground: 'rgba(0, 255, 80, 0.12)',
+    background: matrixVisual.void,
+    backgroundSecondary: '#010201',
+    cardBackground: 'rgba(0, 255, 100, 0.12)',
 
-    primaryGradient: ['#001a0d', '#00331a', '#00FF66'],
-    // Keep cards/panels dark — no light “mint wash” (was washing out light text on iOS)
-    cardGradient: ['#020805', '#042010', '#06301a'],
-    glowGradient: ['rgba(0, 255, 102, 0.4)', 'rgba(0, 200, 80, 0.2)', 'transparent'],
+    primaryGradient: ['#001008', '#001f12', matrixVisual.rain.mid],
+    cardGradient: [
+      'rgba(0, 18, 9, 0.22)',
+      'rgba(0, 32, 16, 0.24)',
+      'rgba(0, 48, 24, 0.26)',
+    ],
+    glowGradient: ['rgba(0, 255, 100, 0.35)', 'rgba(0, 200, 80, 0.15)', 'transparent'],
 
     textPrimary: '#FFFFFF',
     textSecondary: '#B6F5CE',
     textMuted: '#7DDC9E',
 
-    accent: '#00FF66',
-    onAccent: '#000000',
+    accent: matrixVisual.rain.mid,
+    onAccent: matrixVisual.void,
     accentSecondary: '#39FF7A',
     success: '#4ADE80',
     error: '#FF6B6B',
     warning: '#FDE047',
 
-    borderColor: 'rgba(0, 255, 100, 0.35)',
-    glowColor: 'rgba(0, 255, 100, 0.45)',
-    overlayColor: 'rgba(0, 0, 0, 0.88)',
+    borderColor: matrixVisual.border.default,
+    glowColor: matrixVisual.rain.glow,
+    overlayColor: 'rgba(0, 0, 0, 0.82)',
 
-    statusActive: '#00FF66',
+    statusActive: matrixVisual.rain.mid,
     statusInactive: '#2d4a2d',
 
-    navBackground: 'rgba(0, 0, 0, 0.52)',
-    navActiveColor: '#00FF66',
+    navBackground: matrixVisual.nav.background,
+    navActiveColor: matrixVisual.rain.mid,
     navInactiveColor: 'rgba(0, 200, 90, 0.45)',
   },
 };
@@ -450,14 +454,10 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/**
- * Legacy semi-transparent scrim (avoid for full-screen roots: RN blends it with the default
- * navigator window and reads as grey). Prefer transparent + root #000 + MatrixBackground.
- */
-export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.58)';
-
-/** Toolbar / header strip over code rain (darken slightly so chrome stays legible). */
-export const MATRIX_HEADER_SCRIM = 'rgba(0,0,0,0.45)';
+export {
+  MATRIX_HEADER_SCRIM,
+  MATRIX_SCREEN_SCRIM,
+} from '@/constants/matrix-theme';
 
 /**
  * Matrix: transparent so the root layout’s true black + MatrixBackground show through.
