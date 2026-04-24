@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Play, Square, Scan, Activity, Trash2, Plus } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { MatrixBackground } from '@/components/matrix-background';
 import { useApp } from '@/providers/app-provider';
 import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import type { EA } from '@/providers/app-provider';
@@ -219,10 +218,10 @@ export default function HomeScreen() {
     );
   }
 
-  // Home always paints rain/black behind content (local layer when not on global matrix)
+  // Matrix: transparent so root MatrixBackground + black show; other themes use normal screen bg
   const dynamicStyles = {
     container: {
-      backgroundColor: 'transparent',
+      backgroundColor: isMatrix ? 'transparent' : screenBg,
     },
     sectionTitle: {
       color: theme.colors.textPrimary,
@@ -242,16 +241,26 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={styles.homeRoot}>
-      {/* Non-matrix: full-screen #000 + digital rain (matrix theme uses root layout layer) */}
-      {themeName !== 'matrix' && (
-        <>
-          <View style={styles.homeBackdropBlack} pointerEvents="none" />
-          <MatrixBackground />
-        </>
+    <SafeAreaView style={[styles.container, dynamicStyles.container]}>
+      {/* 0/1 digital rain: global MatrixBackground in app/_layout — only for matrix theme */}
+      {!isMatrix && (
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
+          style={styles.pageGlossTop}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          pointerEvents="none"
+        />
       )}
-      <SafeAreaView style={[styles.container, dynamicStyles.container]}>
-      <StatusBar barStyle="light-content" />
+      {!isMatrix && (
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
+          style={styles.pageGlossBottom}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          pointerEvents="none"
+        />
+      )}
 
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
@@ -514,7 +523,6 @@ export default function HomeScreen() {
         </View>
       </View>
     </SafeAreaView>
-    </View>
   );
 }
 
@@ -568,18 +576,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.8,
   },
-  homeRoot: {
-    flex: 1,
-    position: 'relative',
-  },
-  homeBackdropBlack: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000000',
-  },
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#000000',
     position: 'relative',
+  },
+  pageGlossTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    zIndex: 100,
+  },
+  pageGlossBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    zIndex: 100,
   },
   content: {
     flex: 1,
