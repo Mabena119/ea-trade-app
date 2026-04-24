@@ -228,7 +228,7 @@ export default function HomeScreen() {
       color: theme.colors.textPrimary,
     },
     connectedBotsSection: {
-      backgroundColor: screenBg,
+      backgroundColor: isMatrix ? 'transparent' : screenBg,
     },
     sectionBadge: {
       backgroundColor: `${theme.colors.accent}40`,
@@ -412,7 +412,10 @@ export default function HomeScreen() {
           )}
 
           <ScrollView
-            style={[styles.connectedBotsScrollView, { backgroundColor: screenBg }]}
+            style={[
+              styles.connectedBotsScrollView,
+              { backgroundColor: isMatrix ? 'transparent' : screenBg },
+            ]}
             contentContainerStyle={styles.connectedBotsScrollContent}
             showsVerticalScrollIndicator={false}
             bounces={true}
@@ -484,39 +487,58 @@ export default function HomeScreen() {
 
 
               <TouchableOpacity
-                style={[styles.addEAButton, { shadowColor: theme.colors.glowColor }]}
+                style={[
+                  styles.addEAButton,
+                  isMatrix && styles.addEAButtonMatrix,
+                  { shadowColor: theme.colors.glowColor },
+                ]}
                 onPress={handleAddNewEA}
                 activeOpacity={0.7}
               >
-                {/* Gradient background */}
-                <LinearGradient
-                  colors={
-                    isMatrix
-                      ? (matrixCardGradient as [string, string, ...string[]])
-                      : (theme.colors.primaryGradient as [string, string, ...string[]])
-                  }
-                  style={styles.addEAGradientBackground}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                />
-
-                {Platform.OS === 'ios' && !isMatrix && (
-                  <BlurView intensity={40} tint="light" style={styles.addEAGlassOverlay} />
-                )}
-
+                {/* Matrix: no fill — show matrix rain through; other themes: gradient + glass */}
                 {!isMatrix && (
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
-                    style={styles.addEAGlossShine}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                  />
+                  <>
+                    <LinearGradient
+                      colors={theme.colors.primaryGradient as [string, string, ...string[]]}
+                      style={styles.addEAGradientBackground}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                    {Platform.OS === 'ios' && (
+                      <BlurView intensity={40} tint="light" style={styles.addEAGlassOverlay} />
+                    )}
+                    <LinearGradient
+                      colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                      style={styles.addEAGlossShine}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                    />
+                  </>
                 )}
 
-                <Plus color="#FFFFFF" size={24} strokeWidth={2.5} style={{ zIndex: 3 }} />
+                <Plus
+                  color={isMatrix ? theme.colors.accent : '#FFFFFF'}
+                  size={24}
+                  strokeWidth={2.5}
+                  style={{ zIndex: 3 }}
+                />
                 <View style={[styles.addEATextContainer, { zIndex: 3 }]}>
-                  <Text style={styles.addEATitle}>ADD ROBOT</Text>
-                  <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
+                  <Text
+                    style={[
+                      styles.addEATitle,
+                      isMatrix && { color: theme.colors.textPrimary, textShadowColor: 'rgba(0,0,0,0.9)' },
+                    ]}
+                  >
+                    ADD ROBOT
+                  </Text>
+                  <Text
+                    style={[
+                      styles.addEASubtitle,
+                      isMatrix && { color: theme.colors.textMuted },
+                    ]}
+                  >
+                    HOST ROBOT KEY
+                  </Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -995,6 +1017,13 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 15,
     position: 'relative',
+  },
+  /** Border-only; no fill so `MatrixSceneRain` shows through the button area */
+  addEAButtonMatrix: {
+    borderColor: 'rgba(0, 255, 100, 0.42)',
+    borderTopColor: 'rgba(0, 255, 102, 0.55)',
+    shadowOpacity: 0.35,
+    elevation: 8,
   },
   addEAGradientBackground: {
     position: 'absolute',
