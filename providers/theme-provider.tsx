@@ -450,15 +450,21 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/** Main screen scrim — light enough to see dense code rain, dark enough for white UI text. */
+/**
+ * Legacy semi-transparent scrim (avoid for full-screen roots: RN blends it with the default
+ * navigator window and reads as grey). Prefer transparent + root #000 + MatrixBackground.
+ */
 export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.58)';
 
-/** Slightly stronger tint for toolbars/headers (matches rain visibility to screen scrim). */
-export const MATRIX_HEADER_SCRIM = 'rgba(0,0,0,0.62)';
+/** Toolbar / header strip over code rain (darken slightly so chrome stays legible). */
+export const MATRIX_HEADER_SCRIM = 'rgba(0,0,0,0.45)';
 
-/** Tab / screen root — matrix uses a black scrim over the animated background. */
+/**
+ * Matrix: transparent so the root layout’s true black + MatrixBackground show through.
+ * (Opaque or alpha scrims on the tab scene composite against a light default and look grey.)
+ */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? MATRIX_SCREEN_SCRIM : theme.colors.background;
+  return themeName === 'matrix' ? 'transparent' : theme.colors.background;
 }
 
 interface ThemeContextType {
