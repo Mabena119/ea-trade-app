@@ -6,7 +6,7 @@ import { ArrowLeft, Circle, RotateCw } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
-import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
@@ -26,6 +26,7 @@ interface Quote {
 export default function QuotesScreen() {
   const { eas, activeSymbols, mt4Symbols, mt5Symbols, mt5Account, mt5LotSizingMode, setMt5LotSizingMode } = useApp();
   const { theme, themeName } = useTheme();
+  const isMatrix = isMatrixStyleTheme(themeName);
   const screenBg = getScreenBackgroundColor(theme, themeName);
 
   const hasMt5Linked = Boolean(
@@ -322,8 +323,7 @@ export default function QuotesScreen() {
           styles.header,
           {
             borderBottomColor: theme.colors.borderColor,
-            backgroundColor:
-              themeName === 'matrix'
+            backgroundColor: isMatrix
                 ? 'rgba(0,0,0,0.97)'
                 : Platform.OS === 'ios'
                   ? 'transparent'
@@ -389,7 +389,7 @@ export default function QuotesScreen() {
             {Platform.OS === 'ios' && (
               <BlurView
                 intensity={60}
-                tint={themeName === 'matrix' || theme.isDark ? 'dark' : 'light'}
+                tint={isMatrix || theme.isDark ? 'dark' : 'light'}
                 style={StyleSheet.absoluteFill}
               />
             )}
@@ -417,13 +417,14 @@ export default function QuotesScreen() {
         style={[
           styles.sizingModeBar,
           {
-            borderBottomColor:
-              themeName === 'matrix'
-                ? 'rgba(0,255,100,0.12)'
+            borderBottomColor: isMatrix
+                ? themeName === 'matrixRed'
+                  ? 'rgba(255,80,100,0.12)'
+                  : 'rgba(0,255,100,0.12)'
                 : theme.isDark
                   ? 'rgba(255,255,255,0.08)'
                   : 'rgba(0,0,0,0.08)',
-            backgroundColor: themeName === 'matrix' ? 'rgba(0,0,0,0.94)' : 'transparent',
+            backgroundColor: isMatrix ? 'rgba(0,0,0,0.94)' : 'transparent',
           },
         ]}
       >
@@ -441,15 +442,19 @@ export default function QuotesScreen() {
                   {
                     borderColor: selected
                       ? theme.colors.accent
-                      : themeName === 'matrix'
-                        ? 'rgba(0,255,100,0.2)'
+                      : isMatrix
+                        ? themeName === 'matrixRed'
+                          ? 'rgba(255,80,100,0.2)'
+                          : 'rgba(0,255,100,0.2)'
                         : theme.isDark
                           ? 'rgba(255,255,255,0.2)'
                           : 'rgba(0,0,0,0.15)',
                     backgroundColor: selected
                       ? `${theme.colors.accent}55`
-                      : themeName === 'matrix'
-                        ? 'rgba(0,255,80,0.06)'
+                      : isMatrix
+                        ? themeName === 'matrixRed'
+                          ? 'rgba(255,40,60,0.06)'
+                          : 'rgba(0,255,80,0.06)'
                         : theme.isDark
                           ? 'rgba(255,255,255,0.06)'
                           : 'rgba(0,0,0,0.04)',

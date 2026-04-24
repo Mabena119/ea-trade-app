@@ -33,7 +33,7 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import {
   useApp,
@@ -122,6 +122,7 @@ export interface ScannerHistoryItem {
 
 export default function AIScannerScreen() {
   const { theme, themeName } = useTheme();
+  const isMatrix = isMatrixStyleTheme(themeName);
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const {
     user,
@@ -620,7 +621,7 @@ export default function AIScannerScreen() {
           styles.header,
           {
             borderBottomColor: theme.colors.borderColor,
-            backgroundColor: themeName === 'matrix' ? '#000000' : undefined,
+            backgroundColor: isMatrix ? '#000000' : undefined,
           },
         ]}
       >
@@ -637,10 +638,18 @@ export default function AIScannerScreen() {
           activeOpacity={0.7}
         >
           {/* Matrix: solid fill — iOS Blur can pick up the system grey behind transparent nav */}
-          {Platform.OS === 'ios' && themeName === 'matrix' && (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,24,12,0.95)' }]} />
+          {Platform.OS === 'ios' && isMatrix && (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor:
+                    themeName === 'matrixRed' ? 'rgba(32,6,8,0.95)' : 'rgba(0,24,12,0.95)',
+                },
+              ]}
+            />
           )}
-          {Platform.OS === 'ios' && themeName !== 'matrix' && (
+          {Platform.OS === 'ios' && !isMatrix && (
             <BlurView
               intensity={60}
               tint={theme.isDark ? 'dark' : 'light'}
@@ -730,7 +739,11 @@ export default function AIScannerScreen() {
               styles.cameraButton,
               {
                 borderColor: theme.colors.borderColor,
-                backgroundColor: themeName === 'matrix' ? 'rgba(0, 24, 12, 0.85)' : undefined,
+                backgroundColor: isMatrix
+                  ? themeName === 'matrixRed'
+                    ? 'rgba(32,8,10,0.85)'
+                    : 'rgba(0, 24, 12, 0.85)'
+                  : undefined,
               },
             ]}
             onPress={takePhoto}
@@ -787,7 +800,10 @@ export default function AIScannerScreen() {
               styles.resultCard,
               styles.errorCard,
               { borderColor: theme.colors.error },
-              themeName === 'matrix' && { backgroundColor: 'rgba(0, 100, 55, 0.25)' },
+              isMatrix && {
+                backgroundColor:
+                  themeName === 'matrixRed' ? 'rgba(100, 28, 35, 0.25)' : 'rgba(0, 100, 55, 0.25)',
+              },
             ]}
           >
             <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
@@ -842,7 +858,13 @@ export default function AIScannerScreen() {
             <View
               style={[
                 styles.tradeLevels,
-                { borderTopColor: themeName === 'matrix' ? 'rgba(0, 255, 100, 0.2)' : 'rgba(255, 255, 255, 0.1)' },
+                {
+                  borderTopColor: isMatrix
+                    ? themeName === 'matrixRed'
+                      ? 'rgba(255, 80, 100, 0.2)'
+                      : 'rgba(0, 255, 100, 0.2)'
+                    : 'rgba(255, 255, 255, 0.1)',
+                },
               ]}
             >
               <Text style={[styles.tradeLevelsTitle, { color: theme.colors.textMuted }]}>TRADE SUGGESTION</Text>
@@ -940,7 +962,10 @@ export default function AIScannerScreen() {
                       }}
                       style={[
                         styles.historyThumb,
-                        themeName === 'matrix' && { backgroundColor: 'rgba(0, 255, 100, 0.08)' },
+                        isMatrix && {
+                          backgroundColor:
+                            themeName === 'matrixRed' ? 'rgba(255, 60, 75, 0.08)' : 'rgba(0, 255, 100, 0.08)',
+                        },
                       ]}
                       resizeMode="cover"
                     />

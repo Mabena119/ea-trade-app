@@ -352,6 +352,43 @@ export const matrixTheme: Theme = {
   },
 };
 
+// Matrix (red) — same structure as `matrix` but crimson / neon red digital rain
+export const matrixRedTheme: Theme = {
+  name: 'matrixRed',
+  isDark: true,
+  colors: {
+    background: '#000000',
+    backgroundSecondary: '#000000',
+    cardBackground: 'rgba(255, 50, 70, 0.1)',
+
+    primaryGradient: ['#000000', '#1A0508', '#FF2D44'],
+    cardGradient: ['#000000', '#140404', '#200810'],
+    glowGradient: ['rgba(255, 45, 70, 0.35)', 'rgba(200, 30, 50, 0.14)', 'transparent'],
+
+    textPrimary: '#F5C8CC',
+    textSecondary: 'rgba(255, 100, 115, 0.85)',
+    textMuted: 'rgba(220, 100, 110, 0.52)',
+
+    accent: '#FF3B4D',
+    onAccent: '#000000',
+    accentSecondary: '#FF8A95',
+    success: '#FF3B4D',
+    error: '#801A22',
+    warning: '#FFB3B8',
+
+    borderColor: 'rgba(255, 60, 80, 0.3)',
+    glowColor: 'rgba(255, 60, 80, 0.4)',
+    overlayColor: 'rgba(0, 0, 0, 0.9)',
+
+    statusActive: '#FF3B4D',
+    statusInactive: 'rgba(200, 80, 90, 0.4)',
+
+    navBackground: 'rgba(0, 0, 0, 0.95)',
+    navActiveColor: '#FF3B4D',
+    navInactiveColor: 'rgba(255, 120, 130, 0.45)',
+  },
+};
+
 // Pure Black - Sleek dark AMOLED theme
 export const blackTheme: Theme = {
   name: 'black',
@@ -436,6 +473,7 @@ export const ALL_THEMES: Theme[] = [
   redTheme,
   limeTheme,
   matrixTheme,
+  matrixRedTheme,
   blackTheme,
   whiteTheme,
 ];
@@ -448,8 +486,14 @@ export type ThemeName =
   | 'red'
   | 'lime'
   | 'matrix'
+  | 'matrixRed'
   | 'black'
   | 'white';
+
+/** True for green and red “digital rain” matrix themes (black shell, per-screen rain). */
+export function isMatrixStyleTheme(themeName: string): boolean {
+  return themeName === 'matrix' || themeName === 'matrixRed';
+}
 
 /**
  * Opaque black for matrix — no transparent tab/screen roots (avoids iOS system grey). Rain is drawn
@@ -458,7 +502,7 @@ export type ThemeName =
 export const MATRIX_WINDOW_BG = '#000000';
 
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? MATRIX_WINDOW_BG : theme.colors.background;
+  return isMatrixStyleTheme(themeName) ? MATRIX_WINDOW_BG : theme.colors.background;
 }
 
 interface ThemeContextType {

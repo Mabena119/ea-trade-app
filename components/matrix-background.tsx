@@ -23,9 +23,20 @@ type ColumnProps = {
   speedMs: number;
   charStream: string[];
   delayMs: number;
+  digitColor: string;
+  textShadowColor: string;
 };
 
-function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs }: ColumnProps) {
+function MatrixColumn({
+  left,
+  width,
+  screenHeight,
+  speedMs,
+  charStream,
+  delayMs,
+  digitColor,
+  textShadowColor,
+}: ColumnProps) {
   const shift = useRef(new Animated.Value(0)).current;
   const segmentHeight = charStream.length * CHAR_LINE_HEIGHT;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -107,7 +118,11 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
             key={`a-${i}`}
             style={[
               styles.digit,
-              { opacity: 0.12 + (i / glyphs.length) * 0.78 },
+              {
+                color: digitColor,
+                textShadowColor,
+                opacity: 0.12 + (i / glyphs.length) * 0.78,
+              },
             ]}
             maxFontSizeMultiplier={1.2}
           >
@@ -119,7 +134,11 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
             key={`b-${i}`}
             style={[
               styles.digit,
-              { opacity: 0.12 + (i / glyphs.length) * 0.78 },
+              {
+                color: digitColor,
+                textShadowColor,
+                opacity: 0.12 + (i / glyphs.length) * 0.78,
+              },
             ]}
             maxFontSizeMultiplier={1.2}
           >
@@ -133,20 +152,33 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
 
 export type MatrixBackgroundVariant = 'overlay' | 'sheet';
 
+export type MatrixRainTint = 'green' | 'red';
+
+const MATRIX_RAIN_TINT: Record<
+  MatrixRainTint,
+  { digit: string; textShadow: string }
+> = {
+  green: { digit: '#00FF66', textShadow: 'rgba(0, 255, 102, 0.35)' },
+  red: { digit: '#FF3B4D', textShadow: 'rgba(255, 50, 75, 0.38)' },
+};
+
 type MatrixBackgroundProps = {
   /**
    * `overlay` — transparent root, only green glyphs; draw on top of opaque black UI (pointerEvents none).
    * `sheet` — includes black fill (legacy / standalone).
    */
   variant?: MatrixBackgroundVariant;
+  /** `green` = classic Matrix; `red` = crimson “matrix red” theme. */
+  rainTint?: MatrixRainTint;
 };
 
 /**
- * Neon-green “digital rain” (scrolling 0/1). Used inside `MatrixSceneRain`: opaque black parent,
+ * “Digital rain” (scrolling 0/1). Used inside `MatrixSceneRain`: opaque black parent,
  * then this layer (transparent root, glyphs only), then your UI on top.
  */
-export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps) {
+export function MatrixBackground({ variant = 'overlay', rainTint = 'green' }: MatrixBackgroundProps) {
   const { width, height } = useWindowDimensions();
+  const { digit: rainDigit, textShadow: rainShadow } = MATRIX_RAIN_TINT[rainTint];
   const colCount = Math.max(10, Math.min(28, Math.floor(width / 14)));
   const colW = width / colCount;
 
@@ -194,6 +226,8 @@ export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps)
             speedMs={c.speedMs}
             delayMs={c.delayMs}
             charStream={c.stream}
+            digitColor={rainDigit}
+            textShadowColor={rainShadow}
           />
         );
       })}
@@ -216,13 +250,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   digit: {
-    color: '#00FF66',
     fontSize: 12,
     lineHeight: CHAR_LINE_HEIGHT,
     textAlign: 'center',
     fontWeight: '600',
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-    textShadowColor: 'rgba(0, 255, 102, 0.35)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 3,
   },

@@ -4,7 +4,7 @@ import React, { useEffect, useState, Component, ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
-import { ThemeProvider, useTheme } from "@/providers/theme-provider";
+import { ThemeProvider, useTheme, isMatrixStyleTheme } from "@/providers/theme-provider";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as SystemUI from "expo-system-ui";
@@ -330,7 +330,7 @@ function RootLayoutNav() {
   }, [eas, isBotActive]);
 
   const { theme, themeName } = useTheme();
-  const isMatrix = themeName === "matrix";
+  const isMatrix = isMatrixStyleTheme(themeName);
 
   // Native window / edge area (reduces iOS “white” behind tab scenes in matrix)
   useEffect(() => {
@@ -388,7 +388,7 @@ function RootLayoutNav() {
 
 function ThemedAppShell({ children }: { children: ReactNode }) {
   const { theme, themeName } = useTheme();
-  const isMatrix = themeName === "matrix";
+  const isMatrix = isMatrixStyleTheme(themeName);
   const rootSurface = isMatrix ? "#000000" : theme.colors.background;
 
   useEffect(() => {

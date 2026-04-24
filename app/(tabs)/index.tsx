@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '@/providers/app-provider';
-import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
@@ -165,13 +165,14 @@ export default function HomeScreen() {
 
 
   const screenBg = getScreenBackgroundColor(theme, themeName);
-  const isMatrix = themeName === 'matrix';
+  const isMatrix = isMatrixStyleTheme(themeName);
   // Fully opaque so matrix rain (drawn behind cards) does not read through the card surface
-  const matrixCardGradient = useMemo(
-    () =>
-      ['rgb(0, 58, 30)', 'rgb(0, 36, 18)', 'rgb(0, 72, 38)'] as [string, string, string],
-    []
-  );
+  const matrixCardGradient = useMemo((): [string, string, string] => {
+    if (themeName === 'matrixRed') {
+      return ['rgb(58, 12, 18)', 'rgb(36, 8, 12)', 'rgb(72, 16, 22)'];
+    }
+    return ['rgb(0, 58, 30)', 'rgb(0, 36, 18)', 'rgb(0, 72, 38)'];
+  }, [themeName]);
 
   // Block rendering if not authenticated
   if (!isAuthenticated) {

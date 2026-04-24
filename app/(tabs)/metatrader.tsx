@@ -10,7 +10,7 @@ import InjectableWebView from '../../components/injectable-webview';
 import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Database, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
-import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
@@ -521,14 +521,19 @@ const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 
 export default function MetaTraderScreen() {
   const { theme, themeName } = useTheme();
+  const isMatrix = isMatrixStyleTheme(themeName);
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const mt5TabGradActive =
-    themeName === 'matrix'
-      ? (['rgba(0, 88, 44, 0.98)', 'rgba(0, 42, 22, 0.96)'] as [string, string])
+    isMatrix
+      ? (themeName === 'matrixRed'
+          ? (['rgba(90, 22, 30, 0.98)', 'rgba(40, 10, 14, 0.96)'] as [string, string])
+          : (['rgba(0, 88, 44, 0.98)', 'rgba(0, 42, 22, 0.96)'] as [string, string]))
       : (['rgba(255, 255, 255, 0.18)', 'rgba(255, 255, 255, 0.1)'] as [string, string]);
   const mt5TabGradInactive =
-    themeName === 'matrix'
-      ? (['rgba(0, 36, 18, 0.9)', 'rgba(0, 22, 12, 0.85)'] as [string, string])
+    isMatrix
+      ? (themeName === 'matrixRed'
+          ? (['rgba(50, 12, 16, 0.9)', 'rgba(32, 8, 10, 0.85)'] as [string, string])
+          : (['rgba(0, 36, 18, 0.9)', 'rgba(0, 22, 12, 0.85)'] as [string, string]))
       : (['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)'] as [string, string]);
   const mtChrome = useMemo(
     () => ({
@@ -2985,8 +2990,8 @@ export default function MetaTraderScreen() {
                             {/* Glass overlay — matrix: dark blur only (no white glass) */}
                             {Platform.OS === 'ios' && (
                               <BlurView
-                                intensity={themeName === 'matrix' ? 28 : 40}
-                                tint={themeName === 'matrix' ? 'dark' : 'light'}
+                                intensity={isMatrix ? 28 : 40}
+                                tint={isMatrix ? 'dark' : 'light'}
                                 style={styles.brokerGlassOverlay}
                               />
                             )}
@@ -2994,8 +2999,18 @@ export default function MetaTraderScreen() {
                             {/* Glossy shine */}
                             <LinearGradient
                               colors={
-                                themeName === 'matrix'
-                                  ? ['rgba(0, 255, 100, 0.16)', 'rgba(0, 255, 100, 0.05)', 'rgba(0, 0, 0, 0)']
+                                isMatrix
+                                  ? themeName === 'matrixRed'
+                                    ? [
+                                        'rgba(255, 60, 80, 0.16)',
+                                        'rgba(255, 50, 70, 0.05)',
+                                        'rgba(0, 0, 0, 0)',
+                                      ]
+                                    : [
+                                        'rgba(0, 255, 100, 0.16)',
+                                        'rgba(0, 255, 100, 0.05)',
+                                        'rgba(0, 0, 0, 0)',
+                                      ]
                                   : ['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']
                               }
                               style={styles.brokerGlossShine}

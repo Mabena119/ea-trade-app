@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import { Home, Wallet, Scan } from "lucide-react-native";
 import React from "react";
 import { useApp } from "@/providers/app-provider";
-import { getScreenBackgroundColor, useTheme } from "@/providers/theme-provider";
+import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from "@/providers/theme-provider";
 import { Platform, View, StyleSheet } from "react-native";
 import { BlurView } from 'expo-blur';
 import colors from "@/constants/colors";
@@ -10,7 +10,7 @@ import colors from "@/constants/colors";
 export default function TabLayout() {
   const { isFirstTime } = useApp();
   const { theme, themeName } = useTheme();
-  const isMatrix = themeName === "matrix";
+  const isMatrix = isMatrixStyleTheme(themeName);
   const screenBg = getScreenBackgroundColor(theme, themeName);
 
   return (

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useTheme } from '@/providers/theme-provider';
-import { MatrixBackground } from '@/components/matrix-background';
+import { isMatrixStyleTheme, type ThemeName, useTheme } from '@/providers/theme-provider';
+import { MatrixBackground, type MatrixRainTint } from '@/components/matrix-background';
 
 type Props = {
   children: React.ReactNode;
@@ -14,13 +14,14 @@ type Props = {
  */
 export function MatrixSceneRain({ children, style }: Props) {
   const { themeName } = useTheme();
-  if (themeName !== 'matrix') {
+  if (!isMatrixStyleTheme(themeName as ThemeName)) {
     return <>{children}</>;
   }
+  const rainTint: MatrixRainTint = themeName === 'matrixRed' ? 'red' : 'green';
   return (
     <View style={[styles.fill, style]}>
       <View style={styles.rainLayer} pointerEvents="none">
-        <MatrixBackground />
+        <MatrixBackground rainTint={rainTint} />
       </View>
       <View style={styles.uiLayer} pointerEvents="box-none">
         {children}
