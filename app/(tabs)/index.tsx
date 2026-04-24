@@ -165,13 +165,25 @@ export default function HomeScreen() {
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const isMatrix = themeName === 'matrix';
   /** Let MatrixBackground show through hero / cards (tinted glass, not solid green). */
+  /** Ultra-light tint — heavy iOS card shadows on translucent fills read as “solid grey/silver”. */
   const matrixCardGradient = useMemo(
     () =>
       [
-        'rgba(0, 45, 22, 0.14)',
-        'rgba(0, 30, 15, 0.1)',
-        'rgba(0, 80, 40, 0.18)',
+        'rgba(0, 50, 25, 0.06)',
+        'rgba(0, 30, 15, 0.04)',
+        'rgba(0, 70, 35, 0.08)',
       ] as [string, string, string],
+    []
+  );
+
+  const matrixFlatSurface = useMemo(
+    () =>
+      ({
+        shadowOpacity: 0,
+        shadowRadius: 0,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 0,
+      }) as const,
     []
   );
 
@@ -268,6 +280,7 @@ export default function HomeScreen() {
           <View
             style={[
               styles.heroContent,
+              isMatrix && matrixFlatSurface,
               {
                 shadowColor: theme.colors.glowColor,
                 borderColor: isMatrix ? 'rgba(0, 255, 100, 0.35)' : 'rgba(255, 255, 255, 0.25)',
@@ -284,11 +297,6 @@ export default function HomeScreen() {
               end={{ x: 1, y: 1 }}
             />
 
-            {isMatrix && (
-              <View
-                style={[styles.glassOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.05)' }]}
-              />
-            )}
             {Platform.OS === 'ios' && !isMatrix && (
               <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
             )}
@@ -327,17 +335,6 @@ export default function HomeScreen() {
                 />
               </>
             )}
-            {isMatrix && (
-              <>
-                <LinearGradient
-                  colors={['rgba(0, 255, 100, 0.08)', 'rgba(0, 0, 0, 0)', 'rgba(0, 255, 80, 0.06)']}
-                  style={styles.edgeFadeBottom}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
-              </>
-            )}
-
             <View style={styles.topSection}>
               {/* Circular logo display - Triple tap to change theme */}
               <TouchableOpacity 
@@ -345,7 +342,15 @@ export default function HomeScreen() {
                 onPress={handleLogoTap}
                 activeOpacity={0.9}
               >
-                <View style={styles.circularLogoRing}>
+                <View
+                  style={[
+                    styles.circularLogoRing,
+                    isMatrix && {
+                      backgroundColor: 'rgba(0, 30, 15, 0.45)',
+                      borderColor: 'rgba(0, 255, 130, 0.35)',
+                    },
+                  ]}
+                >
                   {primaryEAImage && !logoError ? (
                     <Image
                       testID="ea-logo-circular"
@@ -450,6 +455,7 @@ export default function HomeScreen() {
                       key={`${ea.id}-${index}`}
                       style={[
                         styles.botCard,
+                        isMatrix && matrixFlatSurface,
                         {
                           backgroundColor: `${theme.colors.accent}26`,
                           borderColor: `${theme.colors.accent}4D`,
@@ -480,9 +486,6 @@ export default function HomeScreen() {
                       {Platform.OS === 'ios' && !isMatrix && (
                         <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
                       )}
-                      {isMatrix && (
-                        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.04)' }]} />
-                      )}
                       <View style={styles.botCardContent}>
                         <View style={[styles.botIcon, { shadowColor: theme.colors.glowColor }]}>
                           {getEAImageUrl(ea as unknown as EA) ? (
@@ -509,7 +512,11 @@ export default function HomeScreen() {
 
 
               <TouchableOpacity
-                style={[styles.addEAButton, { shadowColor: theme.colors.glowColor }]}
+                style={[
+                  styles.addEAButton,
+                  isMatrix && matrixFlatSurface,
+                  { shadowColor: theme.colors.glowColor },
+                ]}
                 onPress={handleAddNewEA}
                 activeOpacity={0.7}
               >
@@ -524,11 +531,6 @@ export default function HomeScreen() {
                   end={{ x: 1, y: 1 }}
                 />
 
-                {isMatrix && (
-                  <View
-                    style={[styles.addEAGlassOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.05)' }]}
-                  />
-                )}
                 {Platform.OS === 'ios' && !isMatrix && (
                   <BlurView intensity={40} tint="light" style={styles.addEAGlassOverlay} />
                 )}
