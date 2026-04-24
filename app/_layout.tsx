@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
 import { ThemeProvider, useTheme } from "@/providers/theme-provider";
-import { MatrixBackground } from "@/components/matrix-background";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Notifications from "expo-notifications";
@@ -344,7 +343,6 @@ function RootLayoutNav() {
         end={{ x: 1, y: 1 }}
         style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
       />
-      {isMatrix ? <MatrixBackground /> : null}
       <Stack
         screenOptions={{
           headerShown: false,

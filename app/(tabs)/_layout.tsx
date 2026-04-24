@@ -6,81 +6,97 @@ import { getScreenBackgroundColor, useTheme } from "@/providers/theme-provider";
 import { Platform, View, StyleSheet } from "react-native";
 import { BlurView } from 'expo-blur';
 import colors from "@/constants/colors";
+import { MatrixBackground } from "@/components/matrix-background";
 
 export default function TabLayout() {
   const { isFirstTime } = useApp();
   const { theme, themeName } = useTheme();
+  const isMatrix = themeName === "matrix";
   const screenBg = getScreenBackgroundColor(theme, themeName);
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        sceneContainerStyle: { backgroundColor: screenBg },
-        tabBarStyle: isFirstTime ? {
-          display: 'none',
-        } : {
-          position: 'absolute',
-          bottom: 16,
-          left: 16,
-          right: 16,
-          height: 72,
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.colors.navBackground,
-          borderRadius: 36,
-          borderWidth: 0,
-          paddingBottom: 8,
-          paddingTop: 8,
-          paddingHorizontal: 16,
-          shadowColor: '#000000',
-          shadowOffset: {
-            width: 0,
-            height: 16,
+    <View
+      style={[
+        tabScreenStyles.layoutRoot,
+        { backgroundColor: isMatrix ? "#000000" : "transparent" },
+      ]}
+    >
+      {isMatrix ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <MatrixBackground />
+        </View>
+      ) : null}
+      <Tabs
+        style={tabScreenStyles.tabsFill}
+        screenOptions={{
+          headerShown: false,
+          sceneContainerStyle: {
+            backgroundColor: isMatrix ? "transparent" : screenBg,
           },
-          shadowOpacity: 0.4,
-          shadowRadius: 32,
-          elevation: 20,
-          overflow: 'hidden',
-        },
-        tabBarBackground: () => (
-          Platform.OS === 'ios' ? (
-            <BlurView
-              intensity={100}
-              tint={theme.isDark ? "dark" : "light"}
-              style={{
+          tabBarStyle: isFirstTime ? {
+            display: 'none',
+          } : {
+            position: 'absolute',
+            bottom: 16,
+            left: 16,
+            right: 16,
+            height: 72,
+            backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.colors.navBackground,
+            borderRadius: 36,
+            borderWidth: 0,
+            paddingBottom: 8,
+            paddingTop: 8,
+            paddingHorizontal: 16,
+            shadowColor: '#000000',
+            shadowOffset: {
+              width: 0,
+              height: 16,
+            },
+            shadowOpacity: 0.4,
+            shadowRadius: 32,
+            elevation: 20,
+            overflow: 'hidden',
+          },
+          tabBarBackground: () => (
+            Platform.OS === 'ios' ? (
+              <BlurView
+                intensity={100}
+                tint={theme.isDark ? "dark" : "light"}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderRadius: 36,
+                  overflow: 'hidden',
+                  backgroundColor: theme.colors.navBackground,
+                }}
+              />
+            ) : (
+              <View style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
                 borderRadius: 36,
-                overflow: 'hidden',
                 backgroundColor: theme.colors.navBackground,
-              }}
-            />
-          ) : (
-            <View style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              borderRadius: 36,
-              backgroundColor: theme.colors.navBackground,
-            }} />
-          )
-        ),
-        tabBarActiveTintColor: theme.colors.navActiveColor,
-        tabBarInactiveTintColor: theme.colors.navInactiveColor,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
-          marginTop: -1,
-          letterSpacing: 0.1,
-        },
-        tabBarIconStyle: {
-          marginTop: 4,
-        },
-      }}
+              }} />
+            )
+          ),
+          tabBarActiveTintColor: theme.colors.navActiveColor,
+          tabBarInactiveTintColor: theme.colors.navInactiveColor,
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '500',
+            marginTop: -1,
+            letterSpacing: 0.1,
+          },
+          tabBarIconStyle: {
+            marginTop: 4,
+          },
+        }}
     >
       <Tabs.Screen
         name="index"
@@ -170,8 +186,19 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }
+
+const tabScreenStyles = StyleSheet.create({
+  layoutRoot: {
+    flex: 1,
+  },
+  tabsFill: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+});
 
 const styles = StyleSheet.create({
   iconContainer: {

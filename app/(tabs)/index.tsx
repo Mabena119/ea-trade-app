@@ -218,7 +218,7 @@ export default function HomeScreen() {
     );
   }
 
-  // Matrix: transparent so root MatrixBackground + black show; other themes use normal screen bg
+  // Matrix: transparent so (tabs) MatrixBackground + black show; other themes use normal screen bg
   const dynamicStyles = {
     container: {
       backgroundColor: isMatrix ? 'transparent' : screenBg,
@@ -242,7 +242,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, dynamicStyles.container]}>
-      {/* 0/1 digital rain: global MatrixBackground in app/_layout — only for matrix theme */}
+      {/* 0/1 digital rain: MatrixBackground in (tabs)/_layout — matrix theme only */}
       {!isMatrix && (
         <LinearGradient
           colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}

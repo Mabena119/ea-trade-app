@@ -313,7 +313,7 @@ export const limeTheme: Theme = {
 
 // ============ PLAIN THEMES ============
 
-// Matrix — black terminal, neon green, digital-rain background (see MatrixBackground in _layout)
+// Matrix — black terminal, neon green, digital-rain background (see MatrixBackground in (tabs)/_layout)
 export const matrixTheme: Theme = {
   name: 'matrix',
   isDark: true,
@@ -451,8 +451,8 @@ export type ThemeName =
   | 'white';
 
 /**
- * Matrix: fully transparent so the root #000 + MatrixBackground shows true black
- * and green digits. A scrim (e.g. rgba black at 0.4) composites as flat grey.
+ * Matrix: transparent tab scenes so the tab layout’s black base + MatrixBackground
+ * (1/0 digital rain) show. A scrim over that composites as flat grey.
  */
 export const MATRIX_SCREEN_SCRIM = 'transparent';
 
