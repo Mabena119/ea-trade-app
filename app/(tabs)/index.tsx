@@ -240,25 +240,31 @@ export default function HomeScreen() {
     ? (['rgba(0, 26, 13, 0.74)', 'rgba(0, 51, 26, 0.68)', 'rgba(0, 255, 102, 0.4)'] as const)
     : (theme.colors.primaryGradient as [string, string, ...string[]]);
 
-  const pageGlossTopMatrix = ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.02)', 'rgba(255, 255, 255, 0)'] as const;
-  const pageGlossBottomMatrix = ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.02)'] as const;
+  // Light (mint/ocean/…): very subtle green tint — never white, or it reads as a gray/white haze
+  // over the matrix layer. Matrix theme: no full-screen page gloss (was rgba(255,…)).
+  const pageGlossTopLight = ['rgba(0, 50, 28, 0.07)', 'rgba(0, 30, 16, 0.04)', 'rgba(0, 0, 0, 0)'] as const;
+  const pageGlossBottomLight = ['rgba(0, 0, 0, 0)', 'rgba(0, 40, 22, 0.05)'] as const;
 
   return (
     <SafeAreaView style={[styles.container, dynamicStyles.container]}>
-      <LinearGradient
-        colors={isMatrix || isLight ? pageGlossTopMatrix : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
-        style={styles.pageGlossTop}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={isMatrix || isLight ? pageGlossBottomMatrix : ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
-        style={styles.pageGlossBottom}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        pointerEvents="none"
-      />
+      {!isMatrix && (
+        <>
+          <LinearGradient
+            colors={isLight ? pageGlossTopLight : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
+            style={styles.pageGlossTop}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={isLight ? pageGlossBottomLight : ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
+            style={styles.pageGlossBottom}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            pointerEvents="none"
+          />
+        </>
+      )}
 
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
@@ -607,6 +613,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   mainEAContainer: {
     paddingTop: 0,
@@ -884,6 +891,7 @@ const styles = StyleSheet.create({
   },
   connectedBotsScrollView: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   connectedBotsScrollContent: {
     paddingBottom: 100,

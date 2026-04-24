@@ -337,7 +337,14 @@ function RootLayoutNav() {
   const stackBgTransparent = isMatrix || isLight;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "transparent" }}>
+    <View
+      style={{
+        flex: 1,
+        // Black base whenever matrix rain is shown. Transparent here lets the iOS window show
+        // through as light gray; Matrix sits above this but a black fallback matches the theme.
+        backgroundColor: showMatrixRain ? "#000000" : "transparent",
+      }}
+    >
       {/*
         Light + matrix: do NOT add a second theme-colored full-screen scrim. A 0.4–0.5 alpha
         wash of #F0FDF4 / #fff composites as nearly solid “white” and hides the 0/1 layer — that
