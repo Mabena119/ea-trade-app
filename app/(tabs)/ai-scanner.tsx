@@ -34,6 +34,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import {
   useApp,
   type ActiveSymbol,
@@ -612,6 +613,7 @@ export default function AIScannerScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
+      <MatrixSceneRain>
       {/* Header */}
       <View
         style={[
@@ -998,6 +1000,7 @@ export default function AIScannerScreen() {
           </View>
         )}
       </View>
+      </MatrixSceneRain>
     </SafeAreaView>
   );
 }

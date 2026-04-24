@@ -313,7 +313,7 @@ export const limeTheme: Theme = {
 
 // ============ PLAIN THEMES ============
 
-// Matrix — pure black + neon green only (digital rain under tab UI: (tabs)/_layout)
+// Matrix — pure black + neon green only (rain: `MatrixSceneRain` per tab screen)
 export const matrixTheme: Theme = {
   name: 'matrix',
   isDark: true,
@@ -452,17 +452,13 @@ export type ThemeName =
   | 'white';
 
 /**
- * Use with root `Stack` `contentStyle` + tab `layoutRoot` (always #000) so iOS does not show system grey
- * when tab scenes are transparent for matrix.
+ * Opaque black for matrix — no transparent tab/screen roots (avoids iOS system grey). Rain is drawn
+ * per-screen via `MatrixSceneRain` on top of this black, behind UI.
  */
 export const MATRIX_WINDOW_BG = '#000000';
 
-/**
- * Tab/screen content uses transparent (matrix) so `MatrixBackground` in `(tabs)/_layout` shows between
- * UI cards; keep `MATRIX_WINDOW_BG` on Stack + `layoutRoot`.
- */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? 'transparent' : theme.colors.background;
+  return themeName === 'matrix' ? MATRIX_WINDOW_BG : theme.colors.background;
 }
 
 interface ThemeContextType {

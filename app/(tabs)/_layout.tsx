@@ -6,7 +6,6 @@ import { getScreenBackgroundColor, useTheme } from "@/providers/theme-provider";
 import { Platform, View, StyleSheet } from "react-native";
 import { BlurView } from 'expo-blur';
 import colors from "@/constants/colors";
-import { MatrixBackground } from "@/components/matrix-background";
 
 export default function TabLayout() {
   const { isFirstTime } = useApp();
@@ -21,15 +20,6 @@ export default function TabLayout() {
         { backgroundColor: isMatrix ? "#000000" : "transparent" },
       ]}
     >
-      {/* Rain between window black and tab UI — under cards (scenes stay transparent for matrix). */}
-      {isMatrix ? (
-        <View
-          style={[StyleSheet.absoluteFill, tabScreenStyles.matrixRainUnder]}
-          pointerEvents="none"
-        >
-          <MatrixBackground />
-        </View>
-      ) : null}
       <View
         style={[
           isMatrix ? tabScreenStyles.tabSceneSlot : tabScreenStyles.tabSceneSlotDefault,
@@ -204,16 +194,10 @@ const tabScreenStyles = StyleSheet.create({
   layoutRoot: {
     flex: 1,
   },
-  /** Scenes/cards above the rain layer (matrix uses transparent scene + card gradients) */
   tabSceneSlot: {
     flex: 1,
     zIndex: 1,
     backgroundColor: "transparent",
-    elevation: 1,
-  },
-  matrixRainUnder: {
-    zIndex: 0,
-    elevation: 0,
   },
   tabSceneSlotDefault: {
     flex: 1,

@@ -118,9 +118,8 @@ type MatrixBackgroundProps = {
 };
 
 /**
- * Neon-green “digital rain” (scrolling 0/1). Mount in `(tabs)/_layout` **under** tab scenes (`zIndex`
- * below cards). Default `overlay`: transparent root (glyphs only) on top of `layoutRoot` black. Tab
- * scenes use transparent matrix roots + Stack `#000` so gaps show rain; opaque cards sit above.
+ * Neon-green “digital rain” (scrolling 0/1). Used inside `MatrixSceneRain`: opaque black parent,
+ * then this layer (transparent root, glyphs only), then your UI on top.
  */
 export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps) {
   const { width, height } = useWindowDimensions();

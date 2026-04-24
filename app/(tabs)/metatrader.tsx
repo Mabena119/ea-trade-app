@@ -11,6 +11,7 @@ import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Database, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
 import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
@@ -2606,6 +2607,7 @@ export default function MetaTraderScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
+      <MatrixSceneRain>
       <KeyboardAvoidingView
         style={[styles.keyboardAvoidingView, { backgroundColor: screenBg }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -3215,6 +3217,7 @@ export default function MetaTraderScreen() {
           />
         </View>
       )}
+      </MatrixSceneRain>
     </SafeAreaView>
   );
 }

@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '@/providers/app-provider';
 import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
 
@@ -242,7 +243,7 @@ export default function HomeScreen() {
       style={[styles.container, dynamicStyles.container]}
       edges={['top', 'right', 'bottom', 'left']}
     >
-      {/* 0/1 digital rain: under tab UI in (tabs)/_layout — matrix theme only */}
+      <MatrixSceneRain>
       {!isMatrix && (
         <LinearGradient
           colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
@@ -522,6 +523,7 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
       </View>
+      </MatrixSceneRain>
     </SafeAreaView>
   );
 }

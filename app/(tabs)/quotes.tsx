@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
 import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
 import { formatLotSizeForDisplay, getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
@@ -314,6 +315,7 @@ export default function QuotesScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
+      <MatrixSceneRain>
       {/* Header */}
       <View
         style={[
@@ -604,6 +606,7 @@ export default function QuotesScreen() {
           </ScrollView>
         )}
       </View>
+      </MatrixSceneRain>
     </SafeAreaView>
   );
 }
