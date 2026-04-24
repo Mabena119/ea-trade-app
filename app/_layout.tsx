@@ -7,6 +7,7 @@ import { AppProvider, useApp } from "@/providers/app-provider";
 import { ThemeProvider, useTheme } from "@/providers/theme-provider";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as SystemUI from "expo-system-ui";
 import * as Notifications from "expo-notifications";
 import { RobotLogo } from "@/components/robot-logo";
 import { MT5SignalWebView } from "@/components/mt5-signal-webview";
@@ -331,6 +332,23 @@ function RootLayoutNav() {
   const { theme, themeName } = useTheme();
   const isMatrix = themeName === "matrix";
 
+  // Native window / edge area (reduces iOS “white” behind tab scenes in matrix)
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const run = async () => {
+      try {
+        if (isMatrix) {
+          await SystemUI.setBackgroundColorAsync("#000000");
+        } else {
+          await SystemUI.setBackgroundColorAsync(theme.colors.background);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    void run();
+  }, [isMatrix, theme.colors.background]);
+
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient
@@ -365,6 +383,34 @@ function RootLayoutNav() {
         }}
       />
     </View>
+  );
+}
+
+function ThemedAppShell({ children }: { children: ReactNode }) {
+  const { theme, themeName } = useTheme();
+  const isMatrix = themeName === "matrix";
+  const rootSurface = isMatrix ? "#000000" : theme.colors.background;
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    if (isMatrix) {
+      const prev = document.body.style.backgroundColor;
+      document.body.style.backgroundColor = "#000000";
+      return () => {
+        document.body.style.backgroundColor = prev;
+      };
+    }
+  }, [isMatrix]);
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: rootSurface }}>
+      <StatusBar
+        style={theme.isDark ? "light" : "dark"}
+        backgroundColor={rootSurface}
+        translucent={Platform.OS === "android" ? (isMatrix ? true : false) : false}
+      />
+      {children}
+    </GestureHandlerRootView>
   );
 }
 
@@ -489,10 +535,9 @@ export default function RootLayout() {
     <ErrorBoundary>
       <ThemeProvider>
         <AppProvider>
-          <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-            <StatusBar style="light" backgroundColor={colors.background} translucent={false} />
+          <ThemedAppShell>
             <RootLayoutNav />
-          </GestureHandlerRootView>
+          </ThemedAppShell>
         </AppProvider>
       </ThemeProvider>
     </ErrorBoundary>

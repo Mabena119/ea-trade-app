@@ -22,16 +22,20 @@ export default function TabLayout() {
       ]}
     >
       {isMatrix ? (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View
+          style={[StyleSheet.absoluteFill, tabScreenStyles.matrixRainLayer]}
+          pointerEvents="none"
+        >
           <MatrixBackground />
         </View>
       ) : null}
-      <Tabs
+      <View style={isMatrix ? tabScreenStyles.tabSceneSlot : tabScreenStyles.tabSceneSlotDefault}>
+        <Tabs
         style={tabScreenStyles.tabsFill}
         screenOptions={{
           headerShown: false,
           sceneContainerStyle: {
-            backgroundColor: isMatrix ? "transparent" : screenBg,
+            backgroundColor: isMatrix ? "rgba(0,0,0,0)" : screenBg,
           },
           tabBarStyle: isFirstTime ? {
             display: 'none',
@@ -97,7 +101,7 @@ export default function TabLayout() {
             marginTop: 4,
           },
         }}
-    >
+        >
       <Tabs.Screen
         name="index"
         options={{
@@ -186,12 +190,26 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+      </View>
     </View>
   );
 }
 
 const tabScreenStyles = StyleSheet.create({
   layoutRoot: {
+    flex: 1,
+  },
+  /** Rain sits under tab content (must stay below in z-order) */
+  matrixRainLayer: {
+    zIndex: 0,
+  },
+  /** Stack navigator draws above the rain layer on iOS */
+  tabSceneSlot: {
+    flex: 1,
+    zIndex: 1,
+    backgroundColor: "transparent",
+  },
+  tabSceneSlotDefault: {
     flex: 1,
   },
   tabsFill: {

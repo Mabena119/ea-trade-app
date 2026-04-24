@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Play, Square, Scan, Activity, Trash2, Plus } from 'lucide-react-native';
@@ -241,7 +242,10 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, dynamicStyles.container]}>
+    <SafeAreaView
+      style={[styles.container, dynamicStyles.container]}
+      edges={['top', 'right', 'bottom', 'left']}
+    >
       {/* 0/1 digital rain: MatrixBackground in (tabs)/_layout — matrix theme only */}
       {!isMatrix && (
         <LinearGradient
