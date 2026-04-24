@@ -174,8 +174,6 @@ export default function HomeScreen() {
       ] as [string, string, string],
     []
   );
-  /** Matrix theme: green + black only (no #fff icons/chrome) */
-  const actionIconColor = isMatrix ? theme.colors.accent : '#FFFFFF';
 
   // Block rendering if not authenticated
   if (!isAuthenticated) {
@@ -268,16 +266,10 @@ export default function HomeScreen() {
         />
       )}
 
-      <View style={[styles.content, isMatrix && styles.contentMatrix]}>
+      <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
-          <View
-            style={[
-              styles.heroContent,
-              { shadowColor: theme.colors.glowColor },
-              isMatrix && styles.heroContentMatrix,
-            ]}
-          >
+          <View style={[styles.heroContent, { shadowColor: theme.colors.glowColor }]}>
             {/* Beautiful gradient background with glass effect */}
             <LinearGradient
               colors={
@@ -337,12 +329,12 @@ export default function HomeScreen() {
                 onPress={handleLogoTap}
                 activeOpacity={0.9}
               >
-                <View style={[styles.circularLogoRing, isMatrix && styles.circularLogoRingMatrix]}>
+                <View style={styles.circularLogoRing}>
                   {primaryEAImage && !logoError ? (
                     <Image
                       testID="ea-logo-circular"
                       source={{ uri: primaryEAImage }}
-                      style={[styles.circularLogo, isMatrix && styles.circularLogoMatrix]}
+                      style={styles.circularLogo}
                       resizeMode="cover"
                       onError={() => setLogoError(true)}
                     />
@@ -350,7 +342,7 @@ export default function HomeScreen() {
                     <Image
                       testID="fallback-logo-circular"
                       source={require('../../assets/images/icon.png')}
-                      style={[styles.circularLogo, isMatrix && styles.circularLogoMatrix]}
+                      style={styles.circularLogo}
                       resizeMode="contain"
                     />
                   )}
@@ -358,16 +350,10 @@ export default function HomeScreen() {
               </TouchableOpacity>
               <View style={styles.titleBlock}>
                 <View style={styles.botNameContainer}>
-                  <Text
-                    testID="ea-title"
-                    style={[styles.botMainName, { color: theme.colors.textPrimary }]}
-                    numberOfLines={3}
-                    ellipsizeMode="tail"
-                  >{primaryEA.name.toUpperCase()}</Text>
+                  <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
                   <View style={[
                     styles.botStatusDot,
-                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive,
-                    isMatrix && (isBotActive ? styles.botStatusDotActiveMatrix : styles.botStatusDotInactiveMatrix),
+                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
                   ]} />
                 </View>
               </View>
@@ -390,25 +376,25 @@ export default function HomeScreen() {
               >
                 <View style={styles.tradeButtonContent}>
                   {isBotActive ? (
-                    <Square color={actionIconColor} size={28} strokeWidth={2.5} />
+                    <Square color="#FFFFFF" size={28} strokeWidth={2.5} />
                   ) : (
-                    <Play color={actionIconColor} size={28} strokeWidth={2.5} fill={actionIconColor} />
+                    <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />
                   )}
-                  <Text style={[styles.tradeButtonText, { color: theme.colors.textPrimary }]}>{isBotActive ? 'Stop' : 'Start'}</Text>
+                  <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
                 <View style={styles.secondaryButtonContent}>
-                  <Activity color={actionIconColor} size={24} strokeWidth={2.5} />
-                  <Text style={[styles.secondaryButtonText, { color: theme.colors.textPrimary }]}>QUOTES</Text>
+                  <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
+                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
                 <View style={styles.secondaryButtonContent}>
-                  <Trash2 color={actionIconColor} size={24} strokeWidth={2.5} />
-                  <Text style={[styles.secondaryButtonText, { color: theme.colors.textPrimary }]}>Remove</Text>
+                  <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
+                  <Text style={styles.secondaryButtonText}>Remove</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -417,7 +403,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Scrollable Connected Bots Section */}
-        <View style={[styles.connectedBotsWrapper, isMatrix && styles.connectedBotsWrapperMatrix]}>
+        <View style={styles.connectedBotsWrapper}>
           {!isMatrix && (
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0)']}
@@ -429,11 +415,8 @@ export default function HomeScreen() {
           )}
 
           <ScrollView
-            style={[styles.connectedBotsScrollView, isMatrix && styles.connectedBotsScrollViewMatrix]}
-            contentContainerStyle={[
-              styles.connectedBotsScrollContent,
-              isMatrix && styles.connectedBotsScrollContentMatrix,
-            ]}
+            style={styles.connectedBotsScrollView}
+            contentContainerStyle={styles.connectedBotsScrollContent}
             showsVerticalScrollIndicator={false}
             bounces={true}
           >
@@ -475,16 +458,11 @@ export default function HomeScreen() {
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                       />
-                      {Platform.OS === 'ios' && !isMatrix && (
+                      {Platform.OS === 'ios' && (
                         <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
                       )}
                       <View style={styles.botCardContent}>
-                        <View style={[
-                          styles.botIcon,
-                          { shadowColor: theme.colors.glowColor },
-                          isMatrix && styles.botIconMatrix,
-                        ]}
-                        >
+                        <View style={[styles.botIcon, { shadowColor: theme.colors.glowColor }]}>
                           {getEAImageUrl(ea as unknown as EA) ? (
                             <Image
                               testID={`ea-logo-small-${index}`}
@@ -498,11 +476,7 @@ export default function HomeScreen() {
                             </View>
                           )}
                         </View>
-                        <Text
-                          style={[styles.botName, { color: theme.colors.textPrimary }]}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
-                        >{ea.name.toUpperCase()}</Text>
+                        <Text style={[styles.botName, { color: theme.isDark ? '#FFFFFF' : theme.colors.textPrimary }]} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -513,11 +487,7 @@ export default function HomeScreen() {
 
 
               <TouchableOpacity
-                style={[
-                  styles.addEAButton,
-                  isMatrix && styles.addEAButtonMatrix,
-                  { shadowColor: theme.colors.glowColor },
-                ]}
+                style={[styles.addEAButton, { shadowColor: theme.colors.glowColor }]}
                 onPress={handleAddNewEA}
                 activeOpacity={0.7}
               >
@@ -546,10 +516,10 @@ export default function HomeScreen() {
                   />
                 )}
 
-                <Plus color={actionIconColor} size={24} strokeWidth={2.5} style={{ zIndex: 3 }} />
+                <Plus color="#FFFFFF" size={24} strokeWidth={2.5} style={{ zIndex: 3 }} />
                 <View style={[styles.addEATextContainer, { zIndex: 3 }]}>
-                  <Text style={[styles.addEATitle, { color: theme.colors.textPrimary }]}>ADD ROBOT</Text>
-                  <Text style={[styles.addEASubtitle, { color: isMatrix ? theme.colors.textSecondary : 'rgba(255, 255, 255, 0.8)' }]}>HOST ROBOT KEY</Text>
+                  <Text style={styles.addEATitle}>ADD ROBOT</Text>
+                  <Text style={styles.addEASubtitle}>HOST ROBOT KEY</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -633,14 +603,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  /** iOS otherwise paints a system gray/white in the flex gap above the tab bar (matrix) */
-  contentMatrix: {
     backgroundColor: 'transparent',
   },
   mainEAContainer: {
     paddingTop: 0,
     paddingBottom: 16,
+    backgroundColor: 'transparent',
   },
   gradientBackground: {
     position: 'absolute',
@@ -730,18 +698,11 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 12,
   },
-  circularLogoRingMatrix: {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderColor: 'rgba(0, 255, 102, 0.5)',
-  },
   circularLogo: {
     width: 140,
     height: 140,
     borderRadius: 70,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  },
-  circularLogoMatrix: {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   botInfoContainer: {
     alignItems: 'center',
@@ -765,10 +726,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.25)',
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  heroContentMatrix: {
-    borderColor: 'rgba(0, 255, 102, 0.4)',
-    borderTopColor: 'rgba(0, 255, 102, 0.55)',
   },
   topSection: {
     alignItems: 'center',
@@ -819,19 +776,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#25D366',
     shadowColor: '#25D366',
   },
-  botStatusDotActiveMatrix: {
-    backgroundColor: '#00FF66',
-    borderColor: '#001a0d',
-    shadowColor: '#00FF66',
-  },
   botStatusDotInactive: {
     backgroundColor: '#DC2626',
     shadowColor: '#DC2626',
-  },
-  botStatusDotInactiveMatrix: {
-    backgroundColor: '#0d1f0d',
-    borderColor: 'rgba(0, 255, 102, 0.4)',
-    shadowColor: 'rgba(0, 0, 0, 0.4)',
   },
   botDescription: {
     color: '#CCCCCC',
@@ -918,8 +865,6 @@ const styles = StyleSheet.create({
   connectedBotsWrapper: {
     flex: 1,
     position: 'relative',
-  },
-  connectedBotsWrapperMatrix: {
     backgroundColor: 'transparent',
   },
   sectionGloss: {
@@ -932,15 +877,10 @@ const styles = StyleSheet.create({
   },
   connectedBotsScrollView: {
     flex: 1,
-  },
-  connectedBotsScrollViewMatrix: {
     backgroundColor: 'transparent',
   },
   connectedBotsScrollContent: {
     paddingBottom: 100,
-  },
-  connectedBotsScrollContentMatrix: {
-    flexGrow: 1,
     backgroundColor: 'transparent',
   },
   connectedBotsSection: {
@@ -1013,9 +953,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  botIconMatrix: {
-    backgroundColor: 'rgba(0, 255, 102, 0.1)',
-  },
   smallLogo: {
     width: 56,
     height: 56,
@@ -1060,10 +997,6 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 15,
     position: 'relative',
-  },
-  addEAButtonMatrix: {
-    borderColor: 'rgba(0, 255, 102, 0.35)',
-    borderTopColor: 'rgba(0, 255, 102, 0.5)',
   },
   addEAGradientBackground: {
     position: 'absolute',
