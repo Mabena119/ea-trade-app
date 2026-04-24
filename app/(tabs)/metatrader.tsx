@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
@@ -520,6 +521,7 @@ const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 
 export default function MetaTraderScreen() {
   const { theme, themeName } = useTheme();
+  const isMatrix = themeName === 'matrix';
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const mt5TabGradActive =
     themeName === 'matrix'
@@ -2605,14 +2607,20 @@ export default function MetaTraderScreen() {
 
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: isMatrix ? 'transparent' : screenBg }]}
+      edges={['top', 'right', 'left', 'bottom']}
+    >
       <KeyboardAvoidingView
-        style={[styles.keyboardAvoidingView, { backgroundColor: screenBg }]}
+        style={[
+          styles.keyboardAvoidingView,
+          { backgroundColor: isMatrix ? 'transparent' : screenBg },
+        ]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          style={styles.content}
+          style={[styles.content, isMatrix && { backgroundColor: 'transparent' }]}
           contentContainerStyle={
             SHOW_EMBEDDED_MT_WEBVIEW && (showMT5WebView || showMT4WebView)
               ? { paddingBottom: EMBEDDED_WEBVIEW_HEIGHT + 16 }
@@ -2775,12 +2783,18 @@ export default function MetaTraderScreen() {
               />
 
               {/* Glass overlay */}
-              {Platform.OS === 'ios' && (
+              {Platform.OS === 'ios' && !isMatrix && (
                 <BlurView intensity={40} tint="light" style={[StyleSheet.absoluteFill, { opacity: 0.3 }]} />
               )}
 
-              <ActivityIndicator color="#FFFFFF" size="small" style={{ zIndex: 3 }} />
-              <Text style={[styles.authStatusDisplayText, { zIndex: 3 }]}>{authenticationStep}</Text>
+              <ActivityIndicator
+                color={isMatrix ? theme.colors.accent : '#FFFFFF'}
+                size="small"
+                style={{ zIndex: 3 }}
+              />
+              <Text style={[styles.authStatusDisplayText, { zIndex: 3, color: theme.colors.textPrimary }]}>
+                {authenticationStep}
+              </Text>
             </View>
           )}
 
@@ -2794,18 +2808,19 @@ export default function MetaTraderScreen() {
               end={{ x: 1, y: 1 }}
             />
 
-            {/* Glass overlay */}
-            {Platform.OS === 'ios' && (
+            {/* Glass + white gloss — matrix: green/black only */}
+            {Platform.OS === 'ios' && !isMatrix && (
               <BlurView intensity={40} tint="light" style={styles.formGlassOverlay} />
             )}
 
-            {/* Glossy shine */}
+            {!isMatrix && (
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
               style={styles.formGlossShine}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
             />
+            )}
 
             <View style={styles.form}>
               <View style={[styles.inputContainer, { zIndex: 3 }]} pointerEvents="box-none">
@@ -2931,7 +2946,7 @@ export default function MetaTraderScreen() {
                               <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
                             )}
                             <RefreshCw
-                              color={Platform.OS === 'ios' ? '#FFFFFF' : '#FFFFFF'}
+                              color={isMatrix ? theme.colors.accent : '#FFFFFF'}
                               size={16}
                               style={[styles.refreshIcon, isLoadingBrokers && styles.refreshIconSpinning]}
                             />
@@ -2956,7 +2971,10 @@ export default function MetaTraderScreen() {
                     )}
                     {isLoadingBrokers && (
                       <View style={styles.loadingBrokersContainer}>
-                        <ActivityIndicator color={Platform.OS === 'ios' ? '#FFFFFF' : '#000000'} size="small" />
+                        <ActivityIndicator
+                          color={isMatrix ? theme.colors.accent : Platform.OS === 'ios' ? '#FFFFFF' : '#000000'}
+                          size="small"
+                        />
                         <Text style={styles.loadingBrokersText}>Fetching live broker list...</Text>
                       </View>
                     )}
@@ -3109,7 +3127,7 @@ export default function MetaTraderScreen() {
                 colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
                 style={StyleSheet.absoluteFill}
               />
-              <X color="#FFFFFF" size={16} />
+              <X color={isMatrix ? theme.colors.accent : '#FFFFFF'} size={16} />
             </TouchableOpacity>
           </View>
         </View>
@@ -3185,7 +3203,7 @@ export default function MetaTraderScreen() {
                 colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.06)']}
                 style={StyleSheet.absoluteFill}
               />
-              <X color="#FFFFFF" size={16} />
+              <X color={isMatrix ? theme.colors.accent : '#FFFFFF'} size={16} />
             </TouchableOpacity>
           </View>
         </View>

@@ -327,16 +327,17 @@ export const matrixTheme: Theme = {
     cardGradient: ['#020805', '#042010', '#06301a'],
     glowGradient: ['rgba(0, 255, 102, 0.4)', 'rgba(0, 200, 80, 0.2)', 'transparent'],
 
-    textPrimary: '#FFFFFF',
-    textSecondary: '#B6F5CE',
-    textMuted: '#7DDC9E',
+    // Matrix: green + black only (no white / off-white UI chrome)
+    textPrimary: '#00FF88',
+    textSecondary: '#5DFF99',
+    textMuted: '#2EE86A',
 
     accent: '#00FF66',
     onAccent: '#000000',
     accentSecondary: '#39FF7A',
     success: '#4ADE80',
-    error: '#FF6B6B',
-    warning: '#FDE047',
+    error: '#33EE66',
+    warning: '#44CC55',
 
     borderColor: 'rgba(0, 255, 100, 0.35)',
     glowColor: 'rgba(0, 255, 100, 0.45)',

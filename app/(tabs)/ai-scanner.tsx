@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Pressable,
   ActivityIndicator,
@@ -13,6 +12,7 @@ import {
   Alert,
   InteractionManager,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -121,6 +121,7 @@ export interface ScannerHistoryItem {
 
 export default function AIScannerScreen() {
   const { theme, themeName } = useTheme();
+  const isMatrix = themeName === 'matrix';
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const {
     user,
@@ -611,7 +612,10 @@ export default function AIScannerScreen() {
   const isLocked = scannerUnlocked === false;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: isMatrix ? 'transparent' : screenBg }]}
+      edges={['top', 'right', 'left', 'bottom']}
+    >
       {/* Header */}
       <View
         style={[
@@ -661,19 +665,19 @@ export default function AIScannerScreen() {
         )}
       </View>
 
-      <View style={styles.contentWrapper}>
+      <View style={[styles.contentWrapper, isMatrix && { backgroundColor: 'transparent' }]}>
         {isLocked && (
           <View
             style={[
               StyleSheet.absoluteFill,
               styles.lockOverlayBg,
-              { backgroundColor: screenBg },
+              { backgroundColor: isMatrix ? 'rgba(0,0,0,0.88)' : screenBg },
             ]}
           />
         )}
         <ScrollView
           ref={scrollRef}
-          style={styles.scroll}
+          style={[styles.scroll, isMatrix && { backgroundColor: 'transparent' }]}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           pointerEvents={isLocked ? 'none' : 'auto'}
@@ -770,7 +774,14 @@ export default function AIScannerScreen() {
 
         {/* Error */}
         {error && (
-          <View style={[styles.resultCard, styles.errorCard, { borderColor: theme.colors.error }]}>
+          <View
+            style={[
+              styles.resultCard,
+              styles.errorCard,
+              { borderColor: theme.colors.error },
+              isMatrix && { backgroundColor: 'rgba(0, 30, 12, 0.85)' },
+            ]}
+          >
             <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
           </View>
         )}
@@ -820,7 +831,7 @@ export default function AIScannerScreen() {
             <Text style={[styles.summaryText, { color: theme.colors.textPrimary }]}>{result.summary}</Text>
 
             {/* Trade levels - always visible */}
-            <View style={styles.tradeLevels}>
+            <View style={[styles.tradeLevels, isMatrix && { borderTopColor: 'rgba(0, 255, 100, 0.22)' }]}>
               <Text style={[styles.tradeLevelsTitle, { color: theme.colors.textMuted }]}>TRADE SUGGESTION</Text>
               <View style={styles.tradeRow}>
                 <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Entry</Text>
@@ -852,8 +863,8 @@ export default function AIScannerScreen() {
                 disabled={result.signal === 'NEUTRAL'}
                 activeOpacity={0.85}
               >
-                <Zap color="#FFFFFF" size={20} strokeWidth={2.5} />
-                <Text style={styles.takeTradeButtonText}>Take trade</Text>
+                <Zap color={theme.colors.onAccent} size={20} strokeWidth={2.5} />
+                <Text style={[styles.takeTradeButtonText, { color: theme.colors.onAccent }]}>Take trade</Text>
               </TouchableOpacity>
             </View>
 
