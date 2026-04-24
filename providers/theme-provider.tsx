@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Platform, Vibration } from 'react-native';
 import { Accelerometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { matrixVisual } from '@/constants/matrix-theme';
 
 // Theme definitions
 export interface ThemeColors {
@@ -314,43 +313,40 @@ export const limeTheme: Theme = {
 
 // ============ PLAIN THEMES ============
 
-// Matrix — black + neon; rain from MatrixBackground (see `matrixVisual` for glass tokens)
+// Matrix — black terminal, neon green, digital-rain background (see MatrixBackground in _layout)
 export const matrixTheme: Theme = {
   name: 'matrix',
   isDark: true,
   colors: {
-    background: matrixVisual.void,
-    backgroundSecondary: '#010201',
-    cardBackground: 'rgba(0, 255, 100, 0.12)',
+    background: '#000000',
+    backgroundSecondary: '#010801',
+    cardBackground: 'rgba(0, 255, 80, 0.12)',
 
-    primaryGradient: ['#001008', '#001f12', matrixVisual.rain.mid],
-    cardGradient: [
-      'rgba(0, 18, 9, 0.22)',
-      'rgba(0, 32, 16, 0.24)',
-      'rgba(0, 48, 24, 0.26)',
-    ],
-    glowGradient: ['rgba(0, 255, 100, 0.35)', 'rgba(0, 200, 80, 0.15)', 'transparent'],
+    primaryGradient: ['#001a0d', '#00331a', '#00FF66'],
+    // Keep cards/panels dark — no light “mint wash” (was washing out light text on iOS)
+    cardGradient: ['#020805', '#042010', '#06301a'],
+    glowGradient: ['rgba(0, 255, 102, 0.4)', 'rgba(0, 200, 80, 0.2)', 'transparent'],
 
     textPrimary: '#FFFFFF',
     textSecondary: '#B6F5CE',
     textMuted: '#7DDC9E',
 
-    accent: matrixVisual.rain.mid,
-    onAccent: matrixVisual.void,
+    accent: '#00FF66',
+    onAccent: '#000000',
     accentSecondary: '#39FF7A',
     success: '#4ADE80',
     error: '#FF6B6B',
     warning: '#FDE047',
 
-    borderColor: matrixVisual.border.default,
-    glowColor: matrixVisual.rain.glow,
-    overlayColor: 'rgba(0, 0, 0, 0.82)',
+    borderColor: 'rgba(0, 255, 100, 0.35)',
+    glowColor: 'rgba(0, 255, 100, 0.45)',
+    overlayColor: 'rgba(0, 0, 0, 0.88)',
 
-    statusActive: matrixVisual.rain.mid,
+    statusActive: '#00FF66',
     statusInactive: '#2d4a2d',
 
-    navBackground: matrixVisual.nav.background,
-    navActiveColor: matrixVisual.rain.mid,
+    navBackground: 'rgba(0, 8, 4, 0.92)',
+    navActiveColor: '#00FF66',
     navInactiveColor: 'rgba(0, 200, 90, 0.45)',
   },
 };
@@ -454,17 +450,15 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-export {
-  MATRIX_HEADER_SCRIM,
-  MATRIX_SCREEN_SCRIM,
-} from '@/constants/matrix-theme';
-
 /**
- * Matrix: transparent so the root layout’s true black + MatrixBackground show through.
- * (Opaque or alpha scrims on the tab scene composite against a light default and look grey.)
+ * Light darkening layer so text stays readable; keep alpha low so MatrixBackground
+ * (0/1 rain) shows through the whole screen, not just gaps near the tab bar.
  */
+export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.18)';
+
+/** Tab / screen root — light scrim; cards should stay translucent for matrix where needed. */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? 'transparent' : theme.colors.background;
+  return themeName === 'matrix' ? MATRIX_SCREEN_SCRIM : theme.colors.background;
 }
 
 interface ThemeContextType {

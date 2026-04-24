@@ -9,12 +9,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/providers/app-provider';
 import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import type { EA } from '@/providers/app-provider';
-import { matrixFlatSurface, matrixHomeGlass } from '@/constants/matrix-theme';
 import colors from '@/constants/colors';
 
 export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA, mt5Account } = useApp();
   const { theme, themeName, toggleTheme } = useTheme();
+  const isMatrix = themeName === 'matrix';
 
   // Safely get the primary EA (first one in the list)
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -164,7 +164,6 @@ export default function HomeScreen() {
 
 
   const screenBg = getScreenBackgroundColor(theme, themeName);
-  const isMatrix = themeName === 'matrix';
 
   // Block rendering if not authenticated
   if (!isAuthenticated) {
@@ -210,10 +209,10 @@ export default function HomeScreen() {
     );
   }
 
-  // Dynamic styles based on theme
+  // Dynamic styles based on theme (matrix: let rain show — avoid stacking opaque black on scrim)
   const dynamicStyles = {
     container: {
-      backgroundColor: screenBg,
+      backgroundColor: isMatrix ? 'transparent' : screenBg,
     },
     sectionTitle: {
       color: theme.colors.textPrimary,
@@ -231,6 +230,13 @@ export default function HomeScreen() {
       shadowColor: theme.colors.accent,
     },
   };
+
+  const heroGradientColors = isMatrix
+    ? (['rgba(0, 45, 22, 0.58)', 'rgba(0, 70, 35, 0.5)', 'rgba(0, 95, 50, 0.44)'] as const)
+    : (theme.colors.primaryGradient as [string, string, ...string[]]);
+  const addRobotGradientColors = isMatrix
+    ? (['rgba(0, 42, 20, 0.55)', 'rgba(0, 68, 34, 0.48)', 'rgba(0, 90, 48, 0.42)'] as const)
+    : (theme.colors.primaryGradient as [string, string, ...string[]]);
 
   return (
     <SafeAreaView style={[styles.container, dynamicStyles.container]}>
@@ -259,28 +265,18 @@ export default function HomeScreen() {
           <View
             style={[
               styles.heroContent,
-              isMatrix && matrixFlatSurface,
-              {
-                shadowColor: theme.colors.glowColor,
-                borderColor: isMatrix ? 'rgba(0, 255, 100, 0.35)' : 'rgba(255, 255, 255, 0.25)',
-                borderTopColor: isMatrix ? 'rgba(0, 255, 120, 0.5)' : 'rgba(255, 255, 255, 0.4)',
-              },
+              { shadowColor: theme.colors.glowColor },
+              isMatrix && styles.heroContentMatrix,
             ]}
           >
             <LinearGradient
-              colors={
-                isMatrix
-                  ? matrixHomeGlass
-                  : (theme.colors.primaryGradient as [string, string, ...string[]])
-              }
-              style={[styles.gradientBackground, isMatrix && { opacity: 1 }]}
+              colors={heroGradientColors}
+              style={[styles.gradientBackground, isMatrix && styles.gradientBackgroundMatrix]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
 
-            {Platform.OS === 'ios' && !isMatrix && (
-              <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
-            )}
+            {Platform.OS === 'ios' && !isMatrix && <BlurView intensity={40} tint="light" style={styles.glassOverlay} />}
 
             {!isMatrix && (
               <>
@@ -316,6 +312,7 @@ export default function HomeScreen() {
                 />
               </>
             )}
+
             <View style={styles.topSection}>
               {/* Circular logo display - Triple tap to change theme */}
               <TouchableOpacity 
@@ -323,20 +320,12 @@ export default function HomeScreen() {
                 onPress={handleLogoTap}
                 activeOpacity={0.9}
               >
-                <View
-                  style={[
-                    styles.circularLogoRing,
-                    isMatrix && {
-                      backgroundColor: 'rgba(0, 30, 15, 0.45)',
-                      borderColor: 'rgba(0, 255, 130, 0.35)',
-                    },
-                  ]}
-                >
+                <View style={[styles.circularLogoRing, isMatrix && styles.circularLogoRingMatrix]}>
                   {primaryEAImage && !logoError ? (
                     <Image
                       testID="ea-logo-circular"
                       source={{ uri: primaryEAImage }}
-                      style={styles.circularLogo}
+                      style={[styles.circularLogo, isMatrix && styles.circularLogoMatrix]}
                       resizeMode="cover"
                       onError={() => setLogoError(true)}
                     />
@@ -344,7 +333,7 @@ export default function HomeScreen() {
                     <Image
                       testID="fallback-logo-circular"
                       source={require('../../assets/images/icon.png')}
-                      style={styles.circularLogo}
+                      style={[styles.circularLogo, isMatrix && styles.circularLogoMatrix]}
                       resizeMode="contain"
                     />
                   )}
@@ -436,11 +425,10 @@ export default function HomeScreen() {
                       key={`${ea.id}-${index}`}
                       style={[
                         styles.botCard,
-                        isMatrix && matrixFlatSurface,
                         {
-                          backgroundColor: `${theme.colors.accent}26`,
-                          borderColor: `${theme.colors.accent}4D`,
-                          borderTopColor: `${theme.colors.accent}80`,
+                          backgroundColor: isMatrix ? 'rgba(0, 30, 15, 0.35)' : `${theme.colors.accent}26`,
+                          borderColor: isMatrix ? 'rgba(0, 200, 90, 0.3)' : `${theme.colors.accent}4D`,
+                          borderTopColor: isMatrix ? 'rgba(0, 255, 120, 0.35)' : `${theme.colors.accent}80`,
                           shadowColor: theme.colors.glowColor,
                         },
                       ]}
@@ -454,10 +442,11 @@ export default function HomeScreen() {
                       }}
                       activeOpacity={0.7}
                     >
+                      {/* Gradient background for bot card */}
                       <LinearGradient
                         colors={
                           isMatrix
-                            ? matrixHomeGlass
+                            ? (['rgba(0, 40, 22, 0.45)', 'rgba(0, 55, 30, 0.38)'] as [string, string])
                             : (theme.colors.cardGradient as [string, string, ...string[]])
                         }
                         style={StyleSheet.absoluteFill}
@@ -493,21 +482,14 @@ export default function HomeScreen() {
 
 
               <TouchableOpacity
-                style={[
-                  styles.addEAButton,
-                  isMatrix && matrixFlatSurface,
-                  { shadowColor: theme.colors.glowColor },
-                ]}
+                style={[styles.addEAButton, { shadowColor: theme.colors.glowColor }]}
                 onPress={handleAddNewEA}
                 activeOpacity={0.7}
               >
+                {/* Gradient background */}
                 <LinearGradient
-                  colors={
-                    isMatrix
-                      ? matrixHomeGlass
-                      : (theme.colors.primaryGradient as [string, string, ...string[]])
-                  }
-                  style={styles.addEAGradientBackground}
+                  colors={addRobotGradientColors}
+                  style={[styles.addEAGradientBackground, isMatrix && styles.addEAGradientMatrix]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 />
@@ -627,6 +609,9 @@ const styles = StyleSheet.create({
     zIndex: 0,
     opacity: 0.9,
   },
+  gradientBackgroundMatrix: {
+    opacity: 1,
+  },
   glassOverlay: {
     position: 'absolute',
     top: 0,
@@ -705,11 +690,18 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 12,
   },
+  circularLogoRingMatrix: {
+    backgroundColor: 'rgba(0, 32, 16, 0.45)',
+    borderColor: 'rgba(0, 220, 100, 0.35)',
+  },
   circularLogo: {
     width: 140,
     height: 140,
     borderRadius: 70,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  circularLogoMatrix: {
+    backgroundColor: 'rgba(0, 10, 6, 0.55)',
   },
   botInfoContainer: {
     alignItems: 'center',
@@ -733,6 +725,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.25)',
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  heroContentMatrix: {
+    borderColor: 'rgba(0, 200, 90, 0.35)',
+    borderTopColor: 'rgba(0, 255, 120, 0.4)',
   },
   topSection: {
     alignItems: 'center',
@@ -1011,6 +1007,9 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     zIndex: 0,
     opacity: 0.9,
+  },
+  addEAGradientMatrix: {
+    opacity: 1,
   },
   addEAGlassOverlay: {
     position: 'absolute',

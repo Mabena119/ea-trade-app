@@ -33,7 +33,7 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { getScreenBackgroundColor, MATRIX_HEADER_SCRIM, useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import {
   useApp,
   type ActiveSymbol,
@@ -618,7 +618,7 @@ export default function AIScannerScreen() {
           styles.header,
           {
             borderBottomColor: theme.colors.borderColor,
-            backgroundColor: themeName === 'matrix' ? MATRIX_HEADER_SCRIM : undefined,
+            backgroundColor: themeName === 'matrix' ? 'rgba(0,0,0,0.97)' : undefined,
           },
         ]}
       >

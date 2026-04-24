@@ -333,13 +333,7 @@ function RootLayoutNav() {
   const isMatrix = themeName === "matrix";
 
   return (
-    <View
-      style={{
-        flex: 1,
-        // Opaque base so transparent tab/home layers never show the system default (grey) through.
-        backgroundColor: theme.colors.background,
-      }}
-    >
+    <View style={{ flex: 1 }}>
       <LinearGradient
         colors={
           isMatrix
