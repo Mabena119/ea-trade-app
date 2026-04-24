@@ -313,7 +313,7 @@ export const limeTheme: Theme = {
 
 // ============ PLAIN THEMES ============
 
-// Matrix — pure black + neon green only (digital rain: MatrixBackground in (tabs)/_layout)
+// Matrix — pure black + neon green only (digital rain under tab UI: (tabs)/_layout)
 export const matrixTheme: Theme = {
   name: 'matrix',
   isDark: true,
@@ -451,14 +451,18 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/** Opaque tab/screen roots for matrix — stops iOS/react-native-screens default light surface. */
-export const MATRIX_SCREEN_BG = '#000000';
+/**
+ * Use with root `Stack` `contentStyle` + tab `layoutRoot` (always #000) so iOS does not show system grey
+ * when tab scenes are transparent for matrix.
+ */
+export const MATRIX_WINDOW_BG = '#000000';
 
 /**
- * Matrix rain is drawn in a separate transparent overlay above this (see `MatrixBackground` in tabs).
+ * Tab/screen content uses transparent (matrix) so `MatrixBackground` in `(tabs)/_layout` shows between
+ * UI cards; keep `MATRIX_WINDOW_BG` on Stack + `layoutRoot`.
  */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? MATRIX_SCREEN_BG : theme.colors.background;
+  return themeName === 'matrix' ? 'transparent' : theme.colors.background;
 }
 
 interface ThemeContextType {

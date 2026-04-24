@@ -118,9 +118,9 @@ type MatrixBackgroundProps = {
 };
 
 /**
- * Neon-green “digital rain” (scrolling 0/1). Default `overlay`: paint on top of solid black screens
- * without blocking touches. Black must come from scene roots + Stack `contentStyle`, not transparency
- * (transparent tab scenes show iOS default white/grey).
+ * Neon-green “digital rain” (scrolling 0/1). Mount in `(tabs)/_layout` **under** tab scenes (`zIndex`
+ * below cards). Default `overlay`: transparent root (glyphs only) on top of `layoutRoot` black. Tab
+ * scenes use transparent matrix roots + Stack `#000` so gaps show rain; opaque cards sit above.
  */
 export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps) {
   const { width, height } = useWindowDimensions();

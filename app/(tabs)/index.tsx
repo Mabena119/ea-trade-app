@@ -165,13 +165,10 @@ export default function HomeScreen() {
 
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const isMatrix = themeName === 'matrix';
+  // Fully opaque so matrix rain (drawn behind cards) does not read through the card surface
   const matrixCardGradient = useMemo(
     () =>
-      [
-        'rgba(0, 72, 36, 0.84)',
-        'rgba(0, 38, 18, 0.80)',
-        'rgba(0, 105, 50, 0.82)',
-      ] as [string, string, string],
+      ['rgb(0, 58, 30)', 'rgb(0, 36, 18)', 'rgb(0, 72, 38)'] as [string, string, string],
     []
   );
 
@@ -245,7 +242,7 @@ export default function HomeScreen() {
       style={[styles.container, dynamicStyles.container]}
       edges={['top', 'right', 'bottom', 'left']}
     >
-      {/* 0/1 digital rain: overlay in (tabs)/_layout — matrix theme only */}
+      {/* 0/1 digital rain: under tab UI in (tabs)/_layout — matrix theme only */}
       {!isMatrix && (
         <LinearGradient
           colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}

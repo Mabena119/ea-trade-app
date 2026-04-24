@@ -21,6 +21,15 @@ export default function TabLayout() {
         { backgroundColor: isMatrix ? "#000000" : "transparent" },
       ]}
     >
+      {/* Rain between window black and tab UI — under cards (scenes stay transparent for matrix). */}
+      {isMatrix ? (
+        <View
+          style={[StyleSheet.absoluteFill, tabScreenStyles.matrixRainUnder]}
+          pointerEvents="none"
+        >
+          <MatrixBackground />
+        </View>
+      ) : null}
       <View
         style={[
           isMatrix ? tabScreenStyles.tabSceneSlot : tabScreenStyles.tabSceneSlotDefault,
@@ -187,16 +196,6 @@ export default function TabLayout() {
       />
     </Tabs>
       </View>
-      {/* Opaque black is in sceneContainer + getScreenBackgroundColor (fixes iOS white). Rain is an
-          overlay above tab content so it stays visible without transparent native scenes. */}
-      {isMatrix ? (
-        <View
-          style={[StyleSheet.absoluteFill, tabScreenStyles.matrixRainOverlay]}
-          pointerEvents="none"
-        >
-          <MatrixBackground />
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -205,15 +204,16 @@ const tabScreenStyles = StyleSheet.create({
   layoutRoot: {
     flex: 1,
   },
-  /** Tab scenes (opaque #000 for matrix) sit under the rain overlay */
+  /** Scenes/cards above the rain layer (matrix uses transparent scene + card gradients) */
   tabSceneSlot: {
     flex: 1,
     zIndex: 1,
     backgroundColor: "transparent",
+    elevation: 1,
   },
-  matrixRainOverlay: {
-    zIndex: 2,
-    elevation: 3,
+  matrixRainUnder: {
+    zIndex: 0,
+    elevation: 0,
   },
   tabSceneSlotDefault: {
     flex: 1,
