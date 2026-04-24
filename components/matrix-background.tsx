@@ -107,11 +107,22 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
   );
 }
 
+export type MatrixBackgroundVariant = 'overlay' | 'sheet';
+
+type MatrixBackgroundProps = {
+  /**
+   * `overlay` — transparent root, only green glyphs; draw on top of opaque black UI (pointerEvents none).
+   * `sheet` — includes black fill (legacy / standalone).
+   */
+  variant?: MatrixBackgroundVariant;
+};
+
 /**
- * Black + neon-green “digital rain” (scrolling 0/1). Lives under tab UIs; screens use
- * `transparent` (matrix) with solid black in root Stack + tab `layoutRoot` so rain reads through.
+ * Neon-green “digital rain” (scrolling 0/1). Default `overlay`: paint on top of solid black screens
+ * without blocking touches. Black must come from scene roots + Stack `contentStyle`, not transparency
+ * (transparent tab scenes show iOS default white/grey).
  */
-export function MatrixBackground() {
+export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps) {
   const { width, height } = useWindowDimensions();
   const colCount = Math.max(10, Math.min(28, Math.floor(width / 14)));
   const colW = width / colCount;
@@ -126,9 +137,11 @@ export function MatrixBackground() {
     });
   }, [colCount]);
 
+  const rootStyle = variant === 'sheet' ? styles.rootSheet : styles.rootOverlay;
+
   return (
     <View
-      style={[StyleSheet.absoluteFill, styles.root]}
+      style={[StyleSheet.absoluteFill, rootStyle]}
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
@@ -149,7 +162,11 @@ export function MatrixBackground() {
 }
 
 const styles = StyleSheet.create({
-  root: {
+  rootOverlay: {
+    zIndex: 0,
+    backgroundColor: 'transparent',
+  },
+  rootSheet: {
     zIndex: 0,
     backgroundColor: '#000000',
   },

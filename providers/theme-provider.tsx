@@ -451,17 +451,14 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/** Paints under transparent matrix UI; use with root `Stack` / tab `layoutRoot` set to #000 to avoid iOS system grey. */
+/** Opaque tab/screen roots for matrix — stops iOS/react-native-screens default light surface. */
 export const MATRIX_SCREEN_BG = '#000000';
 
 /**
- * Matrix: transparent so `MatrixBackground` in (tabs)/_layout shows through. Solid black
- * still comes from `app/_layout` Stack `contentStyle` + tab `layoutRoot`.
+ * Matrix rain is drawn in a separate transparent overlay above this (see `MatrixBackground` in tabs).
  */
-export const MATRIX_SCREEN_OVER_RAIN = 'transparent';
-
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? MATRIX_SCREEN_OVER_RAIN : theme.colors.background;
+  return themeName === 'matrix' ? MATRIX_SCREEN_BG : theme.colors.background;
 }
 
 interface ThemeContextType {

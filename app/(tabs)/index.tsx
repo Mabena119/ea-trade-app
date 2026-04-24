@@ -245,7 +245,7 @@ export default function HomeScreen() {
       style={[styles.container, dynamicStyles.container]}
       edges={['top', 'right', 'bottom', 'left']}
     >
-      {/* 0/1 digital rain: MatrixBackground in (tabs)/_layout — matrix theme only */}
+      {/* 0/1 digital rain: overlay in (tabs)/_layout — matrix theme only */}
       {!isMatrix && (
         <LinearGradient
           colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
