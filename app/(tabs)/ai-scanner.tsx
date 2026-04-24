@@ -618,7 +618,7 @@ export default function AIScannerScreen() {
           styles.header,
           {
             borderBottomColor: theme.colors.borderColor,
-            backgroundColor: themeName === 'matrix' ? 'rgba(0,0,0,0.97)' : undefined,
+            backgroundColor: themeName === 'matrix' ? '#000000' : undefined,
           },
         ]}
       >
@@ -634,10 +634,14 @@ export default function AIScannerScreen() {
           onPress={handleBack}
           activeOpacity={0.7}
         >
-          {Platform.OS === 'ios' && (
+          {/* Matrix: solid fill — iOS Blur can pick up the system grey behind transparent nav */}
+          {Platform.OS === 'ios' && themeName === 'matrix' && (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,24,12,0.95)' }]} />
+          )}
+          {Platform.OS === 'ios' && themeName !== 'matrix' && (
             <BlurView
               intensity={60}
-              tint={themeName === 'matrix' || theme.isDark ? 'dark' : 'light'}
+              tint={theme.isDark ? 'dark' : 'light'}
               style={StyleSheet.absoluteFill}
             />
           )}
@@ -661,7 +665,7 @@ export default function AIScannerScreen() {
         )}
       </View>
 
-      <View style={styles.contentWrapper}>
+      <View style={[styles.contentWrapper, { backgroundColor: screenBg }]}>
         {isLocked && (
           <View
             style={[
@@ -673,7 +677,7 @@ export default function AIScannerScreen() {
         )}
         <ScrollView
           ref={scrollRef}
-          style={styles.scroll}
+          style={[styles.scroll, { backgroundColor: screenBg }]}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           pointerEvents={isLocked ? 'none' : 'auto'}
@@ -720,7 +724,13 @@ export default function AIScannerScreen() {
         {/* Camera option */}
         {!imageUri && (
           <TouchableOpacity
-            style={[styles.cameraButton, { borderColor: theme.colors.borderColor }]}
+            style={[
+              styles.cameraButton,
+              {
+                borderColor: theme.colors.borderColor,
+                backgroundColor: themeName === 'matrix' ? 'rgba(0, 24, 12, 0.85)' : undefined,
+              },
+            ]}
             onPress={takePhoto}
             activeOpacity={0.7}
           >
@@ -770,7 +780,14 @@ export default function AIScannerScreen() {
 
         {/* Error */}
         {error && (
-          <View style={[styles.resultCard, styles.errorCard, { borderColor: theme.colors.error }]}>
+          <View
+            style={[
+              styles.resultCard,
+              styles.errorCard,
+              { borderColor: theme.colors.error },
+              themeName === 'matrix' && { backgroundColor: 'rgba(0, 100, 55, 0.25)' },
+            ]}
+          >
             <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
           </View>
         )}
@@ -820,7 +837,12 @@ export default function AIScannerScreen() {
             <Text style={[styles.summaryText, { color: theme.colors.textPrimary }]}>{result.summary}</Text>
 
             {/* Trade levels - always visible */}
-            <View style={styles.tradeLevels}>
+            <View
+              style={[
+                styles.tradeLevels,
+                { borderTopColor: themeName === 'matrix' ? 'rgba(0, 255, 100, 0.2)' : 'rgba(255, 255, 255, 0.1)' },
+              ]}
+            >
               <Text style={[styles.tradeLevelsTitle, { color: theme.colors.textMuted }]}>TRADE SUGGESTION</Text>
               <View style={styles.tradeRow}>
                 <Text style={[styles.tradeLabel, { color: theme.colors.textMuted }]}>Entry</Text>
@@ -852,8 +874,8 @@ export default function AIScannerScreen() {
                 disabled={result.signal === 'NEUTRAL'}
                 activeOpacity={0.85}
               >
-                <Zap color="#FFFFFF" size={20} strokeWidth={2.5} />
-                <Text style={styles.takeTradeButtonText}>Take trade</Text>
+                <Zap color={theme.colors.onAccent} size={20} strokeWidth={2.5} />
+                <Text style={[styles.takeTradeButtonText, { color: theme.colors.onAccent }]}>Take trade</Text>
               </TouchableOpacity>
             </View>
 
@@ -914,7 +936,10 @@ export default function AIScannerScreen() {
                           ? `data:image/jpeg;base64,${item.imageBase64}`
                           : item.imageUri,
                       }}
-                      style={styles.historyThumb}
+                      style={[
+                        styles.historyThumb,
+                        themeName === 'matrix' && { backgroundColor: 'rgba(0, 255, 100, 0.08)' },
+                      ]}
                       resizeMode="cover"
                     />
                     <View style={styles.historyItemContent}>
@@ -1258,7 +1283,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   tradeLevelsTitle: {
     fontSize: 11,
@@ -1295,7 +1319,6 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   takeTradeButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.5,

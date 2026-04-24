@@ -29,13 +29,18 @@ export default function TabLayout() {
           <MatrixBackground />
         </View>
       ) : null}
-      <View style={isMatrix ? tabScreenStyles.tabSceneSlot : tabScreenStyles.tabSceneSlotDefault}>
+      <View
+        style={[
+          isMatrix ? tabScreenStyles.tabSceneSlot : tabScreenStyles.tabSceneSlotDefault,
+          isMatrix && tabScreenStyles.tabSceneSlotMatrix,
+        ]}
+      >
         <Tabs
-        style={tabScreenStyles.tabsFill}
+        style={[tabScreenStyles.tabsFill, isMatrix && tabScreenStyles.tabsFillMatrix]}
         screenOptions={{
           headerShown: false,
           sceneContainerStyle: {
-            backgroundColor: isMatrix ? "rgba(0,0,0,0)" : screenBg,
+            backgroundColor: isMatrix ? "#000000" : screenBg,
           },
           tabBarStyle: isFirstTime ? {
             display: 'none',
@@ -203,11 +208,14 @@ const tabScreenStyles = StyleSheet.create({
   matrixRainLayer: {
     zIndex: 0,
   },
-  /** Stack navigator draws above the rain layer on iOS */
+  /** Stack navigator draws above the rain layer on iOS; matrix paints solid black under scenes */
   tabSceneSlot: {
     flex: 1,
     zIndex: 1,
     backgroundColor: "transparent",
+  },
+  tabSceneSlotMatrix: {
+    backgroundColor: "#000000",
   },
   tabSceneSlotDefault: {
     flex: 1,
@@ -215,6 +223,9 @@ const tabScreenStyles = StyleSheet.create({
   tabsFill: {
     flex: 1,
     backgroundColor: "transparent",
+  },
+  tabsFillMatrix: {
+    backgroundColor: "#000000",
   },
 });
 

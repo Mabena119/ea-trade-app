@@ -219,10 +219,9 @@ export default function HomeScreen() {
     );
   }
 
-  // Matrix: transparent so (tabs) MatrixBackground + black show; other themes use normal screen bg
   const dynamicStyles = {
     container: {
-      backgroundColor: isMatrix ? 'transparent' : screenBg,
+      backgroundColor: screenBg,
     },
     sectionTitle: {
       color: theme.colors.textPrimary,
@@ -231,7 +230,7 @@ export default function HomeScreen() {
       color: theme.colors.textPrimary,
     },
     connectedBotsSection: {
-      backgroundColor: isMatrix ? 'transparent' : screenBg,
+      backgroundColor: screenBg,
     },
     sectionBadge: {
       backgroundColor: `${theme.colors.accent}40`,
@@ -415,7 +414,7 @@ export default function HomeScreen() {
           )}
 
           <ScrollView
-            style={styles.connectedBotsScrollView}
+            style={[styles.connectedBotsScrollView, isMatrix && { backgroundColor: screenBg }]}
             contentContainerStyle={styles.connectedBotsScrollContent}
             showsVerticalScrollIndicator={false}
             bounces={true}
@@ -458,7 +457,7 @@ export default function HomeScreen() {
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                       />
-                      {Platform.OS === 'ios' && (
+                      {Platform.OS === 'ios' && !isMatrix && (
                         <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
                       )}
                       <View style={styles.botCardContent}>

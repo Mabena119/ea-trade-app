@@ -2612,7 +2612,7 @@ export default function MetaTraderScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          style={styles.content}
+          style={[styles.content, { backgroundColor: screenBg }]}
           contentContainerStyle={
             SHOW_EMBEDDED_MT_WEBVIEW && (showMT5WebView || showMT4WebView)
               ? { paddingBottom: EMBEDDED_WEBVIEW_HEIGHT + 16 }

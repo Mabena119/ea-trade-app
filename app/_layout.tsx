@@ -364,7 +364,7 @@ function RootLayoutNav() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: isMatrix ? "transparent" : undefined },
+          contentStyle: { backgroundColor: isMatrix ? "#000000" : undefined },
         }}
       >
         <Stack.Screen name="(tabs)" />

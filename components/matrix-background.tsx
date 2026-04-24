@@ -80,7 +80,7 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream }: Column
 
 /**
  * Black / neon-green “digital rain” of 0s and 1s. Mount in (tabs)/_layout behind tab scenes;
- * tab screens use transparent background when the matrix theme is active.
+ * Tab screens use solid black (see getScreenBackgroundColor); this layer is mostly covered but remains for depth.
  */
 export function MatrixBackground() {
   const { width, height } = useWindowDimensions();
