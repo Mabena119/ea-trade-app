@@ -353,7 +353,7 @@ export default function QuotesScreen() {
             {primaryEA && (
               <View style={styles.statusContainer}>
                 <Circle
-                  color={hasActiveQuotes ? theme.colors.accent : '#666666'}
+                  color={hasActiveQuotes ? theme.colors.accent : theme.colors.statusInactive}
                   fill={hasActiveQuotes ? theme.colors.accent : 'transparent'}
                   size={10}
                 />
@@ -402,7 +402,7 @@ export default function QuotesScreen() {
               }}
             >
               <RotateCw
-                color={refreshing ? '#666666' : theme.colors.textPrimary}
+                color={refreshing ? theme.colors.statusInactive : theme.colors.textPrimary}
                 size={20}
                 strokeWidth={2.5}
               />
@@ -415,7 +415,12 @@ export default function QuotesScreen() {
         style={[
           styles.sizingModeBar,
           {
-            borderBottomColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+            borderBottomColor:
+              themeName === 'matrix'
+                ? 'rgba(0,255,100,0.12)'
+                : theme.isDark
+                  ? 'rgba(255,255,255,0.08)'
+                  : 'rgba(0,0,0,0.08)',
             backgroundColor: themeName === 'matrix' ? 'rgba(0,0,0,0.94)' : 'transparent',
           },
         ]}
@@ -432,8 +437,20 @@ export default function QuotesScreen() {
                 style={[
                   styles.sizingModeChip,
                   {
-                    borderColor: selected ? theme.colors.accent : theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
-                    backgroundColor: selected ? `${theme.colors.accent}55` : theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    borderColor: selected
+                      ? theme.colors.accent
+                      : themeName === 'matrix'
+                        ? 'rgba(0,255,100,0.2)'
+                        : theme.isDark
+                          ? 'rgba(255,255,255,0.2)'
+                          : 'rgba(0,0,0,0.15)',
+                    backgroundColor: selected
+                      ? `${theme.colors.accent}55`
+                      : themeName === 'matrix'
+                        ? 'rgba(0,255,80,0.06)'
+                        : theme.isDark
+                          ? 'rgba(255,255,255,0.06)'
+                          : 'rgba(0,0,0,0.04)',
                   },
                 ]}
               >

@@ -2980,14 +2980,22 @@ export default function MetaTraderScreen() {
                               end={{ x: 1, y: 1 }}
                             />
 
-                            {/* Glass overlay */}
+                            {/* Glass overlay — matrix: dark blur only (no white glass) */}
                             {Platform.OS === 'ios' && (
-                              <BlurView intensity={40} tint="light" style={styles.brokerGlassOverlay} />
+                              <BlurView
+                                intensity={themeName === 'matrix' ? 28 : 40}
+                                tint={themeName === 'matrix' ? 'dark' : 'light'}
+                                style={styles.brokerGlassOverlay}
+                              />
                             )}
 
                             {/* Glossy shine */}
                             <LinearGradient
-                              colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                              colors={
+                                themeName === 'matrix'
+                                  ? ['rgba(0, 255, 100, 0.16)', 'rgba(0, 255, 100, 0.05)', 'rgba(0, 0, 0, 0)']
+                                  : ['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']
+                              }
                               style={styles.brokerGlossShine}
                               start={{ x: 0.5, y: 0 }}
                               end={{ x: 0.5, y: 1 }}

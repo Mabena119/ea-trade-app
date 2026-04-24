@@ -313,41 +313,42 @@ export const limeTheme: Theme = {
 
 // ============ PLAIN THEMES ============
 
-// Matrix — black terminal, neon green, digital-rain background (see MatrixBackground in (tabs)/_layout)
+// Matrix — pure black + neon green only (digital rain: MatrixBackground in (tabs)/_layout)
 export const matrixTheme: Theme = {
   name: 'matrix',
   isDark: true,
   colors: {
     background: '#000000',
-    backgroundSecondary: '#010801',
-    cardBackground: 'rgba(0, 255, 80, 0.12)',
+    backgroundSecondary: '#000000',
+    cardBackground: 'rgba(0, 255, 102, 0.1)',
 
-    primaryGradient: ['#001a0d', '#00331a', '#00FF66'],
-    // Keep cards/panels dark — no light “mint wash” (was washing out light text on iOS)
-    cardGradient: ['#020805', '#042010', '#06301a'],
-    glowGradient: ['rgba(0, 255, 102, 0.4)', 'rgba(0, 200, 80, 0.2)', 'transparent'],
+    primaryGradient: ['#000000', '#001208', '#00FF66'],
+    cardGradient: ['#000000', '#021208', '#052818'],
+    glowGradient: ['rgba(0, 255, 102, 0.35)', 'rgba(0, 180, 90, 0.14)', 'transparent'],
 
-    textPrimary: '#FFFFFF',
-    textSecondary: '#B6F5CE',
-    textMuted: '#7DDC9E',
+    textPrimary: '#C8F5D4',
+    textSecondary: 'rgba(0, 255, 140, 0.8)',
+    textMuted: 'rgba(0, 200, 120, 0.52)',
 
     accent: '#00FF66',
     onAccent: '#000000',
-    accentSecondary: '#39FF7A',
-    success: '#4ADE80',
-    error: '#FF6B6B',
-    warning: '#FDE047',
+    accentSecondary: '#5DFFB3',
+    success: '#00FF66',
+    /** SELL / danger — darker green (still monochrome with BUY) */
+    error: '#0D8044',
+    /** Caution — light mint, no yellow */
+    warning: '#9EFFBF',
 
-    borderColor: 'rgba(0, 255, 100, 0.35)',
-    glowColor: 'rgba(0, 255, 100, 0.45)',
-    overlayColor: 'rgba(0, 0, 0, 0.88)',
+    borderColor: 'rgba(0, 255, 100, 0.3)',
+    glowColor: 'rgba(0, 255, 100, 0.38)',
+    overlayColor: 'rgba(0, 0, 0, 0.9)',
 
     statusActive: '#00FF66',
-    statusInactive: '#2d4a2d',
+    statusInactive: 'rgba(0, 200, 100, 0.38)',
 
-    navBackground: 'rgba(0, 8, 4, 0.92)',
+    navBackground: 'rgba(0, 0, 0, 0.95)',
     navActiveColor: '#00FF66',
-    navInactiveColor: 'rgba(0, 200, 90, 0.45)',
+    navInactiveColor: 'rgba(0, 220, 120, 0.42)',
   },
 };
 
