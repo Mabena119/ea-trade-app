@@ -14,8 +14,6 @@ import colors from '@/constants/colors';
 export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA, mt5Account } = useApp();
   const { theme, themeName, toggleTheme } = useTheme();
-  const isMatrix = themeName === 'matrix';
-  const isLight = !theme.isDark;
 
   // Safely get the primary EA (first one in the list)
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -165,6 +163,16 @@ export default function HomeScreen() {
 
 
   const screenBg = getScreenBackgroundColor(theme, themeName);
+  const isMatrix = themeName === 'matrix';
+  const matrixCardGradient = useMemo(
+    () =>
+      [
+        'rgba(0, 72, 36, 0.84)',
+        'rgba(0, 38, 18, 0.80)',
+        'rgba(0, 105, 50, 0.82)',
+      ] as [string, string, string],
+    []
+  );
 
   // Block rendering if not authenticated
   if (!isAuthenticated) {
@@ -210,10 +218,10 @@ export default function HomeScreen() {
     );
   }
 
-  // Dynamic styles based on theme (matrix: let rain show — avoid stacking opaque black on scrim)
+  // Dynamic styles based on theme (matrix: avoid stacking opaque black over the rain layer)
   const dynamicStyles = {
     container: {
-      backgroundColor: screenBg,
+      backgroundColor: isMatrix ? 'transparent' : screenBg,
     },
     sectionTitle: {
       color: theme.colors.textPrimary,
@@ -222,7 +230,7 @@ export default function HomeScreen() {
       color: theme.colors.textPrimary,
     },
     connectedBotsSection: {
-      backgroundColor: screenBg,
+      backgroundColor: isMatrix ? 'transparent' : screenBg,
     },
     sectionBadge: {
       backgroundColor: `${theme.colors.accent}40`,
@@ -232,93 +240,83 @@ export default function HomeScreen() {
     },
   };
 
-  // Matrix: same green stops as primaryGradient, with alpha so digital rain shows through
-  const heroGradientColors = isMatrix
-    ? (['rgba(0, 26, 13, 0.78)', 'rgba(0, 51, 26, 0.72)', 'rgba(0, 255, 102, 0.46)'] as const)
-    : (theme.colors.primaryGradient as [string, string, ...string[]]);
-  const addRobotGradientColors = isMatrix
-    ? (['rgba(0, 26, 13, 0.74)', 'rgba(0, 51, 26, 0.68)', 'rgba(0, 255, 102, 0.4)'] as const)
-    : (theme.colors.primaryGradient as [string, string, ...string[]]);
-
-  // Light (mint/ocean/…): very subtle green tint — never white, or it reads as a gray/white haze
-  // over the matrix layer. Matrix theme: no full-screen page gloss (was rgba(255,…)).
-  const pageGlossTopLight = ['rgba(0, 50, 28, 0.07)', 'rgba(0, 30, 16, 0.04)', 'rgba(0, 0, 0, 0)'] as const;
-  const pageGlossBottomLight = ['rgba(0, 0, 0, 0)', 'rgba(0, 40, 22, 0.05)'] as const;
-
   return (
     <SafeAreaView style={[styles.container, dynamicStyles.container]}>
+      {/* Full page gloss — hides matrix rain; skip on matrix theme */}
       {!isMatrix && (
-        <>
-          <LinearGradient
-            colors={isLight ? pageGlossTopLight : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
-            style={styles.pageGlossTop}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            pointerEvents="none"
-          />
-          <LinearGradient
-            colors={isLight ? pageGlossBottomLight : ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
-            style={styles.pageGlossBottom}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            pointerEvents="none"
-          />
-        </>
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
+          style={styles.pageGlossTop}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          pointerEvents="none"
+        />
+      )}
+      {!isMatrix && (
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
+          style={styles.pageGlossBottom}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          pointerEvents="none"
+        />
       )}
 
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
           <View style={[styles.heroContent, { shadowColor: theme.colors.glowColor }]}>
+            {/* Beautiful gradient background with glass effect */}
             <LinearGradient
-              colors={heroGradientColors}
-              style={[styles.gradientBackground, isMatrix && styles.gradientBackgroundMatrix]}
+              colors={
+                isMatrix
+                  ? (matrixCardGradient as [string, string, ...string[]])
+                  : (theme.colors.primaryGradient as [string, string, ...string[]])
+              }
+              style={[styles.gradientBackground, isMatrix && { opacity: 0.95 }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
 
-            {Platform.OS === 'ios' && (
-              <BlurView
-                intensity={isMatrix ? 24 : 40}
-                tint={isMatrix ? 'dark' : 'light'}
-                style={[styles.glassOverlay, isMatrix && styles.glassOverlayMatrix]}
-              />
+            {/* Glass + white gloss block matrix behind the hero */}
+            {Platform.OS === 'ios' && !isMatrix && (
+              <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
             )}
 
-            <LinearGradient
-              colors={
-                isMatrix
-                  ? ['rgba(255, 255, 255, 0.14)', 'rgba(255, 255, 255, 0.06)', 'rgba(255, 255, 255, 0)']
-                  : ['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']
-              }
-              style={styles.glossShine}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-            />
-            <LinearGradient
-              colors={isMatrix ? ['rgba(255, 255, 255, 0.06)', 'rgba(255, 255, 255, 0)'] : ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
-              style={styles.leftHighlight}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-            />
-            <LinearGradient
-              colors={isMatrix ? ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.06)'] : ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.15)']}
-              style={styles.rightHighlight}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-            />
-            <LinearGradient
-              colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-              style={styles.edgeFadeTop}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-            />
-            <LinearGradient
-              colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-              style={styles.edgeFadeBottom}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-            />
+            {!isMatrix && (
+              <>
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']}
+                  style={styles.glossShine}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                />
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                  style={styles.leftHighlight}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                />
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.15)']}
+                  style={styles.rightHighlight}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                />
+                <LinearGradient
+                  colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
+                  style={styles.edgeFadeTop}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                />
+                <LinearGradient
+                  colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
+                  style={styles.edgeFadeBottom}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                />
+              </>
+            )}
 
             <View style={styles.topSection}>
               {/* Circular logo display - Triple tap to change theme */}
@@ -402,17 +400,15 @@ export default function HomeScreen() {
 
         {/* Scrollable Connected Bots Section */}
         <View style={styles.connectedBotsWrapper}>
-          <LinearGradient
-            colors={
-              isMatrix
-                ? ['rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0.02)', 'rgba(255, 255, 255, 0)']
-                : ['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0)']
-            }
-            style={styles.sectionGloss}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            pointerEvents="none"
-          />
+          {!isMatrix && (
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0)']}
+              style={styles.sectionGloss}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              pointerEvents="none"
+            />
+          )}
 
           <ScrollView
             style={styles.connectedBotsScrollView}
@@ -435,9 +431,9 @@ export default function HomeScreen() {
                       style={[
                         styles.botCard,
                         {
-                          backgroundColor: isMatrix ? 'rgba(0, 30, 15, 0.35)' : `${theme.colors.accent}26`,
-                          borderColor: isMatrix ? 'rgba(0, 200, 90, 0.3)' : `${theme.colors.accent}4D`,
-                          borderTopColor: isMatrix ? 'rgba(0, 255, 120, 0.35)' : `${theme.colors.accent}80`,
+                          backgroundColor: `${theme.colors.accent}26`,
+                          borderColor: `${theme.colors.accent}4D`,
+                          borderTopColor: `${theme.colors.accent}80`,
                           shadowColor: theme.colors.glowColor,
                         },
                       ]}
@@ -453,21 +449,13 @@ export default function HomeScreen() {
                     >
                       {/* Gradient background for bot card */}
                       <LinearGradient
-                        colors={
-                          isMatrix
-                            ? (['rgba(2, 8, 5, 0.78)', 'rgba(4, 32, 16, 0.72)', 'rgba(6, 48, 26, 0.64)'] as [string, string, string])
-                            : (theme.colors.cardGradient as [string, string, ...string[]])
-                        }
+                        colors={theme.colors.cardGradient as [string, string, ...string[]]}
                         style={StyleSheet.absoluteFill}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                       />
                       {Platform.OS === 'ios' && (
-                        <BlurView
-                          intensity={isMatrix ? 22 : 40}
-                          tint={isMatrix ? 'dark' : theme.isDark ? 'light' : 'dark'}
-                          style={StyleSheet.absoluteFill}
-                        />
+                        <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
                       )}
                       <View style={styles.botCardContent}>
                         <View style={[styles.botIcon, { shadowColor: theme.colors.glowColor }]}>
@@ -501,30 +489,28 @@ export default function HomeScreen() {
               >
                 {/* Gradient background */}
                 <LinearGradient
-                  colors={addRobotGradientColors}
-                  style={[styles.addEAGradientBackground, isMatrix && styles.addEAGradientMatrix]}
+                  colors={
+                    isMatrix
+                      ? (matrixCardGradient as [string, string, ...string[]])
+                      : (theme.colors.primaryGradient as [string, string, ...string[]])
+                  }
+                  style={styles.addEAGradientBackground}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 />
 
-                {Platform.OS === 'ios' && (
-                  <BlurView
-                    intensity={isMatrix ? 22 : 40}
-                    tint={isMatrix ? 'dark' : 'light'}
-                    style={[styles.addEAGlassOverlay, isMatrix && styles.addEAGlassOverlayMatrix]}
-                  />
+                {Platform.OS === 'ios' && !isMatrix && (
+                  <BlurView intensity={40} tint="light" style={styles.addEAGlassOverlay} />
                 )}
 
-                <LinearGradient
-                  colors={
-                    isMatrix
-                      ? ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']
-                      : ['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']
-                  }
-                  style={styles.addEAGlossShine}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
+                {!isMatrix && (
+                  <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
+                    style={styles.addEAGlossShine}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                  />
+                )}
 
                 <Plus color="#FFFFFF" size={24} strokeWidth={2.5} style={{ zIndex: 3 }} />
                 <View style={[styles.addEATextContainer, { zIndex: 3 }]}>
@@ -613,7 +599,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
   mainEAContainer: {
     paddingTop: 0,
@@ -629,9 +614,6 @@ const styles = StyleSheet.create({
     zIndex: 0,
     opacity: 0.9,
   },
-  gradientBackgroundMatrix: {
-    opacity: 1,
-  },
   glassOverlay: {
     position: 'absolute',
     top: 0,
@@ -641,9 +623,6 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     zIndex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  glassOverlayMatrix: {
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
   glossShine: {
     position: 'absolute',
@@ -891,7 +870,6 @@ const styles = StyleSheet.create({
   },
   connectedBotsScrollView: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
   connectedBotsScrollContent: {
     paddingBottom: 100,
@@ -899,7 +877,7 @@ const styles = StyleSheet.create({
   connectedBotsSection: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    backgroundColor: 'transparent',
+    backgroundColor: '#000000',
     overflow: 'hidden',
     zIndex: 10,
   },
@@ -1021,9 +999,6 @@ const styles = StyleSheet.create({
     zIndex: 0,
     opacity: 0.9,
   },
-  addEAGradientMatrix: {
-    opacity: 1,
-  },
   addEAGlassOverlay: {
     position: 'absolute',
     top: 0,
@@ -1033,9 +1008,6 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     zIndex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  addEAGlassOverlayMatrix: {
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
   addEAGlossShine: {
     position: 'absolute',

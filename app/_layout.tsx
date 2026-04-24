@@ -331,38 +331,24 @@ function RootLayoutNav() {
 
   const { theme, themeName } = useTheme();
   const isMatrix = themeName === "matrix";
-  const isLight = !theme.isDark;
-  /** Digital rain: matrix theme, or any light theme (replaces solid white/mint with animated 0/1) */
-  const showMatrixRain = isMatrix || isLight;
-  const stackBgTransparent = isMatrix || isLight;
 
   return (
-    <View
-      style={{
-        flex: 1,
-        // Black base whenever matrix rain is shown. Transparent here lets the iOS window show
-        // through as light gray; Matrix sits above this but a black fallback matches the theme.
-        backgroundColor: showMatrixRain ? "#000000" : "transparent",
-      }}
-    >
-      {/*
-        Light + matrix: do NOT add a second theme-colored full-screen scrim. A 0.4–0.5 alpha
-        wash of #F0FDF4 / #fff composites as nearly solid “white” and hides the 0/1 layer — that
-        was the bug. Only MatrixBackground + UI cards; dark themes still use a solid gradient.
-      */}
-      {showMatrixRain ? <MatrixBackground /> : null}
-      {!isMatrix && !isLight ? (
-        <LinearGradient
-          colors={[theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
-        />
-      ) : null}
+    <View style={{ flex: 1 }}>
+      <LinearGradient
+        colors={
+          isMatrix
+            ? [theme.colors.background, theme.colors.background, theme.colors.background]
+            : [theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+      />
+      {isMatrix ? <MatrixBackground /> : null}
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: stackBgTransparent ? "transparent" : undefined },
+          contentStyle: { backgroundColor: isMatrix ? "transparent" : undefined },
         }}
       >
         <Stack.Screen name="(tabs)" />

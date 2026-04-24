@@ -345,7 +345,7 @@ export const matrixTheme: Theme = {
     statusActive: '#00FF66',
     statusInactive: '#2d4a2d',
 
-    navBackground: 'rgba(0, 10, 6, 0.78)',
+    navBackground: 'rgba(0, 8, 4, 0.92)',
     navActiveColor: '#00FF66',
     navInactiveColor: 'rgba(0, 200, 90, 0.45)',
   },
@@ -450,22 +450,12 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/**
- * Matrix tab/screen roots stay fully transparent so the root `MatrixBackground` is
- * visible everywhere. Opaque scrims here were painting over the rain (only a strip
- * near the home indicator stayed clear).
- */
-export const MATRIX_SCREEN_SCRIM = 'transparent';
+/** Light scrim: enough to hide accidental light iOS layers; matrix rain stays visible. */
+export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.44)';
 
-/**
- * Matrix theme + all light themes (mint, ocean, etc.): transparent so the root stack
- * shows matrix rain. Dark themes use solid theme background.
- */
+/** Tab / screen root — matrix uses a light scrim so 0/1 rain stays visible. */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  if (themeName === 'matrix' || !theme.isDark) {
-    return 'transparent';
-  }
-  return theme.colors.background;
+  return themeName === 'matrix' ? MATRIX_SCREEN_SCRIM : theme.colors.background;
 }
 
 interface ThemeContextType {

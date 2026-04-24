@@ -10,7 +10,6 @@ import colors from "@/constants/colors";
 export default function TabLayout() {
   const { isFirstTime } = useApp();
   const { theme, themeName } = useTheme();
-  const isMatrix = themeName === 'matrix';
   const screenBg = getScreenBackgroundColor(theme, themeName);
 
   return (
@@ -45,7 +44,7 @@ export default function TabLayout() {
         tabBarBackground: () => (
           Platform.OS === 'ios' ? (
             <BlurView
-              intensity={isMatrix ? 55 : 100}
+              intensity={100}
               tint={theme.isDark ? "dark" : "light"}
               style={{
                 position: 'absolute',
@@ -55,7 +54,7 @@ export default function TabLayout() {
                 bottom: 0,
                 borderRadius: 36,
                 overflow: 'hidden',
-                backgroundColor: isMatrix ? 'rgba(0, 10, 6, 0.55)' : theme.colors.navBackground,
+                backgroundColor: theme.colors.navBackground,
               }}
             />
           ) : (
@@ -66,7 +65,7 @@ export default function TabLayout() {
               right: 0,
               bottom: 0,
               borderRadius: 36,
-              backgroundColor: isMatrix ? 'rgba(0, 10, 6, 0.78)' : theme.colors.navBackground,
+              backgroundColor: theme.colors.navBackground,
             }} />
           )
         ),
