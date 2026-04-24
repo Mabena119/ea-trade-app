@@ -15,6 +15,9 @@ import {
 /** Chart AI warmup cycle repeats while bot is active (ms). */
 const CHART_WARMUP_INTERVAL_MS = 45 * 60 * 1000;
 
+/** After bot start: wait this many DB poll intervals with no processable signal before chart warmup (AI analysis). */
+const DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP = 15;
+
 // Define LicenseData locally to avoid importing from api service (prevents circular dependency)
 export interface LicenseData {
   id: string;
@@ -292,7 +295,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   // Track last trade execution time per symbol (45-second cooldown)
   const lastTradeExecutionRef = useRef<Map<string, number>>(new Map());
 
-  /** After bot start: count interval DB polls; on 5th poll with no processable DB signal, open chart warmup WebView once. */
+  /** After bot start: count interval DB polls; after N polls with no processable DB signal, open chart warmup WebView once. */
   const dbBootstrapSessionRef = useRef<{
     pollCount: number;
     gotProcessableDbSignal: boolean;
@@ -1451,13 +1454,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               return;
             }
             s.pollCount += 1;
-            console.log(`[DB Bootstrap] Interval poll ${s.pollCount}/5 completed`);
-            if (s.pollCount < 5) {
+            console.log(
+              `[DB Bootstrap] Interval poll ${s.pollCount}/${DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP} completed`
+            );
+            if (s.pollCount < DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP) {
               return;
             }
             s.chartWarmupLaunched = true;
 
-            console.log('[DB Bootstrap] No processable DB signal after 5 polls — launching chart warmup');
+            console.log(
+              `[DB Bootstrap] No processable DB signal after ${DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP} polls — launching chart warmup`
+            );
             openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup');
           };
 

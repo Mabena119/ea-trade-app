@@ -2,19 +2,21 @@ import { Tabs } from "expo-router";
 import { Home, Wallet, Scan } from "lucide-react-native";
 import React from "react";
 import { useApp } from "@/providers/app-provider";
-import { useTheme } from "@/providers/theme-provider";
+import { getScreenBackgroundColor, useTheme } from "@/providers/theme-provider";
 import { Platform, View, StyleSheet } from "react-native";
 import { BlurView } from 'expo-blur';
 import colors from "@/constants/colors";
 
 export default function TabLayout() {
   const { isFirstTime } = useApp();
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+  const screenBg = getScreenBackgroundColor(theme, themeName);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        sceneContainerStyle: { backgroundColor: screenBg },
         tabBarStyle: isFirstTime ? {
           display: 'none',
         } : {

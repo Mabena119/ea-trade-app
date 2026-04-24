@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '@/providers/app-provider';
-import { useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import type { EA } from '@/providers/app-provider';
 import colors from '@/constants/colors';
 
@@ -162,10 +162,12 @@ export default function HomeScreen() {
 
 
 
+  const screenBg = getScreenBackgroundColor(theme, themeName);
+
   // Block rendering if not authenticated
   if (!isAuthenticated) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.splashContainer, { backgroundColor: screenBg }]}>
         <View style={styles.splashContent}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Checking authentication...</Text>
         </View>
@@ -176,7 +178,7 @@ export default function HomeScreen() {
   // Show splash screen for first-time users
   if (isFirstTime) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.splashContainer, { backgroundColor: screenBg }]}>
         <View style={styles.splashContent}>
           <View style={styles.logoContainer}>
             <Image
@@ -198,7 +200,7 @@ export default function HomeScreen() {
   // If no EA, don't render (should have been redirected to license)
   if (!primaryEA) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.splashContainer, { backgroundColor: screenBg }]}>
         <View style={styles.splashContent}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Loading...</Text>
         </View>
@@ -209,7 +211,7 @@ export default function HomeScreen() {
   // Dynamic styles based on theme
   const dynamicStyles = {
     container: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: screenBg,
     },
     sectionTitle: {
       color: theme.colors.textPrimary,
@@ -218,7 +220,7 @@ export default function HomeScreen() {
       color: theme.colors.textPrimary,
     },
     connectedBotsSection: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: screenBg,
     },
     sectionBadge: {
       backgroundColor: `${theme.colors.accent}40`,

@@ -313,6 +313,43 @@ export const limeTheme: Theme = {
 
 // ============ PLAIN THEMES ============
 
+// Matrix — black terminal, neon green, digital-rain background (see MatrixBackground in _layout)
+export const matrixTheme: Theme = {
+  name: 'matrix',
+  isDark: true,
+  colors: {
+    background: '#000000',
+    backgroundSecondary: '#010801',
+    cardBackground: 'rgba(0, 255, 80, 0.08)',
+
+    primaryGradient: ['#001a0d', '#00331a', '#00FF66'],
+    cardGradient: ['rgba(0, 40, 20, 0.5)', 'rgba(0, 60, 30, 0.35)', 'rgba(0, 255, 80, 0.12)'],
+    glowGradient: ['rgba(0, 255, 102, 0.4)', 'rgba(0, 200, 80, 0.2)', 'transparent'],
+
+    textPrimary: '#E6FFEC',
+    textSecondary: 'rgba(180, 255, 200, 0.88)',
+    textMuted: 'rgba(0, 200, 90, 0.55)',
+
+    accent: '#00FF66',
+    onAccent: '#000000',
+    accentSecondary: '#39FF7A',
+    success: '#4ADE80',
+    error: '#FF6B6B',
+    warning: '#FDE047',
+
+    borderColor: 'rgba(0, 255, 100, 0.35)',
+    glowColor: 'rgba(0, 255, 100, 0.45)',
+    overlayColor: 'rgba(0, 0, 0, 0.88)',
+
+    statusActive: '#00FF66',
+    statusInactive: '#2d4a2d',
+
+    navBackground: 'rgba(0, 8, 4, 0.92)',
+    navActiveColor: '#00FF66',
+    navInactiveColor: 'rgba(0, 200, 90, 0.45)',
+  },
+};
+
 // Pure Black - Sleek dark AMOLED theme
 export const blackTheme: Theme = {
   name: 'black',
@@ -396,6 +433,7 @@ export const ALL_THEMES: Theme[] = [
   mintTheme,
   redTheme,
   limeTheme,
+  matrixTheme,
   blackTheme,
   whiteTheme,
 ];
@@ -407,8 +445,14 @@ export type ThemeName =
   | 'mint'
   | 'red'
   | 'lime'
+  | 'matrix'
   | 'black'
   | 'white';
+
+/** Tab / screen root: transparent when matrix so MatrixBackground shows through. */
+export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
+  return themeName === 'matrix' ? 'transparent' : theme.colors.background;
+}
 
 interface ThemeContextType {
   theme: Theme;

@@ -6,7 +6,7 @@ import { ArrowLeft, Circle, RotateCw } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
-import { useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
 import { formatLotSizeForDisplay, getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
@@ -24,7 +24,8 @@ interface Quote {
 
 export default function QuotesScreen() {
   const { eas, activeSymbols, mt4Symbols, mt5Symbols, mt5Account, mt5LotSizingMode, setMt5LotSizingMode } = useApp();
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+  const screenBg = getScreenBackgroundColor(theme, themeName);
 
   const hasMt5Linked = Boolean(
     mt5Account &&
@@ -312,7 +313,7 @@ export default function QuotesScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
         <TouchableOpacity

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
 import { ThemeProvider, useTheme } from "@/providers/theme-provider";
+import { MatrixBackground } from "@/components/matrix-background";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Notifications from "expo-notifications";
@@ -328,17 +329,28 @@ function RootLayoutNav() {
     return () => subscription.remove();
   }, [eas, isBotActive]);
 
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+  const isMatrix = themeName === "matrix";
 
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient
-        colors={[theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]}
+        colors={
+          isMatrix
+            ? [theme.colors.background, theme.colors.background, theme.colors.background]
+            : [theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+        style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
       />
-      <Stack screenOptions={{ headerShown: false }}>
+      {isMatrix ? <MatrixBackground /> : null}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: isMatrix ? "transparent" : undefined },
+        }}
+      >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
         <Stack.Screen name="license" />

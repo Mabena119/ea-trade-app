@@ -10,7 +10,7 @@ import InjectableWebView from '../../components/injectable-webview';
 import FallbackWebView from '../../components/fallback-webview';
 import { Eye, EyeOff, Search, Database, ExternalLink, Shield, RefreshCw, X } from 'lucide-react-native';
 import { useApp } from '@/providers/app-provider';
-import { useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
@@ -519,7 +519,8 @@ const MT5_BROKER_URLS: Record<string, string> = {
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 
 export default function MetaTraderScreen() {
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+  const screenBg = getScreenBackgroundColor(theme, themeName);
   const mtChrome = useMemo(
     () => ({
       tab: {
@@ -590,7 +591,7 @@ export default function MetaTraderScreen() {
         elevation: 10,
       },
       brokerListChrome: {
-        backgroundColor: theme.colors.background,
+        backgroundColor: screenBg,
         borderColor: theme.colors.borderColor,
         shadowColor: theme.colors.glowColor,
       },
@@ -608,7 +609,7 @@ export default function MetaTraderScreen() {
         shadowColor: theme.colors.glowColor,
       },
     }),
-    [theme]
+    [theme, screenBg]
   );
   const [activeTab, setActiveTab] = useState<'MT5' | 'MT4'>('MT5');
   const [login, setLogin] = useState<string>('');
@@ -2596,9 +2597,9 @@ export default function MetaTraderScreen() {
 
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
       <KeyboardAvoidingView
-        style={[styles.keyboardAvoidingView, { backgroundColor: theme.colors.background }]}
+        style={[styles.keyboardAvoidingView, { backgroundColor: screenBg }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >

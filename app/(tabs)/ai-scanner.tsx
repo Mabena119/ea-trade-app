@@ -33,7 +33,7 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
 import {
   useApp,
   type ActiveSymbol,
@@ -120,7 +120,8 @@ export interface ScannerHistoryItem {
 }
 
 export default function AIScannerScreen() {
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+  const screenBg = getScreenBackgroundColor(theme, themeName);
   const {
     user,
     mt5Account,
@@ -610,7 +611,7 @@ export default function AIScannerScreen() {
   const isLocked = scannerUnlocked === false;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
         <TouchableOpacity
@@ -654,7 +655,7 @@ export default function AIScannerScreen() {
             style={[
               StyleSheet.absoluteFill,
               styles.lockOverlayBg,
-              { backgroundColor: theme.colors.background },
+              { backgroundColor: screenBg },
             ]}
           />
         )}
