@@ -345,7 +345,7 @@ export const matrixTheme: Theme = {
     statusActive: '#00FF66',
     statusInactive: '#2d4a2d',
 
-    navBackground: 'rgba(0, 8, 4, 0.92)',
+    navBackground: 'rgba(0, 10, 6, 0.78)',
     navActiveColor: '#00FF66',
     navInactiveColor: 'rgba(0, 200, 90, 0.45)',
   },
@@ -451,12 +451,13 @@ export type ThemeName =
   | 'white';
 
 /**
- * Light darkening layer so text stays readable; keep alpha low so MatrixBackground
- * (0/1 rain) shows through the whole screen, not just gaps near the tab bar.
+ * Matrix tab/screen roots stay fully transparent so the root `MatrixBackground` is
+ * visible everywhere. Opaque scrims here were painting over the rain (only a strip
+ * near the home indicator stayed clear).
  */
-export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.18)';
+export const MATRIX_SCREEN_SCRIM = 'transparent';
 
-/** Tab / screen root — light scrim; cards should stay translucent for matrix where needed. */
+/** Tab / screen root; matrix uses transparent so digital rain shows through. */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
   return themeName === 'matrix' ? MATRIX_SCREEN_SCRIM : theme.colors.background;
 }

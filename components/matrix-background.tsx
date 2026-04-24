@@ -54,7 +54,7 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream }: Column
             key={`a-${i}`}
             style={[
               styles.digit,
-              { opacity: 0.12 + (i / charStream.length) * 0.78 },
+              { opacity: 0.22 + (i / charStream.length) * 0.68 },
             ]}
             maxFontSizeMultiplier={1.2}
           >
@@ -66,7 +66,7 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream }: Column
             key={`b-${i}`}
             style={[
               styles.digit,
-              { opacity: 0.12 + (i / charStream.length) * 0.78 },
+              { opacity: 0.22 + (i / charStream.length) * 0.68 },
             ]}
             maxFontSizeMultiplier={1.2}
           >
