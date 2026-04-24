@@ -9,9 +9,12 @@ import {
   View,
 } from 'react-native';
 
-const CHAR_ROWS = 28;
+/** Minimum lines per stream tile; real count scales with window height to fill the full screen. */
+const MIN_CHAR_ROWS = 24;
 const CHAR_LINE_HEIGHT = 15;
 const SEGMENT_EXTRA_PAD = 64;
+/** Pixels of vertical travel per second so motion stays “continuous” on tall phones. */
+const SCROLL_PX_PER_SEC = 44;
 
 type ColumnProps = {
   left: number;
@@ -45,9 +48,12 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
   }, [delayMs, charStream.length]);
 
   useEffect(() => {
+    let cancelled = false;
     shift.setValue(0);
-    const timer = setTimeout(() => {
-      // One full segment of upward travel, then loop forever (–translateY = move stream toward top)
+    // Chain timings on completion (more reliable than Animated.loop on some devices / RN versions).
+    const runSegment = () => {
+      if (cancelled) return;
+      shift.setValue(0);
       const timing = Animated.timing(shift, {
         toValue: 1,
         duration: speedMs,
@@ -55,18 +61,31 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
         useNativeDriver: true,
         isInteraction: false,
       });
-      const loop = Animated.loop(timing, {
-        iterations: -1,
-        resetBeforeIteration: true,
+      loopRef.current = timing;
+      timing.start(({ finished }) => {
+        if (cancelled) return;
+        if (finished) {
+          runSegment();
+        } else {
+          // Interrupted elsewhere — resume next frame so motion does not stay stopped
+          requestAnimationFrame(() => {
+            if (!cancelled) runSegment();
+          });
+        }
       });
-      loopRef.current = loop;
-      loop.start();
-    }, delayMs);
+    };
+    const timer = setTimeout(runSegment, delayMs);
     return () => {
+      cancelled = true;
       clearTimeout(timer);
+      try {
+        shift.stopAnimation();
+      } catch {
+        /* noop */
+      }
       if (loopRef.current) {
         try {
-          loopRef.current.stop();
+          loopRef.current.stop?.();
         } catch {
           /* noop */
         }
@@ -131,15 +150,28 @@ export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps)
   const colCount = Math.max(10, Math.min(28, Math.floor(width / 14)));
   const colW = width / colCount;
 
+  /** One segment must be at least full viewport so rain covers the entire screen; two copies loop seamlessly. */
+  const rowsPerSegment = useMemo(
+    () => Math.max(MIN_CHAR_ROWS, Math.ceil((height + SEGMENT_EXTRA_PAD) / CHAR_LINE_HEIGHT) + 1),
+    [height]
+  );
+  const segmentPx = rowsPerSegment * CHAR_LINE_HEIGHT;
+  const baseScrollMs = useMemo(
+    () => Math.max(2200, Math.round((segmentPx / SCROLL_PX_PER_SEC) * 1000)),
+    [segmentPx]
+  );
+
   const columns = useMemo(() => {
     return Array.from({ length: colCount }, (_, i) => {
-      const stream = Array.from({ length: CHAR_ROWS }, () => (Math.random() < 0.5 ? '1' : '0'));
-      // Continuous upward loop: a bit faster + staggered so columns do not look synchronized
-      const speedMs = 3800 + (i % 11) * 220 + (i * 19) % 1200;
+      const stream = Array.from({ length: rowsPerSegment }, () => (Math.random() < 0.5 ? '1' : '0'));
+      // Same upward speed (px/s), slight per-column duration/spread so columns stay desynchronized
+      const speedMs = Math.round(
+        baseScrollMs * (0.9 + (i % 8) * 0.02 + (i * 7) / 2000)
+      );
       const delayMs = (i * 37) % 800 + (i % 4) * 90;
       return { stream, speedMs, delayMs, key: i };
     });
-  }, [colCount]);
+  }, [colCount, rowsPerSegment, baseScrollMs]);
 
   const rootStyle = variant === 'sheet' ? styles.rootSheet : styles.rootOverlay;
 
@@ -150,17 +182,21 @@ export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps)
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      {columns.map((c) => (
-        <MatrixColumn
-          key={c.key}
-          left={c.key * colW}
-          width={colW}
-          screenHeight={height + SEGMENT_EXTRA_PAD}
-          speedMs={c.speedMs}
-          delayMs={c.delayMs}
-          charStream={c.stream}
-        />
-      ))}
+      {columns.map((c) => {
+        const left = c.key * colW;
+        const columnWidth = c.key === colCount - 1 ? width - left : colW;
+        return (
+          <MatrixColumn
+            key={c.key}
+            left={left}
+            width={columnWidth}
+            screenHeight={height + SEGMENT_EXTRA_PAD}
+            speedMs={c.speedMs}
+            delayMs={c.delayMs}
+            charStream={c.stream}
+          />
+        );
+      })}
     </View>
   );
 }
