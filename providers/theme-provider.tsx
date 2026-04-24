@@ -345,7 +345,7 @@ export const matrixTheme: Theme = {
     statusActive: '#00FF66',
     statusInactive: '#2d4a2d',
 
-    navBackground: 'rgba(0, 8, 4, 0.92)',
+    navBackground: 'rgba(0, 0, 0, 0.52)',
     navActiveColor: '#00FF66',
     navInactiveColor: 'rgba(0, 200, 90, 0.45)',
   },
@@ -450,10 +450,13 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/** Dark scrim so light text never sits on iOS/light system defaults; rain still shows at edges. */
-export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.92)';
+/** Main screen scrim — light enough to see dense code rain, dark enough for white UI text. */
+export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.58)';
 
-/** Tab / screen root — matrix uses a near-opaque black scrim (not fully transparent). */
+/** Slightly stronger tint for toolbars/headers (matches rain visibility to screen scrim). */
+export const MATRIX_HEADER_SCRIM = 'rgba(0,0,0,0.62)';
+
+/** Tab / screen root — matrix uses a black scrim over the animated background. */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
   return themeName === 'matrix' ? MATRIX_SCREEN_SCRIM : theme.colors.background;
 }

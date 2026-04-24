@@ -6,7 +6,7 @@ import { ArrowLeft, Circle, RotateCw } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '@/providers/app-provider';
-import { getScreenBackgroundColor, useTheme } from '@/providers/theme-provider';
+import { getScreenBackgroundColor, MATRIX_HEADER_SCRIM, useTheme } from '@/providers/theme-provider';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
 import { formatLotSizeForDisplay, getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
@@ -322,7 +322,7 @@ export default function QuotesScreen() {
             borderBottomColor: theme.colors.borderColor,
             backgroundColor:
               themeName === 'matrix'
-                ? 'rgba(0,0,0,0.97)'
+                ? MATRIX_HEADER_SCRIM
                 : Platform.OS === 'ios'
                   ? 'transparent'
                   : colors.glass.background,
@@ -416,7 +416,7 @@ export default function QuotesScreen() {
           styles.sizingModeBar,
           {
             borderBottomColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-            backgroundColor: themeName === 'matrix' ? 'rgba(0,0,0,0.94)' : 'transparent',
+            backgroundColor: themeName === 'matrix' ? MATRIX_HEADER_SCRIM : 'transparent',
           },
         ]}
       >

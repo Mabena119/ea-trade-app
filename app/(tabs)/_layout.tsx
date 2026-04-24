@@ -43,20 +43,35 @@ export default function TabLayout() {
         },
         tabBarBackground: () => (
           Platform.OS === 'ios' ? (
-            <BlurView
-              intensity={100}
-              tint={theme.isDark ? "dark" : "light"}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                borderRadius: 36,
-                overflow: 'hidden',
-                backgroundColor: theme.colors.navBackground,
-              }}
-            />
+            themeName === 'matrix' ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderRadius: 36,
+                  overflow: 'hidden',
+                  backgroundColor: theme.colors.navBackground,
+                }}
+              />
+            ) : (
+              <BlurView
+                intensity={100}
+                tint={theme.isDark ? "dark" : "light"}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderRadius: 36,
+                  overflow: 'hidden',
+                  backgroundColor: theme.colors.navBackground,
+                }}
+              />
+            )
           ) : (
             <View style={{
               position: 'absolute',
