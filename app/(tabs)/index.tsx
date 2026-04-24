@@ -212,7 +212,7 @@ export default function HomeScreen() {
   // Dynamic styles based on theme (matrix: let rain show — avoid stacking opaque black on scrim)
   const dynamicStyles = {
     container: {
-      backgroundColor: isMatrix ? 'transparent' : screenBg,
+      backgroundColor: screenBg,
     },
     sectionTitle: {
       color: theme.colors.textPrimary,
@@ -221,7 +221,7 @@ export default function HomeScreen() {
       color: theme.colors.textPrimary,
     },
     connectedBotsSection: {
-      backgroundColor: isMatrix ? 'transparent' : screenBg,
+      backgroundColor: screenBg,
     },
     sectionBadge: {
       backgroundColor: `${theme.colors.accent}40`,
