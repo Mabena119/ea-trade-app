@@ -3222,7 +3222,7 @@ export default function MetaTraderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: 'transparent',
   },
   keyboardAvoidingView: {
     flex: 1,

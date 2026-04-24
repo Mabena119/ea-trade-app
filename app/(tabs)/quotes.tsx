@@ -611,7 +611,7 @@ export default function QuotesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',

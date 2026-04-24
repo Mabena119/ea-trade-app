@@ -414,7 +414,7 @@ export default function HomeScreen() {
           )}
 
           <ScrollView
-            style={[styles.connectedBotsScrollView, isMatrix && { backgroundColor: screenBg }]}
+            style={[styles.connectedBotsScrollView, { backgroundColor: screenBg }]}
             contentContainerStyle={styles.connectedBotsScrollContent}
             showsVerticalScrollIndicator={false}
             bounces={true}
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: 'transparent',
     position: 'relative',
   },
   pageGlossTop: {
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
   connectedBotsSection: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    backgroundColor: '#000000',
+    backgroundColor: 'transparent',
     overflow: 'hidden',
     zIndex: 10,
   },

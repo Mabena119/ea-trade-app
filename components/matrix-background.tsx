@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -19,27 +19,56 @@ type ColumnProps = {
   screenHeight: number;
   speedMs: number;
   charStream: string[];
+  delayMs: number;
 };
 
-function MatrixColumn({ left, width, screenHeight, speedMs, charStream }: ColumnProps) {
+function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs }: ColumnProps) {
   const shift = useRef(new Animated.Value(0)).current;
   const segmentHeight = charStream.length * CHAR_LINE_HEIGHT;
+  const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+  /** Bits flip over time so the rain feels alive (scroll animation stays smooth). */
+  const [glyphs, setGlyphs] = useState(() => charStream);
+
+  useEffect(() => {
+    setGlyphs(charStream);
+  }, [charStream]);
+
+  useEffect(() => {
+    const period = 2000 + (delayMs % 7) * 120;
+    const t = setInterval(() => {
+      setGlyphs((prev) =>
+        prev.map((c) => (Math.random() < 0.1 ? (c === '0' ? '1' : '0') : c))
+      );
+    }, period);
+    return () => clearInterval(t);
+  }, [delayMs, charStream.length]);
 
   useEffect(() => {
     shift.setValue(0);
-    const loop = Animated.loop(
-      Animated.timing(shift, {
-        toValue: 1,
-        duration: speedMs,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
+    const timer = setTimeout(() => {
+      const loop = Animated.loop(
+        Animated.timing(shift, {
+          toValue: 1,
+          duration: speedMs,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      loopRef.current = loop;
+      loop.start();
+    }, delayMs);
     return () => {
-      loop.stop();
+      clearTimeout(timer);
+      if (loopRef.current) {
+        try {
+          loopRef.current.stop();
+        } catch {
+          /* noop */
+        }
+        loopRef.current = null;
+      }
     };
-  }, [shift, speedMs]);
+  }, [shift, speedMs, delayMs]);
 
   const translateY = shift.interpolate({
     inputRange: [0, 1],
@@ -49,24 +78,24 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream }: Column
   return (
     <View style={[styles.column, { left, width, height: screenHeight }]} pointerEvents="none">
       <Animated.View style={{ transform: [{ translateY }] }}>
-        {charStream.map((c, i) => (
+        {glyphs.map((c, i) => (
           <Text
             key={`a-${i}`}
             style={[
               styles.digit,
-              { opacity: 0.12 + (i / charStream.length) * 0.78 },
+              { opacity: 0.12 + (i / glyphs.length) * 0.78 },
             ]}
             maxFontSizeMultiplier={1.2}
           >
             {c}
           </Text>
         ))}
-        {charStream.map((c, i) => (
+        {glyphs.map((c, i) => (
           <Text
             key={`b-${i}`}
             style={[
               styles.digit,
-              { opacity: 0.12 + (i / charStream.length) * 0.78 },
+              { opacity: 0.12 + (i / glyphs.length) * 0.78 },
             ]}
             maxFontSizeMultiplier={1.2}
           >
@@ -79,19 +108,21 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream }: Column
 }
 
 /**
- * Black / neon-green “digital rain” of 0s and 1s. Mount in (tabs)/_layout behind tab scenes;
- * Tab screens use solid black (see getScreenBackgroundColor); this layer is mostly covered but remains for depth.
+ * Black + neon-green “digital rain” (scrolling 0/1). Lives under tab UIs; screens use
+ * `transparent` (matrix) with solid black in root Stack + tab `layoutRoot` so rain reads through.
  */
 export function MatrixBackground() {
   const { width, height } = useWindowDimensions();
-  const colCount = Math.max(8, Math.min(20, Math.floor(width / 20)));
+  const colCount = Math.max(10, Math.min(28, Math.floor(width / 14)));
   const colW = width / colCount;
 
   const columns = useMemo(() => {
     return Array.from({ length: colCount }, (_, i) => {
       const stream = Array.from({ length: CHAR_ROWS }, () => (Math.random() < 0.5 ? '1' : '0'));
-      const speedMs = 9000 + (i % 5) * 1200 + Math.floor(i / 3) * 400;
-      return { stream, speedMs, key: i };
+      // Varied speed + staggered delay so columns feel less uniform
+      const speedMs = 6000 + (i % 11) * 500 + (i * 19) % 2200;
+      const delayMs = (i * 37) % 800 + (i % 4) * 90;
+      return { stream, speedMs, delayMs, key: i };
     });
   }, [colCount]);
 
@@ -102,13 +133,14 @@ export function MatrixBackground() {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      {columns.map((c, i) => (
+      {columns.map((c) => (
         <MatrixColumn
           key={c.key}
-          left={i * colW}
+          left={c.key * colW}
           width={colW}
           screenHeight={height + SEGMENT_EXTRA_PAD}
           speedMs={c.speedMs}
+          delayMs={c.delayMs}
           charStream={c.stream}
         />
       ))}

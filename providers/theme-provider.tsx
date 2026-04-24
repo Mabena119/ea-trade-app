@@ -451,16 +451,17 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/**
- * Matrix: solid black — transparent scenes let the iOS tab/stack navigator show
- * the default system grey behind content; opaque black fixes that. Digital rain
- * in (tabs)/_layout is drawn under tab content but is covered by this (rain kept for future toggles).
- */
+/** Paints under transparent matrix UI; use with root `Stack` / tab `layoutRoot` set to #000 to avoid iOS system grey. */
 export const MATRIX_SCREEN_BG = '#000000';
 
-/** Tab / screen root — matrix uses solid black. */
+/**
+ * Matrix: transparent so `MatrixBackground` in (tabs)/_layout shows through. Solid black
+ * still comes from `app/_layout` Stack `contentStyle` + tab `layoutRoot`.
+ */
+export const MATRIX_SCREEN_OVER_RAIN = 'transparent';
+
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? MATRIX_SCREEN_BG : theme.colors.background;
+  return themeName === 'matrix' ? MATRIX_SCREEN_OVER_RAIN : theme.colors.background;
 }
 
 interface ThemeContextType {

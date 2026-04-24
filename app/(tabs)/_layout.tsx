@@ -32,15 +32,15 @@ export default function TabLayout() {
       <View
         style={[
           isMatrix ? tabScreenStyles.tabSceneSlot : tabScreenStyles.tabSceneSlotDefault,
-          isMatrix && tabScreenStyles.tabSceneSlotMatrix,
+          isMatrix && { elevation: 1 },
         ]}
       >
         <Tabs
-        style={[tabScreenStyles.tabsFill, isMatrix && tabScreenStyles.tabsFillMatrix]}
+        style={tabScreenStyles.tabsFill}
         screenOptions={{
           headerShown: false,
           sceneContainerStyle: {
-            backgroundColor: isMatrix ? "#000000" : screenBg,
+            backgroundColor: screenBg,
           },
           tabBarStyle: isFirstTime ? {
             display: 'none',
@@ -204,18 +204,16 @@ const tabScreenStyles = StyleSheet.create({
   layoutRoot: {
     flex: 1,
   },
-  /** Rain sits under tab content (must stay below in z-order) */
+  /** Rain under tab content; elevation keeps Android draw order with transparent scenes */
   matrixRainLayer: {
     zIndex: 0,
+    elevation: 0,
   },
-  /** Stack navigator draws above the rain layer on iOS; matrix paints solid black under scenes */
+  /** Tab content sits above `MatrixBackground`; must stay transparent for matrix so rain is visible. */
   tabSceneSlot: {
     flex: 1,
     zIndex: 1,
     backgroundColor: "transparent",
-  },
-  tabSceneSlotMatrix: {
-    backgroundColor: "#000000",
   },
   tabSceneSlotDefault: {
     flex: 1,
@@ -223,9 +221,6 @@ const tabScreenStyles = StyleSheet.create({
   tabsFill: {
     flex: 1,
     backgroundColor: "transparent",
-  },
-  tabsFillMatrix: {
-    backgroundColor: "#000000",
   },
 });
 
