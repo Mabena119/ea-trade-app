@@ -9,9 +9,10 @@ import {
   View,
 } from 'react-native';
 
-const CHAR_ROWS = 28;
-const CHAR_LINE_HEIGHT = 15;
-const SEGMENT_EXTRA_PAD = 64;
+/** Taller stream = longer scroll segment = smoother infinite loop. */
+const CHAR_ROWS = 42;
+const CHAR_LINE_HEIGHT = 14;
+const SEGMENT_EXTRA_PAD = 80;
 
 type ColumnProps = {
   left: number;
@@ -34,10 +35,10 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
   }, [charStream]);
 
   useEffect(() => {
-    const period = 2000 + (delayMs % 7) * 120;
+    const period = 700 + (delayMs % 5) * 90;
     const t = setInterval(() => {
       setGlyphs((prev) =>
-        prev.map((c) => (Math.random() < 0.1 ? (c === '0' ? '1' : '0') : c))
+        prev.map((c) => (Math.random() < 0.16 ? (c === '0' ? '1' : '0') : c))
       );
     }, period);
     return () => clearInterval(t);
@@ -52,6 +53,7 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
           duration: speedMs,
           easing: Easing.linear,
           useNativeDriver: true,
+          isInteraction: false,
         })
       );
       loopRef.current = loop;
@@ -78,30 +80,36 @@ function MatrixColumn({ left, width, screenHeight, speedMs, charStream, delayMs 
   return (
     <View style={[styles.column, { left, width, height: screenHeight }]} pointerEvents="none">
       <Animated.View style={{ transform: [{ translateY }] }}>
-        {glyphs.map((c, i) => (
-          <Text
-            key={`a-${i}`}
-            style={[
-              styles.digit,
-              { opacity: 0.12 + (i / glyphs.length) * 0.78 },
-            ]}
-            maxFontSizeMultiplier={1.2}
-          >
-            {c}
-          </Text>
-        ))}
-        {glyphs.map((c, i) => (
-          <Text
-            key={`b-${i}`}
-            style={[
-              styles.digit,
-              { opacity: 0.12 + (i / glyphs.length) * 0.78 },
-            ]}
-            maxFontSizeMultiplier={1.2}
-          >
-            {c}
-          </Text>
-        ))}
+        {glyphs.map((c, i) => {
+          const t = i / Math.max(1, glyphs.length - 1);
+          return (
+            <Text
+              key={`a-${i}`}
+              style={[
+                styles.digit,
+                { opacity: 0.2 + t * 0.75 },
+              ]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {c}
+            </Text>
+          );
+        })}
+        {glyphs.map((c, i) => {
+          const t = i / Math.max(1, glyphs.length - 1);
+          return (
+            <Text
+              key={`b-${i}`}
+              style={[
+                styles.digit,
+                { opacity: 0.2 + t * 0.75 },
+              ]}
+              maxFontSizeMultiplier={1.2}
+            >
+              {c}
+            </Text>
+          );
+        })}
       </Animated.View>
     </View>
   );
@@ -123,15 +131,15 @@ type MatrixBackgroundProps = {
  */
 export function MatrixBackground({ variant = 'overlay' }: MatrixBackgroundProps) {
   const { width, height } = useWindowDimensions();
-  const colCount = Math.max(10, Math.min(28, Math.floor(width / 14)));
+  const colCount = Math.max(18, Math.min(52, Math.floor(width / 8)));
   const colW = width / colCount;
 
   const columns = useMemo(() => {
     return Array.from({ length: colCount }, (_, i) => {
       const stream = Array.from({ length: CHAR_ROWS }, () => (Math.random() < 0.5 ? '1' : '0'));
-      // Varied speed + staggered delay so columns feel less uniform
-      const speedMs = 6000 + (i % 11) * 500 + (i * 19) % 2200;
-      const delayMs = (i * 37) % 800 + (i % 4) * 90;
+      // Faster, varied column speeds = continuous “always moving” feel
+      const speedMs = 2800 + (i % 15) * 160 + (i * 11) % 1200;
+      const delayMs = (i * 19) % 420 + (i % 3) * 40;
       return { stream, speedMs, delayMs, key: i };
     });
   }, [colCount]);
