@@ -521,6 +521,14 @@ const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 export default function MetaTraderScreen() {
   const { theme, themeName } = useTheme();
   const screenBg = getScreenBackgroundColor(theme, themeName);
+  const mt5TabGradActive =
+    themeName === 'matrix'
+      ? (['rgba(0, 88, 44, 0.98)', 'rgba(0, 42, 22, 0.96)'] as [string, string])
+      : (['rgba(255, 255, 255, 0.18)', 'rgba(255, 255, 255, 0.1)'] as [string, string]);
+  const mt5TabGradInactive =
+    themeName === 'matrix'
+      ? (['rgba(0, 36, 18, 0.9)', 'rgba(0, 22, 12, 0.85)'] as [string, string])
+      : (['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)'] as [string, string]);
   const mtChrome = useMemo(
     () => ({
       tab: {
@@ -2624,9 +2632,7 @@ export default function MetaTraderScreen() {
                 <BlurView intensity={130} tint="dark" style={StyleSheet.absoluteFill} />
               )}
               <LinearGradient
-                colors={activeTab === 'MT5'
-                  ? ['rgba(255, 255, 255, 0.18)', 'rgba(255, 255, 255, 0.1)']
-                  : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                colors={activeTab === 'MT5' ? mt5TabGradActive : mt5TabGradInactive}
                 style={StyleSheet.absoluteFill}
               />
               <Text

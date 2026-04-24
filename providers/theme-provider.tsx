@@ -320,15 +320,16 @@ export const matrixTheme: Theme = {
   colors: {
     background: '#000000',
     backgroundSecondary: '#010801',
-    cardBackground: 'rgba(0, 255, 80, 0.08)',
+    cardBackground: 'rgba(0, 255, 80, 0.12)',
 
     primaryGradient: ['#001a0d', '#00331a', '#00FF66'],
-    cardGradient: ['rgba(0, 40, 20, 0.5)', 'rgba(0, 60, 30, 0.35)', 'rgba(0, 255, 80, 0.12)'],
+    // Keep cards/panels dark — no light “mint wash” (was washing out light text on iOS)
+    cardGradient: ['#020805', '#042010', '#06301a'],
     glowGradient: ['rgba(0, 255, 102, 0.4)', 'rgba(0, 200, 80, 0.2)', 'transparent'],
 
-    textPrimary: '#E6FFEC',
-    textSecondary: 'rgba(180, 255, 200, 0.88)',
-    textMuted: 'rgba(0, 200, 90, 0.55)',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#B6F5CE',
+    textMuted: '#7DDC9E',
 
     accent: '#00FF66',
     onAccent: '#000000',
@@ -449,9 +450,12 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/** Tab / screen root: transparent when matrix so MatrixBackground shows through. */
+/** Dark scrim so light text never sits on iOS/light system defaults; rain still shows at edges. */
+export const MATRIX_SCREEN_SCRIM = 'rgba(0,0,0,0.92)';
+
+/** Tab / screen root — matrix uses a near-opaque black scrim (not fully transparent). */
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return themeName === 'matrix' ? 'transparent' : theme.colors.background;
+  return themeName === 'matrix' ? MATRIX_SCREEN_SCRIM : theme.colors.background;
 }
 
 interface ThemeContextType {

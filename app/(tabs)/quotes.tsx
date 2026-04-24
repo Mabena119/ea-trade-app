@@ -315,7 +315,20 @@ export default function QuotesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: theme.colors.borderColor,
+            backgroundColor:
+              themeName === 'matrix'
+                ? 'rgba(0,0,0,0.97)'
+                : Platform.OS === 'ios'
+                  ? 'transparent'
+                  : colors.glass.background,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={[
             styles.backButton,
@@ -336,7 +349,7 @@ export default function QuotesScreen() {
 
         <View style={styles.headerContent}>
           <View style={styles.titleContainer}>
-            <Text style={styles.headerTitle}>QUOTES</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>QUOTES</Text>
             {primaryEA && (
               <View style={styles.statusContainer}>
                 <Circle
@@ -344,7 +357,13 @@ export default function QuotesScreen() {
                   fill={hasActiveQuotes ? theme.colors.accent : 'transparent'}
                   size={10}
                 />
-                <Text style={styles.botName} numberOfLines={1} ellipsizeMode="tail">{primaryEA.name}</Text>
+                <Text
+                  style={[styles.botName, { color: theme.colors.textSecondary }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {primaryEA.name}
+                </Text>
               </View>
             )}
           </View>
@@ -366,7 +385,11 @@ export default function QuotesScreen() {
             activeOpacity={refreshing ? 1 : 0.7}
           >
             {Platform.OS === 'ios' && (
-              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView
+                intensity={60}
+                tint={themeName === 'matrix' || theme.isDark ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
             )}
             <Animated.View
               style={{
@@ -388,7 +411,15 @@ export default function QuotesScreen() {
         )}
       </View>
 
-      <View style={[styles.sizingModeBar, { borderBottomColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]}>
+      <View
+        style={[
+          styles.sizingModeBar,
+          {
+            borderBottomColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+            backgroundColor: themeName === 'matrix' ? 'rgba(0,0,0,0.94)' : 'transparent',
+          },
+        ]}
+      >
         <Text style={[styles.sizingModeLabel, { color: theme.colors.textSecondary }]}>LOT SIZING</Text>
         <View style={styles.sizingModeChips}>
           {(['auto', 'manual'] as const).map((m) => {
@@ -594,7 +625,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   headerTitle: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1,
@@ -606,7 +636,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   botName: {
-    color: '#CCCCCC',
     fontSize: 12,
     fontWeight: '500',
     marginLeft: 8,

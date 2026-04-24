@@ -613,7 +613,15 @@ export default function AIScannerScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.borderColor }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: theme.colors.borderColor,
+            backgroundColor: themeName === 'matrix' ? 'rgba(0,0,0,0.97)' : undefined,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={[
             styles.backButton,
@@ -627,7 +635,11 @@ export default function AIScannerScreen() {
           activeOpacity={0.7}
         >
           {Platform.OS === 'ios' && (
-            <BlurView intensity={60} tint={theme.isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+            <BlurView
+              intensity={60}
+              tint={themeName === 'matrix' || theme.isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
           )}
           <ArrowLeft color={theme.colors.textPrimary} size={22} strokeWidth={2.5} />
         </TouchableOpacity>
