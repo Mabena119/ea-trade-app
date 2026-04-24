@@ -15,6 +15,7 @@ export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA, mt5Account } = useApp();
   const { theme, themeName, toggleTheme } = useTheme();
   const isMatrix = themeName === 'matrix';
+  const isLight = !theme.isDark;
 
   // Safely get the primary EA (first one in the list)
   const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -245,14 +246,14 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[styles.container, dynamicStyles.container]}>
       <LinearGradient
-        colors={isMatrix ? pageGlossTopMatrix : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
+        colors={isMatrix || isLight ? pageGlossTopMatrix : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
         style={styles.pageGlossTop}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         pointerEvents="none"
       />
       <LinearGradient
-        colors={isMatrix ? pageGlossBottomMatrix : ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
+        colors={isMatrix || isLight ? pageGlossBottomMatrix : ['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
         style={styles.pageGlossBottom}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -890,7 +891,7 @@ const styles = StyleSheet.create({
   connectedBotsSection: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    backgroundColor: '#000000',
+    backgroundColor: 'transparent',
     overflow: 'hidden',
     zIndex: 10,
   },

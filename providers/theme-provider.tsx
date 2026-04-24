@@ -450,37 +450,6 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-function hexToRgba(hex: string, alpha: number): string {
-  const s = hex.replace('#', '').trim();
-  if (s.length === 3) {
-    const r = parseInt(s[0] + s[0], 16);
-    const g = parseInt(s[1] + s[1], 16);
-    const b = parseInt(s[2] + s[2], 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-  if (s.length === 6) {
-    const r = parseInt(s.slice(0, 2), 16);
-    const g = parseInt(s.slice(2, 4), 16);
-    const b = parseInt(s.slice(4, 6), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-  return `rgba(0,0,0,${alpha})`;
-}
-
-/**
- * For light themes: a translucent wash on top of MatrixBackground (green 0/1 rain) so
- * the screen is not a flat white/mint, but text/cards from the theme still read fine.
- */
-export function getLightMatrixScrimGradient(theme: Theme): [string, string, string] {
-  const a = 0.52;
-  const aMid = 0.44;
-  return [
-    hexToRgba(theme.colors.background, a),
-    hexToRgba(theme.colors.backgroundSecondary, aMid),
-    hexToRgba(theme.colors.background, a),
-  ];
-}
-
 /**
  * Matrix tab/screen roots stay fully transparent so the root `MatrixBackground` is
  * visible everywhere. Opaque scrims here were painting over the rain (only a strip
