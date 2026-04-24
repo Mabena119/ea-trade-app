@@ -266,7 +266,7 @@ export default function HomeScreen() {
         />
       )}
 
-      <View style={styles.content}>
+      <View style={[styles.content, isMatrix && styles.contentMatrix]}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
           <View style={[styles.heroContent, { shadowColor: theme.colors.glowColor }]}>
@@ -403,7 +403,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Scrollable Connected Bots Section */}
-        <View style={styles.connectedBotsWrapper}>
+        <View style={[styles.connectedBotsWrapper, isMatrix && styles.connectedBotsWrapperMatrix]}>
           {!isMatrix && (
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0)']}
@@ -415,8 +415,11 @@ export default function HomeScreen() {
           )}
 
           <ScrollView
-            style={styles.connectedBotsScrollView}
-            contentContainerStyle={styles.connectedBotsScrollContent}
+            style={[styles.connectedBotsScrollView, isMatrix && styles.connectedBotsScrollViewMatrix]}
+            contentContainerStyle={[
+              styles.connectedBotsScrollContent,
+              isMatrix && styles.connectedBotsScrollContentMatrix,
+            ]}
             showsVerticalScrollIndicator={false}
             bounces={true}
           >
@@ -603,6 +606,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  /** iOS otherwise paints a system gray/white in the flex gap above the tab bar (matrix) */
+  contentMatrix: {
+    backgroundColor: 'transparent',
   },
   mainEAContainer: {
     paddingTop: 0,
@@ -864,6 +871,9 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
+  connectedBotsWrapperMatrix: {
+    backgroundColor: 'transparent',
+  },
   sectionGloss: {
     position: 'absolute',
     top: 0,
@@ -875,8 +885,15 @@ const styles = StyleSheet.create({
   connectedBotsScrollView: {
     flex: 1,
   },
+  connectedBotsScrollViewMatrix: {
+    backgroundColor: 'transparent',
+  },
   connectedBotsScrollContent: {
     paddingBottom: 100,
+  },
+  connectedBotsScrollContentMatrix: {
+    flexGrow: 1,
+    backgroundColor: 'transparent',
   },
   connectedBotsSection: {
     paddingHorizontal: 20,
