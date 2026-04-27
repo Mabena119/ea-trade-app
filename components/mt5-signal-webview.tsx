@@ -82,7 +82,7 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Profinwealth-Live': 'https://mt5.profinwealth.com/',
 };
 
-/** When true, MT5 signal WebView uses a visible panel for debugging. Chart warmup keeps the WebView fully laid out (below cover) so WebGL still composites. */
+/** When true, MT5 signal WebView uses a visible bottom panel for debugging (all platforms). Chart warmup keeps the WebView fully laid out (below cover) so WebGL still composites. */
 const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = false;
 
 /** Same chart image: server cache + low model temp; client retries transient network/API errors with same snapshot. */
