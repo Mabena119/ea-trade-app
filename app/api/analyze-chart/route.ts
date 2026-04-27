@@ -113,10 +113,12 @@ FIXED ANALYSIS PROTOCOL (mandatory — follow the SAME steps in the SAME order e
 
 APPROACH - After the protocol, write observations for "reasoning" (4–6 unique sentences) tied to steps 1–3.
 
-chartDetected rules (critical):
-- Set "chartDetected": true if the image shows ANY MetaTrader / MT4 / MT5 / web terminal / cTrader / broker webtrader screenshot that includes a price chart area, candlesticks, bars, or a line chart — even with side panels, toolbars, or account bars visible.
-- Set "chartDetected": false ONLY when there is clearly no trading chart at all (e.g. login-only screen with no chart, blank page, unrelated app UI). Do NOT set false just because the image is busy, cropped, or low contrast.
-- NEVER claim the image is "entirely black", "blank", or "no chart" if you can see any candles, wicks, grid, price scale numbers, Bid/Ask, balance bar, or symbol title — those mean chartDetected MUST be true and you must read prices from the image.
+chartDetected rules (critical — be strict: do NOT "invent" a chart):
+- Set "chartDetected": true ONLY if the image shows a real **trading price chart**: visible candlesticks, bars (OHLC), or a time-series price/line/area on a time axis, in a context such as MetaTrader / MT4 / MT5 / web terminal / cTrader / TradingView / broker webtrader — including when side toolbars, watchlists, or account bars are visible.
+- Set "chartDetected": false if there is no such chart: photos of people or nature, memes, food, games, social/chat apps, generic phone screenshots, Word/PDF/Excel (unless a small embedded chart is the clear subject), login-only or settings screens with no chart pane, or any image where you cannot read actual price action from a trading platform.
+- Do NOT set true for pure indicators without price candles/bars, or a single number with no chart area.
+- If you see candles, wicks, grid, price scale, Bid/Ask, or a symbol title next to a chart area — that is a chart: set true and read levels.
+- If unsure, prefer "chartDetected": false rather than guessing levels from a non-trading image.
 
 SYMBOL (critical for automated trading — read from the image, do not guess):
 - Set "symbol" to the EXACT instrument code as shown on THIS chart: title bar, Market Watch line, order panel, or corner label (e.g. USTECH, EURUSD, XAUUSD, BTCUSD, US100, GER40, NAS100.i, EURUSD.r).
@@ -152,8 +154,14 @@ LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL 
 Output JSON only (symbol must be the literal ticker string from the chart UI, or ""):
 {"chartDetected":true,"symbol":"EXACT_TICKER_OR_EMPTY","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
 
-/** Second pass when the model wrongly returns chartDetected:false on a large screenshot (typical MT5 web canvas capture). */
-const CHART_RETRY_PROMPT = `This image is a screenshot from a MetaTrader web terminal (MT4/MT5) or similar broker terminal. It MUST be treated as a valid trading chart. Set "chartDetected": true. Read the visible symbol from the title bar or chart label. Use the same FIXED ANALYSIS PROTOCOL: objective swing S/R, trend class, then BUY or SELL (never NEUTRAL). The same static image should give the same signal and key prices; only differ if the visible structure would differ. Output the same JSON schema as before (symbol, timeframe, signal BUY or SELL, entryPrice, stopLoss, takeProfit1, reasoning, summary, suggestion).`;
+/** Second pass for large images only — re-check without forcing a positive (avoids classifying memes/photos as charts). */
+const CHART_RETRY_PROMPT = `The first pass may have misclassified this image. Look again with fresh eyes.
+
+Set "chartDetected" to true ONLY if you clearly see a trading price chart: candlesticks, OHLC bars, or a time-based price/line/area series on a platform such as MetaTrader, TradingView, cTrader, or another broker terminal.
+
+Set "chartDetected" to false if this is: a person/selfie, scene/food/meme, game, chat/social app, document, or any screen with no real price chart area. Do not invent a chart.
+
+If and only if chartDetected is true, use the same FIXED ANALYSIS PROTOCOL, output BUY or SELL (never NEUTRAL), and the same JSON fields as before. If chartDetected is false, still output valid JSON with "chartDetected":false and minimal placeholder strings for other fields if required.`;
 
 function tradeModePromptAppendix(tradeMode: MT5TradeMode): string {
   if (tradeMode === 'scalper') {
@@ -210,7 +218,8 @@ function parseGeminiChartResponse(rawText: string): Record<string, string | bool
       return '';
     };
     const chartDetMatch = rawText.match(/"chartDetected"\s*:\s*(true|false)/i)?.[1]?.toLowerCase();
-    const chartDet = chartDetMatch !== 'false';
+    // Only accept chart if model explicitly said true (missing key → not a chart)
+    const chartDet = chartDetMatch === 'true';
     const sig = rawText.match(/"signal"\s*:\s*"(BUY|SELL|NEUTRAL)"/i)?.[1]?.toUpperCase() || 'NEUTRAL';
     parsed = {
       chartDetected: chartDet,
@@ -372,10 +381,11 @@ export async function POST(request: Request): Promise<Response> {
 
     let parsed = parseGeminiChartResponse(text);
 
-    let chartDetected = parsed.chartDetected !== false;
+    const strictChartDetected = (v: unknown): boolean => v === true || v === 'true';
+    let chartDetected = strictChartDetected(parsed.chartDetected);
     const MIN_BASE64_FOR_CHART_RETRY = 10_000;
     if (!chartDetected && base64Data.length >= MIN_BASE64_FOR_CHART_RETRY) {
-      console.warn('analyze-chart: chartDetected false on substantial image, retrying with MT5 terminal hint');
+      console.warn('analyze-chart: chartDetected false on substantial image, retrying with second-opinion prompt');
       const retryPayload = {
         contents: [
           {
@@ -412,7 +422,7 @@ export async function POST(request: Request): Promise<Response> {
             const retryText = retryData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
             if (retryText) {
               parsed = parseGeminiChartResponse(retryText);
-              chartDetected = parsed.chartDetected !== false;
+              chartDetected = strictChartDetected(parsed.chartDetected);
             }
             break;
           }

@@ -515,7 +515,7 @@ export default function AIScannerScreen() {
     setError(null);
   };
 
-  const handleTakeTrade = useCallback(() => {
+  const handleTakeTrade = useCallback(async () => {
     if (!result) return;
     if (result.signal === 'NEUTRAL') {
       Alert.alert(
@@ -577,7 +577,7 @@ export default function AIScannerScreen() {
     }
 
     const signal = buildSignalFromScanner(result, resolved.symbol, { sl, tp });
-    pausePolling().catch(() => {});
+    await pausePolling();
 
     const openExecution = () => {
       setMT5TradeOverlayMessage(null);
@@ -600,6 +600,7 @@ export default function AIScannerScreen() {
     setMT5Signal,
     setMT5TradeOverlayMessage,
     setShowMT5SignalWebView,
+    pausePolling,
   ]);
 
   const SignalIcon = result?.signal === 'BUY' ? TrendingUp : result?.signal === 'SELL' ? TrendingDown : Minus;

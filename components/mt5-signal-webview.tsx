@@ -88,6 +88,30 @@ const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = false;
 /** Same chart image: server cache + low model temp; client retries transient network/API errors with same snapshot. */
 const CHART_AI_ANALYSIS_MAX_ATTEMPTS = 4;
 
+/** Android fires onShouldStartLoadWithRequest for about:blank; iOS may not. Trailing slash on mt5Url must not block /terminal vs /terminal/. */
+function isAllowedTerminalWebViewUrl(requestUrl: string, terminalBaseUrl: string, blockDataImages: boolean): boolean {
+  const u = (requestUrl || '').trim();
+  if (blockDataImages && (u.startsWith('blob:') || u.startsWith('data:image/'))) {
+    return false;
+  }
+  if (!u || u === 'about:blank' || u.startsWith('about:') || u === 'about:srcdoc') {
+    return true;
+  }
+  const stripHash = (s: string) => s.split('#')[0] ?? s;
+  const nu = stripHash(u);
+  const base = stripHash(terminalBaseUrl).replace(/\/$/, '');
+  if (nu === base) return true;
+  if (nu.startsWith(`${base}/`) || nu.startsWith(`${base}?`)) return true;
+  try {
+    if (new URL(nu).origin === new URL(terminalBaseUrl).origin) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 /** Toast subtitle during CHART_WARMUP: single friendly line unless the step is an outcome/error. */
 function displayStatusForChartWarmup(step: string | null | undefined): string {
   const s = (step || '').trim();
@@ -2771,14 +2795,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               setLoading(false);
               setCurrentStep('MT5 Terminal loaded');
               console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-              // Inject script when page loads (Android only - script is pre-injected for web via proxy)
+              // Inject after MT5 app shell is ready (Android is often slower to reach interactive)
               const script = generateMT5AuthScript();
+              const injectDelayMs = Platform.OS === 'android' ? 2600 : 2000;
               if (script && webViewRef.current) {
                 setTimeout(() => {
                   if (webViewRef.current) {
                     webViewRef.current.injectJavaScript(script);
                   }
-                }, 2000);
+                }, injectDelayMs);
               }
             }}
             onError={(syntheticEvent) => {
@@ -2789,28 +2814,19 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             }}
             onShouldStartLoadWithRequest={(request) => {
               const u = request.url || '';
-              // Block blob/data image loads — otherwise iOS opens Quick Look / "Open in..." instead of staying in WebView for AI
-              if (u.startsWith('blob:') || u.startsWith('data:image/')) {
-                console.log('🚫 Blocked blob/data image navigation:', u.slice(0, 96));
-                return false;
+              const ok = isAllowedTerminalWebViewUrl(u, mt5Url, true);
+              if (!ok) {
+                console.log('🚫 Navigation prevented:', u.slice(0, 200));
               }
-              // Prevent navigation away from the terminal URL
-              if (request.url !== mt5Url && !request.url.startsWith(mt5Url)) {
-                console.log('🚫 Navigation prevented:', request.url);
-                return false;
-              }
-              return true;
+              return ok;
             }}
             onNavigationStateChange={(navState) => {
-              // Prevent reloads and navigation away
-              if (navState.loading) {
-                // Only allow navigation if it's the initial load or same URL
-                if (navState.url !== mt5Url && !navState.url.startsWith(mt5Url)) {
-                  console.log('🔄 Unauthorized navigation detected, preventing:', navState.url);
-                  if (webViewRef.current) {
-                    webViewRef.current.stopLoading();
-                  }
-                }
+              // Do not call stopLoading() on Android during redirects — it can cancel the chain and
+              // the terminal never reaches an interactive state (iOS is more forgiving).
+              if (navState.loading) return;
+              const u = navState.url || '';
+              if (u && !isAllowedTerminalWebViewUrl(u, mt5Url, true)) {
+                console.log('🔄 Terminal navigated to unexpected URL after load:', u.slice(0, 200));
               }
             }}
             javaScriptEnabled={true}
