@@ -1265,7 +1265,7 @@ const styles = StyleSheet.create({
   eaGlassHeroCard: {
     borderColor: 'rgba(255,255,255,0.18)',
     borderTopColor: 'rgba(255,255,255,0.40)',
-    backgroundColor: 'rgba(0,0,0,0.30)',
+    backgroundColor: 'transparent',
     shadowColor: '#FFFFFF',
     shadowOpacity: 0.10,
     shadowRadius: 24,
