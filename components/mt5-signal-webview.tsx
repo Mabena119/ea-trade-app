@@ -17,7 +17,7 @@ import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
 import apiService, { type ChartAnalysisResult } from '@/services/api';
 import { computeFallbackSlTp, ensureMinRewardRisk, stripNumericPrice } from '@/utils/trade-mode-levels';
-import { getTradeModeForAnalysis } from '@/utils/trade-symbol-match';
+import { getTradeModeForAnalysis, resolveConfiguredTradeSymbol } from '@/utils/trade-symbol-match';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import { formatAutoSizedLotString, sanitizeManualLotSize } from '@/utils/equity-trade-preset';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_TRADING } from '@/utils/web-terminal-scope';
@@ -139,6 +139,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     setMTAccount,
     eas,
     mt5Symbols,
+    mt4Symbols,
+    activeSymbols,
     mt5LotSizingMode,
     markTradeExecuted,
     mt5TradeOverlayMessage,
@@ -230,9 +232,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const buildAiTradePayloadFromAnalysis = useCallback(
     (data: ChartAnalysisResult): AiTradePayload | null => {
       const baseAsset = signalRef.current?.asset || '';
+      const rawFromAi = (data.symbol && data.symbol.trim()) || '';
+      const resolved =
+        resolveConfiguredTradeSymbol(rawFromAi || undefined, mt5Symbols, mt4Symbols, activeSymbols) ??
+        resolveConfiguredTradeSymbol(baseAsset || undefined, mt5Symbols, mt4Symbols, activeSymbols);
+      if (!resolved?.symbol) return null;
+      const sym = resolved.symbol;
       const action = data.signal === 'SELL' ? 'sell' : 'buy';
-      const sym = (data.symbol && data.symbol.trim()) || baseAsset;
-      if (!sym) return null;
       const symCfg = mt5Symbols.find((s) => s.symbol === sym);
       const tradeMode: MT5TradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
       const lot = symCfg?.lotSize;
@@ -265,7 +271,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       }
       return { action, sl, tp, symbol: sym, volume };
     },
-    [mt5Symbols, mt5LotSizingMode]
+    [mt5Symbols, mt4Symbols, activeSymbols, mt5LotSizingMode]
   );
 
   const runAiTradeInject = useCallback(
@@ -2456,6 +2462,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     buildAiTradePayloadFromAnalysis,
     runAiTradeInject,
     mt5Symbols,
+    mt4Symbols,
+    activeSymbols,
   ]);
 
   // Inject script when WebView loads - ensure fresh injection for each signal

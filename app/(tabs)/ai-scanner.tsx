@@ -37,58 +37,17 @@ import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/provid
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import {
   useApp,
-  type ActiveSymbol,
-  type MT4Symbol,
-  type MT5Symbol,
   type MT5TradeMode,
   type SignalLog,
 } from '@/providers/app-provider';
 import { apiService, type ChartAnalysisResult } from '@/services/api';
 import { stripNumericPrice, computeFallbackSlTp, ensureMinRewardRisk } from '@/utils/trade-mode-levels';
-import { normalizeSymbolKey, symbolsAreSimilar, getTradeModeForAnalysis } from '@/utils/trade-symbol-match';
+import { getTradeModeForAnalysis, resolveConfiguredTradeSymbol } from '@/utils/trade-symbol-match';
 
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
 const SCANNER_UPLOAD_COUNT_KEY = 'ai-scanner-upload-count';
 const MAX_HISTORY = 5;
 const MAX_UPLOADS = 20;
-
-/**
- * Maps the AI-analysed symbol to exactly one trade-config symbol, or null.
- * Only trades when the analysed instrument is configured (exact or same broker variant, e.g. USTECH vs USTECH.i).
- * Never picks an unrelated configured symbol when the chart was for something else.
- */
-function resolveConfiguredTradeSymbol(
-  analysisSymbol: string | undefined,
-  mt5Symbols: MT5Symbol[],
-  mt4Symbols: MT4Symbol[],
-  activeSymbols: ActiveSymbol[]
-): { symbol: string } | null {
-  const fromMt5 = mt5Symbols.map((x) => x.symbol);
-  const fromMt4 = mt4Symbols.map((x) => x.symbol);
-  const fromActive = activeSymbols.map((x) => x.symbol);
-  const unique = [...new Set([...fromMt5, ...fromMt4, ...fromActive].filter(Boolean))];
-  if (unique.length === 0) return null;
-
-  const raw = (analysisSymbol || '').trim();
-  if (!raw) {
-    if (unique.length === 1) return { symbol: unique[0] };
-    return null;
-  }
-
-  const exact = unique.find((u) => normalizeSymbolKey(u) === normalizeSymbolKey(raw));
-  if (exact) return { symbol: exact };
-
-  const similar = unique.filter((u) => symbolsAreSimilar(raw, u));
-  if (similar.length === 0) return null;
-  if (similar.length === 1) return { symbol: similar[0] };
-  similar.sort((a, b) => {
-    const da = Math.abs(normalizeSymbolKey(a).length - normalizeSymbolKey(raw).length);
-    const db = Math.abs(normalizeSymbolKey(b).length - normalizeSymbolKey(raw).length);
-    if (da !== db) return da - db;
-    return normalizeSymbolKey(a).localeCompare(normalizeSymbolKey(b));
-  });
-  return { symbol: similar[0] };
-}
 
 /** Builds the same `SignalLog` shape the signal monitor uses, so MT5 execution runs the same path. */
 function buildSignalFromScanner(

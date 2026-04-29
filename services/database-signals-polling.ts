@@ -86,11 +86,20 @@ class DatabaseSignalsPollingService {
     onError?: (error: string) => void,
     options?: { onPollComplete?: () => void }
   ) {
-    if (this.intervalId) {
-      console.log('Database signals polling already running');
+    if (this.intervalId && this.currentLicenseKey === licenseKey && !this.isPaused) {
+      this.onSignalFound = onSignalFound ?? this.onSignalFound;
+      this.onError = onError ?? this.onError;
+      this.onPollComplete = options?.onPollComplete ?? this.onPollComplete;
+      console.log('Database signals polling already running for same license — callbacks refreshed');
       return;
     }
 
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+
+    this.isPaused = false;
     this.onSignalFound = onSignalFound;
     this.onError = onError;
     this.onPollComplete = options?.onPollComplete;
@@ -108,6 +117,40 @@ class DatabaseSignalsPollingService {
 
     // Start real database polling
     this.startRealPolling(licenseKey);
+  }
+
+  /**
+   * Switch active EA license while keeping the same JS callbacks (after user reorders EAs, bot still on).
+   * Resets poll cursor so we only track signals for the new EA.
+   */
+  restartWithLicense(licenseKey: string) {
+    const wasPaused = this.isPaused;
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.isPaused = false;
+    this.currentLicenseKey = licenseKey;
+    this.currentEA = null;
+    this.lastPollTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    console.log('Restarting database signals polling for new active EA license');
+
+    if (!this.onSignalFound) {
+      console.warn('restartWithLicense: no onSignalFound — call startPolling first');
+      return;
+    }
+
+    if (!this.isEnabled) {
+      this.startMockPolling(licenseKey);
+      if (wasPaused) {
+        this.pausePolling();
+      }
+      return;
+    }
+    this.startRealPolling(licenseKey);
+    if (wasPaused) {
+      this.pausePolling();
+    }
   }
 
   // Stop polling
@@ -244,8 +287,12 @@ class DatabaseSignalsPollingService {
 
       console.log(`Found ${signals.length} new signals for EA ${ea}:`, signals);
 
-      // Process each signal found
+      // Process each signal found (defensive: row EA must match polled EA)
       for (const signal of signals) {
+        if (this.currentEA && String(signal.ea) !== String(this.currentEA)) {
+          console.log('⏭️ Skip signal — EA mismatch (not active bot):', signal.ea, 'vs', this.currentEA);
+          continue;
+        }
         console.log('✅ New database signal found:', signal);
         if (this.onSignalFound) {
           this.onSignalFound(signal);

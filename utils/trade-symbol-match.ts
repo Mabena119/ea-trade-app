@@ -1,4 +1,4 @@
-import type { MT5Symbol, MT5TradeMode } from '@/providers/app-provider';
+import type { ActiveSymbol, MT4Symbol, MT5Symbol, MT5TradeMode } from '@/providers/app-provider';
 
 export function normalizeSymbolKey(s: string): string {
   return s.replace(/\s/g, '').toUpperCase();
@@ -53,6 +53,43 @@ function resolveBestMt5RowForAsset(asset: string, mt5Symbols: MT5Symbol[]): MT5S
     return normalizeSymbolKey(a.symbol).localeCompare(normalizeSymbolKey(b.symbol));
   });
   return similar[0];
+}
+
+/**
+ * Maps analysis / chart symbol text to exactly one configured Quotes symbol for the **active EA** (same lists as Quotes).
+ * Returns null if no match — avoids executing on an instrument the user did not configure for the current EA.
+ */
+export function resolveConfiguredTradeSymbol(
+  analysisSymbol: string | undefined,
+  mt5Symbols: MT5Symbol[],
+  mt4Symbols: MT4Symbol[],
+  activeSymbols: ActiveSymbol[]
+): { symbol: string } | null {
+  const fromMt5 = mt5Symbols.map((x) => x.symbol);
+  const fromMt4 = mt4Symbols.map((x) => x.symbol);
+  const fromActive = activeSymbols.map((x) => x.symbol);
+  const unique = [...new Set([...fromMt5, ...fromMt4, ...fromActive].filter(Boolean))];
+  if (unique.length === 0) return null;
+
+  const raw = (analysisSymbol || '').trim();
+  if (!raw) {
+    if (unique.length === 1) return { symbol: unique[0] };
+    return null;
+  }
+
+  const exact = unique.find((u) => normalizeSymbolKey(u) === normalizeSymbolKey(raw));
+  if (exact) return { symbol: exact };
+
+  const similar = unique.filter((u) => symbolsAreSimilar(raw, u));
+  if (similar.length === 0) return null;
+  if (similar.length === 1) return { symbol: similar[0] };
+  similar.sort((a, b) => {
+    const da = Math.abs(normalizeSymbolKey(a).length - normalizeSymbolKey(raw).length);
+    const db = Math.abs(normalizeSymbolKey(b).length - normalizeSymbolKey(raw).length);
+    if (da !== db) return da - db;
+    return normalizeSymbolKey(a).localeCompare(normalizeSymbolKey(b));
+  });
+  return { symbol: similar[0] };
 }
 
 /**
