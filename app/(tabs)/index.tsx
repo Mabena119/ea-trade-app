@@ -369,10 +369,10 @@ export default function HomeScreen() {
           resizeMode="contain"
           pointerEvents="none"
         >
-          {/* Very light edge vignette — just enough contrast at top/bottom */}
+          {/* Edge vignette — soft dark gradient for text contrast */}
           <LinearGradient
-            colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.10)', 'rgba(0,0,0,0.45)']}
-            locations={[0, 0.5, 1]}
+            colors={['rgba(0,0,0,0.70)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.75)']}
+            locations={[0, 0.45, 1]}
             style={StyleSheet.absoluteFill}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
@@ -402,94 +402,23 @@ export default function HomeScreen() {
 
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
-        <View style={styles.mainEAContainer}>
-          <View style={[
-            styles.heroContent,
-            { shadowColor: theme.colors.glowColor },
-            isEAGlass && styles.eaGlassHeroCard,
-          ]}>
-            {/* ── EA GLASS HERO: crystal-clear panel — no fill, just a hairline border ── */}
-            {isEAGlass ? (
-              <>
-                {/* Hairline top-edge shimmer for definition */}
-                <LinearGradient
-                  colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.00)']}
-                  locations={[0, 1]}
-                  style={styles.glossShine}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  pointerEvents="none"
-                />
-              </>
-            ) : (
-              <>
-            {/* Beautiful gradient background with glass effect */}
-            <LinearGradient
-              colors={
-                isMatrix
-                  ? (matrixCardGradient as [string, string, ...string[]])
-                  : (theme.colors.primaryGradient as [string, string, ...string[]])
-              }
-              style={[styles.gradientBackground, isMatrix && { opacity: 0.95 }]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
+        <View style={[styles.mainEAContainer, isEAGlass && styles.eaGlassHeroSection]}>
 
-            {/* Glass + white gloss block matrix behind the hero */}
-            {Platform.OS === 'ios' && !isMatrix && (
-              <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
-            )}
-              </>
-            )}
-
-            {!isMatrix && !isEAGlass && (
-              <>
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']}
-                  style={styles.glossShine}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
-                  style={styles.leftHighlight}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                />
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.15)']}
-                  style={styles.rightHighlight}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                />
-                <LinearGradient
-                  colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-                  style={styles.edgeFadeTop}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
-                <LinearGradient
-                  colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-                  style={styles.edgeFadeBottom}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
-              </>
-            )}
-
-            <View style={styles.topSection}>
-              {/* Circular logo display - Triple tap to change theme */}
+          {isEAGlass ? (
+            /* ─────────── EA GLASS: floating logo + frosted glass panel ─────────── */
+            <>
+              {/* Floating logo — absolutely positioned, floats above the card */}
               <TouchableOpacity
-                style={[styles.circularLogoContainer, isEAGlass && styles.eaGlassLogoContainer]}
+                style={styles.eaGlassFloatingLogo}
                 onPress={handleLogoTap}
                 activeOpacity={0.9}
               >
-                <View style={[styles.circularLogoRing, isEAGlass && styles.eaGlassLogoRing]}>
+                <View style={styles.eaGlassLogoCircle}>
                   {primaryEAImage && !logoError ? (
                     <Image
                       testID="ea-logo-circular"
                       source={{ uri: primaryEAImage }}
-                      style={[styles.circularLogo, isEAGlass && styles.eaGlassCircularLogo]}
+                      style={styles.eaGlassLogoImg}
                       resizeMode="cover"
                       onError={() => setLogoError(true)}
                     />
@@ -497,78 +426,140 @@ export default function HomeScreen() {
                     <Image
                       testID="fallback-logo-circular"
                       source={require('../../assets/images/icon.png')}
-                      style={[styles.circularLogo, isEAGlass && styles.eaGlassCircularLogo]}
+                      style={styles.eaGlassLogoImg}
                       resizeMode="contain"
                     />
                   )}
                 </View>
               </TouchableOpacity>
-              <View style={styles.titleBlock}>
-                <View style={styles.botNameContainer}>
+
+              {/* Frosted glass panel card */}
+              <View style={styles.eaGlassPanelCard}>
+                {Platform.OS === 'ios' ? (
+                  <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, styles.eaGlassAndroidScrim]} />
+                )}
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.00)']}
+                  locations={[0, 0.55]}
+                  style={styles.eaGlassPanelShimmer}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  pointerEvents="none"
+                />
+
+                {/* Bot name + status */}
+                <View style={styles.eaGlassBotInfo}>
                   <Text
                     testID="ea-title"
-                    style={[
-                      styles.botMainName,
-                      isEAGlass && styles.eaGlassHeroName,
-                    ]}
-                    numberOfLines={3}
+                    style={styles.eaGlassBotTitle}
+                    numberOfLines={2}
                     ellipsizeMode="tail"
                   >
                     {primaryEA.name.toUpperCase()}
                   </Text>
-                  <View style={[
-                    styles.botStatusDot,
-                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
-                  ]} />
+                  <View style={styles.eaGlassStatusRow}>
+                    <View style={[styles.eaGlassStatusDot, isBotActive && styles.eaGlassStatusDotActive]} />
+                    <Text style={styles.eaGlassStatusText}>{isBotActive ? 'ACTIVE' : 'INACTIVE'}</Text>
+                  </View>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.eaGlassDivider} />
+
+                {/* Action buttons */}
+                <View style={styles.eaGlassActions}>
+                  <TouchableOpacity
+                    testID="action-start"
+                    style={[styles.eaGlassBtn, isBotActive ? styles.eaGlassBtnStop : styles.eaGlassBtnStart]}
+                    onPress={() => { try { setBotActive(!isBotActive); } catch (e) { console.error(e); } }}
+                    activeOpacity={0.7}
+                  >
+                    {isBotActive ? (
+                      <Square color="#FFFFFF" size={22} strokeWidth={2.5} />
+                    ) : (
+                      <Play color="#FFFFFF" size={22} strokeWidth={2.5} fill="#FFFFFF" />
+                    )}
+                    <Text style={styles.eaGlassBtnText}>{isBotActive ? 'STOP' : 'START'}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity testID="action-quotes" style={styles.eaGlassBtn} onPress={handleQuotes} activeOpacity={0.7}>
+                    <Activity color="#FFFFFF" size={22} strokeWidth={2.5} />
+                    <Text style={styles.eaGlassBtnText}>QUOTES</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity testID="action-remove" style={styles.eaGlassBtn} onPress={handleRemoveActiveBot} activeOpacity={0.7}>
+                    <Trash2 color="#FFFFFF" size={22} strokeWidth={2.5} />
+                    <Text style={styles.eaGlassBtnText}>REMOVE</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
+            </>
+          ) : (
+            /* ─────────── NON-GLASS HERO CARD (all other themes) ─────────── */
+            <View style={[styles.heroContent, { shadowColor: theme.colors.glowColor }]}>
+              <LinearGradient
+                colors={isMatrix ? (matrixCardGradient as [string, string, ...string[]]) : (theme.colors.primaryGradient as [string, string, ...string[]])}
+                style={[styles.gradientBackground, isMatrix && { opacity: 0.95 }]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              {Platform.OS === 'ios' && !isMatrix && (
+                <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
+              )}
+              {!isMatrix && (
+                <>
+                  <LinearGradient colors={['rgba(255,255,255,0.4)', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0)']} style={styles.glossShine} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
+                  <LinearGradient colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0)']} style={styles.leftHighlight} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} />
+                  <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.15)']} style={styles.rightHighlight} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} />
+                  <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0)']} style={styles.edgeFadeTop} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
+                  <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0)']} style={styles.edgeFadeBottom} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
+                </>
+              )}
+
+              <View style={styles.topSection}>
+                <TouchableOpacity style={styles.circularLogoContainer} onPress={handleLogoTap} activeOpacity={0.9}>
+                  <View style={styles.circularLogoRing}>
+                    {primaryEAImage && !logoError ? (
+                      <Image testID="ea-logo-circular" source={{ uri: primaryEAImage }} style={styles.circularLogo} resizeMode="cover" onError={() => setLogoError(true)} />
+                    ) : (
+                      <Image testID="fallback-logo-circular" source={require('../../assets/images/icon.png')} style={styles.circularLogo} resizeMode="contain" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.titleBlock}>
+                  <View style={styles.botNameContainer}>
+                    <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">
+                      {primaryEA.name.toUpperCase()}
+                    </Text>
+                    <View style={[styles.botStatusDot, isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive]} />
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.bottomActions}>
+                <TouchableOpacity
+                  testID="action-start"
+                  style={[styles.actionButton, styles.tradeButton]}
+                  onPress={() => { try { setBotActive(!isBotActive); } catch (e) { console.error(e); } }}
+                  activeOpacity={0.6}
+                >
+                  <View style={styles.tradeButtonContent}>
+                    {isBotActive ? <Square color="#FFFFFF" size={28} strokeWidth={2.5} /> : <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />}
+                    <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
+                  <View style={styles.secondaryButtonContent}><Activity color="#FFFFFF" size={24} strokeWidth={2.5} /><Text style={styles.secondaryButtonText}>QUOTES</Text></View>
+                </TouchableOpacity>
+                <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
+                  <View style={styles.secondaryButtonContent}><Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} /><Text style={styles.secondaryButtonText}>Remove</Text></View>
+                </TouchableOpacity>
+              </View>
             </View>
+          )}
 
-            <View style={styles.bottomActions}>
-              <TouchableOpacity
-                testID="action-start"
-                style={[
-                  styles.actionButton,
-                  styles.tradeButton,
-                  isEAGlass && (isBotActive ? styles.eaGlassStopOrb : styles.eaGlassStartOrb),
-                ]}
-                onPress={() => {
-                  console.log('Start/Stop button pressed, current state:', isBotActive);
-                  try {
-                    setBotActive(!isBotActive);
-                    console.log('Bot active state changed to:', !isBotActive);
-                  } catch (error) {
-                    console.error('Error changing bot state:', error);
-                  }
-                }}
-                activeOpacity={0.6}
-              >
-                <View style={styles.tradeButtonContent}>
-                  {isBotActive ? (
-                    <Square color="#FFFFFF" size={28} strokeWidth={2.5} />
-                  ) : (
-                    <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />
-                  )}
-                  <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton, isEAGlass && styles.eaGlassSecondaryBtn]} onPress={handleQuotes} activeOpacity={0.6}>
-                <View style={styles.secondaryButtonContent}>
-                  <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton, isEAGlass && styles.eaGlassSecondaryBtn]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
-                <View style={styles.secondaryButtonContent}>
-                  <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>Remove</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-          </View>
         </View>
 
         {/* Scrollable Connected Bots Section */}
@@ -606,15 +597,7 @@ export default function HomeScreen() {
                       key={`${ea.id}-${index}`}
                       style={[
                         styles.botCard,
-                        isEAGlass ? {
-                          backgroundColor: 'transparent',
-                          borderColor: 'rgba(255,255,255,0.18)',
-                          borderTopColor: 'rgba(255,255,255,0.32)',
-                          shadowColor: 'rgba(255,255,255,0.20)',
-                          shadowOpacity: 0.5,
-                          shadowRadius: 12,
-                          elevation: 8,
-                        } : {
+                        isEAGlass ? styles.eaGlassBotCard : {
                           backgroundColor: `${theme.colors.accent}26`,
                           borderColor: `${theme.colors.accent}4D`,
                           borderTopColor: `${theme.colors.accent}80`,
@@ -623,7 +606,6 @@ export default function HomeScreen() {
                       ]}
                       onPress={async () => {
                         try {
-                          console.log('Switching active EA to:', ea.name, ea.id);
                           await setActiveEA(ea.id);
                         } catch (error) {
                           console.error('Failed to switch active EA:', error);
@@ -632,17 +614,22 @@ export default function HomeScreen() {
                       activeOpacity={0.7}
                     >
                       {isEAGlass ? (
-                        /* EA Glass: crystal-clear card — just a hairline top shimmer, no fill */
-                        <LinearGradient
-                          colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.00)']}
-                          style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
-                          start={{ x: 0.5, y: 0 }}
-                          end={{ x: 0.5, y: 0.6 }}
-                          pointerEvents="none"
-                        />
+                        <>
+                          {Platform.OS === 'ios' ? (
+                            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+                          ) : (
+                            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(8,8,20,0.55)', borderRadius: 24 }]} />
+                          )}
+                          <LinearGradient
+                            colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.00)']}
+                            style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+                            start={{ x: 0.5, y: 0 }}
+                            end={{ x: 0.5, y: 0.5 }}
+                            pointerEvents="none"
+                          />
+                        </>
                       ) : (
                         <>
-                          {/* Gradient background for bot card */}
                           <LinearGradient
                             colors={theme.colors.cardGradient as [string, string, ...string[]]}
                             style={StyleSheet.absoluteFill}
@@ -695,8 +682,8 @@ export default function HomeScreen() {
                   { shadowColor: theme.colors.glowColor },
                   isEAGlass && {
                     backgroundColor: 'transparent',
-                    borderColor: 'rgba(255,255,255,0.20)',
-                    borderTopColor: 'rgba(255,255,255,0.35)',
+                    borderColor: 'rgba(255,255,255,0.22)',
+                    borderTopColor: 'rgba(255,255,255,0.40)',
                     shadowColor: 'rgba(255,255,255,0.15)',
                     shadowOpacity: 0.5,
                   },
@@ -705,14 +692,20 @@ export default function HomeScreen() {
                 activeOpacity={0.7}
               >
                 {isEAGlass ? (
-                  /* Crystal-clear: just a top-edge shimmer line */
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.00)']}
-                    style={StyleSheet.absoluteFill}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 0.6 }}
-                    pointerEvents="none"
-                  />
+                  <>
+                    {Platform.OS === 'ios' ? (
+                      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+                    ) : (
+                      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(8,8,20,0.55)', borderRadius: 20 }]} />
+                    )}
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.00)']}
+                      style={StyleSheet.absoluteFill}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 0.6 }}
+                      pointerEvents="none"
+                    />
+                  </>
                 ) : (
                   <>
                 {/* Same solid treatment as hero: matrix = opaque card gradient; other themes = primary + glass */}
@@ -1190,71 +1183,183 @@ const styles = StyleSheet.create({
   },
   /* ── EA Glass design tokens ── */
   eaGlassBg: {
-    opacity: 0.96,
+    opacity: 0.95,
   },
-  eaGlassHeroCard: {
-    borderColor: 'rgba(255,255,255,0.22)',
-    borderTopColor: 'rgba(255,255,255,0.45)',
+  /* Hero section outer container */
+  eaGlassHeroSection: {
+    position: 'relative',
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingTop: 0,
+    paddingBottom: 0,
+    alignItems: 'stretch',
     backgroundColor: 'transparent',
+  },
+  /* Floating logo - absolutely centered above the card */
+  eaGlassFloatingLogo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 20,
     shadowColor: '#FFFFFF',
-    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
     shadowRadius: 24,
-    elevation: 0,
+    elevation: 20,
   },
-  eaGlassLogoContainer: {
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 28,
-    elevation: 18,
-  },
-  eaGlassLogoRing: {
-    borderColor: 'rgba(255,255,255,0.60)',
+  eaGlassLogoCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255,255,255,0.65)',
+    overflow: 'hidden',
     backgroundColor: 'transparent',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 22,
-    elevation: 15,
   },
-  eaGlassStartOrb: {
-    backgroundColor: 'transparent',
-    borderColor: 'rgba(255,255,255,0.70)',
-    borderWidth: 1.5,
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.80,
-    shadowRadius: 16,
-    elevation: 12,
+  eaGlassLogoImg: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
   },
-  eaGlassStopOrb: {
-    backgroundColor: 'transparent',
-    borderColor: 'rgba(248,113,113,0.85)',
-    borderWidth: 1.5,
-    shadowColor: '#F87171',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.80,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  eaGlassSecondaryBtn: {
-    backgroundColor: 'transparent',
-    borderColor: 'rgba(255,255,255,0.30)',
+  /* Frosted glass panel card */
+  eaGlassPanelCard: {
+    marginTop: 80,
+    borderRadius: 32,
+    overflow: 'hidden',
+    paddingTop: 96,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderTopColor: 'rgba(255,255,255,0.38)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.45,
+    shadowRadius: 32,
+    elevation: 20,
   },
-  eaGlassHeroName: {
+  eaGlassAndroidScrim: {
+    backgroundColor: 'rgba(6,6,18,0.62)',
+    borderRadius: 32,
+  },
+  eaGlassPanelShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 110,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+  },
+  /* Bot info inside panel */
+  eaGlassBotInfo: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  eaGlassBotTitle: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+    textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 12,
-    letterSpacing: 1.2,
+    textShadowRadius: 14,
+    marginBottom: 10,
+    lineHeight: 32,
+  },
+  eaGlassStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  eaGlassStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#DC2626',
+  },
+  eaGlassStatusDotActive: {
+    backgroundColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  eaGlassStatusText: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  /* Divider */
+  eaGlassDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    marginBottom: 18,
+  },
+  /* Action buttons */
+  eaGlassActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  eaGlassBtn: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  eaGlassBtnStart: {
+    backgroundColor: 'rgba(16,185,129,0.20)',
+    borderColor: 'rgba(16,185,129,0.55)',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  eaGlassBtnStop: {
+    backgroundColor: 'rgba(220,38,38,0.20)',
+    borderColor: 'rgba(220,38,38,0.55)',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  eaGlassBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.60)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  /* Connected bot card */
+  eaGlassBotCard: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.16)',
+    borderTopColor: 'rgba(255,255,255,0.30)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.30,
+    shadowRadius: 10,
+    elevation: 6,
   },
   eaGlassBotIcon: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderColor: 'rgba(255,255,255,0.30)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(255,255,255,0.25)',
     borderWidth: 1,
-  },
-  eaGlassCircularLogo: {
-    backgroundColor: 'transparent',
   },
   eaGlassBotName: {
     textShadowColor: 'rgba(0,0,0,0.90)',
