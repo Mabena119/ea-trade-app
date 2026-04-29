@@ -51,7 +51,7 @@ export function EABrandBackdrop({
       onError={onError}
     >
       <LinearGradient
-        colors={['rgba(0, 0, 0, 0.42)', 'rgba(12, 0, 0, 0.78)', 'rgba(0, 0, 0, 0.92)']}
+        colors={['rgba(0, 0, 0, 0.42)', 'rgba(0, 0, 0, 0.78)', 'rgba(0, 0, 0, 0.92)']}
         locations={[0, 0.52, 1]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0.5, y: 0 }}

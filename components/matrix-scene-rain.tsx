@@ -11,6 +11,7 @@ type Props = {
 /**
  * Opaque black + matrix rain, then your UI on top (same screen subtree as the navigator scene).
  * Avoids transparent tab scenes (iOS system grey) while still drawing rain on black behind cards.
+ * For `matrixLogo` theme, use the root `EABrandBackdrop` instead — this component renders children only (no rain).
  */
 export function MatrixSceneRain({ children, style }: Props) {
   const { themeName } = useTheme();
