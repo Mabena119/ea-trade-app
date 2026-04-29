@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert, AppState, Linking, InteractionManager } from 'react-native';
+import Constants from 'expo-constants';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
 import apiService from '@/services/api';
@@ -21,6 +22,14 @@ const CHART_WARMUP_INTERVAL_MS = 45 * 60 * 1000;
 
 /** After bot start: wait this many DB poll intervals with no processable signal before chart warmup (AI analysis). */
 const DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP = 15;
+
+function getExpoApiBaseUrl(): string {
+  return (
+    process.env.EXPO_PUBLIC_API_BASE_URL ||
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL ||
+    ''
+  ).replace(/\/$/, '');
+}
 
 // Define LicenseData locally to avoid importing from api service (prevents circular dependency)
 export interface LicenseData {
@@ -398,6 +407,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   >(null);
   /** Set after `startDatabaseSignalPolling` is defined (same render as `setBotActive`). */
   const startDatabaseSignalPollingRef = useRef<(() => Promise<void>) | null>(null);
+  /** Latest DB bootstrap interval tick (15 polls → chart warmup); shared when polling restarts in background. */
+  const databaseOnPollCompleteRef = useRef<(() => void) | null>(null);
+  const bringAppToForegroundRef = useRef<(() => Promise<void>) | null>(null);
 
   const buildSignalProcessKey = useCallback(
     (
@@ -1541,6 +1553,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         if (dbService) {
           dbService.stopPolling();
         }
+        if (Platform.OS === 'android') {
+          import('@/services/overlay-service')
+            .then(({ overlayService }) => overlayService.stopNativeBackgroundPolling())
+            .catch(() => {});
+        }
         setSignalLogs([]);
         setNewSignal(null);
         setDatabaseSignal(null);
@@ -1718,6 +1735,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
         console.log('🚀 Opening MT5 WebView for database signal:', signalLog.asset);
+        if (
+          Platform.OS === 'android' &&
+          (AppState.currentState === 'background' || AppState.currentState === 'inactive')
+        ) {
+          void bringAppToForegroundRef.current?.();
+        }
         pausePolling().catch(err => {
           console.error('Error pausing polling when opening WebView:', err);
         });
@@ -1761,6 +1784,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     const dbService = await getDatabaseSignalsPollingService();
     if (dbService) {
+      databaseOnPollCompleteRef.current = onPollComplete;
       dbService.startPolling(primaryEA.licenseKey, onDatabaseSignalFound, onDatabaseError, {
         onPollComplete,
       });
@@ -1786,6 +1810,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (showMT5SignalWebViewRef.current) {
       console.log('[Chart Warmup] Skipped — MT5 overlay already open');
       return;
+    }
+    /** Overlay / other app on top: must show main activity before AI chart warmup. */
+    if (
+      Platform.OS === 'android' &&
+      (AppState.currentState === 'background' || AppState.currentState === 'inactive')
+    ) {
+      void bringAppToForegroundRef.current?.();
     }
     const primary =
       Array.isArray(easRef.current) && easRef.current.length > 0 ? easRef.current[0] : null;
@@ -1926,23 +1957,33 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     return () => clearInterval(id);
   }, [isBotActive, hasActiveTradeSymbolsConfigured, eas]);
 
-  // Bring app to foreground (Android)
+  // Bring app to foreground (Android) — prefer native activity launch; fallback deep link.
   const bringAppToForeground = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        // Check if app is in background
-        const currentState = AppState.currentState;
-        if (currentState === 'background' || currentState === 'inactive') {
-          console.log('📱 App is in background, bringing to foreground...');
-          // Use deep link to bring app to foreground
-          await Linking.openURL('myapp://trade-signal');
-          console.log('✅ App brought to foreground');
-        }
-      } catch (error) {
-        console.error('Error bringing app to foreground:', error);
+    if (Platform.OS !== 'android') return;
+    if (AppState.currentState !== 'background' && AppState.currentState !== 'inactive') {
+      return;
+    }
+    console.log('📱 App not in foreground — bringing main activity up…');
+    try {
+      const nativeOk = await backgroundMonitoringService.bringAppToForeground();
+      if (nativeOk) {
+        console.log('✅ App brought to foreground (native)');
+        return;
       }
+    } catch (e) {
+      console.warn('Native bringAppToForeground failed, trying deep link:', e);
+    }
+    try {
+      await Linking.openURL('myapp://trade-signal');
+      console.log('✅ App brought to foreground (deep link)');
+    } catch (error) {
+      console.error('Error bringing app to foreground:', error);
     }
   }, []);
+
+  useEffect(() => {
+    bringAppToForegroundRef.current = bringAppToForeground;
+  }, [bringAppToForeground]);
 
   // Resume polling (restarts signal checking)
   const resumePolling = useCallback(async () => {
@@ -2424,6 +2465,96 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     const handleAppStateChange = async (nextAppState: string) => {
       console.log('App state changed - ensuring signal monitoring continues:', nextAppState);
 
+      if (nextAppState === 'active' && Platform.OS === 'android') {
+        try {
+          const { overlayService } = await import('@/services/overlay-service');
+          await overlayService.stopNativeBackgroundPolling();
+          const pending = await overlayService.consumePendingForegroundAction();
+          if (pending) {
+            if (!isBotActive || isPollingPaused || !hasActiveTradeSymbolsConfigured) {
+              console.log(
+                '[Android native poll] Discarding pending action — bot off, paused, or no trade symbols'
+              );
+            } else if (pending.type === 'chart_warmup') {
+              dbBootstrapSessionRef.current.chartWarmupLaunched = true;
+              console.log('[Android native poll] Chart warmup — opening main app for AI analysis');
+              openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup');
+            } else if (pending.type === 'signal' && pending.payload) {
+              let rows: unknown[] = [];
+              try {
+                rows = JSON.parse(pending.payload) as unknown[];
+              } catch (e) {
+                console.error('[Android native poll] Invalid signal JSON', e);
+              }
+              for (const item of rows) {
+                if (!item || typeof item !== 'object') continue;
+                const row = item as Record<string, unknown>;
+                const signal: DatabaseSignal = {
+                  id: String(row.id ?? ''),
+                  ea: String(row.ea ?? ''),
+                  asset: String(row.asset ?? ''),
+                  latestupdate: String(row.latestupdate ?? row.time ?? ''),
+                  type: String(row.type ?? ''),
+                  action: String(row.action ?? ''),
+                  price: String(row.price ?? ''),
+                  tp: String(row.tp ?? ''),
+                  sl: String(row.sl ?? ''),
+                  time: String(row.time ?? ''),
+                };
+                const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
+                  signal.id,
+                  signal.asset,
+                  signal.time,
+                  signal.latestupdate,
+                  tradeLevelsFingerprint(signal.action, signal.sl, signal.tp, signal.price)
+                );
+                if (!shouldProcess) {
+                  if (reason === 'already_processed') {
+                    console.log('⏭️ Native poll signal already processed:', signal.asset);
+                  } else if (reason === 'cooldown' && cooldownRemaining) {
+                    console.log('⏸️ Native poll cooldown:', signal.asset);
+                  } else if (reason === 'invalid_time') {
+                    console.log('⏭️ Native poll invalid time:', signal.asset);
+                  } else {
+                    console.log(
+                      '⏰ Native poll signal too old (' + ageInSeconds.toFixed(1) + 's):',
+                      signal.asset
+                    );
+                  }
+                  continue;
+                }
+                console.log('✅ Native background poll — executing signal flow:', signal.asset);
+                dbBootstrapSessionRef.current.gotProcessableDbSignal = true;
+                setDatabaseSignal(signal);
+                const signalLog: SignalLog = {
+                  id: signal.id,
+                  asset: signal.asset,
+                  action: signal.action,
+                  price: signal.price,
+                  tp: signal.tp,
+                  sl: signal.sl,
+                  time: signal.time,
+                  type: 'DATABASE_SIGNAL',
+                  source: 'native_bg_poll',
+                  latestupdate: signal.latestupdate,
+                };
+                setSignalLogs(prev => [...prev, signalLog]);
+                if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
+                  pausePolling().catch(() => {});
+                  scheduleOpenMT5ExecutionOverlay(signalLog);
+                } else if (mt5Account && mt5Account.connected) {
+                  console.log('⏭️ Native poll — symbol not on Quotes:', signal.asset);
+                }
+                setNewSignal(signalLog);
+                notifySignalReceived(signalLog);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[Android native poll] foreground handoff:', e);
+        }
+      }
+
       // When app becomes active, ensure monitoring is running if bot is active
       if (nextAppState === 'active' && isBotActive) {
         const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
@@ -2511,7 +2642,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 dbService.startPolling(
                   primaryEA.licenseKey,
                   onDatabaseSignalFound,
-                  onDatabaseError
+                  onDatabaseError,
+                  { onPollComplete: () => databaseOnPollCompleteRef.current?.() }
                 );
                 setIsDatabaseSignalsPolling(true);
               }
@@ -2598,7 +2730,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               dbService.startPolling(
                 primaryEA.licenseKey,
                 onDatabaseSignalFound,
-                onDatabaseError
+                onDatabaseError,
+                { onPollComplete: () => databaseOnPollCompleteRef.current?.() }
               );
               setIsDatabaseSignalsPolling(true);
             }
@@ -2608,6 +2741,22 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       } else if ((nextAppState === 'background' || nextAppState === 'inactive') && isBotActive && isPollingPaused) {
         console.log('App in background - monitoring is paused (will resume after cooldown)');
+      }
+
+      if (nextAppState === 'background' && Platform.OS === 'android' && isBotActive && !isPollingPaused && hasActiveTradeSymbolsConfigured) {
+        const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
+        const base = getExpoApiBaseUrl();
+        if (primaryEA?.licenseKey && base) {
+          try {
+            const { overlayService } = await import('@/services/overlay-service');
+            const ok = await overlayService.startNativeBackgroundPolling(primaryEA.licenseKey, base);
+            console.log('[Android native poll] Background API polling:', ok ? 'started' : 'failed');
+          } catch (e) {
+            console.error('[Android native poll] start error:', e);
+          }
+        } else {
+          console.warn('[Android native poll] Missing license or API base — skipped');
+        }
       }
 
       // Also ensure database signals polling continues in background (fallback check)
@@ -2681,7 +2830,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               dbService.startPolling(
                 primaryEA.licenseKey,
                 onDatabaseSignalFound,
-                onDatabaseError
+                onDatabaseError,
+                { onPollComplete: () => databaseOnPollCompleteRef.current?.() }
               );
               setIsDatabaseSignalsPolling(true);
             }

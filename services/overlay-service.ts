@@ -10,6 +10,9 @@ interface OverlayWindowModuleInterface {
   hideOverlay(): Promise<boolean>;
   getOverlayViewTag(): Promise<number>;
   updateOverlayData(botName: string, isActive: boolean, isPaused: boolean, botImageURL: string | null): Promise<boolean>;
+  startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string): Promise<boolean>;
+  stopNativeBackgroundPolling(): Promise<boolean>;
+  consumePendingForegroundAction(): Promise<{ type: string; payload?: string } | null>;
 }
 
 const { OverlayWindowModule } = NativeModules as {
@@ -26,6 +29,9 @@ interface OverlayService {
   hideOverlay(): Promise<boolean>;
   getOverlayViewTag(): Promise<number>;
   updateOverlayData(botName: string, isActive: boolean, isPaused: boolean, botImageURL: string | null): Promise<boolean>;
+  startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string): Promise<boolean>;
+  stopNativeBackgroundPolling(): Promise<boolean>;
+  consumePendingForegroundAction(): Promise<{ type: string; payload?: string } | null>;
 }
 
 class OverlayService implements OverlayService {
@@ -175,6 +181,45 @@ class OverlayService implements OverlayService {
     } catch (error) {
       console.error('Error updating overlay data:', error);
       return false;
+    }
+  }
+
+  /**
+   * Android: while the activity is backgrounded, JS timers may not run — native polls the same APIs.
+   * Call stop when returning to foreground; then consumePendingForegroundAction().
+   */
+  async startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string): Promise<boolean> {
+    if (Platform.OS !== 'android' || !OverlayWindowModule) return false;
+    try {
+      return await OverlayWindowModule.startNativeBackgroundPolling(licenseKey, apiBaseUrl);
+    } catch (e) {
+      console.error('[OverlayService] startNativeBackgroundPolling', e);
+      return false;
+    }
+  }
+
+  async stopNativeBackgroundPolling(): Promise<boolean> {
+    if (Platform.OS !== 'android' || !OverlayWindowModule) return false;
+    try {
+      return await OverlayWindowModule.stopNativeBackgroundPolling();
+    } catch (e) {
+      console.error('[OverlayService] stopNativeBackgroundPolling', e);
+      return false;
+    }
+  }
+
+  async consumePendingForegroundAction(): Promise<{ type: string; payload?: string } | null> {
+    if (Platform.OS !== 'android' || !OverlayWindowModule) return null;
+    try {
+      const r = await OverlayWindowModule.consumePendingForegroundAction();
+      if (!r || typeof r !== 'object') return null;
+      const type = (r as { type?: string }).type;
+      if (!type) return null;
+      const payload = (r as { payload?: string }).payload;
+      return { type, ...(payload ? { payload } : {}) };
+    } catch (e) {
+      console.error('[OverlayService] consumePendingForegroundAction', e);
+      return null;
     }
   }
 }

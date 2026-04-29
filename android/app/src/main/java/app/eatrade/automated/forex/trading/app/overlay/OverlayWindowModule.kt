@@ -13,9 +13,12 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewOutlineProvider
+import android.util.Log
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
+import app.eatrade.automated.forex.trading.app.MainActivity
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -23,8 +26,17 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.UiThreadUtil
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -45,6 +57,22 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
 
   private val imageLoadExecutor = Executors.newSingleThreadExecutor()
   private val logoLoadGeneration = AtomicInteger(0)
+
+  /** While the main RN activity is backgrounded, JS timers may pause; poll from native on this scheduler. */
+  private var bgPollScheduler: java.util.concurrent.ScheduledExecutorService? = null
+  private var bgPollFuture: ScheduledFuture<*>? = null
+  private var bgPollLicenseKey: String? = null
+  private var bgPollApiBase: String? = null
+
+  companion object {
+    private const val TAG = "EaNativePoll"
+    private const val PREFS = "ea_native_bg_poll"
+    private const val KEY_LAST_POLL = "last_poll_iso"
+    private const val KEY_EMPTY_COUNT = "empty_count"
+    private const val KEY_PENDING_TYPE = "pending_type"
+    private const val KEY_PENDING_JSON = "pending_payload"
+    private const val EMPTY_POLLS_BEFORE_WARMUP = 15
+  }
 
   override fun getName(): String = "OverlayWindowModule"
 
@@ -356,6 +384,179 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
         loadLogoIntoView()
       }
       promise.resolve(true)
+    }
+  }
+
+  private fun stopNativeBackgroundPollingInternal() {
+    try {
+      bgPollFuture?.cancel(false)
+    } catch (_: Exception) {
+    }
+    bgPollFuture = null
+    try {
+      bgPollScheduler?.shutdownNow()
+    } catch (_: Exception) {
+    }
+    bgPollScheduler = null
+  }
+
+  /**
+   * Polls [api/get-new-signals] every 5s while the RN JS runtime may be suspended.
+   * On signal: stores pending payload + brings [MainActivity] to front.
+   * After [EMPTY_POLLS_BEFORE_WARMUP] empty polls: pending chart_warmup + brings activity to front.
+   */
+  @ReactMethod
+  fun startNativeBackgroundPolling(licenseKey: String, apiBaseUrl: String, promise: Promise) {
+    val lic = licenseKey.trim()
+    val base = apiBaseUrl.trim().trimEnd('/')
+    if (lic.isEmpty() || base.isEmpty()) {
+      promise.resolve(false)
+      return
+    }
+    bgPollLicenseKey = lic
+    bgPollApiBase = base
+    stopNativeBackgroundPollingInternal()
+    val prefs = reactContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    prefs.edit().putInt(KEY_EMPTY_COUNT, 0).apply()
+    val scheduler = Executors.newSingleThreadScheduledExecutor()
+    bgPollScheduler = scheduler
+    bgPollFuture = scheduler.scheduleWithFixedDelay({
+      try {
+        runNativeBackgroundPollIteration()
+      } catch (e: Exception) {
+        Log.e(TAG, "poll iteration", e)
+      }
+    }, 5, 5, TimeUnit.SECONDS)
+    Log.i(TAG, "Started native background signal polling")
+    promise.resolve(true)
+  }
+
+  @ReactMethod
+  fun stopNativeBackgroundPolling(promise: Promise) {
+    stopNativeBackgroundPollingInternal()
+    bgPollLicenseKey = null
+    bgPollApiBase = null
+    Log.i(TAG, "Stopped native background signal polling")
+    promise.resolve(true)
+  }
+
+  /** JS should call on resume to handle pending signal / chart warmup after native brought the task forward. */
+  @ReactMethod
+  fun consumePendingForegroundAction(promise: Promise) {
+    val prefs = reactContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val type = prefs.getString(KEY_PENDING_TYPE, null)
+    if (type.isNullOrEmpty()) {
+      promise.resolve(null)
+      return
+    }
+    val payload = prefs.getString(KEY_PENDING_JSON, null)
+    prefs.edit().remove(KEY_PENDING_TYPE).remove(KEY_PENDING_JSON).apply()
+    val map = Arguments.createMap()
+    map.putString("type", type)
+    if (!payload.isNullOrEmpty()) {
+      map.putString("payload", payload)
+    }
+    promise.resolve(map)
+  }
+
+  private fun isoUtc(ms: Long): String {
+    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+    sdf.timeZone = TimeZone.getTimeZone("UTC")
+    return sdf.format(Date(ms))
+  }
+
+  private fun httpGet(urlStr: String): String? {
+    return try {
+      val conn = URL(urlStr).openConnection() as HttpURLConnection
+      conn.connectTimeout = 20000
+      conn.readTimeout = 20000
+      conn.instanceFollowRedirects = true
+      conn.useCaches = false
+      if (conn.responseCode !in 200..299) {
+        Log.w(TAG, "HTTP ${conn.responseCode}: $urlStr")
+        return null
+      }
+      conn.inputStream.bufferedReader().use { it.readText() }
+    } catch (e: Exception) {
+      Log.w(TAG, "GET failed: $urlStr", e)
+      null
+    }
+  }
+
+  private fun runNativeBackgroundPollIteration() {
+    val lic = bgPollLicenseKey ?: return
+    val base = bgPollApiBase ?: return
+    val prefs = reactContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    val eaUrl =
+      "$base/api/get-ea-from-license?licenseKey=${URLEncoder.encode(lic, "UTF-8")}"
+    val eaBody = httpGet(eaUrl) ?: return
+    val eaJson =
+      try {
+        JSONObject(eaBody)
+      } catch (e: Exception) {
+        Log.w(TAG, "EA JSON parse", e)
+        return
+      }
+    val eaId =
+      eaJson.optString("id", "").ifEmpty { eaJson.optString("eaId", "") }.ifEmpty { return }
+
+    val since =
+      prefs.getString(KEY_LAST_POLL, null)
+        ?: isoUtc(System.currentTimeMillis() - 86400_000L)
+
+    val sigUrl =
+      "$base/api/get-new-signals?eaId=${URLEncoder.encode(eaId, "UTF-8")}&since=${URLEncoder.encode(since, "UTF-8")}"
+    val sigBody = httpGet(sigUrl) ?: return
+    val sigJson =
+      try {
+        JSONObject(sigBody)
+      } catch (e: Exception) {
+        Log.w(TAG, "signals JSON parse", e)
+        return
+      }
+    val arr = sigJson.optJSONArray("signals") ?: JSONArray()
+
+    if (arr.length() > 0) {
+      prefs.edit()
+        .putString(KEY_LAST_POLL, isoUtc(System.currentTimeMillis()))
+        .putInt(KEY_EMPTY_COUNT, 0)
+        .putString(KEY_PENDING_TYPE, "signal")
+        .putString(KEY_PENDING_JSON, arr.toString())
+        .apply()
+      stopNativeBackgroundPollingInternal()
+      bringMainActivityToFront("signal")
+    } else {
+      val nextCount = prefs.getInt(KEY_EMPTY_COUNT, 0) + 1
+      prefs.edit()
+        .putInt(KEY_EMPTY_COUNT, nextCount)
+        .putString(KEY_LAST_POLL, isoUtc(System.currentTimeMillis() - 5000))
+        .apply()
+      if (nextCount >= EMPTY_POLLS_BEFORE_WARMUP) {
+        prefs.edit()
+          .putString(KEY_PENDING_TYPE, "chart_warmup")
+          .remove(KEY_PENDING_JSON)
+          .putInt(KEY_EMPTY_COUNT, 0)
+          .apply()
+        stopNativeBackgroundPollingInternal()
+        bringMainActivityToFront("chart_warmup")
+      }
+    }
+  }
+
+  private fun bringMainActivityToFront(reason: String) {
+    try {
+      Log.i(TAG, "Bringing main activity to front: $reason")
+      val intent = Intent(reactContext, MainActivity::class.java).apply {
+        addFlags(
+          Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+            Intent.FLAG_ACTIVITY_SINGLE_TOP
+        )
+      }
+      reactContext.startActivity(intent)
+    } catch (e: Exception) {
+      Log.e(TAG, "bringMainActivityToFront", e)
     }
   }
 }

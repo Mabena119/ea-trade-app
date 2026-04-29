@@ -45,12 +45,24 @@ function buildAiTradeInjectScript(
   var maxAttempts = ${runnerRetryMax};
   var retryGap = ${runnerRetryMs};
   var n = 0;
+  var chartPrimedFor = '';
   function postFail(m) {
     var fail = JSON.stringify({ type: 'ai_trade_inject_failed', message: m });
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(fail);
     if (window.parent && window.parent !== window) window.parent.postMessage(fail, '*');
   }
-  function attempt() {
+  async function ensureChartForSymbol(sym) {
+    if (chartPrimedFor === sym) return;
+    if (typeof window.__eaSearchForSymbol !== 'function' || typeof window.__eaOpenChart !== 'function') {
+      throw new Error('Chart helpers missing');
+    }
+    await window.__eaSearchForSymbol(sym);
+    await new Promise(function(r) { setTimeout(r, 650); });
+    await window.__eaOpenChart(sym);
+    await new Promise(function(r) { setTimeout(r, 1100); });
+    chartPrimedFor = sym;
+  }
+  async function attempt() {
     n++;
     var p = null;
     try {
@@ -59,9 +71,20 @@ function buildAiTradeInjectScript(
       postFail((e0 && e0.message) ? String(e0.message) : 'AI trade payload parse failed');
       return;
     }
+    var sym = (p && p.symbol) ? String(p.symbol).trim() : '';
+    if (!sym) {
+      postFail('No symbol on trade payload');
+      return;
+    }
+    try {
+      await ensureChartForSymbol(sym);
+    } catch (e1) {
+      postFail((e1 && e1.message) ? String(e1.message) : 'Could not select symbol / open chart before order');
+      return;
+    }
     window.__eaActiveTradePayload = p;
     if (typeof window.__eaRunExecuteMultipleTrades === 'function') {
-      void window.__eaRunExecuteMultipleTrades();
+      await window.__eaRunExecuteMultipleTrades();
       return;
     }
     if (n < maxAttempts) {
@@ -70,7 +93,7 @@ function buildAiTradeInjectScript(
     }
     postFail('Trade runner not ready');
   }
-  setTimeout(attempt, firstDelay);
+  setTimeout(function(){ void attempt(); }, firstDelay);
 })();
 true;
 `;
@@ -328,10 +351,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const buildAiTradePayloadFromAnalysis = useCallback(
     (data: ChartAnalysisResult): AiTradePayload | null => {
       const baseAsset = signalRef.current?.asset || '';
+      const isWarmup = signalRef.current?.type === 'CHART_WARMUP';
       const rawFromAi = (data.symbol && data.symbol.trim()) || '';
+      /** Warmup trades must execute on the same instrument whose chart was captured — ignore AI ticker drift */
       const resolved =
-        resolveConfiguredTradeSymbol(rawFromAi || undefined, mt5Symbols, mt4Symbols, activeSymbols) ??
-        resolveConfiguredTradeSymbol(baseAsset || undefined, mt5Symbols, mt4Symbols, activeSymbols);
+        isWarmup && baseAsset
+          ? resolveConfiguredTradeSymbol(baseAsset, mt5Symbols, mt4Symbols, activeSymbols)
+          : resolveConfiguredTradeSymbol(rawFromAi || undefined, mt5Symbols, mt4Symbols, activeSymbols) ??
+            resolveConfiguredTradeSymbol(baseAsset || undefined, mt5Symbols, mt4Symbols, activeSymbols);
       if (!resolved?.symbol) return null;
       const sym = resolved.symbol;
       const action = data.signal === 'SELL' ? 'sell' : 'buy';
@@ -2374,6 +2401,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         };
 
         window.__eaRunExecuteMultipleTrades = executeMultipleTrades;
+        /** Used by RN-injected AI trade script to re-select instrument before opening the order dialog */
+        window.__eaSearchForSymbol = searchForSymbol;
+        window.__eaOpenChart = openChart;
 
         var __eaStartAuthOnce = (function() {
           var done = false;
