@@ -50,7 +50,7 @@ export interface Theme {
   isDark: boolean;
   /**
    * When set, root layout renders the EA logo splash behind screens (`EABrandBackdrop`).
-   * Not used with classic matrix rain themes (`matrix` / `matrixRed`).
+   * Not used with classic matrix rain themes (`matrix` / `matrixRed` / `matrixYellow`).
    */
   eaBrandShell?: boolean;
 }
@@ -279,42 +279,6 @@ export const redTheme: Theme = {
   },
 };
 
-// Electric lime — dark charcoal with neon lime accents
-export const limeTheme: Theme = {
-  name: 'lime',
-  isDark: true,
-  colors: {
-    background: '#0a1208',
-    backgroundSecondary: '#0f1a0c',
-    cardBackground: 'rgba(132, 204, 22, 0.14)',
-
-    primaryGradient: ['#365314', '#84CC16', '#D9F99D'],
-    cardGradient: ['rgba(54, 83, 20, 0.45)', 'rgba(132, 204, 22, 0.26)', 'rgba(217, 249, 157, 0.12)'],
-    glowGradient: ['rgba(132, 204, 22, 0.55)', 'rgba(190, 242, 100, 0.38)', 'transparent'],
-
-    textPrimary: '#FFFFFF',
-    textSecondary: 'rgba(255, 255, 255, 0.88)',
-    textMuted: 'rgba(255, 255, 255, 0.52)',
-
-    accent: '#A3E635',
-    onAccent: '#14532D',
-    accentSecondary: '#BEF264',
-    success: '#4ADE80',
-    error: '#F87171',
-    warning: '#FBBF24',
-
-    borderColor: 'rgba(132, 204, 22, 0.35)',
-    glowColor: 'rgba(163, 230, 53, 0.48)',
-    overlayColor: 'rgba(10, 18, 8, 0.8)',
-
-    statusActive: '#A3E635',
-    statusInactive: '#57534E',
-
-    navBackground: 'rgba(10, 18, 8, 0.97)',
-    navActiveColor: '#BEF264',
-    navInactiveColor: 'rgba(255, 255, 255, 0.45)',
-  },
-};
 
 // ============ PLAIN THEMES ============
 
@@ -401,6 +365,44 @@ export const matrixRedTheme: Theme = {
   },
 };
 
+// EA Glass — clean frosted-glass dark UI chrome. EA logo backdrop is shown only on the
+// license/add-key screen (injected locally in license.tsx, not app-wide via eaBrandShell).
+export const matrixYellowTheme: Theme = {
+  name: 'matrixYellow',
+  isDark: true,
+  colors: {
+    background: '#0a0a12',
+    backgroundSecondary: '#0f0f1a',
+    cardBackground: 'rgba(255, 255, 255, 0.10)',
+
+    primaryGradient: ['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.08)', 'rgba(0,0,0,0.25)'],
+    cardGradient: ['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.06)', 'rgba(0,0,0,0.20)'],
+    glowGradient: ['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.08)', 'transparent'],
+
+    textPrimary: '#FFFFFF',
+    textSecondary: 'rgba(255, 255, 255, 0.80)',
+    textMuted: 'rgba(255, 255, 255, 0.48)',
+
+    accent: '#FFFFFF',
+    onAccent: '#000000',
+    accentSecondary: 'rgba(255, 255, 255, 0.75)',
+    success: '#4ADE80',
+    error: '#F87171',
+    warning: '#FCD34D',
+
+    borderColor: 'rgba(255, 255, 255, 0.20)',
+    glowColor: 'rgba(255, 255, 255, 0.30)',
+    overlayColor: 'rgba(0, 0, 0, 0.60)',
+
+    statusActive: '#4ADE80',
+    statusInactive: 'rgba(255, 255, 255, 0.30)',
+
+    navBackground: 'rgba(0, 0, 0, 0.55)',
+    navActiveColor: '#FFFFFF',
+    navInactiveColor: 'rgba(255, 255, 255, 0.42)',
+  },
+};
+
 // Pure Black - Sleek dark AMOLED theme
 export const blackTheme: Theme = {
   name: 'black',
@@ -438,42 +440,6 @@ export const blackTheme: Theme = {
   },
 };
 
-// Pure White - Clean minimal light theme with strong black outlines
-export const whiteTheme: Theme = {
-  name: 'white',
-  isDark: false,
-  colors: {
-    background: '#FFFFFF',
-    backgroundSecondary: '#F8F8F8',
-    cardBackground: 'rgba(0, 0, 0, 0.05)',
-    
-    primaryGradient: ['#2D2D2D', '#4A4A4A', '#6B6B6B'],
-    cardGradient: ['rgba(0, 0, 0, 0.12)', 'rgba(0, 0, 0, 0.08)', 'rgba(0, 0, 0, 0.04)'],
-    glowGradient: ['rgba(0, 0, 0, 0.25)', 'rgba(0, 0, 0, 0.15)', 'transparent'],
-    
-    textPrimary: '#000000',
-    textSecondary: 'rgba(0, 0, 0, 0.75)',
-    textMuted: 'rgba(0, 0, 0, 0.5)',
-    
-    accent: '#000000',
-    onAccent: '#FFFFFF',
-    accentSecondary: '#333333',
-    success: '#16A34A',
-    error: '#DC2626',
-    warning: '#D97706',
-    
-    borderColor: 'rgba(0, 0, 0, 0.25)',
-    glowColor: 'rgba(0, 0, 0, 0.35)',
-    overlayColor: 'rgba(255, 255, 255, 0.95)',
-    
-    statusActive: '#16A34A',
-    statusInactive: '#6B7280',
-    
-    navBackground: 'rgba(255, 255, 255, 0.98)',
-    navActiveColor: '#000000',
-    navInactiveColor: 'rgba(0, 0, 0, 0.5)',
-  },
-};
 
 // All themes array for cycling
 export const ALL_THEMES: Theme[] = [
@@ -484,11 +450,9 @@ export const ALL_THEMES: Theme[] = [
   oceanTheme,
   mintTheme,
   redTheme,
-  limeTheme,
-  matrixTheme,
   matrixRedTheme,
+  matrixYellowTheme,
   blackTheme,
-  whiteTheme,
 ];
 export type ThemeName =
   | 'matrixLogo'
@@ -498,18 +462,16 @@ export type ThemeName =
   | 'ocean'
   | 'mint'
   | 'red'
-  | 'lime'
-  | 'matrix'
   | 'matrixRed'
-  | 'black'
-  | 'white';
+  | 'matrixYellow'
+  | 'black';
 
 /** True when the EA logo splash shell should render behind the app (not matrix). */
 export function isEABrandShellTheme(theme: Theme): boolean {
   return theme.eaBrandShell === true;
 }
 export function isMatrixStyleTheme(themeName: string): boolean {
-  return themeName === 'matrix' || themeName === 'matrixRed';
+  return themeName === 'matrixRed';
 }
 
 /**
@@ -560,7 +522,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       try {
         const rawSaved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
         const savedThemeName =
-          rawSaved === 'eaBrand' ? 'matrixLogo' : rawSaved;
+          rawSaved === 'eaBrand' || rawSaved === 'matrix' ? 'matrixLogo'
+          : rawSaved === 'lime' || rawSaved === 'white' ? 'purple'
+          : rawSaved;
         if (savedThemeName) {
           const savedTheme = ALL_THEMES.find(t => t.name === savedThemeName);
           if (savedTheme) {

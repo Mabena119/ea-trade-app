@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Image, ImageBackground, KeyboardAvoidingView, ScrollView, Platform, BackHandler } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -9,6 +9,7 @@ import { useTheme } from '@/providers/theme-provider';
 import { apiService } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '@/constants/colors';
+import { resolveEABrandImageSource } from '@/utils/ea-brand-image';
 
 export default function LicenseScreen() {
   const { theme } = useTheme();
@@ -16,6 +17,13 @@ export default function LicenseScreen() {
   const [isActivating, setIsActivating] = useState<boolean>(false);
   const { addEA, eas, setIsFirstTime } = useApp();
   const hasActiveBots = eas.length > 0;
+
+  // Use the first connected EA's owner logo as backdrop, fallback to app icon
+  const backdropSource = useMemo(() => {
+    const primaryEA = eas.length > 0 ? eas[0] : null;
+    const rawLogo = primaryEA?.userData?.owner?.logo;
+    return resolveEABrandImageSource(rawLogo);
+  }, [eas]);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [modalTitle, setModalTitle] = useState<string>('');
   const [modalMessage, setModalMessage] = useState<string>('');
@@ -42,6 +50,13 @@ export default function LicenseScreen() {
 
     checkEmailAuth();
   }, []);
+
+  // Block Android hardware/gesture back when no EAs are connected
+  useEffect(() => {
+    if (hasActiveBots) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, [hasActiveBots]);
 
   const handleActivate = async () => {
     if (!licenseKey.trim()) {
@@ -134,7 +149,22 @@ export default function LicenseScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ImageBackground
+      source={backdropSource}
+      style={styles.backdrop}
+      imageStyle={styles.backdropImage}
+      resizeMode="contain"
+    >
+      {/* Dark vignette so content stays readable */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.52)', 'rgba(0,0,0,0.72)', 'rgba(0,0,0,0.88)']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+      />
+      <SafeAreaView style={styles.container}>
       {hasActiveBots && (
         <View style={styles.header}>
           <TouchableOpacity style={[styles.backButton, { backgroundColor: `${theme.colors.accent}1A` }]} onPress={handleBack}>
@@ -226,14 +256,22 @@ export default function LicenseScreen() {
           </TouchableOpacity>
         </View>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  backdrop: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  backdropImage: {
+    opacity: 0.85,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   keyboardAvoidingView: {
     flex: 1,

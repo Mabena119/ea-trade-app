@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp, type EA } from '@/providers/app-provider';
 import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
+import { resolveEABrandImageSource } from '@/utils/ea-brand-image';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { overlayService } from '@/services/overlay-service';
 import colors from '@/constants/colors';
@@ -224,6 +225,15 @@ export default function HomeScreen() {
 
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const isMatrix = isMatrixStyleTheme(themeName);
+  const isEAGlass = themeName === 'matrixYellow';
+
+  // EA Glass: dynamic logo source from the active EA (or app icon fallback)
+  const eaGlassLogoSource = useMemo(() => {
+    if (!isEAGlass) return null;
+    const rawLogo = primaryEA?.userData?.owner?.logo;
+    return resolveEABrandImageSource(rawLogo);
+  }, [isEAGlass, primaryEA?.userData?.owner?.logo]);
+
   // Fully opaque so matrix rain (drawn behind cards) does not read through the card surface
   const matrixCardGradient = useMemo((): [string, string, string] => {
     if (themeName === 'matrixRed') {
@@ -243,10 +253,12 @@ export default function HomeScreen() {
     );
   }
 
-  // Show splash screen for first-time users
+  // Show splash screen for first-time users — always dark purple, never inherits active theme
+  const SPLASH_BG = '#09091a';
+  const SPLASH_ACCENT = '#8B5CF6';
   if (isFirstTime) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: screenBg }]}>
+      <View style={[styles.splashContainer, { backgroundColor: SPLASH_BG }]}>
         <View style={styles.splashContent}>
           <View style={styles.logoContainer}>
             <Image
@@ -259,7 +271,7 @@ export default function HomeScreen() {
 
           {Platform.OS === 'android' ? (
             <View style={styles.startPermissionPanel}>
-              <Text style={[styles.startPermissionHint, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.startPermissionHint, { color: 'rgba(255,255,255,0.70)' }]}>
                 Allow both to continue. Tap START to open the right Settings screen (Appear on top or
                 Notifications) if either still shows ✗.
               </Text>
@@ -267,8 +279,8 @@ export default function HomeScreen() {
                 style={[
                   styles.startPermissionRow,
                   {
-                    borderColor: `${theme.colors.accent}55`,
-                    backgroundColor: `${theme.colors.accent}12`,
+                    borderColor: `${SPLASH_ACCENT}55`,
+                    backgroundColor: `${SPLASH_ACCENT}12`,
                     marginBottom: 10,
                   },
                 ]}
@@ -276,14 +288,14 @@ export default function HomeScreen() {
                 <Text style={[styles.startPermissionMark, { color: androidOverlayGranted ? '#4ade80' : '#f87171' }]}>
                   {androidOverlayGranted ? '✓' : '✗'}
                 </Text>
-                <Text style={[styles.startPermissionLabel, { color: theme.colors.textPrimary }]}>
+                <Text style={[styles.startPermissionLabel, { color: '#FFFFFF' }]}>
                   Draw on top of other apps
                 </Text>
               </View>
               <View
                 style={[
                   styles.startPermissionRow,
-                  { borderColor: `${theme.colors.accent}55`, backgroundColor: `${theme.colors.accent}12` },
+                  { borderColor: `${SPLASH_ACCENT}55`, backgroundColor: `${SPLASH_ACCENT}12` },
                 ]}
               >
                 <Text
@@ -291,13 +303,20 @@ export default function HomeScreen() {
                 >
                   {androidNotificationGranted ? '✓' : '✗'}
                 </Text>
-                <Text style={[styles.startPermissionLabel, { color: theme.colors.textPrimary }]}>Notifications</Text>
+                <Text style={[styles.startPermissionLabel, { color: '#FFFFFF' }]}>Notifications</Text>
               </View>
             </View>
           ) : null}
 
-          <TouchableOpacity style={[styles.splashStartButton, { backgroundColor: `${theme.colors.accent}4D`, borderColor: `${theme.colors.accent}80`, shadowColor: theme.colors.accent }]} onPress={handleStartNow}>
-            <Text style={[styles.startButtonText, { color: theme.colors.textPrimary }]}>START</Text>
+          <TouchableOpacity
+            style={[styles.splashStartButton, {
+              backgroundColor: `${SPLASH_ACCENT}4D`,
+              borderColor: `${SPLASH_ACCENT}80`,
+              shadowColor: SPLASH_ACCENT,
+            }]}
+            onPress={handleStartNow}
+          >
+            <Text style={[styles.startButtonText, { color: '#FFFFFF' }]}>START</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -326,7 +345,7 @@ export default function HomeScreen() {
       color: theme.colors.textPrimary,
     },
     connectedBotsSection: {
-      backgroundColor: isMatrix ? 'transparent' : screenBg,
+      backgroundColor: isMatrix || isEAGlass ? 'transparent' : screenBg,
     },
     sectionBadge: {
       backgroundColor: `${theme.colors.accent}40`,
@@ -341,8 +360,28 @@ export default function HomeScreen() {
       style={[styles.container, dynamicStyles.container]}
       edges={['top', 'right', 'bottom', 'left']}
     >
+      {/* ── EA GLASS BACKDROP ── full-screen logo canvas behind all content ── */}
+      {isEAGlass && eaGlassLogoSource && (
+        <ImageBackground
+          source={eaGlassLogoSource}
+          style={StyleSheet.absoluteFill}
+          imageStyle={styles.eaGlassBg}
+          resizeMode="cover"
+          pointerEvents="none"
+        >
+          {/* Very light edge vignette — just enough contrast at top/bottom */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.10)', 'rgba(0,0,0,0.45)']}
+            locations={[0, 0.5, 1]}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+          />
+        </ImageBackground>
+      )}
+
       <MatrixSceneRain>
-      {!isMatrix && (
+      {!isMatrix && !isEAGlass && (
         <LinearGradient
           colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
           style={styles.pageGlossTop}
@@ -351,7 +390,7 @@ export default function HomeScreen() {
           pointerEvents="none"
         />
       )}
-      {!isMatrix && (
+      {!isMatrix && !isEAGlass && (
         <LinearGradient
           colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
           style={styles.pageGlossBottom}
@@ -364,7 +403,26 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {/* Fixed Active Bot at Top */}
         <View style={styles.mainEAContainer}>
-          <View style={[styles.heroContent, { shadowColor: theme.colors.glowColor }]}>
+          <View style={[
+            styles.heroContent,
+            { shadowColor: theme.colors.glowColor },
+            isEAGlass && styles.eaGlassHeroCard,
+          ]}>
+            {/* ── EA GLASS HERO: crystal-clear panel — no fill, just a hairline border ── */}
+            {isEAGlass ? (
+              <>
+                {/* Hairline top-edge shimmer for definition */}
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.00)']}
+                  locations={[0, 1]}
+                  style={styles.glossShine}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  pointerEvents="none"
+                />
+              </>
+            ) : (
+              <>
             {/* Beautiful gradient background with glass effect */}
             <LinearGradient
               colors={
@@ -381,8 +439,10 @@ export default function HomeScreen() {
             {Platform.OS === 'ios' && !isMatrix && (
               <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
             )}
+              </>
+            )}
 
-            {!isMatrix && (
+            {!isMatrix && !isEAGlass && (
               <>
                 <LinearGradient
                   colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']}
@@ -419,12 +479,12 @@ export default function HomeScreen() {
 
             <View style={styles.topSection}>
               {/* Circular logo display - Triple tap to change theme */}
-              <TouchableOpacity 
-                style={styles.circularLogoContainer}
+              <TouchableOpacity
+                style={[styles.circularLogoContainer, isEAGlass && styles.eaGlassLogoContainer]}
                 onPress={handleLogoTap}
                 activeOpacity={0.9}
               >
-                <View style={styles.circularLogoRing}>
+                <View style={[styles.circularLogoRing, isEAGlass && styles.eaGlassLogoRing]}>
                   {primaryEAImage && !logoError ? (
                     <Image
                       testID="ea-logo-circular"
@@ -445,7 +505,17 @@ export default function HomeScreen() {
               </TouchableOpacity>
               <View style={styles.titleBlock}>
                 <View style={styles.botNameContainer}>
-                  <Text testID="ea-title" style={styles.botMainName} numberOfLines={3} ellipsizeMode="tail">{primaryEA.name.toUpperCase()}</Text>
+                  <Text
+                    testID="ea-title"
+                    style={[
+                      styles.botMainName,
+                      isEAGlass && styles.eaGlassHeroName,
+                    ]}
+                    numberOfLines={3}
+                    ellipsizeMode="tail"
+                  >
+                    {primaryEA.name.toUpperCase()}
+                  </Text>
                   <View style={[
                     styles.botStatusDot,
                     isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
@@ -457,7 +527,11 @@ export default function HomeScreen() {
             <View style={styles.bottomActions}>
               <TouchableOpacity
                 testID="action-start"
-                style={[styles.actionButton, styles.tradeButton]}
+                style={[
+                  styles.actionButton,
+                  styles.tradeButton,
+                  isEAGlass && (isBotActive ? styles.eaGlassStopOrb : styles.eaGlassStartOrb),
+                ]}
                 onPress={() => {
                   console.log('Start/Stop button pressed, current state:', isBotActive);
                   try {
@@ -479,14 +553,14 @@ export default function HomeScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
+              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton, isEAGlass && styles.eaGlassSecondaryBtn]} onPress={handleQuotes} activeOpacity={0.6}>
                 <View style={styles.secondaryButtonContent}>
                   <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>QUOTES</Text>
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
+              <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton, isEAGlass && styles.eaGlassSecondaryBtn]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
                 <View style={styles.secondaryButtonContent}>
                   <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
                   <Text style={styles.secondaryButtonText}>Remove</Text>
@@ -499,7 +573,7 @@ export default function HomeScreen() {
 
         {/* Scrollable Connected Bots Section */}
         <View style={styles.connectedBotsWrapper}>
-          {!isMatrix && (
+          {!isMatrix && !isEAGlass && (
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0)']}
               style={styles.sectionGloss}
@@ -512,7 +586,7 @@ export default function HomeScreen() {
           <ScrollView
             style={[
               styles.connectedBotsScrollView,
-              { backgroundColor: isMatrix ? 'transparent' : screenBg },
+              { backgroundColor: isMatrix || isEAGlass ? 'transparent' : screenBg },
             ]}
             contentContainerStyle={styles.connectedBotsScrollContent}
             showsVerticalScrollIndicator={false}
@@ -532,7 +606,15 @@ export default function HomeScreen() {
                       key={`${ea.id}-${index}`}
                       style={[
                         styles.botCard,
-                        {
+                        isEAGlass ? {
+                          backgroundColor: 'transparent',
+                          borderColor: 'rgba(255,255,255,0.18)',
+                          borderTopColor: 'rgba(255,255,255,0.32)',
+                          shadowColor: 'rgba(255,255,255,0.20)',
+                          shadowOpacity: 0.5,
+                          shadowRadius: 12,
+                          elevation: 8,
+                        } : {
                           backgroundColor: `${theme.colors.accent}26`,
                           borderColor: `${theme.colors.accent}4D`,
                           borderTopColor: `${theme.colors.accent}80`,
@@ -549,18 +631,31 @@ export default function HomeScreen() {
                       }}
                       activeOpacity={0.7}
                     >
-                      {/* Gradient background for bot card */}
-                      <LinearGradient
-                        colors={theme.colors.cardGradient as [string, string, ...string[]]}
-                        style={StyleSheet.absoluteFill}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      />
-                      {Platform.OS === 'ios' && !isMatrix && (
-                        <BlurView intensity={40} tint={theme.isDark ? "light" : "dark"} style={StyleSheet.absoluteFill} />
+                      {isEAGlass ? (
+                        /* EA Glass: crystal-clear card — just a hairline top shimmer, no fill */
+                        <LinearGradient
+                          colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.00)']}
+                          style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+                          start={{ x: 0.5, y: 0 }}
+                          end={{ x: 0.5, y: 0.6 }}
+                          pointerEvents="none"
+                        />
+                      ) : (
+                        <>
+                          {/* Gradient background for bot card */}
+                          <LinearGradient
+                            colors={theme.colors.cardGradient as [string, string, ...string[]]}
+                            style={StyleSheet.absoluteFill}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          />
+                          {Platform.OS === 'ios' && !isMatrix && (
+                            <BlurView intensity={40} tint={theme.isDark ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+                          )}
+                        </>
                       )}
                       <View style={styles.botCardContent}>
-                        <View style={[styles.botIcon, { shadowColor: theme.colors.glowColor }]}>
+                        <View style={[styles.botIcon, { shadowColor: theme.colors.glowColor }, isEAGlass && styles.eaGlassBotIcon]}>
                           {getEAImageUrl(ea as unknown as EA) ? (
                             <Image
                               testID={`ea-logo-small-${index}`}
@@ -574,7 +669,17 @@ export default function HomeScreen() {
                             </View>
                           )}
                         </View>
-                        <Text style={[styles.botName, { color: theme.isDark ? '#FFFFFF' : theme.colors.textPrimary }]} numberOfLines={2} ellipsizeMode="tail">{ea.name.toUpperCase()}</Text>
+                        <Text
+                          style={[
+                            styles.botName,
+                            { color: theme.isDark ? '#FFFFFF' : theme.colors.textPrimary },
+                            isEAGlass && styles.eaGlassBotName,
+                          ]}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >
+                          {ea.name.toUpperCase()}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -585,10 +690,31 @@ export default function HomeScreen() {
 
 
               <TouchableOpacity
-                style={[styles.addEAButton, { shadowColor: theme.colors.glowColor }]}
+                style={[
+                  styles.addEAButton,
+                  { shadowColor: theme.colors.glowColor },
+                  isEAGlass && {
+                    backgroundColor: 'transparent',
+                    borderColor: 'rgba(255,255,255,0.20)',
+                    borderTopColor: 'rgba(255,255,255,0.35)',
+                    shadowColor: 'rgba(255,255,255,0.15)',
+                    shadowOpacity: 0.5,
+                  },
+                ]}
                 onPress={handleAddNewEA}
                 activeOpacity={0.7}
               >
+                {isEAGlass ? (
+                  /* Crystal-clear: just a top-edge shimmer line */
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.00)']}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 0.6 }}
+                    pointerEvents="none"
+                  />
+                ) : (
+                  <>
                 {/* Same solid treatment as hero: matrix = opaque card gradient; other themes = primary + glass */}
                 <LinearGradient
                   colors={
@@ -610,6 +736,8 @@ export default function HomeScreen() {
                     start={{ x: 0.5, y: 0 }}
                     end={{ x: 0.5, y: 1 }}
                   />
+                )}
+                  </>
                 )}
 
                 <Plus color="#FFFFFF" size={24} strokeWidth={2.5} style={{ zIndex: 3 }} />
@@ -1059,6 +1187,77 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 20,
     elevation: 10,
+  },
+  /* ── EA Glass design tokens ── */
+  eaGlassBg: {
+    opacity: 0.96,
+  },
+  eaGlassHeroCard: {
+    borderColor: 'rgba(255,255,255,0.22)',
+    borderTopColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'transparent',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 0,
+  },
+  eaGlassLogoContainer: {
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 28,
+    elevation: 18,
+  },
+  eaGlassLogoRing: {
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.50,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  eaGlassStartOrb: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.70)',
+    borderWidth: 1.5,
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.80,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  eaGlassStopOrb: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(248,113,113,0.85)',
+    borderWidth: 1.5,
+    shadowColor: '#F87171',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.80,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  eaGlassSecondaryBtn: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.30)',
+    borderWidth: 1,
+  },
+  eaGlassHeroName: {
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 12,
+    letterSpacing: 1.2,
+  },
+  eaGlassBotIcon: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.30)',
+    borderWidth: 1,
+  },
+  eaGlassBotName: {
+    textShadowColor: 'rgba(0,0,0,0.90)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 10,
+    fontWeight: '700',
   },
   botCardContent: {
     flexDirection: 'row',

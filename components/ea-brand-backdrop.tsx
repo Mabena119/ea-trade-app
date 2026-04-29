@@ -47,25 +47,20 @@ export function EABrandBackdrop({
       source={source}
       style={[styles.root, style]}
       imageStyle={styles.image}
-      resizeMode="cover"
+      resizeMode="contain"
       onError={onError}
     >
+      {/* Vertical dark vignette — lighter top so the logo image shows strongly */}
       <LinearGradient
-        colors={['rgba(0, 0, 0, 0.42)', 'rgba(0, 0, 0, 0.78)', 'rgba(0, 0, 0, 0.92)']}
-        locations={[0, 0.52, 1]}
+        colors={['rgba(0, 0, 0, 0.22)', 'rgba(0, 0, 0, 0.55)', 'rgba(0, 0, 0, 0.80)']}
+        locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
+      {/* Diagonal accent tint (white for glass theme → barely visible; coloured for other themes) */}
       <LinearGradient
-        colors={[`${accentColor}38`, 'transparent', `${glowColor}30`]}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={['rgba(0,0,0,0.55)', 'transparent', 'transparent', 'rgba(0,0,0,0.65)']}
+        colors={[`${accentColor}22`, 'transparent', `${glowColor}18`]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -84,8 +79,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   image: {
-    transform: [{ scale: 1.12 }],
-    opacity: 0.88,
+    opacity: 0.92,
   },
   content: {
     flex: 1,

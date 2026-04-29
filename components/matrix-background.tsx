@@ -168,7 +168,7 @@ type MatrixBackgroundProps = {
    * `sheet` — includes black fill (legacy / standalone).
    */
   variant?: MatrixBackgroundVariant;
-  /** `green` = classic Matrix; `red` = crimson “matrix red” theme. */
+  /** `green` = classic Matrix; `red` = matrix red theme. (`matrixYellow` uses `EALogoRain` instead.) */
   rainTint?: MatrixRainTint;
 };
 
