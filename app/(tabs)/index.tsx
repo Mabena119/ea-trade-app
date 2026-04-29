@@ -1261,6 +1261,9 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 20,
     marginBottom: 0,
+    backgroundColor: 'transparent',
+    /** Circle the touch target so iOS/Android shadow bounds match the avatar */
+    borderRadius: 90,
   },
   eaGlassHeroCard: {
     borderColor: 'rgba(255,255,255,0.18)',
@@ -1283,20 +1286,33 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   eaGlassLogoContainer: {
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.65,
-    shadowRadius: 30,
-    elevation: 20,
+    backgroundColor: 'transparent',
+    /** Android elevation draws a rectangular shadow — disable; use iOS shadow only */
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FFFFFF',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.45,
+        shadowRadius: 28,
+        elevation: 0,
+      },
+      default: { elevation: 0 },
+    }),
   },
   eaGlassLogoRing: {
     borderColor: 'rgba(255,255,255,0.70)',
     backgroundColor: 'transparent',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.60,
-    shadowRadius: 24,
-    elevation: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FFFFFF',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.4,
+        shadowRadius: 18,
+        elevation: 0,
+      },
+      default: { elevation: 0 },
+    }),
   },
   eaGlassStartOrb: {
     backgroundColor: 'transparent',
