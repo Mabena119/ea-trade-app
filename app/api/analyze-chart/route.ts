@@ -8,6 +8,7 @@ import {
   getSlTpPercentForTradeMode,
   getTakeProfitRiskMultiple,
   ensureMinRewardRisk,
+  computeFallbackSlTp,
 } from '@/utils/trade-mode-levels';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
@@ -16,6 +17,9 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as c
 const GEMINI_TIMEOUT_MS = 20000; // Stay under Render timeout
 const MAX_BASE64_BYTES = 1_000_000; // 1MB max to avoid 502
 const CHART_CACHE_MAX = 200;
+
+/** Fixed seed + temp 0: same chart image → same model output across requests (when the model honors seed). */
+const CHART_ANALYSIS_GENERATION_SEED = 1_728_142_031;
 
 /** Same image bytes + trade mode → identical API output (avoids model drift; speeds retries). */
 const chartAnalysisResultCache = new Map<
@@ -149,6 +153,12 @@ ACCOUNT & PORTFOLIO (this app’s execution policy — reflect in summary/sugges
 - **Reward:risk:** Prefer at least **~2:1** potential profit vs risk (further is fine). Place SL at a real invalidation; TP should warrant taking the risk.
 - **confidence:** Set **"high"** or **"medium"** only when trend/S/R and signal align. Set **"low"** for choppy, unclear, or conflicting structure — the app will **not** auto-execute on **low** confidence (user can still trade manually from your levels).
 
+MARKET ANCHOR (same chart image → same numbers; aligns with automated market-style execution):
+- **currentPrice:** Read from the chart’s **live quote** visible at the right edge: Bid/Ask (or last) in the order bar, one-click row, Market Watch line, status strip, **or** the **last closed candle’s close** if no separate quote is shown. That single number is “the price now” on this snapshot.
+- **entryPrice:** MUST equal **currentPrice** numerically for this workflow (market entry at the last visible price). Do **not** use a different hypothetical limit unless that exact price appears as a labeled pending/limit order on the image.
+- **stopLoss / takeProfit1:** Must be on the **correct sides** of that shared entry: **BUY** → SL **below** entry, TP **above** entry. **SELL** → SL **above** entry, TP **below** entry. Both must be real invalidation / target levels readable from the chart (swing, S/R zone edge, or obvious structure), not arbitrary decimals.
+- **Precision:** Match the **price axis** / quote style on the image (often 2 dp for indices and many metals, 2–5 dp for FX); keep **consistent rounding** so an unchanged screenshot yields the same strings.
+
 LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL or TP empty.
 
 Output JSON only (symbol must be the literal ticker string from the chart UI, or ""):
@@ -188,6 +198,73 @@ function chartRetryTextForMode(tradeMode: MT5TradeMode): string {
       ? ' The user trades SCALPER mode — prefer tighter intraday-style distances when inferring levels.'
       : ' The user trades SWING mode — prefer wider swing-style distances when inferring levels.';
   return `${CHART_RETRY_PROMPT}${hint}`;
+}
+
+function parsePriceNum(s: string): number {
+  const n = parseFloat(String(s || '').replace(/,/g, ''));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function makePriceFormatter(anchor: number): (n: number) => string {
+  const decimals = anchor > 100 ? 2 : 5;
+  return (n: number) => parseFloat(n.toFixed(decimals)).toString();
+}
+
+/**
+ * Align execution with the chart's last visible quote and enforce valid SL/TP geometry.
+ * Wrong-side or missing levels → mode-aware fallback from the same anchor.
+ */
+function sanitizeTradeLevelsAgainstAnchor(
+  direction: 'BUY' | 'SELL',
+  currentPrice: string,
+  entryPrice: string,
+  stopLoss: string,
+  takeProfit1: string,
+  tradeMode: MT5TradeMode
+): { currentPrice: string; entryPrice: string; stopLoss: string; takeProfit1: string } {
+  const curN = parsePriceNum(currentPrice);
+  const entN = parsePriceNum(entryPrice);
+  let anchor = NaN;
+  if (Number.isFinite(curN) && Number.isFinite(entN)) {
+    const denom = Math.max(Math.abs(curN), 1e-12);
+    anchor = Math.abs(curN - entN) / denom <= 0.003 ? (curN + entN) / 2 : curN;
+  } else if (Number.isFinite(curN)) {
+    anchor = curN;
+  } else if (Number.isFinite(entN)) {
+    anchor = entN;
+  }
+
+  if (!Number.isFinite(anchor)) {
+    return { currentPrice, entryPrice, stopLoss, takeProfit1 };
+  }
+
+  const fmt = makePriceFormatter(anchor);
+  const entryStr = fmt(anchor);
+  let slN = parsePriceNum(stopLoss);
+  let tpN = parsePriceNum(takeProfit1);
+
+  const validBuy = (e: number, slv: number, tpv: number) =>
+    slv < e && tpv > e && e - slv > 0 && tpv - e > 0;
+  const validSell = (e: number, slv: number, tpv: number) =>
+    slv > e && tpv < e && slv - e > 0 && e - tpv > 0;
+
+  const ok =
+    direction === 'BUY' ? validBuy(anchor, slN, tpN) : validSell(anchor, slN, tpN);
+
+  if (!ok) {
+    const fb = computeFallbackSlTp(direction, anchor, tradeMode);
+    if (fb) {
+      slN = parsePriceNum(fb.sl);
+      tpN = parsePriceNum(fb.tp);
+    }
+  }
+
+  return {
+    currentPrice: entryStr,
+    entryPrice: entryStr,
+    stopLoss: Number.isFinite(slN) ? fmt(slN) : stopLoss,
+    takeProfit1: Number.isFinite(tpN) ? fmt(tpN) : takeProfit1,
+  };
 }
 
 function asChartString(v: unknown): string {
@@ -309,6 +386,8 @@ export async function POST(request: Request): Promise<Response> {
         topK: 1,
         maxOutputTokens: 2048,
         responseMimeType: 'application/json',
+        candidateCount: 1,
+        seed: CHART_ANALYSIS_GENERATION_SEED,
       },
     };
 
@@ -482,7 +561,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Fallback: compute SL/TP from entry when AI returns empty (scalper: tighter; swing: wider)
-    const entryNum = parseFloat(String(entryPrice).replace(/,/g, ''));
+    let entryNum = parseFloat(String(entryPrice).replace(/,/g, ''));
     if (entryNum && !isNaN(entryNum) && (!stopLoss || !takeProfit1)) {
       const pct = getSlTpPercentForTradeMode(tradeMode);
       const slDist = entryNum * pct;
@@ -494,14 +573,27 @@ export async function POST(request: Request): Promise<Response> {
       if (!takeProfit1) takeProfit1 = signal === 'BUY' ? fmt(entryNum + tpDist) : fmt(entryNum - tpDist);
     }
 
+    const aligned = sanitizeTradeLevelsAgainstAnchor(
+      signal as 'BUY' | 'SELL',
+      currentPrice,
+      entryPrice,
+      stopLoss,
+      takeProfit1,
+      tradeMode
+    );
+    currentPrice = aligned.currentPrice;
+    entryPrice = aligned.entryPrice;
+    stopLoss = aligned.stopLoss;
+    takeProfit1 = aligned.takeProfit1;
+
     // Enforce minimum reward:risk (improves expectancy vs tight model TPs)
-    const eN = parseFloat(String(entryPrice).replace(/,/g, ''));
+    entryNum = parseFloat(String(entryPrice).replace(/,/g, ''));
     const slN = parseFloat(String(stopLoss).replace(/,/g, ''));
     const tpN = parseFloat(String(takeProfit1).replace(/,/g, ''));
-    if (eN && !isNaN(eN) && !isNaN(slN) && !isNaN(tpN) && (signal === 'BUY' || signal === 'SELL')) {
+    if (entryNum && !isNaN(entryNum) && !isNaN(slN) && !isNaN(tpN) && (signal === 'BUY' || signal === 'SELL')) {
       takeProfit1 = ensureMinRewardRisk(
         signal as 'BUY' | 'SELL',
-        eN,
+        entryNum,
         slN,
         tpN
       );

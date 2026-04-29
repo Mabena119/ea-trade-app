@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   ScrollView,
   BackHandler,
+  InteractionManager,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
@@ -29,25 +30,47 @@ function escapeJsonForSingleQuotedJs(jsonStr: string): string {
   return jsonStr.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
-function buildAiTradeInjectScript(payload: AiTradePayload): string {
+function buildAiTradeInjectScript(
+  payload: AiTradePayload,
+  opts?: { firstRunDelayMs?: number; runnerRetryMax?: number; runnerRetryMs?: number }
+): string {
   const escaped = escapeJsonForSingleQuotedJs(JSON.stringify(payload));
+  const firstRunDelayMs = opts?.firstRunDelayMs ?? 0;
+  const runnerRetryMax = opts?.runnerRetryMax ?? 14;
+  const runnerRetryMs = opts?.runnerRetryMs ?? 240;
   return `
 (function(){
-  try {
-    window.__eaActiveTradePayload = JSON.parse('${escaped}');
+  var payloadJson = '${escaped}';
+  var firstDelay = ${firstRunDelayMs};
+  var maxAttempts = ${runnerRetryMax};
+  var retryGap = ${runnerRetryMs};
+  var n = 0;
+  function postFail(m) {
+    var fail = JSON.stringify({ type: 'ai_trade_inject_failed', message: m });
+    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(fail);
+    if (window.parent && window.parent !== window) window.parent.postMessage(fail, '*');
+  }
+  function attempt() {
+    n++;
+    var p = null;
+    try {
+      p = JSON.parse(payloadJson);
+    } catch (e0) {
+      postFail((e0 && e0.message) ? String(e0.message) : 'AI trade payload parse failed');
+      return;
+    }
+    window.__eaActiveTradePayload = p;
     if (typeof window.__eaRunExecuteMultipleTrades === 'function') {
       void window.__eaRunExecuteMultipleTrades();
-    } else {
-      var fail = JSON.stringify({ type: 'ai_trade_inject_failed', message: 'Trade runner not ready' });
-      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(fail);
-      if (window.parent && window.parent !== window) window.parent.postMessage(fail, '*');
+      return;
     }
-  } catch (e) {
-    var msg = (e && e.message) ? String(e.message) : 'AI trade inject failed';
-    var err = JSON.stringify({ type: 'ai_trade_inject_failed', message: msg });
-    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(err);
-    if (window.parent && window.parent !== window) window.parent.postMessage(err, '*');
+    if (n < maxAttempts) {
+      setTimeout(attempt, retryGap);
+      return;
+    }
+    postFail('Trade runner not ready');
   }
+  setTimeout(attempt, firstDelay);
 })();
 true;
 `;
@@ -82,11 +105,36 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Profinwealth-Live': 'https://mt5.profinwealth.com/',
 };
 
-/** When true, MT5 signal WebView uses a visible bottom panel for debugging (all platforms). Chart warmup keeps the WebView fully laid out (below cover) so WebGL still composites. */
-const SHOW_MT5_SIGNAL_WEBVIEW_DEBUG = false;
-
 /** Same chart image: server cache + low model temp; client retries transient network/API errors with same snapshot. */
 const CHART_AI_ANALYSIS_MAX_ATTEMPTS = 4;
+
+/**
+ * Runs at document start — matches MetaTrader `CustomWebView` so each overlay session gets a clean
+ * storage/cookie state and reliably lands on the broker login portal (critical on Android).
+ */
+const MT5_WEBVIEW_BOOTSTRAP_JS = `
+(function(){
+  try { localStorage.clear(); } catch(e) {}
+  try { sessionStorage.clear(); } catch(e) {}
+  try {
+    if (typeof indexedDB !== 'undefined' && indexedDB.databases) {
+      indexedDB.databases().then(function(dbs){
+        dbs.forEach(function(db){ if (db.name) try { indexedDB.deleteDatabase(db.name); } catch(e2) {} });
+      });
+    }
+  } catch(e) {}
+  try {
+    if (typeof document !== 'undefined' && document.cookie) {
+      document.cookie.split(';').forEach(function(c){
+        var eq = c.indexOf('=');
+        var name = eq > -1 ? c.substr(0, eq).trim() : c.trim();
+        if (name) document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+      });
+    }
+  } catch(e) {}
+})();
+true;
+`;
 
 /** Android fires onShouldStartLoadWithRequest for about:blank; iOS may not. Trailing slash on mt5Url must not block /terminal vs /terminal/. */
 function isAllowedTerminalWebViewUrl(requestUrl: string, terminalBaseUrl: string, blockDataImages: boolean): boolean {
@@ -125,7 +173,16 @@ function displayStatusForChartWarmup(step: string | null | undefined): string {
     /^auto-trade failed/i.test(s) ||
     /^ai analysis complete/i.test(s) ||
     /^ai suggests a trade/i.test(s) ||
+    /^ai: low confidence/i.test(s) ||
     /^all trades completed/i.test(s)
+  ) {
+    return s;
+  }
+  // Trade execution sends many step_update strings; showing them avoids a false "stuck analysing" loop.
+  if (
+    /preparing terminal|placing order|order panel|order dialog|order form|filling order|executing trade|configured to execute|strict execution|trade\s+\d|completed:|volume:|stop loss|take profit|confirming trade|buy order|sell order|chart ready|snapshot|account updated|equity|step\s*\d/i.test(
+      s
+    )
   ) {
     return s;
   }
@@ -170,33 +227,64 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const signalRef = useRef(signal);
   const [webViewKey, setWebViewKey] = useState<number>(0);
   const signalAuthRemountRef = useRef(0);
+  /**
+   * Inject `generateMT5AuthScript()` at most once per native WebView instance (`webViewKey`).
+   * Applies to **CHART_WARMUP** (scan → snapshot → AI → trade) and **database signal** execution.
+   * A second inject re-instantiates `__eaStartAuthOnce`, re-runs login on chart/order UI → bogus
+   * `authentication_failed` and Android remounts the WebView.
+   */
+  const mainScriptInjectedForWebViewRef = useRef(false);
+  /** Android often fires `onLoadEnd` more than once; schedule only one `ea_mt5_shell_ready` probe per WebView (warmup uses a longer delay). */
+  const shellReadyProbeScheduledRef = useRef(false);
+
+  useEffect(() => {
+    mainScriptInjectedForWebViewRef.current = false;
+    shellReadyProbeScheduledRef.current = false;
+  }, [webViewKey]);
 
   useEffect(() => {
     signalRef.current = signal;
   }, [signal]);
 
-  /** Bumps WebView when DB row is updated (new scan) or SL/TP/action change — avoids executing stale baked-in script. */
-  const signalExecutionKey = useMemo(() => {
+  /**
+   * Identity for WebView mount + chart AI discard: trade-critical fields only.
+   * Excludes `latestupdate` and avoids `[signal]` identity churn so Android does not remount /
+   * restart the terminal when the row metadata refreshes or parent re-renders during order entry.
+   */
+  const signalStableSessionKey = useMemo(() => {
     if (!signal) return '';
-    const lu = signal.latestupdate ?? '';
-    return [String(signal.id), lu, signal.action ?? '', signal.sl ?? '', signal.tp ?? '', signal.price ?? ''].join(
-      '\x1f'
-    );
-  }, [signal]);
-  const signalExecutionKeyRef = useRef(signalExecutionKey);
-  useEffect(() => {
-    signalExecutionKeyRef.current = signalExecutionKey;
-  }, [signalExecutionKey]);
+    return [
+      String(signal.id),
+      String(signal.type ?? ''),
+      signal.asset ?? '',
+      signal.action ?? '',
+      signal.sl ?? '',
+      signal.tp ?? '',
+      signal.price ?? '',
+    ].join('\x1f');
+  }, [signal?.id, signal?.type, signal?.asset, signal?.action, signal?.sl, signal?.tp, signal?.price]);
 
-  /** Chart warmup uses in-tree overlay (not Modal); Android back should dismiss like before. */
+  const signalStableSessionKeyRef = useRef(signalStableSessionKey);
   useEffect(() => {
-    if (!visible || signal?.type !== 'CHART_WARMUP' || Platform.OS !== 'android') return;
+    signalStableSessionKeyRef.current = signalStableSessionKey;
+  }, [signalStableSessionKey]);
+
+  /** Chart warmup uses in-tree overlay (not Modal); Android: same for all auto-trade paths — Modal + hidden WebView often fails to composite. */
+  const handleRequestClose = useCallback(() => {
+    void Promise.resolve(resumePolling()).catch((err: unknown) => {
+      console.error('resumePolling on MT5 overlay close:', err);
+    });
+    onClose();
+  }, [onClose, resumePolling]);
+
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
+      handleRequestClose();
       return true;
     });
     return () => sub.remove();
-  }, [visible, signal?.type, onClose]);
+  }, [visible, handleRequestClose]);
 
   // Get MT5 terminal URL
   const getMT5Url = useCallback(() => {
@@ -205,6 +293,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     }
     return MT5_BROKER_URLS[mt5Account.server] || 'https://webtrader.razormarkets.co.za/terminal/';
   }, [mt5Account]);
+
+  /** Stable reference: inline `source={{ uri }}` changes every render and can reload Android WebView on state updates. */
+  const mt5WebViewSource = useMemo(() => {
+    const uri = !mt5Account || !mt5Account.server
+      ? 'https://webtrader.razormarkets.co.za/terminal/'
+      : MT5_BROKER_URLS[mt5Account.server] || 'https://webtrader.razormarkets.co.za/terminal/';
+    return { uri };
+  }, [mt5Account?.server]);
 
   /** Number of trades from trade config (MT5 symbol row); defaults to 1 if unset/invalid */
   const getNumberOfTrades = useCallback(() => {
@@ -276,19 +372,30 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   const runAiTradeInject = useCallback(
     (payload: AiTradePayload) => {
-      const code = buildAiTradeInjectScript(payload);
+      const isAndroid = Platform.OS === 'android';
+      const code = buildAiTradeInjectScript(payload, {
+        firstRunDelayMs: isAndroid ? 400 : 140,
+        runnerRetryMax: isAndroid ? 16 : 12,
+        runnerRetryMs: isAndroid ? 300 : 200,
+      });
       if (Platform.OS === 'web') {
         setWebExternalEval({ code, id: Date.now() });
         return;
       }
-      setTimeout(() => {
+      const inject = () => {
         if (webViewRef.current) {
           webViewRef.current.injectJavaScript(code);
         } else {
           setChartAiError('WebView not ready for auto-trade');
           void Promise.resolve(resumePolling()).catch(() => { });
         }
-      }, 120);
+      };
+      const delayMs = isAndroid ? 480 : 140;
+      InteractionManager.runAfterInteractions(() => {
+        requestAnimationFrame(() => {
+          setTimeout(inject, delayMs);
+        });
+      });
     },
     [resumePolling]
   );
@@ -318,6 +425,17 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     const tradeOrderCommentEscaped = escapeForJS(`${robotName.trim()} - EA TRADE`);
     const isChartWarmup = signal?.type === 'CHART_WARMUP';
     const defaultVolumeEscaped = escapeForJS(getVolume());
+
+    /** Align login portal detection + auth start with MetaTrader tab timing (Android shells are slower). */
+    const formProbeMaxRetries = Platform.OS === 'android' ? 48 : 26;
+    const formProbeIntervalMs = Platform.OS === 'android' ? 480 : 400;
+    const innerAuthKickMs = Platform.OS === 'android' ? 1200 : 450;
+    const innerAuthFallbackMs = Platform.OS === 'android' ? 5600 : 3200;
+    /** Trade execution — Android WebView / post–chart-export UI needs longer settles */
+    const execPrepPauseMs = Platform.OS === 'android' ? 520 : 320;
+    const dialogOpenWaitMs = Platform.OS === 'android' ? 2800 : 2000;
+    const orderDialogReadyMaxRetries = Platform.OS === 'android' ? 26 : 15;
+    const interTradeSettleMs = Platform.OS === 'android' ? 950 : 600;
 
     return `
       (function() {
@@ -1294,13 +1412,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             sendMessage('step_update', 'Initializing MT5 Account...');
             // Wait for page to be ready (some brokers load slower)
             let retries = 0;
-            while (retries < 20) {
+            while (retries < ${formProbeMaxRetries}) {
               const form = document.querySelector('.form');
               const loginField = document.querySelector('input[name="login"]') ||
                                document.querySelector('input[name="Login"]') ||
                                document.querySelector('input[type="number"]');
               if (form || loginField) break;
-              await new Promise(r => setTimeout(r, 400));
+              await new Promise(r => setTimeout(r, ${formProbeIntervalMs}));
               retries++;
             }
             
@@ -1864,6 +1982,48 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           }
         };
 
+        /** Svelte / controlled inputs: direct .value often does not stick; use prototype setter like auth flow. */
+        const setInputValueNative = function(el, val) {
+          if (!el) return;
+          try {
+            el.focus();
+            var v = val == null ? '' : String(val);
+            var desc = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+            var nativeSetter = desc && desc.set;
+            el.value = '';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            if (nativeSetter) nativeSetter.call(el, v);
+            else el.value = v;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true }));
+          } catch (e2) {}
+        };
+
+        var findOrderFormRoot = function() {
+          return document.querySelector('[class*="trade-form"]') ||
+            document.querySelector('[class*="order-dialog"]') ||
+            document.querySelector('[class*="order-panel"]') ||
+            document.body;
+        };
+        var findOrderCommentInput = function() {
+          var byClass = document.querySelector('input.svelte-mtorg2');
+          if (byClass) return byClass;
+          return Array.from(document.querySelectorAll('input[type="text"],input[autocomplete="off"]')).find(function(inp) {
+            var ph = ((inp.getAttribute('placeholder') || '') + ' ' + (inp.getAttribute('title') || '')).toLowerCase();
+            return ph.indexOf('comment') >= 0;
+          }) || null;
+        };
+        var findPrimaryTradeButton = function() {
+          var t = document.querySelector('button.trade-button.svelte-ailjot');
+          if (t) return t;
+          return Array.from(document.querySelectorAll('button[class*="trade-button"]')).find(function(b) {
+            var tx = (b.innerText || b.textContent || '').trim().toLowerCase();
+            return tx.indexOf('buy') >= 0 || tx.indexOf('sell') >= 0;
+          }) || null;
+        };
+
         // Open order dialog and execute single trade - STRICTLY SEQUENTIAL
         const openOrderDialogAndExecuteTrade = async (tradeNumber, totalTrades) => {
           try {
@@ -1923,30 +2083,39 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               return false;
             }
             
-            // Wait for dialog to fully open and be ready
-            await new Promise(r => setTimeout(r, 2000)); // Wait for dialog animation/rendering
+            await new Promise(r => setTimeout(r, ${dialogOpenWaitMs}));
             
-            // Verify dialog is open by checking for order form elements - ROBUST CHECK
             let retries = 0;
             let dialogElement = null;
             let dialogReady = false;
-            while (retries < 10) {
-              const volumeInput = document.querySelector('input[inputmode="decimal"]');
-              const commentInput = document.querySelector('input.svelte-mtorg2');
-              const tradeButton = document.querySelector('button.trade-button.svelte-ailjot');
+            let nudgedPanel = false;
+            const halfRetries = Math.max(4, Math.floor(${orderDialogReadyMaxRetries} / 2));
+            while (retries < ${orderDialogReadyMaxRetries}) {
+              if (!nudgedPanel && retries === halfRetries) {
+                nudgedPanel = true;
+                sendMessage('step_update', 'Still waiting for order form — nudging trade panel...');
+                var showBtn = findShowTradeToolbar();
+                if (showBtn) {
+                  mouseClick(showBtn);
+                  await new Promise(r => setTimeout(r, ${execPrepPauseMs}));
+                }
+              }
+              var formRoot = findOrderFormRoot();
+              const volumeInput = formRoot.querySelector('input[inputmode="decimal"]');
+              const commentInput = findOrderCommentInput();
+              const tradeButton = findPrimaryTradeButton();
               
-              // Try to find the dialog container element for focusing
               if (!dialogElement) {
                 dialogElement = document.querySelector('[class*="trade-form"]') ||
                               document.querySelector('[class*="order-dialog"]') ||
                               document.querySelector('[class*="trade-dialog"]') ||
                               document.querySelector('form') ||
-                              volumeInput?.closest('div') ||
-                              volumeInput?.closest('form');
+                              (volumeInput && volumeInput.closest('form')) ||
+                              (volumeInput && volumeInput.closest('div'));
               }
               
-              if (volumeInput && commentInput && tradeButton) {
-                sendMessage('step_update', '✅ Order dialog ready with all form elements');
+              if (volumeInput && tradeButton) {
+                sendMessage('step_update', '✅ Order dialog ready (volume + trade action)');
                 dialogReady = true;
                 break;
               }
@@ -1995,7 +2164,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             await new Promise(r => setTimeout(r, 1500));
             
             // Dismiss post-order confirmation only (never confuse with Buy/Sell)
-            const okButton = Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot')).find(btn => {
+            const okButton = Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot, button[class*="trade-button"]')).find(btn => {
               const text = (btn.innerText || btn.textContent || '').trim();
               if (/^(buy|sell)/i.test(text)) return false;
               return text === 'OK' || text === 'ok';
@@ -2028,23 +2197,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             const tp = (_p && _p.tp != null && String(_p.tp) !== '') ? String(_p.tp) : '${signal?.tp || ''}';
             const orderComment = '${tradeOrderCommentEscaped}';
             
-            // Find all input fields with inputmode="decimal" (volume, SL, TP)
-            const decimalInputs = Array.from(document.querySelectorAll('input[inputmode="decimal"]'));
+            var formRoot2 = findOrderFormRoot();
+            const decimalInputs = Array.from(formRoot2.querySelectorAll('input[inputmode="decimal"]'));
             
             // Set volume (first input)
             if (decimalInputs.length > 0 && volume) {
               const volumeInput = decimalInputs[0];
-              volumeInput.focus();
-              volumeInput.value = '';
-              volumeInput.dispatchEvent(new Event('input', { bubbles: true }));
-              volumeInput.dispatchEvent(new Event('change', { bubbles: true }));
-              
-              await new Promise(r => setTimeout(r, 200));
-              
-              volumeInput.value = volume;
-              volumeInput.dispatchEvent(new Event('input', { bubbles: true }));
-              volumeInput.dispatchEvent(new Event('change', { bubbles: true }));
-              volumeInput.dispatchEvent(new Event('blur', { bubbles: true }));
+              setInputValueNative(volumeInput, volume);
+              await new Promise(r => setTimeout(r, 220));
               sendMessage('step_update', '✅ Volume: ' + volume);
             }
             
@@ -2052,17 +2212,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             if (decimalInputs.length > 1 && sl) {
               await new Promise(r => setTimeout(r, 200));
               const slInput = decimalInputs[1];
-              slInput.focus();
-              slInput.value = '';
-              slInput.dispatchEvent(new Event('input', { bubbles: true }));
-              slInput.dispatchEvent(new Event('change', { bubbles: true }));
-              
-              await new Promise(r => setTimeout(r, 200));
-              
-              slInput.value = sl.toString();
-              slInput.dispatchEvent(new Event('input', { bubbles: true }));
-              slInput.dispatchEvent(new Event('change', { bubbles: true }));
-              slInput.dispatchEvent(new Event('blur', { bubbles: true }));
+              setInputValueNative(slInput, sl.toString());
+              await new Promise(r => setTimeout(r, 220));
               sendMessage('step_update', '✅ Stop Loss: ' + sl);
             }
             
@@ -2070,40 +2221,18 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             if (decimalInputs.length > 2 && tp) {
               await new Promise(r => setTimeout(r, 200));
               const tpInput = decimalInputs[2];
-              tpInput.focus();
-              tpInput.value = '';
-              tpInput.dispatchEvent(new Event('input', { bubbles: true }));
-              tpInput.dispatchEvent(new Event('change', { bubbles: true }));
-              
-              await new Promise(r => setTimeout(r, 200));
-              
-              tpInput.value = tp.toString();
-              tpInput.dispatchEvent(new Event('input', { bubbles: true }));
-              tpInput.dispatchEvent(new Event('change', { bubbles: true }));
-              tpInput.dispatchEvent(new Event('blur', { bubbles: true }));
+              setInputValueNative(tpInput, tp.toString());
+              await new Promise(r => setTimeout(r, 220));
               sendMessage('step_update', '✅ Take Profit: ' + tp);
             }
             
-            // Set comment (input with class svelte-mtorg2)
             if (orderComment) {
               await new Promise(r => setTimeout(r, 200));
-              const commentInput = document.querySelector('input.svelte-mtorg2') ||
-                                  Array.from(document.querySelectorAll('input[autocomplete="off"]')).find(inp => 
-                                    inp.classList.contains('svelte-mtorg2')
-                                  );
+              const commentInput = findOrderCommentInput();
               
               if (commentInput) {
-                commentInput.focus();
-                commentInput.value = '';
-                commentInput.dispatchEvent(new Event('input', { bubbles: true }));
-                commentInput.dispatchEvent(new Event('change', { bubbles: true }));
-                
-                await new Promise(r => setTimeout(r, 200));
-                
-                commentInput.value = orderComment;
-                commentInput.dispatchEvent(new Event('input', { bubbles: true }));
-                commentInput.dispatchEvent(new Event('change', { bubbles: true }));
-                commentInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                setInputValueNative(commentInput, orderComment);
+                await new Promise(r => setTimeout(r, 220));
                 sendMessage('step_update', '✅ Comment: ' + orderComment);
               }
             }
@@ -2111,17 +2240,21 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             // Click appropriate trade button based on signal action
             await new Promise(r => setTimeout(r, 500));
             
+            var allTradeBtns = Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot, button[class*="trade-button"]'));
             const buyButton = document.querySelector('button.trade-button.svelte-ailjot:not(.red)') ||
-                             Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot')).find(btn => 
-                               (btn.innerText || btn.textContent || '').trim().includes('Buy')
-                             );
+                             allTradeBtns.find(function(btn) {
+                               var t = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+                               return t.indexOf('buy') >= 0 && t.indexOf('sell') < 0;
+                             });
             
             const sellButton = document.querySelector('button.trade-button.svelte-ailjot.red') ||
-                              Array.from(document.querySelectorAll('button.trade-button.svelte-ailjot.red')).find(btn => 
-                                (btn.innerText || btn.textContent || '').trim().includes('Sell')
-                              );
+                              allTradeBtns.find(function(btn) {
+                                var t = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+                                return t.indexOf('sell') >= 0;
+                              });
             
-            const actionLower = (action || '').toLowerCase();
+            const actionLowerRaw = (action || '').trim().toLowerCase();
+            var actionLower = actionLowerRaw.indexOf('sell') >= 0 ? 'sell' : (actionLowerRaw.indexOf('buy') >= 0 ? 'buy' : actionLowerRaw);
             
             if (actionLower === 'buy' && buyButton) {
               buyButton.click();
@@ -2130,7 +2263,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               sellButton.click();
               sendMessage('step_update', '🚀 Trade ' + tradeNumber + '/' + totalTrades + ': SELL order executed');
             } else {
-              sendMessage('error', '❌ Trade button not found for action: ' + action);
+              sendMessage('error', '❌ Trade button not found for action: ' + action + ' (normalized: ' + actionLower + ')');
               return false;
             }
             
@@ -2159,6 +2292,24 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           if (_eqExecStart.equity || _eqExecStart.balance) {
             sendMessage('equity_snapshot', 'Account updated', { equity: _eqExecStart.equity, balance: _eqExecStart.balance });
           }
+
+          sendMessage('step_update', 'Preparing terminal for order execution...');
+          await acceptDisclaimersAndConfirmDeep();
+          await dismissLoginOverlay();
+          for (var _prep = 0; _prep < 5; _prep++) {
+            await acceptDisclaimersAndConfirmDeep();
+            await dismissLoginOverlay();
+            await new Promise(r => setTimeout(r, ${execPrepPauseMs}));
+          }
+          try {
+            var chartEl2 = document.querySelector('[class*="chart-container"]') ||
+              document.querySelector('[class*="trading-chart"]') ||
+              document.querySelector('div[class*="chart"]');
+            if (chartEl2 && chartEl2.click) {
+              chartEl2.click();
+              await new Promise(r => setTimeout(r, ${execPrepPauseMs}));
+            }
+          } catch (ePrep) {}
           
           let successfulTrades = 0;
           let failedTrades = 0;
@@ -2181,7 +2332,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 successfulTrades++;
                 sendMessage('step_update', '✅ Trade ' + tradeNumber + '/' + numberOfTrades + ' completed successfully');
                 console.log('✅ Trade ' + tradeNumber + ' completed successfully');
-                await new Promise(r => setTimeout(r, 1500));
+                await new Promise(r => setTimeout(r, ${interTradeSettleMs}));
                 var snapAfter = scrapeTerminalAccountStats();
                 if (snapAfter.equity || snapAfter.balance) {
                   sendMessage('equity_snapshot', 'Account updated', { equity: snapAfter.equity, balance: snapAfter.balance });
@@ -2195,7 +2346,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               // Wait between trades if not the last one (to ensure dialog closes properly)
               if (i < numberOfTrades - 1) {
                 sendMessage('step_update', '⏳ Preparing for next trade...');
-                await new Promise(r => setTimeout(r, 1500)); // Wait for dialog to close and reset
+                await new Promise(r => setTimeout(r, ${interTradeSettleMs}));
               }
             } catch (error) {
               failedTrades++;
@@ -2232,11 +2383,16 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             void authenticateMT5();
           };
         })();
+        var __eaKick = ${innerAuthKickMs};
+        var __eaFallback = ${innerAuthFallbackMs};
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
-          __eaStartAuthOnce();
+          setTimeout(__eaStartAuthOnce, __eaKick);
         } else {
-          document.addEventListener('DOMContentLoaded', __eaStartAuthOnce);
-          setTimeout(__eaStartAuthOnce, 2500);
+          document.addEventListener('DOMContentLoaded', function __eaDom() {
+            document.removeEventListener('DOMContentLoaded', __eaDom);
+            setTimeout(__eaStartAuthOnce, __eaKick);
+          });
+          setTimeout(__eaStartAuthOnce, __eaFallback);
         }
       })();
       true;
@@ -2253,6 +2409,27 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     try {
       const data = JSON.parse(event.nativeEvent.data);
       console.log('MT5 Signal WebView message:', data);
+
+      if (data.type === 'ea_mt5_shell_ready') {
+        if (mainScriptInjectedForWebViewRef.current) {
+          setLoading(false);
+          return;
+        }
+        const script = generateMT5AuthScript();
+        if (!script || !webViewRef.current) {
+          setLoading(false);
+          return;
+        }
+        mainScriptInjectedForWebViewRef.current = true;
+        InteractionManager.runAfterInteractions(() => {
+          requestAnimationFrame(() => {
+            webViewRef.current?.injectJavaScript(script);
+          });
+        });
+        setLoading(false);
+        setCurrentStep('Signing in to MT5...');
+        return;
+      }
 
       const applyTerminalEquity = () => {
         const acc = mt5AccountRef.current;
@@ -2331,8 +2508,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setChartAiAnalyzing(true);
         setCurrentStep('Analysing chart');
         void (async () => {
-          let shouldResumePolling = true;
-          const aiRunKey = signalExecutionKeyRef.current;
+          const isWarmup = signalRef.current?.type === 'CHART_WARMUP';
+          /** Warmup pauses DB polling — keep it paused until trade finishes or we explicitly abandon (avoid stuck / duplicate flows). */
+          let shouldResumePolling = !isWarmup;
+          const aiRunKey = signalStableSessionKeyRef.current;
           const imageB64 = data.image as string;
           const imageMime = (data.mimeType as string) || 'image/jpeg';
           let result: Awaited<ReturnType<typeof apiService.analyzeChart>> | null = null;
@@ -2340,7 +2519,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             const asset = signalRef.current?.asset || '';
             const tradeModeForApi = getTradeModeForAnalysis(asset, mt5Symbols);
             for (let attempt = 1; attempt <= CHART_AI_ANALYSIS_MAX_ATTEMPTS; attempt++) {
-              if (signalExecutionKeyRef.current !== aiRunKey) {
+              if (signalStableSessionKeyRef.current !== aiRunKey) {
                 console.log('MT5: discarding chart AI result — newer signal or scan is active');
                 return;
               }
@@ -2349,7 +2528,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setChartAiError(null);
                 await new Promise((r) => setTimeout(r, 600 + attempt * 350));
               }
-              if (signalExecutionKeyRef.current !== aiRunKey) {
+              if (signalStableSessionKeyRef.current !== aiRunKey) {
                 console.log('MT5: discarding chart AI result — newer signal or scan is active');
                 return;
               }
@@ -2361,7 +2540,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   error: e instanceof Error ? e.message : 'Analysis error',
                 };
               }
-              if (signalExecutionKeyRef.current !== aiRunKey) {
+              if (signalStableSessionKeyRef.current !== aiRunKey) {
                 console.log('MT5: discarding chart AI result — newer signal or scan is active');
                 return;
               }
@@ -2374,7 +2553,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               }
             }
 
-            if (signalExecutionKeyRef.current !== aiRunKey) {
+            if (signalStableSessionKeyRef.current !== aiRunKey) {
               console.log('MT5: discarding chart AI result — newer signal or scan is active');
               return;
             }
@@ -2387,6 +2566,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 setChartAiError(
                   'Low confidence: the setup is unclear. Auto-trade is disabled; confirm manually if you take the trade.'
                 );
+                shouldResumePolling = true;
               } else {
                 setChartAiError(null);
               }
@@ -2403,13 +2583,22 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                   'Could not derive SL/TP for auto-trade. Check symbol trade config (Scalper/Swing) and that entry price is visible.'
                 );
                 setCurrentStep('AI analysis complete — see suggestion below');
+                shouldResumePolling = true;
               } else if (!(signalRef.current?.type === 'CHART_WARMUP' && isLowConfidence)) {
                 setCurrentStep('AI analysis complete — see suggestion below');
+                if (signalRef.current?.type === 'CHART_WARMUP') {
+                  shouldResumePolling = true;
+                }
               }
+            } else if (isWarmup) {
+              shouldResumePolling = true;
             }
           } catch (e) {
             setChartAiError(e instanceof Error ? e.message : 'Analysis error');
             setCurrentStep('AI analysis error — polling resumed');
+            if (isWarmup) {
+              shouldResumePolling = true;
+            }
           } finally {
             setChartAiAnalyzing(false);
             if (shouldResumePolling) {
@@ -2464,43 +2653,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     mt5Symbols,
     mt4Symbols,
     activeSymbols,
+    generateMT5AuthScript,
   ]);
-
-  // Inject script when WebView loads - ensure fresh injection for each signal
-  useEffect(() => {
-    if (visible && signal && mt5Account && webViewRef.current) {
-      // Reset loading state
-      setLoading(true);
-      setCurrentStep('Loading MT5 Terminal...');
-
-      // Inject script when WebView finishes loading
-      const handleLoadEnd = () => {
-        const script = generateMT5AuthScript();
-        if (script && webViewRef.current) {
-          console.log('💉 Injecting fresh authentication script for signal:', signal.asset);
-          // Small delay to ensure page is ready
-          setTimeout(() => {
-            if (webViewRef.current) {
-              webViewRef.current.injectJavaScript(script);
-              setLoading(false);
-            }
-          }, 1000);
-        }
-      };
-
-      // Listen for load end event
-      if (webViewRef.current) {
-        // Script will be injected via onLoadEnd handler
-      }
-
-      return () => {
-        // Cleanup
-        if (webViewRef.current) {
-          console.log('🧹 Cleaning up WebView script injection');
-        }
-      };
-    }
-  }, [visible, signalExecutionKey, mt5Account, generateMT5AuthScript]);
 
   // Update status when WebView opens
   useEffect(() => {
@@ -2509,9 +2663,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     }
   }, [visible, signal, mt5Account]);
 
-  // Destroy and recreate WebView for EVERY new signal - ensure complete isolation
+  // New WebView instance only when overlay opens with a different stable trade identity (not on latestupdate-only churn).
   useEffect(() => {
-    if (!visible || !signalExecutionKey) return;
+    if (!visible || !signalStableSessionKey) return;
     signalAuthRemountRef.current = 0;
     setCurrentStep('Initializing...');
     setLoading(true);
@@ -2522,14 +2676,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
     setWebViewKey(prev => {
       const newKey = prev + 1;
-      console.log('🔄 WebView remount, executionKey:', signalExecutionKey.slice(0, 120));
+      console.log('🔄 WebView remount, stableSession:', signalStableSessionKey.slice(0, 120));
       return newKey;
     });
 
     if (webViewRef.current) {
       webViewRef.current = null;
     }
-  }, [visible, signalExecutionKey]);
+  }, [visible, signalStableSessionKey]);
 
   // Reset when modal closes
   useEffect(() => {
@@ -2569,7 +2723,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   if (blockMessage) {
     return (
-      <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
+      <Modal visible={visible} animationType="none" transparent onRequestClose={handleRequestClose}>
         <View style={styles.overlayContainer} pointerEvents="box-none">
           <View style={[styles.authToastContainer, authToastChrome]}>
             <LinearGradient
@@ -2597,7 +2751,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               </View>
               <TouchableOpacity
                 style={styles.authToastCloseButton}
-                onPress={onClose}
+                onPress={handleRequestClose}
                 activeOpacity={0.8}
               >
                 {Platform.OS === 'ios' && (
@@ -2628,6 +2782,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const numberOfTrades = getNumberOfTrades();
   const volumeFromConfig = getVolume();
   const isChartWarmupSignal = signal?.type === 'CHART_WARMUP';
+
+  /** Android: avoid Modal for live MT5 execution — matches chart-warmup overlay root (reliable WebView + inject). */
+  const useAndroidInlineExecutionOverlay = Platform.OS === 'android';
 
   /** True during chart warmup (used for AI panel step logic only — terminal uses same hidden WebView as MetaTrader link flow). */
   const chartWarmupTerminalVisible = isChartWarmupSignal;
@@ -2684,7 +2841,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           </View>
           <TouchableOpacity
             style={styles.authToastCloseButton}
-            onPress={onClose}
+            onPress={handleRequestClose}
             activeOpacity={0.8}
           >
             {Platform.OS === 'ios' && (
@@ -2747,21 +2904,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         </View>
       ) : null}
 
-      {/* WebView: CHART_WARMUP matches metatrader.tsx link MT5 — invisibleWebViewContainer + invisibleWebView (hiddenWebView* here). */}
-      <View
-        style={
-          isChartWarmupSignal
-            ? styles.hiddenWebViewContainer
-            : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
-              ? warmupExpandTerminal
-                ? styles.warmupFullWebViewContainer
-                : [styles.visibleDebugWebViewContainer, { borderTopColor: `${theme.colors.accent}D9` }]
-              : styles.hiddenWebViewContainer
-        }
-      >
+      {/* WebView: always off-screen compositing — terminal must never be visible. */}
+      <View style={styles.hiddenWebViewContainer}>
         {Platform.OS === 'web' ? (
           <WebWebView
-            key={`web-trading-${webViewKey}-${signalExecutionKey || 'no-signal'}`}
+            key={`web-trading-${webViewKey}-${signalStableSessionKey || 'no-signal'}`}
             scopeId={WEBVIEW_SCOPE_MT5_TRADING}
             url={proxyUrl || ''}
             onMessage={handleWebViewMessage}
@@ -2772,26 +2919,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               setCurrentStep('MT5 Terminal loaded');
               console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
             }}
-            style={
-              isChartWarmupSignal
-                ? styles.hiddenWebView
-                : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
-                  ? styles.debugWebView
-                  : styles.hiddenWebView
-            }
+            style={styles.hiddenWebView}
           />
         ) : (
           <WebView
-            key={`${webViewKey}-${signalExecutionKey || 'no-signal'}`}
+            key={`${webViewKey}-${signalStableSessionKey || 'no-signal'}`}
             ref={webViewRef}
-            source={{ uri: mt5Url }}
-            style={
-              isChartWarmupSignal
-                ? styles.hiddenWebView
-                : SHOW_MT5_SIGNAL_WEBVIEW_DEBUG
-                  ? styles.debugWebView
-                  : styles.hiddenWebView
-            }
+            source={mt5WebViewSource}
+            setSupportMultipleWindows={false}
+            style={styles.hiddenWebView}
             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             onMessage={handleWebViewMessage}
             onLoadStart={() => {
@@ -2800,19 +2936,31 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               console.log('🌐 WebView started loading for signal:', signal.asset, 'ID:', signal.id);
             }}
             onLoadEnd={() => {
-              setLoading(false);
-              setCurrentStep('MT5 Terminal loaded');
+              setCurrentStep('Preparing MT5 session...');
               console.log('✅ WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
-              // Inject after MT5 app shell is ready (Android is often slower to reach interactive)
-              const script = generateMT5AuthScript();
-              const injectDelayMs = Platform.OS === 'android' ? 2600 : 2000;
-              if (script && webViewRef.current) {
-                setTimeout(() => {
-                  if (webViewRef.current) {
-                    webViewRef.current.injectJavaScript(script);
-                  }
-                }, injectDelayMs);
+              if (shellReadyProbeScheduledRef.current) {
+                return;
               }
+              shellReadyProbeScheduledRef.current = true;
+              const warmup = signal?.type === 'CHART_WARMUP';
+              const postCompleteDelay =
+                Platform.OS === 'android' ? (warmup ? 4800 : 4200) : warmup ? 3600 : 3200;
+              const probe = `(function(){
+                var d=${postCompleteDelay};
+                function fire(){
+                  setTimeout(function(){
+                    try {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({type:'ea_mt5_shell_ready'}));
+                    } catch(e) {}
+                  }, d);
+                }
+                function w(){
+                  if (document.readyState === 'complete') fire();
+                  else setTimeout(w, 200);
+                }
+                w();
+              })();true;`;
+              webViewRef.current?.injectJavaScript(probe);
             }}
             onError={(syntheticEvent) => {
               const { nativeEvent } = syntheticEvent;
@@ -2837,22 +2985,25 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 console.log('🔄 Terminal navigated to unexpected URL after load:', u.slice(0, 200));
               }
             }}
+            injectedJavaScript={MT5_WEBVIEW_BOOTSTRAP_JS}
             javaScriptEnabled={true}
             domStorageEnabled={true}
             startInLoadingState={true}
             scalesPageToFit={false}
-            mixedContentMode="always"
+            mixedContentMode="compatibility"
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
             cacheEnabled={false}
             incognito={true}
+            sharedCookiesEnabled={false}
+            thirdPartyCookiesEnabled={false}
           />
         )}
       </View>
     </View>
   );
 
-  if (isChartWarmupSignal) {
+  if (isChartWarmupSignal || useAndroidInlineExecutionOverlay) {
     return (
       <View style={styles.chartWarmupOverlayRoot} pointerEvents="box-none" collapsable={false}>
         {signalOverlay}
@@ -2866,7 +3017,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       animationType="none"
       transparent={true}
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
-      onRequestClose={onClose}
+      onRequestClose={handleRequestClose}
     >
       {signalOverlay}
     </Modal>
@@ -2963,39 +3114,12 @@ const styles = StyleSheet.create({
     zIndex: -1,
     pointerEvents: 'none' as const,
   },
-  visibleDebugWebViewContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 9998,
-    pointerEvents: 'auto' as const,
-    borderTopWidth: 2,
-    backgroundColor: '#0a0a0a',
-  },
-  /** Debug-only expanded terminal (not CHART_WARMUP — warmup uses hiddenWebView* like metatrader). */
-  warmupFullWebViewContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 96 : 84,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2,
-    backgroundColor: colors.background,
-  },
   /** Same minHeight as metatrader.tsx invisibleWebView (350). */
   hiddenWebView: {
     flex: 1,
     width: '100%',
     minHeight: 350,
     opacity: 0,
-  },
-  debugWebView: {
-    flex: 1,
-    width: '100%',
-    minHeight: 300,
-    opacity: 1,
   },
   aiAnalysisPanel: {
     position: 'absolute',

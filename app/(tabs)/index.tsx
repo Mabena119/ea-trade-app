@@ -1,16 +1,28 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground, Platform, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  ImageBackground,
+  Platform,
+  Dimensions,
+  AppState,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import * as Notifications from 'expo-notifications';
 import { Play, Square, Scan, Activity, Trash2, Plus } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useApp } from '@/providers/app-provider';
+import { useApp, type EA } from '@/providers/app-provider';
 import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
-import type { EA } from '@/providers/app-provider';
+import { overlayService } from '@/services/overlay-service';
 import colors from '@/constants/colors';
 
 export default function HomeScreen() {
@@ -26,6 +38,42 @@ export default function HomeScreen() {
   const [logoError, setLogoError] = useState<boolean>(false);
   const [hasCheckedAuth, setHasCheckedAuth] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  /** Android start screen: draw-over-apps + notifications required before START. */
+  const [androidOverlayGranted, setAndroidOverlayGranted] = useState<boolean>(() => Platform.OS !== 'android');
+  const [androidNotificationGranted, setAndroidNotificationGranted] = useState<boolean>(() => Platform.OS !== 'android');
+
+  const refreshAndroidStartPermissions = useCallback(async (): Promise<{
+    overlay: boolean;
+    notification: boolean;
+  }> => {
+    if (Platform.OS !== 'android') {
+      return { overlay: true, notification: true };
+    }
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      const notificationOk = status === 'granted';
+      const { overlayService } = await import('@/services/overlay-service');
+      const overlayOk = await overlayService.checkOverlayPermission();
+      setAndroidNotificationGranted(notificationOk);
+      setAndroidOverlayGranted(overlayOk);
+      return { overlay: overlayOk, notification: notificationOk };
+    } catch (e) {
+      console.warn('[Start] permission sync:', e);
+      setAndroidNotificationGranted(false);
+      setAndroidOverlayGranted(false);
+      return { overlay: false, notification: false };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isFirstTime || Platform.OS !== 'android') return;
+    void refreshAndroidStartPermissions();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshAndroidStartPermissions();
+    });
+    return () => sub.remove();
+  }, [isFirstTime, refreshAndroidStartPermissions]);
   
   // Triple-tap to toggle theme (for iOS PWA where shake doesn't work)
   const tapCountRef = useRef<number>(0);
@@ -112,11 +160,21 @@ export default function HomeScreen() {
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
 
   const handleStartNow = async () => {
-    console.log('Start Now pressed, navigating to login...');
     try {
+      if (Platform.OS === 'android') {
+        const { overlay, notification } = await refreshAndroidStartPermissions();
+        if (!overlay) {
+          await overlayService.requestOverlayPermission();
+          return;
+        }
+        if (!notification) {
+          await overlayService.openAppNotificationSettings();
+          return;
+        }
+      }
+      console.log('Start Now pressed, navigating to login...');
       // Clear email authentication flag when starting fresh
       await AsyncStorage.removeItem('emailAuthenticated');
-      // Use replace to avoid showing tabs, and don't set isFirstTime to false yet
       router.replace('/login');
     } catch (error) {
       console.error('Error navigating to login:', error);
@@ -198,6 +256,45 @@ export default function HomeScreen() {
               resizeMode="contain"
             />
           </View>
+
+          {Platform.OS === 'android' ? (
+            <View style={styles.startPermissionPanel}>
+              <Text style={[styles.startPermissionHint, { color: theme.colors.textSecondary }]}>
+                Allow both to continue. Tap START to open the right Settings screen (Appear on top or
+                Notifications) if either still shows ✗.
+              </Text>
+              <View
+                style={[
+                  styles.startPermissionRow,
+                  {
+                    borderColor: `${theme.colors.accent}55`,
+                    backgroundColor: `${theme.colors.accent}12`,
+                    marginBottom: 10,
+                  },
+                ]}
+              >
+                <Text style={[styles.startPermissionMark, { color: androidOverlayGranted ? '#4ade80' : '#f87171' }]}>
+                  {androidOverlayGranted ? '✓' : '✗'}
+                </Text>
+                <Text style={[styles.startPermissionLabel, { color: theme.colors.textPrimary }]}>
+                  Draw on top of other apps
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.startPermissionRow,
+                  { borderColor: `${theme.colors.accent}55`, backgroundColor: `${theme.colors.accent}12` },
+                ]}
+              >
+                <Text
+                  style={[styles.startPermissionMark, { color: androidNotificationGranted ? '#4ade80' : '#f87171' }]}
+                >
+                  {androidNotificationGranted ? '✓' : '✗'}
+                </Text>
+                <Text style={[styles.startPermissionLabel, { color: theme.colors.textPrimary }]}>Notifications</Text>
+              </View>
+            </View>
+          ) : null}
 
           <TouchableOpacity style={[styles.splashStartButton, { backgroundColor: `${theme.colors.accent}4D`, borderColor: `${theme.colors.accent}80`, shadowColor: theme.colors.accent }]} onPress={handleStartNow}>
             <Text style={[styles.startButtonText, { color: theme.colors.textPrimary }]}>START</Text>
@@ -545,7 +642,37 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 28,
+  },
+  startPermissionPanel: {
+    width: '100%',
+    maxWidth: 340,
+    marginBottom: 28,
+  },
+  startPermissionHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+    marginBottom: 4,
+  },
+  startPermissionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  startPermissionMark: {
+    fontSize: 18,
+    fontWeight: '800',
+    width: 28,
+  },
+  startPermissionLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
   },
   title: {
     fontSize: 24,

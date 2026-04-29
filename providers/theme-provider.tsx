@@ -48,7 +48,50 @@ export interface Theme {
   name: string;
   colors: ThemeColors;
   isDark: boolean;
+  /**
+   * When set, root layout renders the EA logo splash behind screens (`EABrandBackdrop`).
+   * Skipped when a matrix-style theme is active.
+   */
+  eaBrandShell?: boolean;
 }
+
+// EA brand — active EA logo (or bundled hero) as full-app splash; crimson / ink UI
+export const eaBrandTheme: Theme = {
+  name: 'eaBrand',
+  isDark: true,
+  eaBrandShell: true,
+  colors: {
+    background: '#070102',
+    backgroundSecondary: '#100204',
+    cardBackground: 'rgba(185, 28, 28, 0.16)',
+
+    primaryGradient: ['#450A0A', '#B91C1C', '#EA580C'],
+    cardGradient: ['rgba(127, 29, 29, 0.5)', 'rgba(220, 38, 38, 0.28)', 'rgba(234, 88, 12, 0.12)'],
+    glowGradient: ['rgba(239, 68, 68, 0.55)', 'rgba(251, 113, 133, 0.28)', 'transparent'],
+
+    textPrimary: '#FFFFFF',
+    textSecondary: 'rgba(255, 255, 255, 0.9)',
+    textMuted: 'rgba(255, 220, 220, 0.52)',
+
+    accent: '#FF3838',
+    onAccent: '#FFFFFF',
+    accentSecondary: '#FB923C',
+    success: '#4ADE80',
+    error: '#FECACA',
+    warning: '#FBBF24',
+
+    borderColor: 'rgba(248, 113, 113, 0.42)',
+    glowColor: 'rgba(255, 56, 56, 0.55)',
+    overlayColor: 'rgba(7, 1, 2, 0.88)',
+
+    statusActive: '#4ADE80',
+    statusInactive: '#A8A29E',
+
+    navBackground: 'rgba(42, 5, 8, 0.94)',
+    navActiveColor: '#FF4D4D',
+    navInactiveColor: 'rgba(255, 200, 200, 0.48)',
+  },
+};
 
 // Current Purple/Pink/Orange gradient theme
 export const purpleTheme: Theme = {
@@ -465,6 +508,7 @@ export const whiteTheme: Theme = {
 
 // All themes array for cycling
 export const ALL_THEMES: Theme[] = [
+  eaBrandTheme,
   purpleTheme,
   cyberTheme,
   sunriseTheme,
@@ -478,6 +522,7 @@ export const ALL_THEMES: Theme[] = [
   whiteTheme,
 ];
 export type ThemeName =
+  | 'eaBrand'
   | 'purple'
   | 'cyber'
   | 'sunrise'
@@ -490,7 +535,10 @@ export type ThemeName =
   | 'black'
   | 'white';
 
-/** True for green and red “digital rain” matrix themes (black shell, per-screen rain). */
+/** True when the EA logo splash shell should render behind the app (not matrix). */
+export function isEABrandShellTheme(theme: Theme): boolean {
+  return theme.eaBrandShell === true;
+}
 export function isMatrixStyleTheme(themeName: string): boolean {
   return themeName === 'matrix' || themeName === 'matrixRed';
 }
@@ -502,12 +550,14 @@ export function isMatrixStyleTheme(themeName: string): boolean {
 export const MATRIX_WINDOW_BG = '#000000';
 
 export function getScreenBackgroundColor(theme: Theme, themeName: ThemeName): string {
-  return isMatrixStyleTheme(themeName) ? MATRIX_WINDOW_BG : theme.colors.background;
+  if (isMatrixStyleTheme(themeName)) return MATRIX_WINDOW_BG;
+  if (isEABrandShellTheme(theme)) return 'transparent';
+  return theme.colors.background;
 }
 
 interface ThemeContextType {
   theme: Theme;
-  themeName: string;
+  themeName: ThemeName;
   toggleTheme: () => void;
   setTheme: (themeName: ThemeName) => void;
   isShakeEnabled: boolean;
@@ -528,7 +578,7 @@ interface ThemeProviderProps {
 const THEME_STORAGE_KEY = '@ea_trade_theme';
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [currentTheme, setCurrentTheme] = useState<Theme>(purpleTheme);
+  const [currentTheme, setCurrentTheme] = useState<Theme>(eaBrandTheme);
   const [isShakeEnabled, setShakeEnabled] = useState(true);
   
   const lastShakeTime = useRef<number>(0);
@@ -577,7 +627,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, []);
 
   const setTheme = useCallback(async (themeName: ThemeName) => {
-    const newTheme = ALL_THEMES.find(t => t.name === themeName) || purpleTheme;
+    const newTheme = ALL_THEMES.find(t => t.name === themeName) || eaBrandTheme;
     setCurrentTheme(newTheme);
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, themeName);
@@ -765,7 +815,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   const value: ThemeContextType = {
     theme: currentTheme,
-    themeName: currentTheme.name,
+    themeName: currentTheme.name as ThemeName,
     toggleTheme,
     setTheme,
     isShakeEnabled,

@@ -1,8 +1,9 @@
-import { NativeModules, Platform, Linking, Alert } from 'react-native';
+import { NativeModules, Platform, Linking } from 'react-native';
 
 interface OverlayWindowModuleInterface {
   checkOverlayPermission(): Promise<boolean>;
   requestOverlayPermission(): Promise<boolean>;
+  openAppNotificationSettings(): Promise<boolean>;
   showOverlay(x: number, y: number, width: number, height: number): Promise<boolean>;
   updateOverlayPosition(x: number, y: number): Promise<boolean>;
   updateOverlaySize(width: number, height: number): Promise<boolean>;
@@ -18,6 +19,7 @@ const { OverlayWindowModule } = NativeModules as {
 interface OverlayService {
   checkOverlayPermission(): Promise<boolean>;
   requestOverlayPermission(): Promise<boolean>;
+  openAppNotificationSettings(): Promise<boolean>;
   showOverlay(x: number, y: number, width: number, height: number): Promise<boolean>;
   updateOverlayPosition(x: number, y: number): Promise<boolean>;
   updateOverlaySize(width: number, height: number): Promise<boolean>;
@@ -28,8 +30,14 @@ interface OverlayService {
 
 class OverlayService implements OverlayService {
   async checkOverlayPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !OverlayWindowModule) {
+    // iOS / web: no Android overlay permission
+    if (Platform.OS !== 'android') {
       return true;
+    }
+    // Native module must report Settings.canDrawOverlays; if missing, do not assume granted
+    if (!OverlayWindowModule) {
+      console.warn('[OverlayService] OverlayWindowModule not linked — treating draw-on-top as denied');
+      return false;
     }
     try {
       return await OverlayWindowModule.checkOverlayPermission();
@@ -40,8 +48,12 @@ class OverlayService implements OverlayService {
   }
 
   async requestOverlayPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !OverlayWindowModule) {
+    if (Platform.OS !== 'android') {
       return true;
+    }
+    if (!OverlayWindowModule) {
+      Linking.openSettings();
+      return false;
     }
 
     const hasPermission = await this.checkOverlayPermission();
@@ -50,14 +62,31 @@ class OverlayService implements OverlayService {
     }
 
     try {
-      // Permission is already requested at app startup, so just open settings directly
       await OverlayWindowModule.requestOverlayPermission();
-      // Also open settings as fallback
-      Linking.openSettings();
       return false;
     } catch (error) {
       console.error('Error requesting overlay permission:', error);
-      // Fallback: open settings directly
+      Linking.openSettings();
+      return false;
+    }
+  }
+
+  /**
+   * Android: opens Settings on this app's notification page (not the generic app settings list).
+   */
+  async openAppNotificationSettings(): Promise<boolean> {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+    if (!OverlayWindowModule) {
+      Linking.openSettings();
+      return false;
+    }
+    try {
+      await OverlayWindowModule.openAppNotificationSettings();
+      return true;
+    } catch (e) {
+      console.error('[OverlayService] openAppNotificationSettings:', e);
       Linking.openSettings();
       return false;
     }

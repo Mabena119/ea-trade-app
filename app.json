@@ -54,12 +54,16 @@
       }
     },
     "android": {
-      "versionCode": 20,
+      "versionCode": 33,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
       "package": "app.eatrade.automated.forex.trading.app",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "statusBar": {
         "style": "light",
         "backgroundColor": "#000000",

@@ -23,5 +23,16 @@ export function isRetriableTerminalAuthFailure(message: string): boolean {
   ) {
     return false;
   }
+  /*
+   * Re-running login after the session is already on chart/trade UI (e.g. duplicate script inject)
+   * produces these; WebView remount makes it worse, not better.
+   */
+  if (
+    m.includes('login field not found') ||
+    m.includes('password field not found') ||
+    m.includes('login button not found')
+  ) {
+    return false;
+  }
   return true;
 }

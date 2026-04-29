@@ -4,11 +4,12 @@ import React, { useEffect, useState, Component, ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "@/providers/app-provider";
-import { ThemeProvider, useTheme, isMatrixStyleTheme } from "@/providers/theme-provider";
+import { ThemeProvider, useTheme, isMatrixStyleTheme, isEABrandShellTheme } from "@/providers/theme-provider";
 import { View, Platform, Text, TouchableOpacity, StyleSheet, AppState, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as SystemUI from "expo-system-ui";
 import * as Notifications from "expo-notifications";
+import { EABrandBackdrop } from "@/components/ea-brand-backdrop";
 import { RobotLogo } from "@/components/robot-logo";
 import { MT5SignalWebView } from "@/components/mt5-signal-webview";
 import colors from "@/constants/colors";
@@ -331,6 +332,7 @@ function RootLayoutNav() {
 
   const { theme, themeName } = useTheme();
   const isMatrix = isMatrixStyleTheme(themeName);
+  const eaShell = !isMatrix && isEABrandShellTheme(theme);
 
   // Native window / edge area (reduces iOS “white” behind tab scenes in matrix)
   useEffect(() => {
@@ -351,37 +353,69 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient
-        colors={
-          isMatrix
-            ? [theme.colors.background, theme.colors.background, theme.colors.background]
-            : [theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]
-        }
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
-      />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: isMatrix ? "#000000" : undefined },
-        }}
-      >
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="license" />
-        <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
-        <Stack.Screen name="ai-payment" options={{ presentation: "modal" }} />
-      </Stack>
+      {eaShell ? (
+        <>
+          <EABrandBackdrop
+            style={{ flex: 1 }}
+            accentColor={theme.colors.accent}
+            glowColor={theme.colors.glowColor}
+            primaryEA={eas.length > 0 ? eas[0] : null}
+          >
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: "transparent" },
+              }}
+            >
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="login" />
+              <Stack.Screen name="license" />
+              <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
+              <Stack.Screen name="ai-payment" options={{ presentation: "modal" }} />
+            </Stack>
+          </EABrandBackdrop>
+          <MT5SignalWebView
+            visible={showMT5SignalWebView}
+            signal={mt5Signal}
+            onClose={() => {
+              setShowMT5SignalWebView(false);
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <LinearGradient
+            colors={
+              isMatrix
+                ? [theme.colors.background, theme.colors.background, theme.colors.background]
+                : [theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+          />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: isMatrix ? "#000000" : undefined },
+            }}
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="license" />
+            <Stack.Screen name="trade-config" options={{ presentation: "modal" }} />
+            <Stack.Screen name="ai-payment" options={{ presentation: "modal" }} />
+          </Stack>
 
-      {/* MT5 Signal WebView - Opens automatically when signal is received */}
-      <MT5SignalWebView
-        visible={showMT5SignalWebView}
-        signal={mt5Signal}
-        onClose={() => {
-          setShowMT5SignalWebView(false);
-        }}
-      />
+          <MT5SignalWebView
+            visible={showMT5SignalWebView}
+            signal={mt5Signal}
+            onClose={() => {
+              setShowMT5SignalWebView(false);
+            }}
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -389,7 +423,8 @@ function RootLayoutNav() {
 function ThemedAppShell({ children }: { children: ReactNode }) {
   const { theme, themeName } = useTheme();
   const isMatrix = isMatrixStyleTheme(themeName);
-  const rootSurface = isMatrix ? "#000000" : theme.colors.background;
+  const eaShell = !isMatrix && isEABrandShellTheme(theme);
+  const rootSurface = isMatrix ? "#000000" : eaShell ? "transparent" : theme.colors.background;
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
@@ -400,13 +435,20 @@ function ThemedAppShell({ children }: { children: ReactNode }) {
         document.body.style.backgroundColor = prev;
       };
     }
-  }, [isMatrix]);
+    if (eaShell) {
+      const prev = document.body.style.backgroundColor;
+      document.body.style.backgroundColor = theme.colors.background;
+      return () => {
+        document.body.style.backgroundColor = prev;
+      };
+    }
+  }, [isMatrix, eaShell, theme.colors.background]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: rootSurface }}>
       <StatusBar
         style={theme.isDark ? "light" : "dark"}
-        backgroundColor={rootSurface}
+        backgroundColor={isMatrix ? "#000000" : theme.colors.background}
         translucent={Platform.OS === "android" ? (isMatrix ? true : false) : false}
       />
       {children}

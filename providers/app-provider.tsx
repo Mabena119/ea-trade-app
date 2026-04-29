@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, Alert, AppState, Linking } from 'react-native';
+import { Platform, Alert, AppState, Linking, InteractionManager } from 'react-native';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
 import apiService from '@/services/api';
@@ -428,47 +428,47 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       /** When set, new SL/TP/action vs same DB row still processes (scan content changed). */
       contentFingerprint?: string
     ): { shouldProcess: boolean; ageInSeconds: number; reason?: string; cooldownRemaining?: number } => {
-    const processKey = buildSignalProcessKey(signalId, time, latestupdate, contentFingerprint);
-    if (processedSignalKeysRef.current.has(processKey)) {
-      return { shouldProcess: false, ageInSeconds: -1, reason: 'already_processed' };
-    }
-
-    // Note: Cooldown is now handled by global pausePolling (35 seconds), not per-symbol
-
-    // Compare both time and latestupdate from database, use the most recent one
-    const now = new Date().getTime();
-    let signalTime: Date | null = null;
-
-    if (time) {
-      signalTime = new Date(time);
-    }
-    if (latestupdate) {
-      const latestUpdateTime = new Date(latestupdate);
-      // Use the most recent timestamp between time and latestupdate
-      if (!signalTime || latestUpdateTime.getTime() > signalTime.getTime()) {
-        signalTime = latestUpdateTime;
+      const processKey = buildSignalProcessKey(signalId, time, latestupdate, contentFingerprint);
+      if (processedSignalKeysRef.current.has(processKey)) {
+        return { shouldProcess: false, ageInSeconds: -1, reason: 'already_processed' };
       }
-    }
 
-    if (!signalTime || isNaN(signalTime.getTime())) {
-      return { shouldProcess: false, ageInSeconds: -1, reason: 'invalid_time' };
-    }
+      // Note: Cooldown is now handled by global pausePolling (35 seconds), not per-symbol
 
-    const ageInSeconds = (now - signalTime.getTime()) / 1000;
-    // If signal is more than 30 seconds old (based on most recent timestamp), ignore it
-    const isRecent = ageInSeconds <= 30;
+      // Compare both time and latestupdate from database, use the most recent one
+      const now = new Date().getTime();
+      let signalTime: Date | null = null;
 
-    if (isRecent) {
-      processedSignalKeysRef.current.add(processKey);
-      if (processedSignalKeysRef.current.size > 1000) {
-        const keysArray = Array.from(processedSignalKeysRef.current);
-        processedSignalKeysRef.current.clear();
-        keysArray.slice(-500).forEach((k) => processedSignalKeysRef.current.add(k));
+      if (time) {
+        signalTime = new Date(time);
       }
-    }
+      if (latestupdate) {
+        const latestUpdateTime = new Date(latestupdate);
+        // Use the most recent timestamp between time and latestupdate
+        if (!signalTime || latestUpdateTime.getTime() > signalTime.getTime()) {
+          signalTime = latestUpdateTime;
+        }
+      }
 
-    return { shouldProcess: isRecent, ageInSeconds };
-  },
+      if (!signalTime || isNaN(signalTime.getTime())) {
+        return { shouldProcess: false, ageInSeconds: -1, reason: 'invalid_time' };
+      }
+
+      const ageInSeconds = (now - signalTime.getTime()) / 1000;
+      // If signal is more than 30 seconds old (based on most recent timestamp), ignore it
+      const isRecent = ageInSeconds <= 30;
+
+      if (isRecent) {
+        processedSignalKeysRef.current.add(processKey);
+        if (processedSignalKeysRef.current.size > 1000) {
+          const keysArray = Array.from(processedSignalKeysRef.current);
+          processedSignalKeysRef.current.clear();
+          keysArray.slice(-500).forEach((k) => processedSignalKeysRef.current.add(k));
+        }
+      }
+
+      return { shouldProcess: isRecent, ageInSeconds };
+    },
     [buildSignalProcessKey]
   );
 
@@ -1011,11 +1011,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const p =
         mt5LotSizingMode === 'manual'
           ? {
-              lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
-              numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
-              direction: 'BOTH' as const,
-              platform: 'MT5' as const,
-            }
+            lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
+            numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
+            direction: 'BOTH' as const,
+            platform: 'MT5' as const,
+          }
           : getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
       effective = {
         ...symbolConfig,
@@ -1109,10 +1109,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     const preset =
       mt5LotSizingMode === 'manual'
         ? {
-            lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
-            numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
-            direction: 'BOTH' as const,
-          }
+          lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
+          numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
+          direction: 'BOTH' as const,
+        }
         : getEquityBasedMT5Preset(mt5Account?.equity, symbolConfig.symbol);
     const tradeMode: MT5TradeMode = symbolConfig.tradeMode === 'scalper' ? 'scalper' : 'swing';
     const newActiveSymbol: MT5Symbol = {
@@ -1620,6 +1620,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     pausePollingRef.current = pausePolling;
   }, [pausePolling]);
 
+  /**
+   * Defer showing the MT5 execution WebView until after layout/navigation settles — matches
+   * AI Scanner "Take trade" and avoids Android races where Modal + hidden WebView never reach interactive.
+   */
+  const scheduleOpenMT5ExecutionOverlay = useCallback((signal: SignalLog) => {
+    setMt5TradeOverlayMessage(null);
+    InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(() => {
+        setMT5Signal(signal);
+        setShowMT5SignalWebView(true);
+      });
+    });
+  }, []);
+
   const startDatabaseSignalPolling = useCallback(async () => {
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     const hasTrade =
@@ -1707,8 +1721,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         pausePolling().catch(err => {
           console.error('Error pausing polling when opening WebView:', err);
         });
-        setMT5Signal(signalLog);
-        setShowMT5SignalWebView(true);
+        scheduleOpenMT5ExecutionOverlay(signalLog);
       } else if (mt5Account && mt5Account.connected) {
         console.log('⏭️ Database signal skipped — symbol not configured on Quotes:', signal.asset);
       }
@@ -1764,6 +1777,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     shouldProcessSignal,
     tradeLevelsFingerprint,
     pausePolling,
+    scheduleOpenMT5ExecutionOverlay,
   ]);
 
   startDatabaseSignalPollingRef.current = startDatabaseSignalPolling;
@@ -1830,10 +1844,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.error('Error pausing polling for chart warmup:', err);
       });
     }
-    setMT5Signal(chartWarmupSignal);
-    setShowMT5SignalWebView(true);
+    scheduleOpenMT5ExecutionOverlay(chartWarmupSignal);
     setSignalLogs(prev => [...prev, chartWarmupSignal]);
-  }, []);
+  }, [scheduleOpenMT5ExecutionOverlay]);
 
   useEffect(() => {
     openChartWarmupTerminalRef.current = openChartWarmupTerminal;
@@ -2084,8 +2097,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         pausePolling().catch(err => {
           console.error('Error pausing polling when opening WebView:', err);
         });
-        setMT5Signal(signal);
-        setShowMT5SignalWebView(true);
+        scheduleOpenMT5ExecutionOverlay(signal);
       }
     };
 
@@ -2095,7 +2107,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     signalsMonitorService.startMonitoring(phoneSecret, onSignalReceived, onError);
     setIsSignalsMonitoring(true);
-  }, [activeSymbols, mt4Symbols, mt5Symbols, mt5Account, shouldProcessSignal, tradeLevelsFingerprint]);
+  }, [
+    activeSymbols,
+    mt4Symbols,
+    mt5Symbols,
+    mt5Account,
+    shouldProcessSignal,
+    tradeLevelsFingerprint,
+    pausePolling,
+    scheduleOpenMT5ExecutionOverlay,
+  ]);
 
   const stopSignalsMonitoring = useCallback(async () => {
     console.log('Stopping signals monitoring');
@@ -2326,8 +2347,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       pausePolling().catch(err => {
         console.error('Error pausing polling when opening WebView:', err);
       });
-      setMT5Signal(signalLog);
-      setShowMT5SignalWebView(true);
+      scheduleOpenMT5ExecutionOverlay(signalLog);
 
       setNewSignal(signalLog);
       notifySignalReceived(signalLog);
@@ -2339,7 +2359,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         backgroundMonitoringService.removeListener();
       }
     };
-  }, [isBotActive, hasActiveTradeSymbolsConfigured, mt5Account, shouldProcessSignal, tradeLevelsFingerprint, pausePolling, isSymbolConfiguredForTrading]);
+  }, [
+    isBotActive,
+    hasActiveTradeSymbolsConfigured,
+    mt5Account,
+    shouldProcessSignal,
+    tradeLevelsFingerprint,
+    pausePolling,
+    isSymbolConfiguredForTrading,
+    scheduleOpenMT5ExecutionOverlay,
+  ]);
 
   // On web/PWA: keep server awake, poll on resume, re-subscribe for Web Push
   useEffect(() => {
@@ -2466,8 +2495,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                   pausePolling().catch(err => {
                     console.error('Error pausing polling when opening WebView:', err);
                   });
-                  setMT5Signal(signalLog);
-                  setShowMT5SignalWebView(true);
+                  scheduleOpenMT5ExecutionOverlay(signalLog);
                 } else if (mt5Account && mt5Account.connected) {
                   console.log('⏭️ Database signal skipped — symbol not configured on Quotes:', signal.asset);
                 }
@@ -2555,8 +2583,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 pausePolling().catch(err => {
                   console.error('Error pausing polling when opening WebView:', err);
                 });
-                setMT5Signal(signalLog);
-                setShowMT5SignalWebView(true);
+                scheduleOpenMT5ExecutionOverlay(signalLog);
               } else if (mt5Account && mt5Account.connected) {
                 console.log('⏭️ Background database signal skipped — symbol not configured on Quotes:', signal.asset);
               }
@@ -2639,8 +2666,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 pausePolling().catch(err => {
                   console.error('Error pausing polling when opening WebView:', err);
                 });
-                setMT5Signal(signalLog);
-                setShowMT5SignalWebView(true);
+                scheduleOpenMT5ExecutionOverlay(signalLog);
               } else if (mt5Account && mt5Account.connected) {
                 console.log('⏭️ Background database signal skipped — symbol not configured on Quotes:', signal.asset);
               }
@@ -2679,7 +2705,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
-  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring, mt5Account, shouldProcessSignal, tradeLevelsFingerprint, pausePolling, bringAppToForeground, isSymbolConfiguredForTrading, hasActiveTradeSymbolsConfigured]);
+  }, [isBotActive, isDatabaseSignalsPolling, isPollingPaused, eas, isSignalsMonitoring, startSignalsMonitoring, mt5Account, shouldProcessSignal, tradeLevelsFingerprint, pausePolling, bringAppToForeground, isSymbolConfiguredForTrading, hasActiveTradeSymbolsConfigured, scheduleOpenMT5ExecutionOverlay]);
 
   // Update iOS widget whenever EAs or bot state changes (native app or PWA)
   useEffect(() => {

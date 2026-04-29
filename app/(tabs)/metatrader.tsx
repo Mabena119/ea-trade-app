@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Platform, FlatList, Alert, ActivityIndicator, Image, KeyboardAvoidingView } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
@@ -15,11 +15,6 @@ import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
-
-/** Embedded MT4/MT5 terminal WebView: false = fully hidden (toast-only UX). true = bottom panel visible for debugging. */
-const SHOW_EMBEDDED_MT_WEBVIEW = false;
-
-const EMBEDDED_WEBVIEW_HEIGHT = Math.round(Dimensions.get('window').height * 0.42);
 
 // Default MT4 Brokers (will be updated from web terminal)
 const DEFAULT_MT4_BROKERS = [
@@ -2620,11 +2615,6 @@ export default function MetaTraderScreen() {
       >
         <ScrollView
           style={[styles.content, { backgroundColor: screenBg }]}
-          contentContainerStyle={
-            SHOW_EMBEDDED_MT_WEBVIEW && (showMT5WebView || showMT4WebView)
-              ? { paddingBottom: EMBEDDED_WEBVIEW_HEIGHT + 16 }
-              : undefined
-          }
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -3140,11 +3130,11 @@ export default function MetaTraderScreen() {
         </View>
       )}
 
-      {/* MT5 WebView — hidden or bottom panel (see SHOW_EMBEDDED_MT_WEBVIEW) */}
+      {/* MT5 WebView — always hidden (toast-only UX). */}
       {showMT5WebView && (
         <View
           key={`mt5-webview-${mt5WebViewKey}`}
-          style={SHOW_EMBEDDED_MT_WEBVIEW ? styles.visibleWebViewContainer : styles.invisibleWebViewContainer}
+          style={styles.invisibleWebViewContainer}
         >
           {Platform.OS === 'web' ? (
             <WebWebView
@@ -3153,7 +3143,7 @@ export default function MetaTraderScreen() {
               url={`/api/mt5-proxy?url=${encodeURIComponent(MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live'])}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(server || 'RazorMarkets-Live')}`}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
-              style={SHOW_EMBEDDED_MT_WEBVIEW ? styles.visibleWebView : styles.invisibleWebView}
+              style={styles.invisibleWebView}
             />
           ) : (
             <CustomWebView
@@ -3162,7 +3152,7 @@ export default function MetaTraderScreen() {
               script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
-              style={SHOW_EMBEDDED_MT_WEBVIEW ? styles.visibleWebView : styles.invisibleWebView}
+              style={styles.invisibleWebView}
             />
           )}
         </View>
@@ -3216,11 +3206,11 @@ export default function MetaTraderScreen() {
         </View>
       )}
 
-      {/* MT4 WebView — hidden or bottom panel (see SHOW_EMBEDDED_MT_WEBVIEW) */}
+      {/* MT4 WebView — always hidden (toast-only UX). */}
       {showMT4WebView && (
         <View
           key={`mt4-webview-${mt4WebViewKey}`}
-          style={SHOW_EMBEDDED_MT_WEBVIEW ? styles.visibleWebViewContainer : styles.invisibleWebViewContainer}
+          style={styles.invisibleWebViewContainer}
         >
           <CustomWebView
             key={`mt4-custom-${mt4WebViewKey}`}
@@ -3228,7 +3218,7 @@ export default function MetaTraderScreen() {
             script={getMT4Script()}
             onMessage={onMT4WebViewMessage}
             onLoadEnd={() => console.log('MT4 CustomWebView loaded')}
-            style={SHOW_EMBEDDED_MT_WEBVIEW ? styles.visibleWebView : styles.invisibleWebView}
+            style={styles.invisibleWebView}
           />
         </View>
       )}
@@ -3921,23 +3911,5 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 350,
     opacity: 0,
-  },
-  visibleWebViewContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: EMBEDDED_WEBVIEW_HEIGHT,
-    zIndex: 8,
-    backgroundColor: '#0a0a0f',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255, 255, 255, 0.14)',
-    pointerEvents: 'auto' as const,
-  },
-  visibleWebView: {
-    flex: 1,
-    width: '100%',
-    minHeight: 200,
-    opacity: 1,
   },
 });
