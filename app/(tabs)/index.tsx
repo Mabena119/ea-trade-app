@@ -366,7 +366,7 @@ export default function HomeScreen() {
           source={eaGlassLogoSource}
           style={StyleSheet.absoluteFill}
           imageStyle={styles.eaGlassBg}
-          resizeMode="cover"
+          resizeMode="contain"
           pointerEvents="none"
         >
           {/* Very light edge vignette — just enough contrast at top/bottom */}
@@ -489,7 +489,7 @@ export default function HomeScreen() {
                     <Image
                       testID="ea-logo-circular"
                       source={{ uri: primaryEAImage }}
-                      style={styles.circularLogo}
+                      style={[styles.circularLogo, isEAGlass && styles.eaGlassCircularLogo]}
                       resizeMode="cover"
                       onError={() => setLogoError(true)}
                     />
@@ -497,7 +497,7 @@ export default function HomeScreen() {
                     <Image
                       testID="fallback-logo-circular"
                       source={require('../../assets/images/icon.png')}
-                      style={styles.circularLogo}
+                      style={[styles.circularLogo, isEAGlass && styles.eaGlassCircularLogo]}
                       resizeMode="contain"
                     />
                   )}
@@ -1209,12 +1209,12 @@ const styles = StyleSheet.create({
     elevation: 18,
   },
   eaGlassLogoRing: {
-    borderColor: 'rgba(255,255,255,0.55)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.60)',
+    backgroundColor: 'transparent',
     shadowColor: '#FFFFFF',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.50,
-    shadowRadius: 20,
+    shadowOpacity: 0.55,
+    shadowRadius: 22,
     elevation: 15,
   },
   eaGlassStartOrb: {
@@ -1252,6 +1252,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderColor: 'rgba(255,255,255,0.30)',
     borderWidth: 1,
+  },
+  eaGlassCircularLogo: {
+    backgroundColor: 'transparent',
   },
   eaGlassBotName: {
     textShadowColor: 'rgba(0,0,0,0.90)',

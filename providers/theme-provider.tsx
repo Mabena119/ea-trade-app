@@ -443,25 +443,25 @@ export const blackTheme: Theme = {
 
 // All themes array for cycling
 export const ALL_THEMES: Theme[] = [
-  matrixLogoTheme,
   purpleTheme,
   cyberTheme,
   sunriseTheme,
   oceanTheme,
   mintTheme,
   redTheme,
+  matrixTheme,
   matrixRedTheme,
   matrixYellowTheme,
   blackTheme,
 ];
 export type ThemeName =
-  | 'matrixLogo'
   | 'purple'
   | 'cyber'
   | 'sunrise'
   | 'ocean'
   | 'mint'
   | 'red'
+  | 'matrix'
   | 'matrixRed'
   | 'matrixYellow'
   | 'black';
@@ -471,7 +471,7 @@ export function isEABrandShellTheme(theme: Theme): boolean {
   return theme.eaBrandShell === true;
 }
 export function isMatrixStyleTheme(themeName: string): boolean {
-  return themeName === 'matrixRed';
+  return themeName === 'matrix' || themeName === 'matrixRed';
 }
 
 /**
@@ -509,7 +509,7 @@ interface ThemeProviderProps {
 const THEME_STORAGE_KEY = '@ea_trade_theme';
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [currentTheme, setCurrentTheme] = useState<Theme>(matrixLogoTheme);
+  const [currentTheme, setCurrentTheme] = useState<Theme>(purpleTheme);
   const [isShakeEnabled, setShakeEnabled] = useState(true);
   
   const lastShakeTime = useRef<number>(0);
@@ -522,7 +522,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       try {
         const rawSaved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
         const savedThemeName =
-          rawSaved === 'eaBrand' || rawSaved === 'matrix' ? 'matrixLogo'
+          rawSaved === 'eaBrand' || rawSaved === 'matrixLogo' ? 'matrix'
           : rawSaved === 'lime' || rawSaved === 'white' ? 'purple'
           : rawSaved;
         if (savedThemeName) {
@@ -562,7 +562,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, []);
 
   const setTheme = useCallback(async (themeName: ThemeName) => {
-    const newTheme = ALL_THEMES.find(t => t.name === themeName) || matrixLogoTheme;
+    const newTheme = ALL_THEMES.find(t => t.name === themeName) || purpleTheme;
     setCurrentTheme(newTheme);
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, themeName);
