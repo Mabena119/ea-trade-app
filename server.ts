@@ -2577,6 +2577,179 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch (eEns) {}
               }
 
+              function eaMouseClickCenter(element) {
+                try {
+                  const rect = element.getBoundingClientRect();
+                  const x = rect.left + rect.width / 2;
+                  const y = rect.top + rect.height / 2;
+                  element.dispatchEvent(
+                    new MouseEvent('mousedown', {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      button: 0,
+                      buttons: 1,
+                      clientX: x,
+                      clientY: y,
+                    })
+                  );
+                  element.dispatchEvent(
+                    new MouseEvent('mouseup', {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      button: 0,
+                      buttons: 0,
+                      clientX: x,
+                      clientY: y,
+                    })
+                  );
+                  element.dispatchEvent(
+                    new MouseEvent('click', {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      button: 0,
+                      buttons: 0,
+                      clientX: x,
+                      clientY: y,
+                    })
+                  );
+                  return true;
+                } catch (e) {
+                  return false;
+                }
+              }
+
+              function eaNormalizeSymbolMatch(s) {
+                let z = String(s || '')
+                  .split('')
+                  .filter((ch) => {
+                    const c = ch.charCodeAt(0);
+                    return c !== 32 && c !== 9 && c !== 10 && c !== 13;
+                  })
+                  .join('')
+                  .toUpperCase();
+                return z.replace(/[^A-Z0-9.]/g, '');
+              }
+
+              function eaRowTextMatchesInstrument(cellText, wanted) {
+                let raw = String(cellText || '').trim();
+                const si = raw.indexOf('/');
+                if (si >= 0) raw = raw.substring(0, si);
+                const a = eaNormalizeSymbolMatch(raw);
+                const w = eaNormalizeSymbolMatch(wanted || '');
+                if (!w || a.length === 0) return false;
+                if (a === w) return true;
+                if (a.indexOf(w) === 0 || w.indexOf(a) === 0) return true;
+                if (w.length >= 3 && a.indexOf(w) >= 0) return true;
+                return raw.trim() === String(wanted).trim();
+              }
+
+              async function eaSelectSearchResultToOpenChart(symbolName, searchField) {
+                const sfBottom = searchField.getBoundingClientRect().bottom;
+                const deadlineMs = Date.now() + 12000;
+                while (Date.now() < deadlineMs) {
+                  const seen = new WeakSet();
+                  const selectorList = [
+                    '.name.svelte-19bwscl .symbol.svelte-19bwscl',
+                    '.symbol.svelte-19bwscl',
+                    '[class*="name"] [class*="symbol"]',
+                    '[role="option"]',
+                    '[role="listbox"] [role="option"]',
+                    'table tbody tr td',
+                    'div[class*="watch"] td',
+                    'div[class*="symbol"]',
+                  ];
+                  for (let si = 0; si < selectorList.length; si++) {
+                    let nodes = [];
+                    try {
+                      nodes = document.querySelectorAll(selectorList[si]);
+                    } catch (e0) {
+                      nodes = [];
+                    }
+                    for (let ni = 0; ni < nodes.length; ni++) {
+                      const el = nodes[ni];
+                      if (!el || !el.offsetParent || seen.has(el)) continue;
+                      seen.add(el);
+                      const t = (el.innerText || el.textContent || '').trim();
+                      if (!t || t.length > 48) continue;
+                      if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
+                      let row =
+                        el.closest('[role="option"]') ||
+                        el.closest('tr') ||
+                        el.closest('li') ||
+                        el.closest('div[class*="row"]') ||
+                        el;
+                      try {
+                        row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                      } catch (e1) {}
+                      row.click();
+                      eaMouseClickCenter(row);
+                      sendMessage(
+                        'symbol_selected',
+                        'Symbol ' + symbolName + ' — search result clicked (instrument row)'
+                      );
+                      await sleep(2300);
+                      return true;
+                    }
+                  }
+                  const wide = document.querySelectorAll('[role="option"], tr, li, td, span, div');
+                  for (let ni = 0; ni < Math.min(wide.length, 380); ni++) {
+                    const el = wide[ni];
+                    if (!el || !el.offsetParent || seen.has(el)) continue;
+                    seen.add(el);
+                    const br = el.getBoundingClientRect();
+                    if (br.bottom < sfBottom - 6) continue;
+                    if (br.top > sfBottom + 470) continue;
+                    if (br.width < 10 || br.height < 8) continue;
+                    const t = (el.innerText || el.textContent || '').trim();
+                    if (!t || t.length < 3 || t.length > 42) continue;
+                    if (!/[A-Za-z]/.test(t)) continue;
+                    if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
+                    let row = el.closest('[role="option"]') || el.closest('tr') || el.closest('li') || el;
+                    try {
+                      row.scrollIntoView({ block: 'nearest' });
+                    } catch (e2) {}
+                    row.click();
+                    eaMouseClickCenter(row);
+                    sendMessage(
+                      'symbol_selected',
+                      'Symbol ' + symbolName + ' — search match (near search field)'
+                    );
+                    await sleep(2300);
+                    return true;
+                  }
+                  await sleep(340);
+                }
+                try {
+                  sendMessage('step_update', 'Trying ArrowDown + Enter on search (fallback)');
+                  searchField.focus();
+                  searchField.dispatchEvent(
+                    new KeyboardEvent('keydown', {
+                      key: 'ArrowDown',
+                      code: 'ArrowDown',
+                      keyCode: 40,
+                      bubbles: true,
+                      cancelable: true,
+                    })
+                  );
+                  await sleep(280);
+                  searchField.dispatchEvent(
+                    new KeyboardEvent('keydown', {
+                      key: 'Enter',
+                      code: 'Enter',
+                      keyCode: 13,
+                      bubbles: true,
+                      cancelable: true,
+                    })
+                  );
+                  await sleep(1600);
+                  return true;
+                } catch (e3) {}
+                return false;
+              }
+
               // Search for symbol function - STRICTLY SEQUENTIAL Step 2
               const searchForSymbol = async (symbolName) => {
                 try {
@@ -2660,36 +2833,37 @@ async function handleApi(request: Request): Promise<Response> {
                   
                   if (searchField && searchField.offsetParent !== null) {
                     sendMessage('step_update', 'Search bar found, searching for ' + symbolName + '...');
-                    
+
                     searchField.focus();
-                    searchField.value = '';
-                    searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                    searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                    
-                    await sleep(300);
-                    
-                    searchField.focus();
-                    searchField.value = symbolName;
-                    searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                    searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                    searchField.dispatchEvent(new Event('keyup', { bubbles: true }));
-                    
-                    await sleep(2000);
-                    
+                    try {
+                      const wantSym = symbolName == null ? '' : String(symbolName);
+                      const descV = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+                      const nativeSet = descV && descV.set;
+                      searchField.value = '';
+                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                      searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                      if (nativeSet) nativeSet.call(searchField, wantSym);
+                      else searchField.value = wantSym;
+                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                      searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                      searchField.dispatchEvent(
+                        new KeyboardEvent('keyup', {
+                          key: 'Enter',
+                          code: 'Enter',
+                          keyCode: 13,
+                          bubbles: true,
+                        })
+                      );
+                    } catch (eFill) {
+                      searchField.value = symbolName;
+                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+
+                    await sleep(450);
+
                     sendMessage('symbol_search', 'Symbol ' + symbolName + ' searched');
-                    
-                    const symbolElements = document.querySelectorAll('.name.svelte-19bwscl .symbol.svelte-19bwscl, .symbol.svelte-19bwscl, [class*="symbol"]');
-                    let symbolSelected = false;
-                    for (let i = 0; i < symbolElements.length; i++) {
-                      const text = (symbolElements[i].innerText || '').trim();
-                      if (text === symbolName || text.includes(symbolName)) {
-                        symbolElements[i].click();
-                        sendMessage('symbol_selected', 'Symbol ' + symbolName + ' selected');
-                        symbolSelected = true;
-                        await sleep(2000);
-                         break;
-                       }
-                     }
+
+                    const symbolSelected = await eaSelectSearchResultToOpenChart(symbolName, searchField);
 
                     if (symbolSelected) {
                       await acceptDisclaimersAndConfirmDeep();
@@ -2699,7 +2873,10 @@ async function handleApi(request: Request): Promise<Response> {
                       await dismissLoginOverlay();
                       await closeSearchPanelAfterSymbolSelect();
                     } else {
-                      sendMessage('error', 'Symbol ' + symbolName + ' not found in search results');
+                      sendMessage(
+                        'error',
+                        'Symbol ' + symbolName + ' — search result row was not clicked; chart may be wrong instrument'
+                      );
                       await closeSearchPanelAfterSymbolSelect();
                     }
                    } else {

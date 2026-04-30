@@ -1851,6 +1851,195 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (eEns) {}
         }
 
+        function eaMouseClickCenter(element) {
+          try {
+            var rect = element.getBoundingClientRect();
+            var x = rect.left + rect.width / 2;
+            var y = rect.top + rect.height / 2;
+            element.dispatchEvent(
+              new MouseEvent('mousedown', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                button: 0,
+                buttons: 1,
+                clientX: x,
+                clientY: y,
+              })
+            );
+            element.dispatchEvent(
+              new MouseEvent('mouseup', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                button: 0,
+                buttons: 0,
+                clientX: x,
+                clientY: y,
+              })
+            );
+            element.dispatchEvent(
+              new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                button: 0,
+                buttons: 0,
+                clientX: x,
+                clientY: y,
+              })
+            );
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function eaNormalizeSymbolMatch(s) {
+          var z = String(s || '');
+          z = z
+            .split('')
+            .filter(function (ch) {
+              var c = ch.charCodeAt(0);
+              return c !== 32 && c !== 9 && c !== 10 && c !== 13;
+            })
+            .join('')
+            .toUpperCase();
+          return z.replace(/[^A-Z0-9.]/g, '');
+        }
+
+        function eaRowTextMatchesInstrument(cellText, wanted) {
+          var raw = String(cellText || '').trim();
+          var si = raw.indexOf('/');
+          if (si >= 0) raw = raw.substring(0, si);
+          var a = eaNormalizeSymbolMatch(raw);
+          var w = eaNormalizeSymbolMatch(wanted || '');
+          if (!w || a.length === 0) return false;
+          if (a === w) return true;
+          if (a.indexOf(w) === 0 || w.indexOf(a) === 0) return true;
+          if (w.length >= 3 && a.indexOf(w) >= 0) return true;
+          return raw.trim() === String(wanted).trim();
+        }
+
+        /** Click the Market Watch / search dropdown row so the terminal switches chart to this instrument (matches trade flow). */
+        async function eaSelectSearchResultToOpenChart(symbolName, searchField) {
+          var sfBottom = searchField.getBoundingClientRect().bottom;
+          var deadlineMs = Date.now() + 12000;
+          while (Date.now() < deadlineMs) {
+            var seen = new WeakSet();
+            var selectorList = [
+              '.name.svelte-19bwscl .symbol.svelte-19bwscl',
+              '.symbol.svelte-19bwscl',
+              '[class*="name"] [class*="symbol"]',
+              '[role="option"]',
+              '[role="listbox"] [role="option"]',
+              'table tbody tr td',
+              'div[class*="watch"] td',
+              'div[class*="symbol"]'
+            ];
+            var seen = new WeakSet();
+            var si,
+              ni,
+              el,
+              t,
+              row,
+              nodes,
+              br;
+            for (si = 0; si < selectorList.length; si++) {
+              try {
+                nodes = document.querySelectorAll(selectorList[si]);
+              } catch (e0) {
+                nodes = [];
+              }
+              for (ni = 0; ni < nodes.length; ni++) {
+                el = nodes[ni];
+                if (!el || !el.offsetParent || seen.has(el)) continue;
+                seen.add(el);
+                t = (el.innerText || el.textContent || '').trim();
+                if (!t || t.length > 48) continue;
+                if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
+                row =
+                  el.closest('[role="option"]') ||
+                  el.closest('tr') ||
+                  el.closest('li') ||
+                  el.closest('div[class*="row"]') ||
+                  el;
+                try {
+                  row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                } catch (e1) {}
+                row.click();
+                eaMouseClickCenter(row);
+                sendMessage(
+                  'symbol_selected',
+                  'Symbol ' + symbolName + ' — search result clicked (instrument row)'
+                );
+                await new Promise(function(r2) {
+                  setTimeout(r2, 2300);
+                });
+                return true;
+              }
+            }
+            var wide = document.querySelectorAll('[role="option"], tr, li, td, span, div');
+            for (ni = 0; ni < Math.min(wide.length, 380); ni++) {
+              el = wide[ni];
+              if (!el || !el.offsetParent || seen.has(el)) continue;
+              seen.add(el);
+              br = el.getBoundingClientRect();
+              if (br.bottom < sfBottom - 6) continue;
+              if (br.top > sfBottom + 470) continue;
+              if (br.width < 10 || br.height < 8) continue;
+              t = (el.innerText || el.textContent || '').trim();
+              if (!t || t.length < 3 || t.length > 42) continue;
+              if (!/[A-Za-z]/.test(t)) continue;
+              if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
+              row = el.closest('[role="option"]') || el.closest('tr') || el.closest('li') || el;
+              try {
+                row.scrollIntoView({ block: 'nearest' });
+              } catch (e2) {}
+              row.click();
+              eaMouseClickCenter(row);
+              sendMessage('symbol_selected', 'Symbol ' + symbolName + ' — search match (near search field)');
+              await new Promise(function(r2) {
+                setTimeout(r2, 2300);
+              });
+              return true;
+            }
+            await new Promise(function(r3) {
+              setTimeout(r3, 340);
+            });
+          }
+          try {
+            sendMessage('step_update', 'Trying ArrowDown + Enter on search (fallback)');
+            searchField.focus();
+            searchField.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'ArrowDown',
+                code: 'ArrowDown',
+                keyCode: 40,
+                bubbles: true,
+                cancelable: true,
+              })
+            );
+            await new Promise(function(r4) {
+              setTimeout(r4, 280);
+            });
+            searchField.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                bubbles: true,
+                cancelable: true,
+              })
+            );
+            await new Promise(function(r5) {
+              setTimeout(r5, 1600);
+            });
+            return true;
+          } catch (e3) {}
+          return false;
+        }
+
         // Search for symbol function - STRICTLY SEQUENTIAL Step 2
         const searchForSymbol = async (symbolName) => {
           try {
@@ -1945,37 +2134,37 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             
             if (searchField && searchField.offsetParent !== null) {
               sendMessage('step_update', 'Search bar found, searching for ' + symbolName + '...');
-              
+
               searchField.focus();
-              searchField.value = '';
-              searchField.dispatchEvent(new Event('input', { bubbles: true }));
-              searchField.dispatchEvent(new Event('change', { bubbles: true }));
-              
-              await new Promise(r => setTimeout(r, 300));
-              
-              searchField.focus();
-              searchField.value = symbolName;
-              searchField.dispatchEvent(new Event('input', { bubbles: true }));
-              searchField.dispatchEvent(new Event('change', { bubbles: true }));
-              searchField.dispatchEvent(new Event('keyup', { bubbles: true }));
-              
-              await new Promise(r => setTimeout(r, 2000)); // Wait for search results
-              
-              sendMessage('symbol_search', 'Symbol ' + symbolName + ' searched');
-              
-              // Try to select the symbol if found - this will open the chart
-              const symbolElements = document.querySelectorAll('.name.svelte-19bwscl .symbol.svelte-19bwscl, .symbol.svelte-19bwscl, [class*="symbol"]');
-              let symbolSelected = false;
-              for (let i = 0; i < symbolElements.length; i++) {
-                const text = (symbolElements[i].innerText || '').trim();
-                if (text === symbolName || text.includes(symbolName)) {
-                  symbolElements[i].click();
-                  sendMessage('symbol_selected', 'Symbol ' + symbolName + ' selected');
-                  symbolSelected = true;
-                  await new Promise(r => setTimeout(r, 2000)); // Wait for symbol to be selected and chart to open
-                  break;
-                }
+              try {
+                var wantSym = symbolName == null ? '' : String(symbolName);
+                var descV = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+                var nativeSet = descV && descV.set;
+                searchField.value = '';
+                searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                if (nativeSet) nativeSet.call(searchField, wantSym);
+                else searchField.value = wantSym;
+                searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                searchField.dispatchEvent(new Event('change', { bubbles: true }));
+                searchField.dispatchEvent(
+                  new KeyboardEvent('keyup', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    bubbles: true,
+                  })
+                );
+              } catch (eFill) {
+                searchField.value = symbolName;
+                searchField.dispatchEvent(new Event('input', { bubbles: true }));
               }
+
+              await new Promise(r => setTimeout(r, 450));
+
+              sendMessage('symbol_search', 'Symbol ' + symbolName + ' searched');
+
+              var symbolSelected = await eaSelectSearchResultToOpenChart(symbolName, searchField);
 
               if (symbolSelected) {
                 await dismissLoginOverlay();
@@ -1983,7 +2172,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 await dismissLoginOverlay();
                 await closeSearchPanelAfterSymbolSelect();
               } else {
-                sendMessage('error', 'Symbol ' + symbolName + ' not found in search results');
+                sendMessage(
+                  'error',
+                  'Symbol ' + symbolName + ' — search result row was not clicked; chart may be wrong instrument'
+                );
                 await closeSearchPanelAfterSymbolSelect();
               }
             } else {
