@@ -1377,6 +1377,103 @@ export default function MetaTraderScreen() {
 
           const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+          function eaQuerySelectorAllDeepMT5(cssSel) {
+            var collected = [];
+            function walk(d) {
+              if (!d) return;
+              try {
+                var list = d.querySelectorAll(cssSel);
+                for (var i = 0; i < list.length; i++) collected.push(list[i]);
+                var fr = d.querySelectorAll('iframe');
+                for (var j = 0; j < fr.length; j++) {
+                  try {
+                    var inn = fr[j].contentDocument;
+                    if (inn) walk(inn);
+                  } catch (eF) {}
+                }
+              } catch (eW) {}
+            }
+            walk(document);
+            return collected;
+          }
+
+          function findMT5TerminalSearchInput() {
+            var patterns = [
+              'input[placeholder*="Search symbol" i]',
+              'input[placeholder*="symbol" i]',
+              'input[placeholder*="Search" i]',
+              'label.search.svelte-1mvzp7f input',
+              'label.search input',
+              '.search input'
+            ];
+            for (var p = 0; p < patterns.length; p++) {
+              var el = document.querySelector(patterns[p]);
+              if (el && el.offsetParent) {
+                var ph = ((el.getAttribute && el.getAttribute('placeholder')) || '').toLowerCase();
+                var nm = ((el.name || '') + '').toLowerCase();
+                if (ph.indexOf('login') >= 0 || ph.indexOf('password') >= 0 || nm === 'login' || nm === 'password') continue;
+                return el;
+              }
+            }
+            var deep = eaQuerySelectorAllDeepMT5('input[placeholder*="Search symbol" i]');
+            for (var di = 0; di < deep.length; di++) {
+              if (deep[di] && deep[di].offsetParent) return deep[di];
+            }
+            deep = eaQuerySelectorAllDeepMT5('input[placeholder*="Search" i]');
+            for (var dj = 0; dj < deep.length; dj++) {
+              if (deep[dj] && deep[dj].offsetParent) return deep[dj];
+            }
+            return null;
+          }
+
+          function setMwSearchInputValue(el, val) {
+            var v = String(val || '');
+            try {
+              el.focus();
+              var desc = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+              var ns = desc && desc.set;
+              el.value = '';
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              if (ns) ns.call(el, v);
+              else el.value = v;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            } catch (e1) {
+              try {
+                el.value = v;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+              } catch (e2) {}
+            }
+          }
+
+          /** Same as trading WebView: open chart via <button class="item …"> inside search result row. */
+          function clickMwRowButtonForAsset(want) {
+            want = String(want || '').trim();
+            if (!want) return false;
+            var rows = eaQuerySelectorAllDeepMT5('div.row.svelte-1m8pzlu');
+            for (var ri = 0; ri < rows.length; ri++) {
+              var row = rows[ri];
+              if (!row || !row.offsetParent) continue;
+              var btn = row.querySelector('button.item.svelte-fad8m4') || row.querySelector('button.item');
+              if (!btn || !btn.offsetParent) continue;
+              var rowT = (row.innerText || row.textContent || '').trim();
+              var compact = rowT.toUpperCase().replace(/\\s+/g, '');
+              var wantC = want.toUpperCase().replace(/\\s+/g, '');
+              if (
+                compact.indexOf(wantC) >= 0 ||
+                wantC.indexOf(compact) >= 0 ||
+                rowT.toLowerCase().indexOf(want.toLowerCase()) >= 0
+              ) {
+                try {
+                  btn.scrollIntoView({ block: 'nearest' });
+                } catch (eSc) {}
+                btn.click();
+                return true;
+              }
+            }
+            return false;
+          }
+
           const fillCreds = () => {
             try {
               var x = document.querySelector('input[name="login"]');
@@ -1415,6 +1512,7 @@ export default function MetaTraderScreen() {
 
           const selectSymbolCandidate = () => {
             try {
+              if (clickMwRowButtonForAsset(asset)) return true;
               var symbolSpan = document.querySelector('.name.svelte-19bwscl .symbol.svelte-19bwscl') ||
                                document.querySelector('.symbol.svelte-19bwscl') ||
                                document.querySelector('[class*="symbol"]');
@@ -1425,14 +1523,12 @@ export default function MetaTraderScreen() {
 
           const searchAsset = async () => {
             try {
-              var x = document.querySelector('input[placeholder="Search symbol"]') ||
-                      document.querySelector('label.search.svelte-1mvzp7f input') ||
-                      document.querySelector('.search input');
-              if (x != null) {
-                (x).value = asset;
-                x.dispatchEvent(new Event('input', { bubbles: true }));
+              var x = findMT5TerminalSearchInput();
+              if (x != null && x.offsetParent) {
+                setMwSearchInputValue(x, asset);
                 x.focus();
-                await sleep(800);
+                await sleep(1400);
+                clickMwRowButtonForAsset(asset);
                 return true;
               }
               return false;
@@ -1458,7 +1554,7 @@ export default function MetaTraderScreen() {
               attempts++;
               const loginInput = document.querySelector('input[name="login"]');
               const pwInput = document.querySelector('input[name="password"]');
-              const search = document.querySelector('input[placeholder="Search symbol"], label.search input, .search input');
+              const search = findMT5TerminalSearchInput();
               if ((!loginInput && !pwInput) || (search && (search).offsetParent !== null)) {
                 break;
               }
