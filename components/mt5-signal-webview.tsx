@@ -32,18 +32,26 @@ function escapeJsonForSingleQuotedJs(jsonStr: string): string {
 
 function buildAiTradeInjectScript(
   payload: AiTradePayload,
-  opts?: { firstRunDelayMs?: number; runnerRetryMax?: number; runnerRetryMs?: number }
+  opts?: {
+    firstRunDelayMs?: number;
+    runnerRetryMax?: number;
+    runnerRetryMs?: number;
+    /** CHART_WARMUP: terminal already on the captured symbol — only set payload + run __eaRunExecuteMultipleTrades */
+    skipChartHelpers?: boolean;
+  }
 ): string {
   const escaped = escapeJsonForSingleQuotedJs(JSON.stringify(payload));
   const firstRunDelayMs = opts?.firstRunDelayMs ?? 0;
   const runnerRetryMax = opts?.runnerRetryMax ?? 20;
   const runnerRetryMs = opts?.runnerRetryMs ?? 240;
+  const skipChartHelpers = opts?.skipChartHelpers === true;
   return `
 (function(){
   var payloadJson = '${escaped}';
   var firstDelay = ${firstRunDelayMs};
   var maxAttempts = ${runnerRetryMax};
   var retryGap = ${runnerRetryMs};
+  var skipChart = ${skipChartHelpers ? 'true' : 'false'};
   var n = 0;
   var chartPrimedFor = '';
   function postFail(m) {
@@ -76,19 +84,21 @@ function buildAiTradeInjectScript(
       postFail('No symbol on trade payload');
       return;
     }
-    if (typeof window.__eaSearchForSymbol !== 'function' || typeof window.__eaOpenChart !== 'function') {
-      if (n < maxAttempts) {
-        setTimeout(attempt, retryGap);
+    if (!skipChart) {
+      if (typeof window.__eaSearchForSymbol !== 'function' || typeof window.__eaOpenChart !== 'function') {
+        if (n < maxAttempts) {
+          setTimeout(attempt, retryGap);
+          return;
+        }
+        postFail('Chart helpers missing');
         return;
       }
-      postFail('Chart helpers missing');
-      return;
-    }
-    try {
-      await ensureChartForSymbol(sym);
-    } catch (e1) {
-      postFail((e1 && e1.message) ? String(e1.message) : 'Could not select symbol / open chart before order');
-      return;
+      try {
+        await ensureChartForSymbol(sym);
+      } catch (e1) {
+        postFail((e1 && e1.message) ? String(e1.message) : 'Could not select symbol / open chart before order');
+        return;
+      }
     }
     window.__eaActiveTradePayload = p;
     if (typeof window.__eaRunExecuteMultipleTrades === 'function') {
@@ -415,10 +425,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const runAiTradeInject = useCallback(
     (payload: AiTradePayload) => {
       const isAndroid = Platform.OS === 'android';
+      const skipChartHelpers = signalRef.current?.type === 'CHART_WARMUP';
       const code = buildAiTradeInjectScript(payload, {
         firstRunDelayMs: isAndroid ? 400 : 140,
         runnerRetryMax: isAndroid ? 28 : 20,
         runnerRetryMs: isAndroid ? 300 : 200,
+        skipChartHelpers,
       });
       if (Platform.OS === 'web') {
         setWebExternalEval({ code, id: Date.now() });
@@ -3333,8 +3345,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         </View>
       ) : null}
 
-      {/* WebView: composited off-stack — terminal not shown (smooth automation). */}
-      <View style={styles.hiddenWebViewContainer}>
+      {/* WebView: hidden for normal execution; visible during CHART_WARMUP so MT5 terminal is shown. */}
+      <View
+        style={
+          isChartWarmupSignal ? styles.chartWarmupWebViewContainer : styles.hiddenWebViewContainer
+        }
+      >
         {Platform.OS === 'web' ? (
           <WebWebView
             key={`web-trading-${webViewKey}-${signalStableSessionKey || 'no-signal'}`}
@@ -3348,7 +3364,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               setCurrentStep('MT5 Terminal loaded');
               console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
             }}
-            style={styles.hiddenWebView}
+            style={isChartWarmupSignal ? styles.chartWarmupWebView : styles.hiddenWebView}
           />
         ) : (
           <WebView
@@ -3356,7 +3372,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             ref={webViewRef}
             source={mt5WebViewSource}
             setSupportMultipleWindows={false}
-            style={styles.hiddenWebView}
+            style={isChartWarmupSignal ? styles.chartWarmupWebView : styles.hiddenWebView}
             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             onMessage={handleWebViewMessage}
             onLoadStart={() => {
@@ -3549,6 +3565,23 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 350,
     opacity: 0,
+  },
+  /** CHART_WARMUP: show MT5 under the toast + AI panel (panel zIndex stays above). */
+  chartWarmupWebViewContainer: {
+    flex: 1,
+    width: '100%',
+    marginTop: Platform.OS === 'ios' ? 112 : 96,
+    minHeight: 280,
+    zIndex: 2,
+    opacity: 1,
+    backgroundColor: '#0a0a0a',
+  },
+  chartWarmupWebView: {
+    flex: 1,
+    width: '100%',
+    minHeight: 260,
+    opacity: 1,
+    backgroundColor: '#000000',
   },
   aiAnalysisPanel: {
     position: 'absolute',
