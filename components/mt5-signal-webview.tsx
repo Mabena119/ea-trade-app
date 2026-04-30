@@ -3345,12 +3345,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         </View>
       ) : null}
 
-      {/* WebView: hidden for normal execution; visible during CHART_WARMUP so MT5 terminal is shown. */}
-      <View
-        style={
-          isChartWarmupSignal ? styles.chartWarmupWebViewContainer : styles.hiddenWebViewContainer
-        }
-      >
+      {/* WebView: composited off-stack — terminal not shown (smooth automation). */}
+      <View style={styles.hiddenWebViewContainer}>
         {Platform.OS === 'web' ? (
           <WebWebView
             key={`web-trading-${webViewKey}-${signalStableSessionKey || 'no-signal'}`}
@@ -3364,7 +3360,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               setCurrentStep('MT5 Terminal loaded');
               console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
             }}
-            style={isChartWarmupSignal ? styles.chartWarmupWebView : styles.hiddenWebView}
+            style={styles.hiddenWebView}
           />
         ) : (
           <WebView
@@ -3372,7 +3368,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             ref={webViewRef}
             source={mt5WebViewSource}
             setSupportMultipleWindows={false}
-            style={isChartWarmupSignal ? styles.chartWarmupWebView : styles.hiddenWebView}
+            style={styles.hiddenWebView}
             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             onMessage={handleWebViewMessage}
             onLoadStart={() => {
@@ -3565,23 +3561,6 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 350,
     opacity: 0,
-  },
-  /** CHART_WARMUP: show MT5 under the toast + AI panel (panel zIndex stays above). */
-  chartWarmupWebViewContainer: {
-    flex: 1,
-    width: '100%',
-    marginTop: Platform.OS === 'ios' ? 112 : 96,
-    minHeight: 280,
-    zIndex: 2,
-    opacity: 1,
-    backgroundColor: '#0a0a0a',
-  },
-  chartWarmupWebView: {
-    flex: 1,
-    width: '100%',
-    minHeight: 260,
-    opacity: 1,
-    backgroundColor: '#000000',
   },
   aiAnalysisPanel: {
     position: 'absolute',
