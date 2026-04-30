@@ -125,6 +125,7 @@
       "typedRoutes": true
     },
     "extra": {
+      "debugChartWarmupTerminal": true,
       "EXPO_PUBLIC_API_BASE_URL": "https://ea-trade-app.onrender.com",
       "router": {},
       "eas": {

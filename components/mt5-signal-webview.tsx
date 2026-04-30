@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import WebWebView from './web-webview';
 import { useApp, SignalLog } from '@/providers/app-provider';
@@ -2813,10 +2814,17 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const volumeFromConfig = getVolume();
   const isChartWarmupSignal = signal?.type === 'CHART_WARMUP';
 
+  /** Dev client or `expo.extra.debugChartWarmupTerminal` — show MT5 WebView during warmup to verify symbol/chart vs trades. */
+  const chartWarmupDebugShowWebTerminal =
+    __DEV__ ||
+    ((Constants.expoConfig?.extra as { debugChartWarmupTerminal?: boolean } | undefined)?.debugChartWarmupTerminal ===
+      true);
+  const showWarmupMt5WebTerminal = isChartWarmupSignal && chartWarmupDebugShowWebTerminal;
+
   /** Android: avoid Modal for live MT5 execution — matches chart-warmup overlay root (reliable WebView + inject). */
   const useAndroidInlineExecutionOverlay = Platform.OS === 'android';
 
-  /** True during chart warmup (used for AI panel step logic only — terminal uses same hidden WebView as MetaTrader link flow). */
+  /** True during chart warmup (AI panel visibility — independent of whether WebView is overlaid for debug). */
   const chartWarmupTerminalVisible = isChartWarmupSignal;
 
   /** During warmup, maximize terminal WebView and hide AI panel so MT5 is not covered while screenshots run. */
@@ -2934,8 +2942,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         </View>
       ) : null}
 
-      {/* WebView: always off-screen compositing — terminal must never be visible. */}
-      <View style={styles.hiddenWebViewContainer}>
+      {/* Chart warmup: optionally show MT5 (see `debugChartWarmupTerminal` + __DEV__). Otherwise off-screen / hidden. */}
+      <View
+        style={
+          showWarmupMt5WebTerminal ? styles.chartWarmupVisibleWebViewContainer : styles.hiddenWebViewContainer
+        }
+      >
         {Platform.OS === 'web' ? (
           <WebWebView
             key={`web-trading-${webViewKey}-${signalStableSessionKey || 'no-signal'}`}
@@ -2949,7 +2961,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               setCurrentStep('MT5 Terminal loaded');
               console.log('✅ Web WebView finished loading for signal:', signal.asset, 'ID:', signal.id);
             }}
-            style={styles.hiddenWebView}
+            style={showWarmupMt5WebTerminal ? styles.chartWarmupVisibleWebView : styles.hiddenWebView}
           />
         ) : (
           <WebView
@@ -2957,7 +2969,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             ref={webViewRef}
             source={mt5WebViewSource}
             setSupportMultipleWindows={false}
-            style={styles.hiddenWebView}
+            style={showWarmupMt5WebTerminal ? styles.chartWarmupVisibleWebView : styles.hiddenWebView}
             userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             onMessage={handleWebViewMessage}
             onLoadStart={() => {
@@ -3144,12 +3156,29 @@ const styles = StyleSheet.create({
     zIndex: -1,
     pointerEvents: 'none' as const,
   },
+  /** Chart warmup debug: fill area under the status toast so you can see symbol search / chart / order dialog. */
+  chartWarmupVisibleWebViewContainer: {
+    flex: 1,
+    marginTop: Platform.OS === 'ios' ? 112 : 94,
+    minHeight: 280,
+    opacity: 1,
+    zIndex: 1,
+    elevation: 8,
+    pointerEvents: 'auto' as const,
+    backgroundColor: '#0a0a0a',
+  },
   /** Same minHeight as metatrader.tsx invisibleWebView (350). */
   hiddenWebView: {
     flex: 1,
     width: '100%',
     minHeight: 350,
     opacity: 0,
+  },
+  chartWarmupVisibleWebView: {
+    flex: 1,
+    width: '100%',
+    minHeight: 280,
+    opacity: 1,
   },
   aiAnalysisPanel: {
     position: 'absolute',
