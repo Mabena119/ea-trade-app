@@ -170,6 +170,69 @@ const MT5_WEBVIEW_BOOTSTRAP_JS = `
 true;
 `;
 
+/**
+ * Very large single injectJavaScript() calls often blank or freeze RN WebViews (Android in particular).
+ * Deliver the payload as sequential small appends into window.__eaAuthConcat, then one indirect eval().
+ */
+const MT5_AUTH_INJECT_CHUNK_SIZE = Platform.OS === 'android' ? 6144 : 10240;
+const MT5_AUTH_INJECT_CHUNK_GAP_MS = Platform.OS === 'android' ? 26 : 16;
+
+type EaChunkGlobalKey = '__eaAuthConcat' | '__eaTradeConcat';
+
+function injectMt5JavaScriptConcatEvalChunks(
+  webViewRef: React.RefObject<WebView | null>,
+  fullScript: string,
+  concatKey: EaChunkGlobalKey = '__eaAuthConcat',
+  evalFailureType: string = 'ea_mt5_auth_chunk_eval_failed'
+): void {
+  const webView = webViewRef.current;
+  if (!webView || !fullScript) return;
+
+  const prop = "'" + concatKey + "'";
+  const failTypeLiteral = JSON.stringify(evalFailureType);
+
+  const initJs = ';(function(){try{window[' + prop + ']="";}catch(_){}})();\n';
+
+  const evalJs =
+    ';(function(){try{var __s=window[' +
+    prop +
+    ']||"";try{delete window[' +
+    prop +
+    '];}catch(_e){}(0,eval)(__s);}catch(ex){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:' +
+    failTypeLiteral +
+    ',message:String((ex&&ex.message)||ex)}));}catch(_2){}}})();\n';
+
+  webView.injectJavaScript(initJs + 'true;\n');
+
+  const chunks: string[] = [];
+  for (let i = 0; i < fullScript.length; i += MT5_AUTH_INJECT_CHUNK_SIZE) {
+    chunks.push(fullScript.slice(i, i + MT5_AUTH_INJECT_CHUNK_SIZE));
+  }
+
+  let index = 0;
+  const runNext = (): void => {
+    const ref = webViewRef.current;
+    if (!ref) return;
+    if (index >= chunks.length) {
+      ref.injectJavaScript(evalJs + 'true;\n');
+      return;
+    }
+    const part = chunks[index];
+    index += 1;
+    const appendJs =
+      ';(function(){try{window[' +
+      prop +
+      ']=(window[' +
+      prop +
+      ']||"")+' +
+      JSON.stringify(part) +
+      ';}catch(_){}})();\ntrue;\n';
+    ref.injectJavaScript(appendJs);
+    setTimeout(runNext, MT5_AUTH_INJECT_CHUNK_GAP_MS);
+  };
+  setTimeout(runNext, MT5_AUTH_INJECT_CHUNK_GAP_MS);
+}
+
 /** Android fires onShouldStartLoadWithRequest for about:blank; iOS may not. Trailing slash on mt5Url must not block /terminal vs /terminal/. */
 function isAllowedTerminalWebViewUrl(requestUrl: string, terminalBaseUrl: string, blockDataImages: boolean): boolean {
   const u = (requestUrl || '').trim();
@@ -263,6 +326,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const signalAuthRemountRef = useRef(0);
   /**
    * Inject `generateMT5AuthScript()` at most once per native WebView instance (`webViewKey`).
+   * The script string is injected in multiple small fragments (concat + eval), not one huge inject.
    * Applies to **CHART_WARMUP** (scan → snapshot → AI → trade) and **database signal** execution.
    * A second inject re-instantiates `__eaStartAuthOnce`, re-runs login on chart/order UI → bogus
    * `authentication_failed` and Android remounts the WebView.
@@ -422,7 +486,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       }
       const inject = () => {
         if (webViewRef.current) {
-          webViewRef.current.injectJavaScript(code);
+          if (isAndroid && code.length >= 6144) {
+            injectMt5JavaScriptConcatEvalChunks(webViewRef, code, '__eaTradeConcat', 'ai_trade_inject_failed');
+          } else {
+            webViewRef.current.injectJavaScript(code);
+          }
         } else {
           setChartAiError('WebView not ready for auto-trade');
           void Promise.resolve(resumePolling()).catch(() => { });
@@ -2876,6 +2944,19 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       const data = JSON.parse(event.nativeEvent.data);
       console.log('MT5 Signal WebView message:', data);
 
+      if (data.type === 'ea_mt5_auth_chunk_eval_failed') {
+        console.error('[MT5] Chunked script eval failed:', data.message);
+        mainScriptInjectedForWebViewRef.current = false;
+        setChartAiError(
+          typeof data.message === 'string' && data.message.trim()
+            ? `Terminal automation failed to load (${data.message})`
+            : 'Terminal automation failed to load.'
+        );
+        setCurrentStep('MT5 automation failed — try Closing and reopen trading');
+        setLoading(false);
+        return;
+      }
+
       if (data.type === 'ea_mt5_shell_ready') {
         if (mainScriptInjectedForWebViewRef.current) {
           setLoading(false);
@@ -2889,7 +2970,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         mainScriptInjectedForWebViewRef.current = true;
         InteractionManager.runAfterInteractions(() => {
           requestAnimationFrame(() => {
-            webViewRef.current?.injectJavaScript(script);
+            injectMt5JavaScriptConcatEvalChunks(webViewRef, script);
           });
         });
         setLoading(false);
