@@ -211,29 +211,37 @@ export default function QuotesScreen() {
     if (!hasMt5Linked) return;
     const currentBotId = primaryEA?.id;
     const previousBotId = previousBotIdRef.current;
-    const botChanged = currentBotId !== previousBotId;
+    const botSwitched = previousBotId !== undefined && currentBotId !== previousBotId;
 
     console.log('Bot or symbols changed, refreshing quotes...', {
       botId: currentBotId,
       botName: primaryEA?.name,
       hasConnectedEA,
       previousBotId,
-      botChanged,
+      botSwitched,
       activeSymbols: activeSymbols.length,
       mt4Symbols: mt4Symbols.length,
       mt5Symbols: mt5Symbols.length
     });
 
-    // Update the ref
+    if (botSwitched) {
+      setQuotes([]);
+      setApiSymbols([]);
+      setError(null);
+      setLoading(true);
+      previousBotIdRef.current = currentBotId;
+      console.log('Active EA switched — clearing Quotes and full refresh');
+      fetchSymbols(false);
+      return;
+    }
+
     previousBotIdRef.current = currentBotId;
 
-    // If bot changed or no quotes yet, do full refresh
-    // Otherwise, do gentle refresh for symbol changes
-    if (botChanged || quotes.length === 0) {
-      console.log('Bot changed or first load - doing full refresh');
+    if (quotes.length === 0) {
+      console.log('First load or empty quotes — full refresh');
       fetchSymbols(false);
     } else {
-      console.log('Only symbols changed - doing gentle refresh');
+      console.log('Only symbols changed — gentle refresh');
       fetchSymbols(true);
     }
   }, [

@@ -279,6 +279,31 @@ function parseMT5SymbolsFromStorage(raw: unknown): MT5Symbol[] {
   });
 }
 
+/**
+ * Chart AI warmup runs in the MT5 web terminal only — use MT5 Quotes rows (mt5Symbols + legacy active rows with platform MT5).
+ * MT4-only configured symbols are excluded.
+ */
+function buildMt5QuotesSymbolsForWarmup(
+  activeSymbols: ActiveSymbol[],
+  mt5Symbols: MT5Symbol[]
+): { symbol: string; direction: string }[] {
+  const merged: { symbol: string; direction: string }[] = [
+    ...mt5Symbols.map((sym) => ({ symbol: sym.symbol, direction: sym.direction })),
+    ...activeSymbols
+      .filter((s) => s.platform === 'MT5')
+      .map((sym) => ({ symbol: sym.symbol, direction: sym.direction })),
+  ];
+  const seenKeys = new Set<string>();
+  const out: { symbol: string; direction: string }[] = [];
+  for (const row of merged) {
+    const k = normalizeSymbolKeyLocal(row.symbol || '');
+    if (!row.symbol?.trim() || seenKeys.has(k)) continue;
+    seenKeys.add(k);
+    out.push(row);
+  }
+  return out;
+}
+
 interface AppState {
   user: User | null;
   eas: EA[];
@@ -403,7 +428,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const pausePollingRef = useRef<(() => Promise<void>) | null>(null);
   const openChartWarmupTerminalRef = useRef<
-    ((source: 'db_bootstrap_chart_warmup' | 'interval_45m') => void) | null
+    ((source: 'db_bootstrap_chart_warmup' | 'interval_45m') => boolean) | null
   >(null);
   /** Set after `startDatabaseSignalPolling` is defined (same render as `setBotActive`). */
   const startDatabaseSignalPollingRef = useRef<(() => Promise<void>) | null>(null);
@@ -488,6 +513,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     (action?: string, sl?: string, tp?: string, price?: string) =>
       `${action ?? ''}\x1f${sl ?? ''}\x1f${tp ?? ''}\x1f${price ?? ''}`,
     []
+  );
+
+  /** True when at least one MT5 Quotes row exists (required for chart AI warmup). */
+  const hasMt5QuotesForChartWarmup = useMemo(
+    () => buildMt5QuotesSymbolsForWarmup(activeSymbols, mt5Symbols).length > 0,
+    [activeSymbols, mt5Symbols]
   );
 
   /** Same notion as Quotes “active” — symbol must appear in legacy, MT4, or MT5 configured lists. */
@@ -878,9 +909,63 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const removeEA = useCallback(async (id: string) => {
     try {
+      const removedWasPrimary = eas[0]?.id === id;
       const updatedEAs = eas.filter(ea => ea.id !== id);
+
+      try {
+        await AsyncStorage.removeItem(tradeSymbolsStorageKey(id));
+      } catch (e) {
+        console.warn('Could not remove per-EA trade symbols for deleted EA:', e);
+      }
+
       await AsyncStorage.setItem('eas', JSON.stringify(updatedEAs));
+
+      let nextActive: ActiveSymbol[] = [];
+      let nextMt4: MT4Symbol[] = [];
+      let nextMt5: MT5Symbol[] = [];
+
+      if (removedWasPrimary) {
+        if (updatedEAs.length > 0) {
+          const newPrimary = updatedEAs[0];
+          const raw = await AsyncStorage.getItem(tradeSymbolsStorageKey(newPrimary.id));
+          if (raw) {
+            try {
+              const t = JSON.parse(raw);
+              nextActive = parseActiveSymbolsFromStorage(t.activeSymbols);
+              nextMt4 = parseMT4SymbolsFromStorage(t.mt4Symbols);
+              nextMt5 = parseMT5SymbolsFromStorage(t.mt5Symbols);
+            } catch (e) {
+              console.error('Error parsing trade symbols for new primary after EA removal:', e);
+            }
+          }
+          await AsyncStorage.multiSet([
+            ['activeSymbols', JSON.stringify(nextActive)],
+            ['mt4Symbols', JSON.stringify(nextMt4)],
+            ['mt5Symbols', JSON.stringify(nextMt5)],
+          ]);
+        } else {
+          await AsyncStorage.multiSet([
+            ['activeSymbols', JSON.stringify([])],
+            ['mt4Symbols', JSON.stringify([])],
+            ['mt5Symbols', JSON.stringify([])],
+          ]);
+        }
+      }
+
       setEAs(updatedEAs);
+      if (removedWasPrimary) {
+        setActiveSymbols(nextActive);
+        setMT4Symbols(nextMt4);
+        setMT5Symbols(nextMt5);
+      }
+
+      processedSignalKeysRef.current.clear();
+      dbBootstrapSessionRef.current = {
+        pollCount: 0,
+        gotProcessableDbSignal: false,
+        chartWarmupLaunched: false,
+      };
+
       console.log('EA removed successfully:', id);
       return true;
     } catch (error) {
@@ -1767,6 +1852,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (s.chartWarmupLaunched || s.gotProcessableDbSignal) {
         return;
       }
+      const mt5QuotesForWarmup = buildMt5QuotesSymbolsForWarmup(activeSymbols, mt5Symbols);
       s.pollCount += 1;
       console.log(
         `[DB Bootstrap] Interval poll ${s.pollCount}/${DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP} completed`
@@ -1774,12 +1860,23 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (s.pollCount < DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP) {
         return;
       }
-      s.chartWarmupLaunched = true;
-
-      console.log(
-        `[DB Bootstrap] No processable DB signal after ${DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP} polls — launching chart warmup`
-      );
-      openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup');
+      if (mt5QuotesForWarmup.length === 0) {
+        console.log(
+          `[DB Bootstrap] ${DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP} polls — no MT5 Quotes symbols configured; skipping chart warmup, resetting poll counter`
+        );
+        s.pollCount = 0;
+        return;
+      }
+      const opened = openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup') === true;
+      if (opened) {
+        s.chartWarmupLaunched = true;
+        console.log(
+          `[DB Bootstrap] No processable DB signal after ${DB_BOOTSTRAP_POLLS_BEFORE_CHART_WARMUP} polls — launching chart warmup`
+        );
+      } else {
+        console.log('[DB Bootstrap] Chart warmup did not open — resetting poll counter for another 15-poll cycle');
+        s.pollCount = 0;
+      }
     };
 
     const dbService = await getDatabaseSignalsPollingService();
@@ -1806,10 +1903,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   startDatabaseSignalPollingRef.current = startDatabaseSignalPolling;
 
-  const openChartWarmupTerminal = useCallback((source: 'db_bootstrap_chart_warmup' | 'interval_45m') => {
+  const openChartWarmupTerminal = useCallback((source: 'db_bootstrap_chart_warmup' | 'interval_45m'): boolean => {
     if (showMT5SignalWebViewRef.current) {
       console.log('[Chart Warmup] Skipped — MT5 overlay already open');
-      return;
+      return false;
     }
     /** Overlay / other app on top: must show main activity before AI chart warmup. */
     if (
@@ -1822,30 +1919,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       Array.isArray(easRef.current) && easRef.current.length > 0 ? easRef.current[0] : null;
     if (!primary?.id) {
       console.log(`[Chart Warmup] Skipped (${source}) — no active EA`);
-      return;
+      return false;
     }
     const acc = mt5AccountForBootstrapRef.current;
-    const { activeSymbols: asSym, mt4Symbols: m4, mt5Symbols: m5 } = symbolsForBootstrapRef.current;
-    const merged = [
-      ...asSym.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
-      ...m4.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
-      ...m5.map(sym => ({ symbol: sym.symbol, direction: sym.direction })),
-    ];
-    const seenKeys = new Set<string>();
-    const allConfiguredSymbols: { symbol: string; direction: string }[] = [];
-    for (const row of merged) {
-      const k = normalizeSymbolKeyLocal(row.symbol);
-      if (seenKeys.has(k)) continue;
-      seenKeys.add(k);
-      allConfiguredSymbols.push(row);
-    }
-    if (!acc?.connected || allConfiguredSymbols.length === 0) {
-      console.log(`[Chart Warmup] Skipped (${source}) — MT5 not connected or no configured symbols for active EA`);
-      return;
+    const { activeSymbols: asSym, mt5Symbols: m5 } = symbolsForBootstrapRef.current;
+    const mt5QuotesSymbols = buildMt5QuotesSymbolsForWarmup(asSym, m5);
+    if (!acc?.connected || mt5QuotesSymbols.length === 0) {
+      console.log(
+        `[Chart Warmup] Skipped (${source}) — MT5 not connected or no MT5 Quotes symbols configured`
+      );
+      return false;
     }
 
-    const randomIndex = Math.floor(Math.random() * allConfiguredSymbols.length);
-    const selected = allConfiguredSymbols[randomIndex];
+    const randomIndex = Math.floor(Math.random() * mt5QuotesSymbols.length);
+    const selected = mt5QuotesSymbols[randomIndex];
     const dir = selected.direction?.toLowerCase();
     let tradeAction: string;
     if (dir === 'buy' || dir === 'sell') {
@@ -1867,7 +1954,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       latestupdate: new Date().toISOString(),
     };
 
-    console.log(`[Chart Warmup] Opening (${source}):`, chartWarmupSignal.asset);
+    console.log(`[Chart Warmup] Opening (${source}) — MT5 Quotes symbol:`, chartWarmupSignal.asset);
 
     const pause = pausePollingRef.current;
     if (pause) {
@@ -1877,6 +1964,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
     scheduleOpenMT5ExecutionOverlay(chartWarmupSignal);
     setSignalLogs(prev => [...prev, chartWarmupSignal]);
+    return true;
   }, [scheduleOpenMT5ExecutionOverlay]);
 
   useEffect(() => {
@@ -1944,9 +2032,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     mt5Symbols.length,
   ]);
 
-  /** Repeat chart warmup every 45 minutes while bot is running (same flow as bootstrap warmup). */
+  /** Repeat chart warmup every 45 minutes while bot is running — only when MT5 Quotes symbols exist. */
   useEffect(() => {
-    if (!isBotActive || !hasActiveTradeSymbolsConfigured) return;
+    if (!isBotActive || !hasMt5QuotesForChartWarmup) return;
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     if (!primaryEA?.licenseKey) return;
 
@@ -1955,7 +2043,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }, CHART_WARMUP_INTERVAL_MS);
 
     return () => clearInterval(id);
-  }, [isBotActive, hasActiveTradeSymbolsConfigured, eas]);
+  }, [isBotActive, hasMt5QuotesForChartWarmup, eas]);
 
   // Bring app to foreground (Android) — prefer native activity launch; fallback deep link.
   const bringAppToForeground = useCallback(async () => {
@@ -2476,9 +2564,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 '[Android native poll] Discarding pending action — bot off, paused, or no trade symbols'
               );
             } else if (pending.type === 'chart_warmup') {
-              dbBootstrapSessionRef.current.chartWarmupLaunched = true;
-              console.log('[Android native poll] Chart warmup — opening main app for AI analysis');
-              openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup');
+              const opened = openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup') === true;
+              if (opened) {
+                dbBootstrapSessionRef.current.chartWarmupLaunched = true;
+              }
+              console.log(
+                `[Android native poll] Chart warmup foreground — ${opened ? 'opened' : 'skipped (no MT5 Quotes / overlay)'}`
+              );
             } else if (pending.type === 'signal' && pending.payload) {
               let rows: unknown[] = [];
               try {
