@@ -267,11 +267,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const mainScriptInjectedForWebViewRef = useRef(false);
   /** Android often fires `onLoadEnd` more than once; schedule only one `ea_mt5_shell_ready` probe per WebView (warmup uses a longer delay). */
   const shellReadyProbeScheduledRef = useRef(false);
-
-  useEffect(() => {
-    mainScriptInjectedForWebViewRef.current = false;
-    shellReadyProbeScheduledRef.current = false;
-  }, [webViewKey]);
+  /**
+   * Set true when injected `generateMT5AuthScript` finishes its synchronous setup and assigns __ea* helpers.
+   * AI auto-trade inject waits for this (with timeout) so it does not run against a fresh document before helpers exist.
+   */
+  const mt5AutomationReadyRef = useRef(false);
 
   useEffect(() => {
     signalRef.current = signal;
@@ -299,6 +299,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   useEffect(() => {
     signalStableSessionKeyRef.current = signalStableSessionKey;
   }, [signalStableSessionKey]);
+
+  /** WebView `key` uses `${webViewKey}-${signalStableSessionKey}` — refs must reset when either changes or a remount skips shell probe + main inject forever. */
+  useEffect(() => {
+    mainScriptInjectedForWebViewRef.current = false;
+    shellReadyProbeScheduledRef.current = false;
+    mt5AutomationReadyRef.current = false;
+  }, [webViewKey, signalStableSessionKey]);
 
   /** Chart warmup uses in-tree overlay (not Modal); Android: same for all auto-trade paths — Modal + hidden WebView often fails to composite. */
   const handleRequestClose = useCallback(() => {
@@ -410,7 +417,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       const isAndroid = Platform.OS === 'android';
       const code = buildAiTradeInjectScript(payload, {
         firstRunDelayMs: isAndroid ? 400 : 140,
-        runnerRetryMax: isAndroid ? 22 : 16,
+        runnerRetryMax: isAndroid ? 28 : 20,
         runnerRetryMs: isAndroid ? 300 : 200,
       });
       if (Platform.OS === 'web') {
@@ -426,11 +433,29 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
       };
       const delayMs = isAndroid ? 480 : 140;
-      InteractionManager.runAfterInteractions(() => {
-        requestAnimationFrame(() => {
-          setTimeout(inject, delayMs);
+      const scheduleInject = () => {
+        InteractionManager.runAfterInteractions(() => {
+          requestAnimationFrame(() => {
+            setTimeout(inject, delayMs);
+          });
         });
-      });
+      };
+      /** Wait for main MT5 inject to assign __ea* (or timeout) — avoids racing a remounted WebView. */
+      const automationWaitMs = isAndroid ? 12000 : 8000;
+      const pollMs = isAndroid ? 220 : 140;
+      const deadline = Date.now() + automationWaitMs;
+      const waitAutomationThenInject = () => {
+        if (mt5AutomationReadyRef.current) {
+          scheduleInject();
+          return;
+        }
+        if (Date.now() >= deadline) {
+          scheduleInject();
+          return;
+        }
+        setTimeout(waitAutomationThenInject, pollMs);
+      };
+      waitAutomationThenInject();
     },
     [resumePolling]
   );
@@ -2769,6 +2794,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         window.__eaSearchForSymbol = searchForSymbol;
         window.__eaOpenChart = openChart;
 
+        try {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ea_mt5_automation_ready' }));
+        } catch (eReady) {}
+
         var __eaStartAuthOnce = (function() {
           var done = false;
           return function() {
@@ -2815,6 +2844,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return;
         }
         mainScriptInjectedForWebViewRef.current = true;
+        mt5AutomationReadyRef.current = false;
         InteractionManager.runAfterInteractions(() => {
           requestAnimationFrame(() => {
             webViewRef.current?.injectJavaScript(script);
@@ -2822,6 +2852,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         });
         setLoading(false);
         setCurrentStep('Signing in to MT5...');
+        return;
+      }
+
+      if (data.type === 'ea_mt5_automation_ready') {
+        mt5AutomationReadyRef.current = true;
         return;
       }
 
