@@ -53,17 +53,7 @@ function buildAiTradeInjectScript(
     if (window.parent && window.parent !== window) window.parent.postMessage(fail, '*');
   }
   async function ensureChartForSymbol(sym) {
-    if (chartPrimedFor === sym && typeof window.__eaVerifyChartShowsInstrument === 'function') {
-      try {
-        if (window.__eaVerifyChartShowsInstrument(sym)) return;
-      } catch (ev0) {}
-    }
-    if (typeof window.__eaEnsureChartOpenForSymbol === 'function') {
-      var ok = await window.__eaEnsureChartOpenForSymbol(sym);
-      if (!ok) throw new Error('Chart not confirmed for ' + sym);
-      chartPrimedFor = sym;
-      return;
-    }
+    if (chartPrimedFor === sym) return;
     if (typeof window.__eaSearchForSymbol !== 'function' || typeof window.__eaOpenChart !== 'function') {
       throw new Error('Chart helpers missing');
     }
@@ -170,69 +160,6 @@ const MT5_WEBVIEW_BOOTSTRAP_JS = `
 true;
 `;
 
-/**
- * Very large single injectJavaScript() calls often blank or freeze RN WebViews (Android in particular).
- * Deliver the payload as sequential small appends into window.__eaAuthConcat, then one indirect eval().
- */
-const MT5_AUTH_INJECT_CHUNK_SIZE = Platform.OS === 'android' ? 6144 : 10240;
-const MT5_AUTH_INJECT_CHUNK_GAP_MS = Platform.OS === 'android' ? 26 : 16;
-
-type EaChunkGlobalKey = '__eaAuthConcat' | '__eaTradeConcat';
-
-function injectMt5JavaScriptConcatEvalChunks(
-  webViewRef: React.RefObject<WebView | null>,
-  fullScript: string,
-  concatKey: EaChunkGlobalKey = '__eaAuthConcat',
-  evalFailureType: string = 'ea_mt5_auth_chunk_eval_failed'
-): void {
-  const webView = webViewRef.current;
-  if (!webView || !fullScript) return;
-
-  const prop = "'" + concatKey + "'";
-  const failTypeLiteral = JSON.stringify(evalFailureType);
-
-  const initJs = ';(function(){try{window[' + prop + ']="";}catch(_){}})();\n';
-
-  const evalJs =
-    ';(function(){try{var __s=window[' +
-    prop +
-    ']||"";try{delete window[' +
-    prop +
-    '];}catch(_e){}(0,eval)(__s);}catch(ex){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:' +
-    failTypeLiteral +
-    ',message:String((ex&&ex.message)||ex)}));}catch(_2){}}})();\n';
-
-  webView.injectJavaScript(initJs + 'true;\n');
-
-  const chunks: string[] = [];
-  for (let i = 0; i < fullScript.length; i += MT5_AUTH_INJECT_CHUNK_SIZE) {
-    chunks.push(fullScript.slice(i, i + MT5_AUTH_INJECT_CHUNK_SIZE));
-  }
-
-  let index = 0;
-  const runNext = (): void => {
-    const ref = webViewRef.current;
-    if (!ref) return;
-    if (index >= chunks.length) {
-      ref.injectJavaScript(evalJs + 'true;\n');
-      return;
-    }
-    const part = chunks[index];
-    index += 1;
-    const appendJs =
-      ';(function(){try{window[' +
-      prop +
-      ']=(window[' +
-      prop +
-      ']||"")+' +
-      JSON.stringify(part) +
-      ';}catch(_){}})();\ntrue;\n';
-    ref.injectJavaScript(appendJs);
-    setTimeout(runNext, MT5_AUTH_INJECT_CHUNK_GAP_MS);
-  };
-  setTimeout(runNext, MT5_AUTH_INJECT_CHUNK_GAP_MS);
-}
-
 /** Android fires onShouldStartLoadWithRequest for about:blank; iOS may not. Trailing slash on mt5Url must not block /terminal vs /terminal/. */
 function isAllowedTerminalWebViewUrl(requestUrl: string, terminalBaseUrl: string, blockDataImages: boolean): boolean {
   const u = (requestUrl || '').trim();
@@ -326,7 +253,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const signalAuthRemountRef = useRef(0);
   /**
    * Inject `generateMT5AuthScript()` at most once per native WebView instance (`webViewKey`).
-   * The script string is injected in multiple small fragments (concat + eval), not one huge inject.
    * Applies to **CHART_WARMUP** (scan → snapshot → AI → trade) and **database signal** execution.
    * A second inject re-instantiates `__eaStartAuthOnce`, re-runs login on chart/order UI → bogus
    * `authentication_failed` and Android remounts the WebView.
@@ -486,11 +412,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       }
       const inject = () => {
         if (webViewRef.current) {
-          if (isAndroid && code.length >= 6144) {
-            injectMt5JavaScriptConcatEvalChunks(webViewRef, code, '__eaTradeConcat', 'ai_trade_inject_failed');
-          } else {
-            webViewRef.current.injectJavaScript(code);
-          }
+          webViewRef.current.injectJavaScript(code);
         } else {
           setChartAiError('WebView not ready for auto-trade');
           void Promise.resolve(resumePolling()).catch(() => { });
@@ -542,9 +464,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     const dialogOpenWaitMs = Platform.OS === 'android' ? 2800 : 2000;
     const orderDialogReadyMaxRetries = Platform.OS === 'android' ? 26 : 15;
     const interTradeSettleMs = Platform.OS === 'android' ? 950 : 600;
-    /** Keep re-searching until the active chart + DOM reflect the target instrument (indexes / synthetics). */
-    const chartEnsureMaxRounds = Platform.OS === 'android' ? 18 : 14;
-    const chartEnsureBaseDelayMs = Platform.OS === 'android' ? 720 : 560;
 
     return `
       (function() {
@@ -1714,15 +1633,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 equity: _eqAfterConnect.equity,
                 balance: _eqAfterConnect.balance,
               });
-              var chartReadyVerified = await ensureChartOpenForSymbol('${symbol}');
-              if (!chartReadyVerified) {
-                sendMessage(
-                  'error',
-                  'Stopping: chart could not be opened/verified for ${symbol} — adjust symbol name or terminal layout'
-                );
-                return;
-              }
-
+              // Step 2: Search for symbol
+              await searchForSymbol('${symbol}');
+              
+              // Step 3: Open chart (chart opens automatically when symbol is selected)
+              await openChart('${symbol}');
+              
               if (isChartWarmup) {
                 await dismissLoginOverlay();
                 sendMessage('step_update', 'Waiting for chart (login must complete)...');
@@ -1759,15 +1675,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 equity: _eqAfterConnect2.equity,
                 balance: _eqAfterConnect2.balance,
               });
-              var chartReadyVerified2 = await ensureChartOpenForSymbol('${symbol}');
-              if (!chartReadyVerified2) {
-                sendMessage(
-                  'error',
-                  'Stopping: chart could not be opened/verified for ${symbol} — adjust symbol name or terminal layout'
-                );
-                return;
-              }
-
+              // Step 2: Search for symbol
+              await searchForSymbol('${symbol}');
+              
+              // Step 3: Open chart (chart opens automatically when symbol is selected)
+              await openChart('${symbol}');
+              
               if (isChartWarmup) {
                 await dismissLoginOverlay();
                 sendMessage('step_update', 'Waiting for chart (login must complete)...');
@@ -2164,72 +2077,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return false;
         }
 
-        function eaFindLargestVisibleCanvas() {
-          var list = eaQuerySelectorAllDeep('canvas');
-          var best = null;
-          var bestArea = 0;
-          for (var i = 0; i < list.length; i++) {
-            var c = list[i];
-            if (!c || !c.offsetParent) continue;
-            var r = c.getBoundingClientRect();
-            if (r.width < 44 || r.height < 36) continue;
-            if (r.bottom < -30 || r.top > (window.innerHeight || 0) + 40) continue;
-            var area = (c.width || 0) * (c.height || 0);
-            if (area > bestArea) {
-              bestArea = area;
-              best = c;
-            }
-          }
-          return bestArea >= 12000 ? best : null;
-        }
-        function eaHasTradeableChartCanvas() {
-          var c = eaFindLargestVisibleCanvas();
-          return !!(c && (c.width || 0) * (c.height || 0) >= 40000);
-        }
-        function eaVerifyChartShowsInstrument(wanted) {
-          if (!wanted) return false;
-          if (!eaHasTradeableChartCanvas()) return false;
-          try {
-            var w = String(wanted).trim();
-            var wl = w.toLowerCase();
-            var blob = '';
-            function grab(d) {
-              if (!d || !d.body) return;
-              blob += '\\n' + (d.body.innerText || '');
-              var fr = d.querySelectorAll('iframe');
-              for (var gi = 0; gi < fr.length; gi++) {
-                try {
-                  if (fr[gi].contentDocument) grab(fr[gi].contentDocument);
-                } catch (eG) {}
-              }
-            }
-            grab(document);
-            try {
-              blob += '\\n' + (document.title || '');
-            } catch (eT) {}
-            var lines = blob.split(/[\\r\\n]+/);
-            for (var li = 0; li < lines.length; li++) {
-              var line = lines[li].trim();
-              if (line.length < 3 || line.length > 160) continue;
-              if (eaRowTextMatchesInstrument(line, w)) return true;
-            }
-            if (
-              wl.length >= 4 &&
-              blob.toLowerCase().indexOf(wl) >= 0 &&
-              /\\b[Bb]id\\b/.test(blob) &&
-              /\\b[Aa]sk\\b/.test(blob)
-            )
-              return true;
-            var selNodes = eaQuerySelectorAllDeep('[aria-selected="true"], tr[aria-selected="true"], [class*="selected"]');
-            for (var si = 0; si < Math.min(selNodes.length, 40); si++) {
-              var st = (selNodes[si].innerText || selNodes[si].textContent || '').trim();
-              if (st.length > 180) continue;
-              if (st && eaRowTextMatchesInstrument(st, w)) return true;
-            }
-          } catch (e3) {}
-          return false;
-        }
-
         // Search for symbol function - STRICTLY SEQUENTIAL Step 2
         const searchForSymbol = async (symbolName) => {
           try {
@@ -2343,118 +2190,77 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 await acceptDisclaimersAndConfirmDeep();
                 await dismissLoginOverlay();
                 await closeSearchPanelAfterSymbolSelect();
-                return true;
               } else {
                 sendMessage(
                   'error',
                   'Symbol ' + symbolName + ' — no matching search row; indexes need exact broker name spelling'
                 );
                 await closeSearchPanelAfterSymbolSelect();
-                return false;
               }
             } else {
               sendMessage('error', 'Search field not found or not visible after expanding');
-              return false;
             }
           } catch (e) {
             sendMessage('error', 'Error searching for symbol: ' + e.message);
-            return false;
           }
-          return false;
         };
 
         // Open chart function - STRICTLY SEQUENTIAL Step 3
         const openChart = async (symbolName) => {
           try {
             sendMessage('step_update', 'Step 3: Opening chart for ' + symbolName + '...');
-
-            await eaSleep(1600);
-
-            var chartElement = eaFindLargestVisibleCanvas();
-            var retries = 0;
-            while (retries < 8 && !chartElement) {
-              chartElement =
-                document.querySelector('[class*="chart"]') ||
-                document.querySelector('canvas') ||
-                document.querySelector('[id*="chart"]') ||
-                document.querySelector('[class*="Chart"]') ||
-                eaFindLargestVisibleCanvas();
-              if (chartElement && chartElement.tagName && String(chartElement.tagName).toUpperCase() !== 'CANVAS') {
-                chartElement = eaFindLargestVisibleCanvas() || chartElement;
-              }
+            
+            // Chart should already be open from symbol selection, but verify
+            // Wait a bit for chart to fully load
+            await new Promise(r => setTimeout(r, 2000));
+            
+            // Verify chart is open by checking for chart elements
+            let chartElement = null;
+            let retries = 0;
+            while (retries < 5) {
+              chartElement = document.querySelector('[class*="chart"]') ||
+                            document.querySelector('canvas') ||
+                            document.querySelector('[id*="chart"]') ||
+                            document.querySelector('[class*="Chart"]');
+              
               if (chartElement) {
                 sendMessage('step_update', 'Chart opened for ' + symbolName);
                 break;
               }
-              await eaSleep(450);
+              await new Promise(r => setTimeout(r, 500));
               retries++;
             }
-
-            await eaSleep(900);
-
-            var chartContainer = null;
+            
+            // Additional wait to ensure chart is fully loaded
+            await new Promise(r => setTimeout(r, 1000));
+            
+            // Focus on the chart before opening dialog
             if (chartElement) {
               sendMessage('step_update', 'Focusing on chart...');
-              try {
-                chartElement.focus();
-              } catch (ef) {}
-              try {
-                chartElement.click();
-              } catch (ec) {}
-              eaMouseClickCenter(chartElement);
-              await eaSleep(480);
+              chartElement.focus();
+              chartElement.click(); // Click to ensure focus
+              await new Promise(r => setTimeout(r, 500)); // Wait for focus to take effect
               sendMessage('step_update', 'Chart focused');
             } else {
-              chartContainer =
-                document.querySelector('[class*="chart-container"]') ||
-                document.querySelector('[class*="trading-chart"]') ||
-                document.querySelector('div[class*="chart"]');
+              // Try to find and focus any chart-related element
+              const chartContainer = document.querySelector('[class*="chart-container"]') ||
+                                    document.querySelector('[class*="trading-chart"]') ||
+                                    document.querySelector('div[class*="chart"]');
               if (chartContainer) {
                 chartContainer.focus();
                 chartContainer.click();
-                eaMouseClickCenter(chartContainer);
-                await eaSleep(480);
+                await new Promise(r => setTimeout(r, 500));
                 sendMessage('step_update', 'Chart container focused');
               }
             }
 
             await dismissLoginOverlay();
-            await eaSleep(450);
+            await new Promise(r => setTimeout(r, 450));
             await dismissLoginOverlay();
-
-            return !!(eaFindLargestVisibleCanvas() || chartElement || chartContainer);
-          } catch (e) {
+          } catch(e) {
             sendMessage('error', 'Error opening chart: ' + e.message);
-            return false;
           }
         };
-
-        async function ensureChartOpenForSymbol(symbolName) {
-          var sym = String(symbolName || '').trim();
-          if (!sym) return false;
-          var maxRounds = ${chartEnsureMaxRounds};
-          var baseDelay = ${chartEnsureBaseDelayMs};
-          for (var r = 0; r < maxRounds; r++) {
-            sendMessage(
-              'step_update',
-              'Ensuring chart for ' + sym + ' (round ' + (r + 1) + '/' + maxRounds + ')...'
-            );
-            await searchForSymbol(sym);
-            await openChart(sym);
-            await eaSleep(baseDelay + r * 200);
-            if (eaVerifyChartShowsInstrument(sym)) {
-              sendMessage('step_update', 'Chart verified for ' + sym + ' after ' + (r + 1) + ' round(s)');
-              return true;
-            }
-            sendMessage('step_update', 'Chart not verified for ' + sym + ' — retrying search/select...');
-            await eaSleep(450 + r * 90);
-          }
-          sendMessage(
-            'error',
-            'Could not open/verify chart for ' + sym + ' after ' + maxRounds + ' attempts'
-          );
-          return false;
-        }
 
         // Helper function to simulate mouse click
         const mouseClick = (element) => {
@@ -2906,8 +2712,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         /** Used by RN-injected AI trade script to re-select instrument before opening the order dialog */
         window.__eaSearchForSymbol = searchForSymbol;
         window.__eaOpenChart = openChart;
-        window.__eaEnsureChartOpenForSymbol = ensureChartOpenForSymbol;
-        window.__eaVerifyChartShowsInstrument = eaVerifyChartShowsInstrument;
 
         var __eaStartAuthOnce = (function() {
           var done = false;
@@ -2944,19 +2748,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       const data = JSON.parse(event.nativeEvent.data);
       console.log('MT5 Signal WebView message:', data);
 
-      if (data.type === 'ea_mt5_auth_chunk_eval_failed') {
-        console.error('[MT5] Chunked script eval failed:', data.message);
-        mainScriptInjectedForWebViewRef.current = false;
-        setChartAiError(
-          typeof data.message === 'string' && data.message.trim()
-            ? `Terminal automation failed to load (${data.message})`
-            : 'Terminal automation failed to load.'
-        );
-        setCurrentStep('MT5 automation failed — try Closing and reopen trading');
-        setLoading(false);
-        return;
-      }
-
       if (data.type === 'ea_mt5_shell_ready') {
         if (mainScriptInjectedForWebViewRef.current) {
           setLoading(false);
@@ -2970,7 +2761,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         mainScriptInjectedForWebViewRef.current = true;
         InteractionManager.runAfterInteractions(() => {
           requestAnimationFrame(() => {
-            injectMt5JavaScriptConcatEvalChunks(webViewRef, script);
+            webViewRef.current?.injectJavaScript(script);
           });
         });
         setLoading(false);

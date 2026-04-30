@@ -2423,14 +2423,8 @@ async function handleApi(request: Request): Promise<Response> {
                     await dismissLoginOverlay();
                     var _eqSC = scrapeTerminalAccountStats();
                     sendMessage('authentication_success', 'MT5 session verified', { equity: _eqSC.equity, balance: _eqSC.balance });
-                    const chartReadyVerified = await ensureChartOpenForSymbol('${symbolValue}');
-                    if (!chartReadyVerified) {
-                      sendMessage(
-                        'error',
-                        'Stopping: chart could not be opened/verified for ${symbolValue} — adjust symbol name or terminal layout'
-                      );
-                      return;
-                    }
+                    await searchForSymbol('${symbolValue}');
+                    await openChart('${symbolValue}');
                     if (isChartWarmup) {
                       await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
@@ -2461,14 +2455,8 @@ async function handleApi(request: Request): Promise<Response> {
                     await dismissLoginOverlay();
                     var _eqSC2 = scrapeTerminalAccountStats();
                     sendMessage('authentication_success', 'MT5 session verified', { equity: _eqSC2.equity, balance: _eqSC2.balance });
-                    const chartReadyVerified2 = await ensureChartOpenForSymbol('${symbolValue}');
-                    if (!chartReadyVerified2) {
-                      sendMessage(
-                        'error',
-                        'Stopping: chart could not be opened/verified for ${symbolValue} — adjust symbol name or terminal layout'
-                      );
-                      return;
-                    }
+                    await searchForSymbol('${symbolValue}');
+                    await openChart('${symbolValue}');
                     if (isChartWarmup) {
                       await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
@@ -2807,72 +2795,6 @@ async function handleApi(request: Request): Promise<Response> {
                 return out;
               }
 
-              function eaFindLargestVisibleCanvas() {
-                const list = eaQuerySelectorAllDeep('canvas');
-                let best = null;
-                let bestArea = 0;
-                for (let i = 0; i < list.length; i++) {
-                  const c = list[i];
-                  if (!c || !c.offsetParent) continue;
-                  const r = c.getBoundingClientRect();
-                  if (r.width < 44 || r.height < 36) continue;
-                  if (r.bottom < -30 || r.top > (window.innerHeight || 0) + 40) continue;
-                  const area = (c.width || 0) * (c.height || 0);
-                  if (area > bestArea) {
-                    bestArea = area;
-                    best = c;
-                  }
-                }
-                return bestArea >= 12000 ? best : null;
-              }
-              function eaHasTradeableChartCanvas() {
-                const c = eaFindLargestVisibleCanvas();
-                return !!(c && (c.width || 0) * (c.height || 0) >= 40000);
-              }
-              function eaVerifyChartShowsInstrument(wanted) {
-                if (!wanted) return false;
-                if (!eaHasTradeableChartCanvas()) return false;
-                try {
-                  const w = String(wanted).trim();
-                  const wl = w.toLowerCase();
-                  let blob = '';
-                  function grab(d) {
-                    if (!d || !d.body) return;
-                    blob += '\n' + (d.body.innerText || '');
-                    const fr = d.querySelectorAll('iframe');
-                    for (let gi = 0; gi < fr.length; gi++) {
-                      try {
-                        if (fr[gi].contentDocument) grab(fr[gi].contentDocument);
-                      } catch (eG) {}
-                    }
-                  }
-                  grab(document);
-                  try {
-                    blob += '\n' + (document.title || '');
-                  } catch (eT) {}
-                  const lines = blob.split(/[\r\n]+/);
-                  for (let li = 0; li < lines.length; li++) {
-                    const line = lines[li].trim();
-                    if (line.length < 3 || line.length > 160) continue;
-                    if (eaRowTextMatchesInstrument(line, w)) return true;
-                  }
-                  if (
-                    wl.length >= 4 &&
-                    blob.toLowerCase().indexOf(wl) >= 0 &&
-                    /\b[Bb]id\b/.test(blob) &&
-                    /\b[Aa]sk\b/.test(blob)
-                  )
-                    return true;
-                  const selNodes = eaQuerySelectorAllDeep('[aria-selected="true"], tr[aria-selected="true"], [class*="selected"]');
-                  for (let si = 0; si < Math.min(selNodes.length, 40); si++) {
-                    const st = (selNodes[si].innerText || selNodes[si].textContent || '').trim();
-                    if (st.length > 180) continue;
-                    if (st && eaRowTextMatchesInstrument(st, w)) return true;
-                  }
-                } catch (e3) {}
-                return false;
-              }
-
               async function eaSelectSearchResultToOpenChart(symbolName, searchField) {
                 let sfBottom = 0;
                 try {
@@ -3084,14 +3006,12 @@ async function handleApi(request: Request): Promise<Response> {
                       await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
                       await closeSearchPanelAfterSymbolSelect();
-                      return true;
                     } else {
                       sendMessage(
                         'error',
                         'Symbol ' + symbolName + ' — no matching search row; indexes need exact broker name spelling'
                       );
                       await closeSearchPanelAfterSymbolSelect();
-                      return false;
                     }
                    } else {
                     sendMessage('error', 'Search field not found or not visible after expanding');
@@ -3099,60 +3019,47 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch(e) {
                   sendMessage('error', 'Error searching for symbol: ' + e.message);
                 }
-                return false;
               };
 
               // Open chart function - STRICTLY SEQUENTIAL Step 3
               const openChart = async (symbolName) => {
                 try {
                   sendMessage('step_update', 'Step 3: Opening chart for ' + symbolName + '...');
-
-                  await sleep(1600);
-
-                  let chartElement = eaFindLargestVisibleCanvas();
+                  
+                  await sleep(2000);
+                  
+                  let chartElement = null;
                   let retries = 0;
-                  while (retries < 8 && !chartElement) {
-                    chartElement =
-                      document.querySelector('[class*="chart"]') ||
-                      document.querySelector('canvas') ||
-                      document.querySelector('[id*="chart"]') ||
-                      document.querySelector('[class*="Chart"]') ||
-                      eaFindLargestVisibleCanvas();
-                    if (chartElement && chartElement.tagName && String(chartElement.tagName).toUpperCase() !== 'CANVAS') {
-                      chartElement = eaFindLargestVisibleCanvas() || chartElement;
-                    }
+                  while (retries < 5) {
+                    chartElement = document.querySelector('[class*="chart"]') ||
+                                  document.querySelector('canvas') ||
+                                  document.querySelector('[id*="chart"]') ||
+                                  document.querySelector('[class*="Chart"]');
+                    
                     if (chartElement) {
                       sendMessage('step_update', 'Chart opened for ' + symbolName);
                       break;
                     }
-                    await sleep(450);
+                    await sleep(500);
                     retries++;
                   }
-
-                  await sleep(900);
-
-                  let chartContainer = null;
+                  
+                  await sleep(1000);
+                  
                   if (chartElement) {
                     sendMessage('step_update', 'Focusing on chart...');
-                    try {
-                      chartElement.focus();
-                    } catch (ef) {}
-                    try {
-                      chartElement.click();
-                    } catch (ec) {}
-                    eaMouseClickCenter(chartElement);
-                    await sleep(480);
+                    chartElement.focus();
+                    chartElement.click();
+                    await sleep(500);
                     sendMessage('step_update', 'Chart focused');
                   } else {
-                    chartContainer =
-                      document.querySelector('[class*="chart-container"]') ||
-                      document.querySelector('[class*="trading-chart"]') ||
-                      document.querySelector('div[class*="chart"]');
+                    const chartContainer = document.querySelector('[class*="chart-container"]') ||
+                                          document.querySelector('[class*="trading-chart"]') ||
+                                          document.querySelector('div[class*="chart"]');
                     if (chartContainer) {
                       chartContainer.focus();
                       chartContainer.click();
-                      eaMouseClickCenter(chartContainer);
-                      await sleep(480);
+                      await sleep(500);
                       sendMessage('step_update', 'Chart container focused');
                     }
                   }
@@ -3183,39 +3090,10 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('step_update', 'Closing search panel after chart open...');
                   await closeSearchPanelAfterSymbolSelect();
                   await sleep(600);
-                  return !!(eaFindLargestVisibleCanvas() || chartElement || chartContainer);
-                } catch (e) {
+                } catch(e) {
                   sendMessage('error', 'Error opening chart: ' + e.message);
-                  return false;
                 }
               };
-
-              async function ensureChartOpenForSymbol(symbolName) {
-                const sym = String(symbolName || '').trim();
-                if (!sym) return false;
-                const maxRounds = 16;
-                const baseDelay = 600;
-                for (let r = 0; r < maxRounds; r++) {
-                  sendMessage(
-                    'step_update',
-                    'Ensuring chart for ' + sym + ' (round ' + (r + 1) + '/' + maxRounds + ')...'
-                  );
-                  await searchForSymbol(sym);
-                  await openChart(sym);
-                  await sleep(baseDelay + r * 200);
-                  if (eaVerifyChartShowsInstrument(sym)) {
-                    sendMessage('step_update', 'Chart verified for ' + sym + ' after ' + (r + 1) + ' round(s)');
-                    return true;
-                  }
-                  sendMessage('step_update', 'Chart not verified for ' + sym + ' — retrying search/select...');
-                  await sleep(450 + r * 90);
-                }
-                sendMessage(
-                  'error',
-                  'Could not open/verify chart for ' + sym + ' after ' + maxRounds + ' attempts'
-                );
-                return false;
-              }
 
               // Helper function to simulate mouse click
               const mouseClick = (element) => {
