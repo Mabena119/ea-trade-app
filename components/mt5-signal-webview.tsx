@@ -36,7 +36,7 @@ function buildAiTradeInjectScript(
 ): string {
   const escaped = escapeJsonForSingleQuotedJs(JSON.stringify(payload));
   const firstRunDelayMs = opts?.firstRunDelayMs ?? 0;
-  const runnerRetryMax = opts?.runnerRetryMax ?? 14;
+  const runnerRetryMax = opts?.runnerRetryMax ?? 20;
   const runnerRetryMs = opts?.runnerRetryMs ?? 240;
   return `
 (function(){
@@ -74,6 +74,14 @@ function buildAiTradeInjectScript(
     var sym = (p && p.symbol) ? String(p.symbol).trim() : '';
     if (!sym) {
       postFail('No symbol on trade payload');
+      return;
+    }
+    if (typeof window.__eaSearchForSymbol !== 'function' || typeof window.__eaOpenChart !== 'function') {
+      if (n < maxAttempts) {
+        setTimeout(attempt, retryGap);
+        return;
+      }
+      postFail('Chart helpers missing');
       return;
     }
     try {
@@ -402,7 +410,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       const isAndroid = Platform.OS === 'android';
       const code = buildAiTradeInjectScript(payload, {
         firstRunDelayMs: isAndroid ? 400 : 140,
-        runnerRetryMax: isAndroid ? 16 : 12,
+        runnerRetryMax: isAndroid ? 22 : 16,
         runnerRetryMs: isAndroid ? 300 : 200,
       });
       if (Platform.OS === 'web') {
@@ -2304,6 +2312,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             sendMessage('error', 'Error opening chart: ' + e.message);
           }
         };
+
+        try {
+          window.__eaSearchForSymbol = searchForSymbol;
+          window.__eaOpenChart = openChart;
+        } catch (eExp) {}
 
         // Helper function to simulate mouse click
         const mouseClick = (element) => {

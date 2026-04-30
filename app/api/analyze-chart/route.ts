@@ -43,8 +43,17 @@ const chartAnalysisResultCache = new Map<
   }
 >();
 
+/** Bump when analysis output shape / normalization changes (invalidates cached responses). */
+const CHART_CACHE_KEY_VERSION = '2026-04-symbol-full';
+
 function cacheKeyForChart(base64Data: string, tradeMode: MT5TradeMode): string {
-  return createHash('sha256').update(base64Data, 'utf8').update('\n').update(tradeMode).digest('hex');
+  return createHash('sha256')
+    .update(base64Data, 'utf8')
+    .update('\n')
+    .update(tradeMode)
+    .update('\n')
+    .update(CHART_CACHE_KEY_VERSION)
+    .digest('hex');
 }
 
 function cacheGetChart(base64Data: string, tradeMode: MT5TradeMode) {
@@ -78,29 +87,88 @@ function cacheSetChart(
   chartAnalysisResultCache.set(cacheKeyForChart(base64Data, tradeMode), { data });
 }
 
-/** Keep broker symbol text usable for app matching (exact ticker, no prose). */
+const SYMBOL_MAX_LEN = 72;
+
+function capSymbolLen(s: string): string {
+  const t = s.trim();
+  if (t.length <= SYMBOL_MAX_LEN) return t;
+  return t.slice(0, SYMBOL_MAX_LEN).trim();
+}
+
+/**
+ * MT5/web terminals often show full names (e.g. "Volatility 100 Index") in the title bar.
+ * Keep the entire string when it looks like a compact instrument label, not a sentence.
+ */
+function isMultiWordInstrumentDisplayName(s: string): boolean {
+  const words = s.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 10) return false;
+  const lower = s.toLowerCase();
+  if (
+    /\b(the|chart|analysis|this|shows|suggest|because|should|would|could|visible|based|however|therefore|currently)\b/.test(
+      lower
+    )
+  ) {
+    return false;
+  }
+  for (const w of words) {
+    if (w.length > 20) return false;
+    if (!/^[A-Za-z0-9][A-Za-z0-9.#_\-]{0,19}$/.test(w)) return false;
+  }
+  if (/\d/.test(s)) return true;
+  if (
+    /\b(index|indices|volatility|vix|cfd|cash|mini|micro|futures|future|spot|swap|basket|wti|brent|pair|perpetual|swap-free)\b/i.test(
+      s
+    )
+  ) {
+    return true;
+  }
+  // Space-separated majors: EUR USD
+  if (
+    words.length === 2 &&
+    /^[A-Za-z]{3}$/.test(words[0]) &&
+    /^[A-Za-z]{3}$/.test(words[1])
+  ) {
+    return true;
+  }
+  // Short stacked labels without obvious prose (e.g. "US Tech 100")
+  return words.length <= 6;
+}
+
+/** Keep broker symbol text usable for app matching (tickers + full display names). */
 function normalizeSymbolFromChart(raw: unknown): string {
   if (raw === null || raw === undefined) return '';
   let s = String(raw).trim();
   if (!s) return '';
   s = s.replace(/^[\s"'`]+|[\s"'`]+$/g, '');
   s = s.replace(/\u00A0/g, '');
+  s = s.replace(/\s+/g, ' ');
+
   const labelPick = s.match(
-    /(?:^|\s)(?:symbol|pair|ticker|instrument)\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9.#_\-]{0,30})/i
+    /(?:^|\s)(?:symbol|pair|ticker|instrument)\s*[:=]\s*([^\n"|]{1,80})/i
   );
-  if (labelPick?.[1]) return labelPick[1].trim();
+  if (labelPick?.[1]) {
+    const v = capSymbolLen(labelPick[1].replace(/^["']|["']$/g, '').trim());
+    if (v) return v;
+  }
   const slash = s.match(/\b([A-Za-z]{3,10})\s*\/\s*([A-Za-z]{3,10})\b/);
   if (slash) return `${slash[1]}${slash[2]}`.toUpperCase();
   const paren = s.match(/\(([A-Za-z0-9][A-Za-z0-9.#_\-]{1,31})\)/);
-  if (paren?.[1]) return paren[1].trim();
+  if (paren?.[1]) return capSymbolLen(paren[1].trim());
+
+  if (isMultiWordInstrumentDisplayName(s)) {
+    return capSymbolLen(s);
+  }
+
   const oneToken = s.match(/^([A-Za-z0-9][A-Za-z0-9.#_\-]{1,31})$/);
   if (oneToken) return s;
+
   const tokens = s.split(/[\s,;|]+/).filter(Boolean);
   for (const t of tokens) {
     if (/^[A-Za-z0-9][A-Za-z0-9.#_\-]{1,31}$/.test(t)) return t;
   }
   const stripped = s.replace(/[^\w.#\-]/g, '');
-  return stripped.length <= 32 ? stripped : stripped.slice(0, 32);
+  const compact = stripped.length <= 48 ? stripped : stripped.slice(0, 48);
+  return capSymbolLen(compact);
 }
 
 const CHART_ANALYSIS_PROMPT = `You are an expert technical analyst. Analyze this chart image.
@@ -125,8 +193,8 @@ chartDetected rules (critical — be strict: do NOT "invent" a chart):
 - If unsure, prefer "chartDetected": false rather than guessing levels from a non-trading image.
 
 SYMBOL (critical for automated trading — read from the image, do not guess):
-- Set "symbol" to the EXACT instrument code as shown on THIS chart: title bar, Market Watch line, order panel, or corner label (e.g. USTECH, EURUSD, XAUUSD, BTCUSD, US100, GER40, NAS100.i, EURUSD.r).
-- Copy spelling, dots, suffixes, and case EXACTLY as the platform displays (brokers differ: .i .m .pro # mini micro).
+- Set "symbol" to the EXACT text as shown on THIS chart: title bar, Market Watch line, order panel, or corner label — include **every word and digit** (e.g. "Volatility 100 Index", "Volatility 75 Index", not just "Volatility"). Same for codes: USTECH, EURUSD, NAS100.i, EURUSD.r.
+- Copy spelling, spaces, dots, suffixes, and case EXACTLY as the platform displays (brokers differ: .i .m .pro # mini micro).
 - If the chart window shows one primary symbol, use that only — not a watchlist of other pairs.
 - If the symbol text is unreadable or not visible, use "" for symbol (never invent a ticker from the asset class alone).
 
@@ -161,7 +229,7 @@ MARKET ANCHOR (same chart image → same numbers; aligns with automated market-s
 
 LEVELS: entryPrice, stopLoss, takeProfit1 as numbers from chart. Never leave SL or TP empty.
 
-Output JSON only (symbol must be the literal ticker string from the chart UI, or ""):
+Output JSON only (symbol must be the **full** literal instrument string from the chart UI — do not shorten multi-word names — or ""):
 {"chartDetected":true,"symbol":"EXACT_TICKER_OR_EMPTY","timeframe":"X","currentPrice":"X","signal":"BUY"|"SELL","confidence":"high"|"medium"|"low","summary":"One sentence on the key setup","reasoning":"4-6 sentences: your observations - trend, S/R, patterns, indicators, conclusion","suggestion":"2-3 sentences of strategic advice - timing, execution, risk","entryPrice":"number","stopLoss":"number","takeProfit1":"number","takeProfit2":"","takeProfit3":""}`;
 
 /** Second pass for large images only — re-check without forcing a positive (avoids classifying memes/photos as charts). */
