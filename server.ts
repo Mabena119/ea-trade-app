@@ -2803,7 +2803,37 @@ async function handleApi(request: Request): Promise<Response> {
                 const deadlineMs = Date.now() + 18000;
                 while (Date.now() < deadlineMs) {
                   const seen = new WeakSet();
+                  /** MT5 Market Watch search list: activate the inner <button class="item …"> to open chart. */
+                  let mwRows = [];
+                  try {
+                    mwRows = eaQuerySelectorAllDeep('div.row.svelte-1m8pzlu');
+                  } catch (eMr) {
+                    mwRows = [];
+                  }
+                  for (let mwi = 0; mwi < mwRows.length; mwi++) {
+                    const mrow = mwRows[mwi];
+                    if (!mrow || !mrow.offsetParent || seen.has(mrow)) continue;
+                    const mbtn =
+                      (mrow.querySelector &&
+                        (mrow.querySelector('button.item.svelte-fad8m4') || mrow.querySelector('button.item'))) ||
+                      null;
+                    if (!mbtn || !mbtn.offsetParent) continue;
+                    const mtx = (mrow.innerText || mrow.textContent || '').trim();
+                    if (!mtx || mtx.length > 160) continue;
+                    if (!eaRowTextMatchesInstrument(mtx, symbolName)) continue;
+                    seen.add(mrow);
+                    seen.add(mbtn);
+                    eaActivateSearchResultRow(mbtn);
+                    sendMessage(
+                      'symbol_selected',
+                      'Symbol ' + symbolName + ' — Market Watch row button (open chart)'
+                    );
+                    await sleep(2400);
+                    return true;
+                  }
                   const selectorList = [
+                    'div.row.svelte-1m8pzlu button.item.svelte-fad8m4',
+                    'div.row.svelte-1m8pzlu button.item',
                     '.name.svelte-19bwscl .symbol.svelte-19bwscl',
                     '.symbol.svelte-19bwscl',
                     '[class*="name"] [class*="symbol"]',
@@ -2824,15 +2854,29 @@ async function handleApi(request: Request): Promise<Response> {
                       const el = nodes[ni];
                       if (!el || !el.offsetParent || seen.has(el)) continue;
                       seen.add(el);
-                      const t = (el.innerText || el.textContent || '').trim();
+                      const rowForText =
+                        el.closest && el.closest('div.row.svelte-1m8pzlu')
+                          ? el.closest('div.row.svelte-1m8pzlu')
+                          : null;
+                      let t = (el.innerText || el.textContent || '').trim();
+                      if ((!t || t.length < 3) && rowForText) {
+                        t = (rowForText.innerText || rowForText.textContent || '').trim();
+                      }
                       if (!t || t.length > 120) continue;
                       if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
+                      const rowBtn =
+                        el.tagName === 'BUTTON' && el.classList && el.classList.contains('item')
+                          ? el
+                          : rowForText &&
+                            (rowForText.querySelector('button.item.svelte-fad8m4') ||
+                              rowForText.querySelector('button.item'));
                       let row =
-                        el.closest('[role="option"]') ||
-                        el.closest('tr') ||
-                        el.closest('li') ||
-                        el.closest('div[class*="row"]') ||
-                        el;
+                        rowBtn ||
+                        (el.closest('[role="option"]') ||
+                          el.closest('tr') ||
+                          el.closest('li') ||
+                          el.closest('div[class*="row"]') ||
+                          el);
                       eaActivateSearchResultRow(row);
                       sendMessage(
                         'symbol_selected',
