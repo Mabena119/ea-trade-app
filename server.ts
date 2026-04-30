@@ -1795,6 +1795,42 @@ async function handleApi(request: Request): Promise<Response> {
                 return out;
               }
 
+              function eaQuerySelectorAllDeep(cssSelector) {
+                const collected = [];
+                function walkSearch(d) {
+                  if (!d) return;
+                  try {
+                    const list = d.querySelectorAll(cssSelector);
+                    for (let i = 0; i < list.length; i++) collected.push(list[i]);
+                    const fr = d.querySelectorAll('iframe');
+                    for (let i = 0; i < fr.length; i++) {
+                      try {
+                        const inner = fr[i].contentDocument;
+                        if (inner) walkSearch(inner);
+                      } catch (eF) {}
+                    }
+                  } catch (eW) {}
+                }
+                walkSearch(document);
+                return collected;
+              }
+
+              function eaPickVisibleSearchInputDeep() {
+                const combinedSel =
+                  'input[placeholder*="Search symbol" i], input[placeholder*="Search" i], input[type="search"]';
+                const arr = eaQuerySelectorAllDeep(combinedSel);
+                for (let k = 0; k < arr.length; k++) {
+                  const inp = arr[k];
+                  if (!inp || inp.offsetParent === null) continue;
+                  const ph = ((inp.getAttribute && inp.getAttribute('placeholder')) || '').toLowerCase();
+                  const nm = ((inp.name || '') + '').toLowerCase();
+                  if (ph.indexOf('login') >= 0 || ph.indexOf('password') >= 0 || nm === 'login' || nm === 'password')
+                    continue;
+                  return inp;
+                }
+                return null;
+              }
+
               function canvasHasWebGLContext(canvas) {
                 try {
                   if (!canvas || !canvas.getContext) return false;
@@ -2387,8 +2423,14 @@ async function handleApi(request: Request): Promise<Response> {
                     await dismissLoginOverlay();
                     var _eqSC = scrapeTerminalAccountStats();
                     sendMessage('authentication_success', 'MT5 session verified', { equity: _eqSC.equity, balance: _eqSC.balance });
-                    await searchForSymbol('${symbolValue}');
-                    await openChart('${symbolValue}');
+                    const chartReadyVerified = await ensureChartOpenForSymbol('${symbolValue}');
+                    if (!chartReadyVerified) {
+                      sendMessage(
+                        'error',
+                        'Stopping: chart could not be opened/verified for ${symbolValue} — adjust symbol name or terminal layout'
+                      );
+                      return;
+                    }
                     if (isChartWarmup) {
                       await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
@@ -2419,8 +2461,14 @@ async function handleApi(request: Request): Promise<Response> {
                     await dismissLoginOverlay();
                     var _eqSC2 = scrapeTerminalAccountStats();
                     sendMessage('authentication_success', 'MT5 session verified', { equity: _eqSC2.equity, balance: _eqSC2.balance });
-                    await searchForSymbol('${symbolValue}');
-                    await openChart('${symbolValue}');
+                    const chartReadyVerified2 = await ensureChartOpenForSymbol('${symbolValue}');
+                    if (!chartReadyVerified2) {
+                      sendMessage(
+                        'error',
+                        'Stopping: chart could not be opened/verified for ${symbolValue} — adjust symbol name or terminal layout'
+                      );
+                      return;
+                    }
                     if (isChartWarmup) {
                       await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
@@ -2621,6 +2669,81 @@ async function handleApi(request: Request): Promise<Response> {
                 }
               }
 
+              function eaSetInputValueForSearch(el, val) {
+                const v = val == null ? '' : String(val);
+                try {
+                  el.focus();
+                  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+                  const nativeSetter = desc && desc.set;
+                  el.value = '';
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                  if (typeof InputEvent !== 'undefined') {
+                    try {
+                      el.dispatchEvent(
+                        new InputEvent('input', {
+                          bubbles: true,
+                          cancelable: true,
+                          inputType: 'deleteContentBackward',
+                          data: null,
+                        })
+                      );
+                    } catch (eI0) {}
+                  }
+                  if (nativeSetter) nativeSetter.call(el, v);
+                  else el.value = v;
+                  if (typeof InputEvent !== 'undefined') {
+                    try {
+                      el.dispatchEvent(
+                        new InputEvent('input', {
+                          bubbles: true,
+                          cancelable: true,
+                          inputType: 'insertFromPaste',
+                          data: v,
+                        })
+                      );
+                    } catch (eI1) {}
+                  }
+                  el.dispatchEvent(new Event('change', { bubbles: true }));
+                  el.dispatchEvent(
+                    new KeyboardEvent('keyup', {
+                      key: 'Enter',
+                      code: 'Enter',
+                      keyCode: 13,
+                      bubbles: true,
+                    })
+                  );
+                } catch (eSv) {
+                  try {
+                    el.value = v;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                  } catch (eS2) {}
+                }
+              }
+
+              function eaActivateSearchResultRow(row) {
+                try {
+                  row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                } catch (eA0) {}
+                try {
+                  row.click();
+                } catch (eA1) {}
+                eaMouseClickCenter(row);
+                try {
+                  const rr = row.getBoundingClientRect();
+                  row.dispatchEvent(
+                    new MouseEvent('dblclick', {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      button: 0,
+                      buttons: 0,
+                      clientX: rr.left + rr.width / 2,
+                      clientY: rr.top + rr.height / 2,
+                    })
+                  );
+                } catch (eA2) {}
+              }
+
               function eaNormalizeSymbolMatch(s) {
                 let z = String(s || '')
                   .split('')
@@ -2637,18 +2760,125 @@ async function handleApi(request: Request): Promise<Response> {
                 let raw = String(cellText || '').trim();
                 const si = raw.indexOf('/');
                 if (si >= 0) raw = raw.substring(0, si);
+                const rawLow = raw.toLowerCase();
+                const wantLow = String(wanted || '').trim().toLowerCase();
+                if (wantLow && rawLow === wantLow) return true;
+                if (wantLow && wantLow.length >= 4 && rawLow.indexOf(wantLow) >= 0) return true;
                 const a = eaNormalizeSymbolMatch(raw);
                 const w = eaNormalizeSymbolMatch(wanted || '');
                 if (!w || a.length === 0) return false;
                 if (a === w) return true;
                 if (a.indexOf(w) === 0 || w.indexOf(a) === 0) return true;
                 if (w.length >= 3 && a.indexOf(w) >= 0) return true;
-                return raw.trim() === String(wanted).trim();
+                const words = wantLow.split(/[^a-z0-9]+/).filter((x) => x.length > 1);
+                if (words.length >= 2) {
+                  let ok = true;
+                  for (let wi = 0; wi < words.length; wi++) {
+                    if (words[wi].length < 2) continue;
+                    if (rawLow.indexOf(words[wi]) < 0) {
+                      ok = false;
+                      break;
+                    }
+                  }
+                  if (ok) return true;
+                }
+                return false;
+              }
+
+              function eaBuildSymbolSearchQueries(symbolName) {
+                const s = String(symbolName || '').trim();
+                const out = [];
+                function pushUnique(v) {
+                  const t = String(v || '').trim();
+                  if (!t) return;
+                  for (let i = 0; i < out.length; i++) {
+                    if (out[i].toLowerCase() === t.toLowerCase()) return;
+                  }
+                  out.push(t);
+                }
+                pushUnique(s);
+                pushUnique(s.replace(/\s+/g, ' '));
+                const m = s.match(/^(.+?)\s+index$/i);
+                if (m) pushUnique(m[1].trim());
+                const parts = s.split(/\s+/).filter((p) => p.length > 0);
+                if (parts.length >= 3) pushUnique(parts.slice(0, -1).join(' '));
+                if (parts.length >= 2) pushUnique(parts.slice(0, 2).join(' '));
+                if (parts.length >= 1) pushUnique(parts[0]);
+                return out;
+              }
+
+              function eaFindLargestVisibleCanvas() {
+                const list = eaQuerySelectorAllDeep('canvas');
+                let best = null;
+                let bestArea = 0;
+                for (let i = 0; i < list.length; i++) {
+                  const c = list[i];
+                  if (!c || !c.offsetParent) continue;
+                  const r = c.getBoundingClientRect();
+                  if (r.width < 44 || r.height < 36) continue;
+                  if (r.bottom < -30 || r.top > (window.innerHeight || 0) + 40) continue;
+                  const area = (c.width || 0) * (c.height || 0);
+                  if (area > bestArea) {
+                    bestArea = area;
+                    best = c;
+                  }
+                }
+                return bestArea >= 12000 ? best : null;
+              }
+              function eaHasTradeableChartCanvas() {
+                const c = eaFindLargestVisibleCanvas();
+                return !!(c && (c.width || 0) * (c.height || 0) >= 40000);
+              }
+              function eaVerifyChartShowsInstrument(wanted) {
+                if (!wanted) return false;
+                if (!eaHasTradeableChartCanvas()) return false;
+                try {
+                  const w = String(wanted).trim();
+                  const wl = w.toLowerCase();
+                  let blob = '';
+                  function grab(d) {
+                    if (!d || !d.body) return;
+                    blob += '\n' + (d.body.innerText || '');
+                    const fr = d.querySelectorAll('iframe');
+                    for (let gi = 0; gi < fr.length; gi++) {
+                      try {
+                        if (fr[gi].contentDocument) grab(fr[gi].contentDocument);
+                      } catch (eG) {}
+                    }
+                  }
+                  grab(document);
+                  try {
+                    blob += '\n' + (document.title || '');
+                  } catch (eT) {}
+                  const lines = blob.split(/[\r\n]+/);
+                  for (let li = 0; li < lines.length; li++) {
+                    const line = lines[li].trim();
+                    if (line.length < 3 || line.length > 160) continue;
+                    if (eaRowTextMatchesInstrument(line, w)) return true;
+                  }
+                  if (
+                    wl.length >= 4 &&
+                    blob.toLowerCase().indexOf(wl) >= 0 &&
+                    /\b[Bb]id\b/.test(blob) &&
+                    /\b[Aa]sk\b/.test(blob)
+                  )
+                    return true;
+                  const selNodes = eaQuerySelectorAllDeep('[aria-selected="true"], tr[aria-selected="true"], [class*="selected"]');
+                  for (let si = 0; si < Math.min(selNodes.length, 40); si++) {
+                    const st = (selNodes[si].innerText || selNodes[si].textContent || '').trim();
+                    if (st.length > 180) continue;
+                    if (st && eaRowTextMatchesInstrument(st, w)) return true;
+                  }
+                } catch (e3) {}
+                return false;
               }
 
               async function eaSelectSearchResultToOpenChart(symbolName, searchField) {
-                const sfBottom = searchField.getBoundingClientRect().bottom;
-                const deadlineMs = Date.now() + 12000;
+                let sfBottom = 0;
+                try {
+                  sfBottom = searchField.getBoundingClientRect().bottom;
+                } catch (eSf) {}
+                const deadlineMs = Date.now() + 18000;
                 while (Date.now() < deadlineMs) {
                   const seen = new WeakSet();
                   const selectorList = [
@@ -2664,7 +2894,7 @@ async function handleApi(request: Request): Promise<Response> {
                   for (let si = 0; si < selectorList.length; si++) {
                     let nodes = [];
                     try {
-                      nodes = document.querySelectorAll(selectorList[si]);
+                      nodes = eaQuerySelectorAllDeep(selectorList[si]);
                     } catch (e0) {
                       nodes = [];
                     }
@@ -2673,7 +2903,7 @@ async function handleApi(request: Request): Promise<Response> {
                       if (!el || !el.offsetParent || seen.has(el)) continue;
                       seen.add(el);
                       const t = (el.innerText || el.textContent || '').trim();
-                      if (!t || t.length > 48) continue;
+                      if (!t || t.length > 120) continue;
                       if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
                       let row =
                         el.closest('[role="option"]') ||
@@ -2681,46 +2911,42 @@ async function handleApi(request: Request): Promise<Response> {
                         el.closest('li') ||
                         el.closest('div[class*="row"]') ||
                         el;
-                      try {
-                        row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                      } catch (e1) {}
-                      row.click();
-                      eaMouseClickCenter(row);
+                      eaActivateSearchResultRow(row);
                       sendMessage(
                         'symbol_selected',
                         'Symbol ' + symbolName + ' — search result clicked (instrument row)'
                       );
-                      await sleep(2300);
+                      await sleep(2400);
                       return true;
                     }
                   }
-                  const wide = document.querySelectorAll('[role="option"], tr, li, td, span, div');
-                  for (let ni = 0; ni < Math.min(wide.length, 380); ni++) {
-                    const el = wide[ni];
+                  let wideNodes = [];
+                  try {
+                    wideNodes = eaQuerySelectorAllDeep('[role="option"], tr, td, span, div, li');
+                  } catch (eW) {
+                    wideNodes = [];
+                  }
+                  for (let ni = 0; ni < Math.min(wideNodes.length, 620); ni++) {
+                    const el = wideNodes[ni];
                     if (!el || !el.offsetParent || seen.has(el)) continue;
                     seen.add(el);
                     const br = el.getBoundingClientRect();
-                    if (br.bottom < sfBottom - 6) continue;
-                    if (br.top > sfBottom + 470) continue;
-                    if (br.width < 10 || br.height < 8) continue;
+                    if (sfBottom > 10) {
+                      if (br.bottom < sfBottom - 4) continue;
+                      if (br.top > sfBottom + 620) continue;
+                    }
+                    if (br.width < 8 || br.height < 6) continue;
                     const t = (el.innerText || el.textContent || '').trim();
-                    if (!t || t.length < 3 || t.length > 42) continue;
+                    if (!t || t.length < 3 || t.length > 120) continue;
                     if (!/[A-Za-z]/.test(t)) continue;
                     if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
                     let row = el.closest('[role="option"]') || el.closest('tr') || el.closest('li') || el;
-                    try {
-                      row.scrollIntoView({ block: 'nearest' });
-                    } catch (e2) {}
-                    row.click();
-                    eaMouseClickCenter(row);
-                    sendMessage(
-                      'symbol_selected',
-                      'Symbol ' + symbolName + ' — search match (near search field)'
-                    );
-                    await sleep(2300);
+                    eaActivateSearchResultRow(row);
+                    sendMessage('symbol_selected', 'Symbol ' + symbolName + ' — search match (deep DOM)');
+                    await sleep(2400);
                     return true;
                   }
-                  await sleep(340);
+                  await sleep(380);
                 }
                 try {
                   sendMessage('step_update', 'Trying ArrowDown + Enter on search (fallback)');
@@ -2734,7 +2960,7 @@ async function handleApi(request: Request): Promise<Response> {
                       cancelable: true,
                     })
                   );
-                  await sleep(280);
+                  await sleep(300);
                   searchField.dispatchEvent(
                     new KeyboardEvent('keydown', {
                       key: 'Enter',
@@ -2744,7 +2970,7 @@ async function handleApi(request: Request): Promise<Response> {
                       cancelable: true,
                     })
                   );
-                  await sleep(1600);
+                  await sleep(1800);
                   return true;
                 } catch (e3) {}
                 return false;
@@ -2776,7 +3002,10 @@ async function handleApi(request: Request): Promise<Response> {
                                 document.querySelector('input[placeholder*="Search" i]') ||
                                 document.querySelector('input[type="search"]');
                   }
-                  
+                  if (!searchField || searchField.offsetParent === null) {
+                    searchField = eaPickVisibleSearchInputDeep();
+                  }
+
                   if (!searchField || searchField.offsetParent === null) {
                     sendMessage('step_update', 'Expanding search bar using Economic Calendar button...');
                     
@@ -2832,38 +3061,21 @@ async function handleApi(request: Request): Promise<Response> {
                   }
                   
                   if (searchField && searchField.offsetParent !== null) {
-                    sendMessage('step_update', 'Search bar found, searching for ' + symbolName + '...');
-
-                    searchField.focus();
-                    try {
-                      const wantSym = symbolName == null ? '' : String(symbolName);
-                      const descV = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
-                      const nativeSet = descV && descV.set;
-                      searchField.value = '';
-                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                      searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                      if (nativeSet) nativeSet.call(searchField, wantSym);
-                      else searchField.value = wantSym;
-                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                      searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                      searchField.dispatchEvent(
-                        new KeyboardEvent('keyup', {
-                          key: 'Enter',
-                          code: 'Enter',
-                          keyCode: 13,
-                          bubbles: true,
-                        })
+                    sendMessage('step_update', 'Search bar found — resolving symbol (incl. indexes / synthetics)...');
+                    const queries = eaBuildSymbolSearchQueries(symbolName);
+                    let symbolSelected = false;
+                    for (let qi = 0; qi < queries.length; qi++) {
+                      sendMessage(
+                        'step_update',
+                        'Search try ' + (qi + 1) + '/' + queries.length + ': "' + queries[qi] + '"'
                       );
-                    } catch (eFill) {
-                      searchField.value = symbolName;
-                      searchField.dispatchEvent(new Event('input', { bubbles: true }));
+                      eaSetInputValueForSearch(searchField, queries[qi]);
+                      await sleep(650 + qi * 180);
+                      sendMessage('symbol_search', 'Symbol query: ' + queries[qi]);
+                      symbolSelected = await eaSelectSearchResultToOpenChart(symbolName, searchField);
+                      if (symbolSelected) break;
+                      await sleep(420);
                     }
-
-                    await sleep(450);
-
-                    sendMessage('symbol_search', 'Symbol ' + symbolName + ' searched');
-
-                    const symbolSelected = await eaSelectSearchResultToOpenChart(symbolName, searchField);
 
                     if (symbolSelected) {
                       await acceptDisclaimersAndConfirmDeep();
@@ -2872,12 +3084,14 @@ async function handleApi(request: Request): Promise<Response> {
                       await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
                       await closeSearchPanelAfterSymbolSelect();
+                      return true;
                     } else {
                       sendMessage(
                         'error',
-                        'Symbol ' + symbolName + ' — search result row was not clicked; chart may be wrong instrument'
+                        'Symbol ' + symbolName + ' — no matching search row; indexes need exact broker name spelling'
                       );
                       await closeSearchPanelAfterSymbolSelect();
+                      return false;
                     }
                    } else {
                     sendMessage('error', 'Search field not found or not visible after expanding');
@@ -2885,47 +3099,60 @@ async function handleApi(request: Request): Promise<Response> {
                 } catch(e) {
                   sendMessage('error', 'Error searching for symbol: ' + e.message);
                 }
+                return false;
               };
 
               // Open chart function - STRICTLY SEQUENTIAL Step 3
               const openChart = async (symbolName) => {
                 try {
                   sendMessage('step_update', 'Step 3: Opening chart for ' + symbolName + '...');
-                  
-                  await sleep(2000);
-                  
-                  let chartElement = null;
+
+                  await sleep(1600);
+
+                  let chartElement = eaFindLargestVisibleCanvas();
                   let retries = 0;
-                  while (retries < 5) {
-                    chartElement = document.querySelector('[class*="chart"]') ||
-                                  document.querySelector('canvas') ||
-                                  document.querySelector('[id*="chart"]') ||
-                                  document.querySelector('[class*="Chart"]');
-                    
+                  while (retries < 8 && !chartElement) {
+                    chartElement =
+                      document.querySelector('[class*="chart"]') ||
+                      document.querySelector('canvas') ||
+                      document.querySelector('[id*="chart"]') ||
+                      document.querySelector('[class*="Chart"]') ||
+                      eaFindLargestVisibleCanvas();
+                    if (chartElement && chartElement.tagName && String(chartElement.tagName).toUpperCase() !== 'CANVAS') {
+                      chartElement = eaFindLargestVisibleCanvas() || chartElement;
+                    }
                     if (chartElement) {
                       sendMessage('step_update', 'Chart opened for ' + symbolName);
                       break;
                     }
-                    await sleep(500);
+                    await sleep(450);
                     retries++;
                   }
-                  
-                  await sleep(1000);
-                  
+
+                  await sleep(900);
+
+                  let chartContainer = null;
                   if (chartElement) {
                     sendMessage('step_update', 'Focusing on chart...');
-                    chartElement.focus();
-                    chartElement.click();
-                    await sleep(500);
+                    try {
+                      chartElement.focus();
+                    } catch (ef) {}
+                    try {
+                      chartElement.click();
+                    } catch (ec) {}
+                    eaMouseClickCenter(chartElement);
+                    await sleep(480);
                     sendMessage('step_update', 'Chart focused');
                   } else {
-                    const chartContainer = document.querySelector('[class*="chart-container"]') ||
-                                          document.querySelector('[class*="trading-chart"]') ||
-                                          document.querySelector('div[class*="chart"]');
+                    chartContainer =
+                      document.querySelector('[class*="chart-container"]') ||
+                      document.querySelector('[class*="trading-chart"]') ||
+                      document.querySelector('div[class*="chart"]');
                     if (chartContainer) {
                       chartContainer.focus();
                       chartContainer.click();
-                      await sleep(500);
+                      eaMouseClickCenter(chartContainer);
+                      await sleep(480);
                       sendMessage('step_update', 'Chart container focused');
                     }
                   }
@@ -2956,10 +3183,39 @@ async function handleApi(request: Request): Promise<Response> {
                   sendMessage('step_update', 'Closing search panel after chart open...');
                   await closeSearchPanelAfterSymbolSelect();
                   await sleep(600);
-                } catch(e) {
+                  return !!(eaFindLargestVisibleCanvas() || chartElement || chartContainer);
+                } catch (e) {
                   sendMessage('error', 'Error opening chart: ' + e.message);
+                  return false;
                 }
               };
+
+              async function ensureChartOpenForSymbol(symbolName) {
+                const sym = String(symbolName || '').trim();
+                if (!sym) return false;
+                const maxRounds = 16;
+                const baseDelay = 600;
+                for (let r = 0; r < maxRounds; r++) {
+                  sendMessage(
+                    'step_update',
+                    'Ensuring chart for ' + sym + ' (round ' + (r + 1) + '/' + maxRounds + ')...'
+                  );
+                  await searchForSymbol(sym);
+                  await openChart(sym);
+                  await sleep(baseDelay + r * 200);
+                  if (eaVerifyChartShowsInstrument(sym)) {
+                    sendMessage('step_update', 'Chart verified for ' + sym + ' after ' + (r + 1) + ' round(s)');
+                    return true;
+                  }
+                  sendMessage('step_update', 'Chart not verified for ' + sym + ' — retrying search/select...');
+                  await sleep(450 + r * 90);
+                }
+                sendMessage(
+                  'error',
+                  'Could not open/verify chart for ' + sym + ' after ' + maxRounds + ' attempts'
+                );
+                return false;
+              }
 
               // Helper function to simulate mouse click
               const mouseClick = (element) => {

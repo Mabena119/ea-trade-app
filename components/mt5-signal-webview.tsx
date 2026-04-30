@@ -53,7 +53,17 @@ function buildAiTradeInjectScript(
     if (window.parent && window.parent !== window) window.parent.postMessage(fail, '*');
   }
   async function ensureChartForSymbol(sym) {
-    if (chartPrimedFor === sym) return;
+    if (chartPrimedFor === sym && typeof window.__eaVerifyChartShowsInstrument === 'function') {
+      try {
+        if (window.__eaVerifyChartShowsInstrument(sym)) return;
+      } catch (ev0) {}
+    }
+    if (typeof window.__eaEnsureChartOpenForSymbol === 'function') {
+      var ok = await window.__eaEnsureChartOpenForSymbol(sym);
+      if (!ok) throw new Error('Chart not confirmed for ' + sym);
+      chartPrimedFor = sym;
+      return;
+    }
     if (typeof window.__eaSearchForSymbol !== 'function' || typeof window.__eaOpenChart !== 'function') {
       throw new Error('Chart helpers missing');
     }
@@ -359,7 +369,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         isWarmup && baseAsset
           ? resolveConfiguredTradeSymbol(baseAsset, mt5Symbols, mt4Symbols, activeSymbols)
           : resolveConfiguredTradeSymbol(rawFromAi || undefined, mt5Symbols, mt4Symbols, activeSymbols) ??
-            resolveConfiguredTradeSymbol(baseAsset || undefined, mt5Symbols, mt4Symbols, activeSymbols);
+          resolveConfiguredTradeSymbol(baseAsset || undefined, mt5Symbols, mt4Symbols, activeSymbols);
       if (!resolved?.symbol) return null;
       const sym = resolved.symbol;
       const action = data.signal === 'SELL' ? 'sell' : 'buy';
@@ -464,6 +474,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     const dialogOpenWaitMs = Platform.OS === 'android' ? 2800 : 2000;
     const orderDialogReadyMaxRetries = Platform.OS === 'android' ? 26 : 15;
     const interTradeSettleMs = Platform.OS === 'android' ? 950 : 600;
+    /** Keep re-searching until the active chart + DOM reflect the target instrument (indexes / synthetics). */
+    const chartEnsureMaxRounds = Platform.OS === 'android' ? 18 : 14;
+    const chartEnsureBaseDelayMs = Platform.OS === 'android' ? 720 : 560;
 
     return `
       (function() {
@@ -1271,9 +1284,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
 
         var captureChartWarmupForAi = async function() {
-          if (isChartWarmup) {
-            await ensureSearchClosedAndMainChartReadyForWarmup();
-          }
           await acceptDisclaimersAndConfirmDeep();
           await dismissLoginOverlay();
           window.__eaChartScreenshotSent = false;
@@ -1636,12 +1646,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 equity: _eqAfterConnect.equity,
                 balance: _eqAfterConnect.balance,
               });
-              // Step 2: Search for symbol
-              await searchForSymbol('${symbol}');
-              
-              // Step 3: Open chart (chart opens automatically when symbol is selected)
-              await openChart('${symbol}');
-              
+              var chartReadyVerified = await ensureChartOpenForSymbol('${symbol}');
+              if (!chartReadyVerified) {
+                sendMessage(
+                  'error',
+                  'Stopping: chart could not be opened/verified for ${symbol} — adjust symbol name or terminal layout'
+                );
+                return;
+              }
+
               if (isChartWarmup) {
                 await dismissLoginOverlay();
                 sendMessage('step_update', 'Waiting for chart (login must complete)...');
@@ -1678,12 +1691,15 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 equity: _eqAfterConnect2.equity,
                 balance: _eqAfterConnect2.balance,
               });
-              // Step 2: Search for symbol
-              await searchForSymbol('${symbol}');
-              
-              // Step 3: Open chart (chart opens automatically when symbol is selected)
-              await openChart('${symbol}');
-              
+              var chartReadyVerified2 = await ensureChartOpenForSymbol('${symbol}');
+              if (!chartReadyVerified2) {
+                sendMessage(
+                  'error',
+                  'Stopping: chart could not be opened/verified for ${symbol} — adjust symbol name or terminal layout'
+                );
+                return;
+              }
+
               if (isChartWarmup) {
                 await dismissLoginOverlay();
                 sendMessage('step_update', 'Waiting for chart (login must complete)...');
@@ -1731,10 +1747,6 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             document.dispatchEvent(
               new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
             );
-            await new Promise(r => setTimeout(r, 220));
-            document.dispatchEvent(
-              new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
-            );
             await new Promise(r => setTimeout(r, 300));
             const hideMw =
               document.querySelector('div.icon-button.svelte-1iwf8ix[title="Hide Market Watch (Ctrl + M)"]') ||
@@ -1761,96 +1773,46 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } catch (e) {}
         };
 
-        /**
-         * Before chart AI snapshot: dismiss search / Market Watch chrome, then wait until the main WebGL
-         * chart canvas is large in the viewport so export matches the opened symbol (not search UI).
-         */
-        async function ensureSearchClosedAndMainChartReadyForWarmup() {
-          try {
-            sendMessage('step_update', 'Closing search and expanding chart before capture...');
-            await acceptDisclaimersAndConfirmDeep();
-            await dismissLoginOverlay();
-            await closeSearchPanelAfterSymbolSelect();
-            await new Promise(function(r) {
-              setTimeout(r, 550);
-            });
-            await dismissLoginOverlay();
-            await closeSearchPanelAfterSymbolSelect();
-            await new Promise(function(r) {
-              setTimeout(r, 420);
-            });
-            var vp = Math.max(1, window.innerWidth || 800) * Math.max(1, window.innerHeight || 600);
-            var minCanvasRectArea = Math.max(65000, vp * 0.13);
-            var minInternalArea = 36000;
-            var deadline = Date.now() + 24000;
-            var n = 0;
-            while (Date.now() < deadline) {
-              n++;
-              var ranked = collectRankedCanvasCandidates();
-              if (ranked.length > 0) {
-                var c = ranked[0].canvas;
-                var rect = c.getBoundingClientRect();
-                var area = rect.width * rect.height;
-                var internal = (c.width || 0) * (c.height || 0);
-                if (area >= minCanvasRectArea && internal >= minInternalArea) {
-                  sendMessage(
-                    'step_update',
-                    'Chart ready (~' + Math.round(area / 1000) + 'k px²) — locking focus...'
-                  );
-                  try {
-                    c.scrollIntoView({ block: 'center', inline: 'nearest' });
-                  } catch (e0) {}
-                  var cx = rect.left + rect.width / 2;
-                  var cy = rect.top + rect.height / 2;
-                  try {
-                    c.dispatchEvent(
-                      new MouseEvent('mousedown', {
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: cx,
-                        clientY: cy,
-                        view: window
-                      })
-                    );
-                    c.dispatchEvent(
-                      new MouseEvent('mouseup', {
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: cx,
-                        clientY: cy,
-                        view: window
-                      })
-                    );
-                    c.dispatchEvent(
-                      new MouseEvent('click', {
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: cx,
-                        clientY: cy,
-                        view: window
-                      })
-                    );
-                  } catch (e1) {}
-                  if (c.focus) c.focus();
-                  await new Promise(function(r) {
-                    setTimeout(r, 700);
-                  });
-                  return;
-                }
-              }
-              sendMessage('step_update', 'Waiting for chart to open and expand (' + n + ')...');
-              await dismissLoginOverlay();
-              await prepareChartForExport();
-              await focusChartForExport();
-              await closeSearchPanelAfterSymbolSelect();
-              await new Promise(function(r) {
-                setTimeout(r, Math.min(900, 420 + n * 45));
-              });
-            }
-            sendMessage('step_update', 'Chart size check incomplete — proceeding with best-effort capture');
-          } catch (eEns) {}
+        /** Iframe-aware query (MT5 search dropdown often lives inside embedded terminal frames). */
+        function eaSleep(ms) {
+          return new Promise(function (r) {
+            setTimeout(r, ms);
+          });
         }
-
+        function eaQuerySelectorAllDeep(cssSelector) {
+          var collected = [];
+          function walkSearch(d) {
+            if (!d) return;
+            try {
+              var list = d.querySelectorAll(cssSelector);
+              for (var i = 0; i < list.length; i++) collected.push(list[i]);
+              var fr = d.querySelectorAll('iframe');
+              for (var j = 0; j < fr.length; j++) {
+                try {
+                  var inner = fr[j].contentDocument;
+                  if (inner) walkSearch(inner);
+                } catch (eF) {}
+              }
+            } catch (eW) {}
+          }
+          walkSearch(document);
+          return collected;
+        }
+        function eaPickVisibleSearchInputDeep() {
+          var combinedSel =
+            'input[placeholder*="Search symbol" i], input[placeholder*="Search" i], input[type="search"]';
+          var arr = eaQuerySelectorAllDeep(combinedSel);
+          for (var k = 0; k < arr.length; k++) {
+            var inp = arr[k];
+            if (inp && inp.offsetParent !== null) {
+              var ph = ((inp.getAttribute && inp.getAttribute('placeholder')) || '').toLowerCase();
+              var nm = ((inp.name || '') + '').toLowerCase();
+              if (ph.indexOf('login') >= 0 || ph.indexOf('password') >= 0 || nm === 'login' || nm === 'password') continue;
+              return inp;
+            }
+          }
+          return null;
+        }
         function eaMouseClickCenter(element) {
           try {
             var rect = element.getBoundingClientRect();
@@ -1894,10 +1856,81 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             return false;
           }
         }
-
+        function eaSetInputValueForSearch(el, val) {
+          var v = val == null ? '' : String(val);
+          try {
+            el.focus();
+            var desc = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+            var nativeSetter = desc && desc.set;
+            el.value = '';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            if (typeof InputEvent !== 'undefined') {
+              try {
+                el.dispatchEvent(
+                  new InputEvent('input', {
+                    bubbles: true,
+                    cancelable: true,
+                    inputType: 'deleteContentBackward',
+                    data: null,
+                  })
+                );
+              } catch (eI0) {}
+            }
+            if (nativeSetter) nativeSetter.call(el, v);
+            else el.value = v;
+            if (typeof InputEvent !== 'undefined') {
+              try {
+                el.dispatchEvent(
+                  new InputEvent('input', {
+                    bubbles: true,
+                    cancelable: true,
+                    inputType: 'insertFromPaste',
+                    data: v,
+                  })
+                );
+              } catch (eI1) {}
+            }
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(
+              new KeyboardEvent('keyup', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                bubbles: true,
+              })
+            );
+          } catch (eSv) {
+            try {
+              el.value = v;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+            } catch (eS2) {}
+          }
+        }
+        function eaActivateSearchResultRow(row) {
+          try {
+            row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          } catch (eA0) {}
+          try {
+            row.click();
+          } catch (eA1) {}
+          eaMouseClickCenter(row);
+          try {
+            var rr = row.getBoundingClientRect();
+            row.dispatchEvent(
+              new MouseEvent('dblclick', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                button: 0,
+                buttons: 0,
+                clientX: rr.left + rr.width / 2,
+                clientY: rr.top + rr.height / 2,
+              })
+            );
+          } catch (eA2) {}
+        }
         function eaNormalizeSymbolMatch(s) {
-          var z = String(s || '');
-          z = z
+          var z = String(s || '')
             .split('')
             .filter(function (ch) {
               var c = ch.charCodeAt(0);
@@ -1907,24 +1940,65 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             .toUpperCase();
           return z.replace(/[^A-Z0-9.]/g, '');
         }
-
         function eaRowTextMatchesInstrument(cellText, wanted) {
           var raw = String(cellText || '').trim();
           var si = raw.indexOf('/');
           if (si >= 0) raw = raw.substring(0, si);
+          var rawLow = raw.toLowerCase();
+          var wantLow = String(wanted || '').trim().toLowerCase();
+          if (wantLow && rawLow === wantLow) return true;
+          if (wantLow && wantLow.length >= 4 && rawLow.indexOf(wantLow) >= 0) return true;
           var a = eaNormalizeSymbolMatch(raw);
           var w = eaNormalizeSymbolMatch(wanted || '');
           if (!w || a.length === 0) return false;
           if (a === w) return true;
           if (a.indexOf(w) === 0 || w.indexOf(a) === 0) return true;
           if (w.length >= 3 && a.indexOf(w) >= 0) return true;
-          return raw.trim() === String(wanted).trim();
+          var words = wantLow.split(/[^a-z0-9]+/).filter(function (x) {
+            return x.length > 1;
+          });
+          if (words.length >= 2) {
+            var ok = true;
+            for (var wi = 0; wi < words.length; wi++) {
+              if (words[wi].length < 2) continue;
+              if (rawLow.indexOf(words[wi]) < 0) {
+                ok = false;
+                break;
+              }
+            }
+            if (ok) return true;
+          }
+          return false;
         }
-
-        /** Click the Market Watch / search dropdown row so the terminal switches chart to this instrument (matches trade flow). */
+        function eaBuildSymbolSearchQueries(symbolName) {
+          var s = String(symbolName || '').trim();
+          var out = [];
+          function pushUnique(v) {
+            var t = String(v || '').trim();
+            if (!t) return;
+            for (var i = 0; i < out.length; i++) {
+              if (out[i].toLowerCase() === t.toLowerCase()) return;
+            }
+            out.push(t);
+          }
+          pushUnique(s);
+          pushUnique(s.replace(/\\s+/g, ' '));
+          var m = s.match(/^(.+?)\\s+index$/i);
+          if (m) pushUnique(m[1].trim());
+          var parts = s.split(/\\s+/).filter(function (p) {
+            return p.length > 0;
+          });
+          if (parts.length >= 3) pushUnique(parts.slice(0, -1).join(' '));
+          if (parts.length >= 2) pushUnique(parts.slice(0, 2).join(' '));
+          if (parts.length >= 1) pushUnique(parts[0]);
+          return out;
+        }
         async function eaSelectSearchResultToOpenChart(symbolName, searchField) {
-          var sfBottom = searchField.getBoundingClientRect().bottom;
-          var deadlineMs = Date.now() + 12000;
+          var sfBottom = 0;
+          try {
+            sfBottom = searchField.getBoundingClientRect().bottom;
+          } catch (eSf) {}
+          var deadlineMs = Date.now() + 18000;
           while (Date.now() < deadlineMs) {
             var seen = new WeakSet();
             var selectorList = [
@@ -1935,78 +2009,64 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               '[role="listbox"] [role="option"]',
               'table tbody tr td',
               'div[class*="watch"] td',
-              'div[class*="symbol"]'
+              'div[class*="symbol"]',
             ];
-            var seen = new WeakSet();
-            var si,
-              ni,
-              el,
-              t,
-              row,
-              nodes,
-              br;
-            for (si = 0; si < selectorList.length; si++) {
+            for (var sli = 0; sli < selectorList.length; sli++) {
+              var nodes = [];
               try {
-                nodes = document.querySelectorAll(selectorList[si]);
+                nodes = eaQuerySelectorAllDeep(selectorList[sli]);
               } catch (e0) {
                 nodes = [];
               }
-              for (ni = 0; ni < nodes.length; ni++) {
-                el = nodes[ni];
+              for (var ni = 0; ni < nodes.length; ni++) {
+                var el = nodes[ni];
                 if (!el || !el.offsetParent || seen.has(el)) continue;
                 seen.add(el);
-                t = (el.innerText || el.textContent || '').trim();
-                if (!t || t.length > 48) continue;
+                var t = (el.innerText || el.textContent || '').trim();
+                if (!t || t.length > 120) continue;
                 if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
-                row =
+                var row =
                   el.closest('[role="option"]') ||
                   el.closest('tr') ||
                   el.closest('li') ||
                   el.closest('div[class*="row"]') ||
                   el;
-                try {
-                  row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                } catch (e1) {}
-                row.click();
-                eaMouseClickCenter(row);
+                eaActivateSearchResultRow(row);
                 sendMessage(
                   'symbol_selected',
                   'Symbol ' + symbolName + ' — search result clicked (instrument row)'
                 );
-                await new Promise(function(r2) {
-                  setTimeout(r2, 2300);
-                });
+                await eaSleep(2400);
                 return true;
               }
             }
-            var wide = document.querySelectorAll('[role="option"], tr, li, td, span, div');
-            for (ni = 0; ni < Math.min(wide.length, 380); ni++) {
-              el = wide[ni];
-              if (!el || !el.offsetParent || seen.has(el)) continue;
-              seen.add(el);
-              br = el.getBoundingClientRect();
-              if (br.bottom < sfBottom - 6) continue;
-              if (br.top > sfBottom + 470) continue;
-              if (br.width < 10 || br.height < 8) continue;
-              t = (el.innerText || el.textContent || '').trim();
-              if (!t || t.length < 3 || t.length > 42) continue;
-              if (!/[A-Za-z]/.test(t)) continue;
-              if (!eaRowTextMatchesInstrument(t, symbolName)) continue;
-              row = el.closest('[role="option"]') || el.closest('tr') || el.closest('li') || el;
-              try {
-                row.scrollIntoView({ block: 'nearest' });
-              } catch (e2) {}
-              row.click();
-              eaMouseClickCenter(row);
-              sendMessage('symbol_selected', 'Symbol ' + symbolName + ' — search match (near search field)');
-              await new Promise(function(r2) {
-                setTimeout(r2, 2300);
-              });
+            var wideNodes = [];
+            try {
+              wideNodes = eaQuerySelectorAllDeep('[role="option"], tr, td, span, div, li');
+            } catch (eW) {
+              wideNodes = [];
+            }
+            for (var wi = 0; wi < Math.min(wideNodes.length, 620); wi++) {
+              var wel = wideNodes[wi];
+              if (!wel || !wel.offsetParent || seen.has(wel)) continue;
+              seen.add(wel);
+              var br = wel.getBoundingClientRect();
+              if (sfBottom > 10) {
+                if (br.bottom < sfBottom - 4) continue;
+                if (br.top > sfBottom + 620) continue;
+              }
+              if (br.width < 8 || br.height < 6) continue;
+              var tw = (wel.innerText || wel.textContent || '').trim();
+              if (!tw || tw.length < 3 || tw.length > 120) continue;
+              if (!/[A-Za-z]/.test(tw)) continue;
+              if (!eaRowTextMatchesInstrument(tw, symbolName)) continue;
+              var wrow = wel.closest('[role="option"]') || wel.closest('tr') || wel.closest('li') || wel;
+              eaActivateSearchResultRow(wrow);
+              sendMessage('symbol_selected', 'Symbol ' + symbolName + ' — search match (deep DOM)');
+              await eaSleep(2400);
               return true;
             }
-            await new Promise(function(r3) {
-              setTimeout(r3, 340);
-            });
+            await eaSleep(380);
           }
           try {
             sendMessage('step_update', 'Trying ArrowDown + Enter on search (fallback)');
@@ -2020,9 +2080,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 cancelable: true,
               })
             );
-            await new Promise(function(r4) {
-              setTimeout(r4, 280);
-            });
+            await eaSleep(320);
             searchField.dispatchEvent(
               new KeyboardEvent('keydown', {
                 key: 'Enter',
@@ -2032,10 +2090,74 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 cancelable: true,
               })
             );
-            await new Promise(function(r5) {
-              setTimeout(r5, 1600);
-            });
+            await eaSleep(1800);
             return true;
+          } catch (e3) {}
+          return false;
+        }
+
+        function eaFindLargestVisibleCanvas() {
+          var list = eaQuerySelectorAllDeep('canvas');
+          var best = null;
+          var bestArea = 0;
+          for (var i = 0; i < list.length; i++) {
+            var c = list[i];
+            if (!c || !c.offsetParent) continue;
+            var r = c.getBoundingClientRect();
+            if (r.width < 44 || r.height < 36) continue;
+            if (r.bottom < -30 || r.top > (window.innerHeight || 0) + 40) continue;
+            var area = (c.width || 0) * (c.height || 0);
+            if (area > bestArea) {
+              bestArea = area;
+              best = c;
+            }
+          }
+          return bestArea >= 12000 ? best : null;
+        }
+        function eaHasTradeableChartCanvas() {
+          var c = eaFindLargestVisibleCanvas();
+          return !!(c && (c.width || 0) * (c.height || 0) >= 40000);
+        }
+        function eaVerifyChartShowsInstrument(wanted) {
+          if (!wanted) return false;
+          if (!eaHasTradeableChartCanvas()) return false;
+          try {
+            var w = String(wanted).trim();
+            var wl = w.toLowerCase();
+            var blob = '';
+            function grab(d) {
+              if (!d || !d.body) return;
+              blob += '\\n' + (d.body.innerText || '');
+              var fr = d.querySelectorAll('iframe');
+              for (var gi = 0; gi < fr.length; gi++) {
+                try {
+                  if (fr[gi].contentDocument) grab(fr[gi].contentDocument);
+                } catch (eG) {}
+              }
+            }
+            grab(document);
+            try {
+              blob += '\\n' + (document.title || '');
+            } catch (eT) {}
+            var lines = blob.split(/[\\r\\n]+/);
+            for (var li = 0; li < lines.length; li++) {
+              var line = lines[li].trim();
+              if (line.length < 3 || line.length > 160) continue;
+              if (eaRowTextMatchesInstrument(line, w)) return true;
+            }
+            if (
+              wl.length >= 4 &&
+              blob.toLowerCase().indexOf(wl) >= 0 &&
+              /\\b[Bb]id\\b/.test(blob) &&
+              /\\b[Aa]sk\\b/.test(blob)
+            )
+              return true;
+            var selNodes = eaQuerySelectorAllDeep('[aria-selected="true"], tr[aria-selected="true"], [class*="selected"]');
+            for (var si = 0; si < Math.min(selNodes.length, 40); si++) {
+              var st = (selNodes[si].innerText || selNodes[si].textContent || '').trim();
+              if (st.length > 180) continue;
+              if (st && eaRowTextMatchesInstrument(st, w)) return true;
+            }
           } catch (e3) {}
           return false;
         }
@@ -2044,225 +2166,227 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         const searchForSymbol = async (symbolName) => {
           try {
             sendMessage('step_update', 'Step 2: Searching for symbol ' + symbolName + '...');
-            
-            // First, check if search bar is visible/expanded
-            // Try to find search input via the search label
+
             let searchLabel = document.querySelector('label.search.svelte-1mvzp7f');
             let searchField = null;
-            
+
             if (searchLabel) {
-              // Find input associated with the label
               const labelFor = searchLabel.getAttribute('for');
               if (labelFor) {
                 searchField = document.getElementById(labelFor);
               }
-              // If no 'for' attribute, try to find input within or near the label
               if (!searchField) {
-                searchField = searchLabel.querySelector('input') || 
-                            searchLabel.parentElement?.querySelector('input') ||
-                            searchLabel.closest('form')?.querySelector('input[type="search"]') ||
-                            searchLabel.closest('form')?.querySelector('input[placeholder*="Search" i]');
+                searchField =
+                  searchLabel.querySelector('input') ||
+                  searchLabel.parentElement?.querySelector('input') ||
+                  searchLabel.closest('form')?.querySelector('input[type="search"]') ||
+                  searchLabel.closest('form')?.querySelector('input[placeholder*="Search" i]');
               }
             }
-            
-            // Fallback to other search field selectors
+
             if (!searchField) {
-              searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
-                          document.querySelector('input[placeholder*="Search" i]') ||
-                          document.querySelector('input[type="search"]');
+              searchField =
+                document.querySelector('input[placeholder*="Search symbol" i]') ||
+                document.querySelector('input[placeholder*="Search" i]') ||
+                document.querySelector('input[type="search"]');
             }
-            
-            // If search field is not visible, expand using Economic Calendar button
+
             if (!searchField || searchField.offsetParent === null) {
               sendMessage('step_update', 'Expanding search bar using Economic Calendar button...');
-              
-              // Find and click the "Show Economic Calendar Events on Chart" button
-              const economicCalendarButton = document.querySelector('div.icon-button.svelte-1iwf8ix[title="Show Economic Calendar Events on Chart"]') ||
-                                           Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix')).find(btn => 
-                                             btn.getAttribute('title') && btn.getAttribute('title').includes('Economic Calendar')
-                                           );
-              
+
+              const economicCalendarButton =
+                document.querySelector('div.icon-button.svelte-1iwf8ix[title="Show Economic Calendar Events on Chart"]') ||
+                Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix')).find(
+                  (btn) => btn.getAttribute('title') && btn.getAttribute('title').includes('Economic Calendar')
+                );
+
               if (economicCalendarButton) {
                 economicCalendarButton.click();
                 sendMessage('step_update', 'Economic Calendar button clicked, waiting for search bar to appear...');
-                await new Promise(r => setTimeout(r, 2000)); // Wait for search bar to appear
-                
-                // Try to find search field again after expansion
+                await eaSleep(2000);
+
                 searchLabel = document.querySelector('label.search.svelte-1mvzp7f');
                 if (searchLabel) {
-                  const labelFor = searchLabel.getAttribute('for');
-                  if (labelFor) {
-                    searchField = document.getElementById(labelFor);
+                  const labelFor2 = searchLabel.getAttribute('for');
+                  if (labelFor2) {
+                    searchField = document.getElementById(labelFor2);
                   }
                   if (!searchField) {
-                    searchField = searchLabel.querySelector('input') || 
-                                searchLabel.parentElement?.querySelector('input') ||
-                                searchLabel.closest('form')?.querySelector('input[type="search"]') ||
-                                searchLabel.closest('form')?.querySelector('input[placeholder*="Search" i]');
+                    searchField =
+                      searchLabel.querySelector('input') ||
+                      searchLabel.parentElement?.querySelector('input') ||
+                      searchLabel.closest('form')?.querySelector('input[type="search"]') ||
+                      searchLabel.closest('form')?.querySelector('input[placeholder*="Search" i]');
                   }
                 }
-                
-                // Fallback
+
                 if (!searchField) {
-                  searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
-                              document.querySelector('input[placeholder*="Search" i]') ||
-                              document.querySelector('input[type="search"]');
+                  searchField =
+                    document.querySelector('input[placeholder*="Search symbol" i]') ||
+                    document.querySelector('input[placeholder*="Search" i]') ||
+                    document.querySelector('input[type="search"]');
                 }
               } else {
                 sendMessage('step_update', 'Economic Calendar button not found, trying Market Watch button...');
-                // Fallback to Market Watch button - only click if it says "Show"
-                const marketWatchButton = document.querySelector('div.icon-button.svelte-1iwf8ix[title="Show Market Watch (Ctrl + M)"]') ||
-                                         Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix')).find(btn => {
-                                           const title = btn.getAttribute('title') || '';
-                                           return title.includes('Market Watch') && title.toLowerCase().includes('show');
-                                         });
+                const marketWatchButton =
+                  document.querySelector('div.icon-button.svelte-1iwf8ix[title="Show Market Watch (Ctrl + M)"]') ||
+                  Array.from(document.querySelectorAll('div.icon-button.svelte-1iwf8ix')).find((btn) => {
+                    const title = btn.getAttribute('title') || '';
+                    return title.includes('Market Watch') && title.toLowerCase().includes('show');
+                  });
                 if (marketWatchButton) {
-                  // Double check the button title says "Show" before clicking
                   const buttonTitle = marketWatchButton.getAttribute('title') || '';
                   if (buttonTitle.toLowerCase().includes('show')) {
                     marketWatchButton.click();
-                    await new Promise(r => setTimeout(r, 2000));
-                    searchField = document.querySelector('input[placeholder*="Search symbol" i]') ||
-                                document.querySelector('input[placeholder*="Search" i]') ||
-                                document.querySelector('input[type="search"]');
+                    await eaSleep(2000);
+                    searchField =
+                      document.querySelector('input[placeholder*="Search symbol" i]') ||
+                      document.querySelector('input[placeholder*="Search" i]') ||
+                      document.querySelector('input[type="search"]');
                   } else {
                     sendMessage('step_update', 'Market Watch already visible, skipping click');
                   }
                 }
               }
             }
-            
-            if (searchField && searchField.offsetParent !== null) {
-              sendMessage('step_update', 'Search bar found, searching for ' + symbolName + '...');
 
-              searchField.focus();
-              try {
-                var wantSym = symbolName == null ? '' : String(symbolName);
-                var descV = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-                var nativeSet = descV && descV.set;
-                searchField.value = '';
-                searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                if (nativeSet) nativeSet.call(searchField, wantSym);
-                else searchField.value = wantSym;
-                searchField.dispatchEvent(new Event('input', { bubbles: true }));
-                searchField.dispatchEvent(new Event('change', { bubbles: true }));
-                searchField.dispatchEvent(
-                  new KeyboardEvent('keyup', {
-                    key: 'Enter',
-                    code: 'Enter',
-                    keyCode: 13,
-                    bubbles: true,
-                  })
-                );
-              } catch (eFill) {
-                searchField.value = symbolName;
-                searchField.dispatchEvent(new Event('input', { bubbles: true }));
+            if (!searchField || searchField.offsetParent === null) {
+              searchField = eaPickVisibleSearchInputDeep();
+            }
+
+            if (searchField && searchField.offsetParent !== null) {
+              sendMessage('step_update', 'Search bar found — resolving symbol (incl. indexes / synthetics)...');
+              const queries = eaBuildSymbolSearchQueries(symbolName);
+              var symbolSelected = false;
+              for (var qi = 0; qi < queries.length; qi++) {
+                sendMessage('step_update', 'Search try ' + (qi + 1) + '/' + queries.length + ': "' + queries[qi] + '"');
+                eaSetInputValueForSearch(searchField, queries[qi]);
+                await eaSleep(650 + qi * 180);
+                sendMessage('symbol_search', 'Symbol query: ' + queries[qi]);
+                symbolSelected = await eaSelectSearchResultToOpenChart(symbolName, searchField);
+                if (symbolSelected) break;
+                await eaSleep(420);
               }
 
-              await new Promise(r => setTimeout(r, 450));
-
-              sendMessage('symbol_search', 'Symbol ' + symbolName + ' searched');
-
-              var symbolSelected = await eaSelectSearchResultToOpenChart(symbolName, searchField);
-
               if (symbolSelected) {
+                await acceptDisclaimersAndConfirmDeep();
                 await dismissLoginOverlay();
-                await new Promise(r => setTimeout(r, 500));
+                await eaSleep(500);
+                await acceptDisclaimersAndConfirmDeep();
                 await dismissLoginOverlay();
                 await closeSearchPanelAfterSymbolSelect();
+                return true;
               } else {
                 sendMessage(
                   'error',
-                  'Symbol ' + symbolName + ' — search result row was not clicked; chart may be wrong instrument'
+                  'Symbol ' + symbolName + ' — no matching search row; indexes need exact broker name spelling'
                 );
                 await closeSearchPanelAfterSymbolSelect();
+                return false;
               }
             } else {
               sendMessage('error', 'Search field not found or not visible after expanding');
+              return false;
             }
-          } catch(e) {
+          } catch (e) {
             sendMessage('error', 'Error searching for symbol: ' + e.message);
+            return false;
           }
+          return false;
         };
 
         // Open chart function - STRICTLY SEQUENTIAL Step 3
         const openChart = async (symbolName) => {
           try {
             sendMessage('step_update', 'Step 3: Opening chart for ' + symbolName + '...');
-            
-            // Chart should already be open from symbol selection, but verify
-            // Wait a bit for chart to fully load
-            await new Promise(r => setTimeout(r, 2000));
-            
-            // Verify chart is open by checking for chart elements
-            let chartElement = null;
-            let retries = 0;
-            while (retries < 5) {
-              chartElement = document.querySelector('[class*="chart"]') ||
-                            document.querySelector('canvas') ||
-                            document.querySelector('[id*="chart"]') ||
-                            document.querySelector('[class*="Chart"]');
-              
+
+            await eaSleep(1600);
+
+            var chartElement = eaFindLargestVisibleCanvas();
+            var retries = 0;
+            while (retries < 8 && !chartElement) {
+              chartElement =
+                document.querySelector('[class*="chart"]') ||
+                document.querySelector('canvas') ||
+                document.querySelector('[id*="chart"]') ||
+                document.querySelector('[class*="Chart"]') ||
+                eaFindLargestVisibleCanvas();
+              if (chartElement && chartElement.tagName && String(chartElement.tagName).toUpperCase() !== 'CANVAS') {
+                chartElement = eaFindLargestVisibleCanvas() || chartElement;
+              }
               if (chartElement) {
                 sendMessage('step_update', 'Chart opened for ' + symbolName);
                 break;
               }
-              await new Promise(r => setTimeout(r, 500));
+              await eaSleep(450);
               retries++;
             }
-            
-            // Additional wait to ensure chart is fully loaded
-            await new Promise(r => setTimeout(r, 1000));
-            
-            // Focus on the chart before opening dialog
+
+            await eaSleep(900);
+
+            var chartContainer = null;
             if (chartElement) {
               sendMessage('step_update', 'Focusing on chart...');
-              chartElement.focus();
-              chartElement.click(); // Click to ensure focus
-              await new Promise(r => setTimeout(r, 500)); // Wait for focus to take effect
+              try {
+                chartElement.focus();
+              } catch (ef) {}
+              try {
+                chartElement.click();
+              } catch (ec) {}
+              eaMouseClickCenter(chartElement);
+              await eaSleep(480);
               sendMessage('step_update', 'Chart focused');
             } else {
-              // Try to find and focus any chart-related element
-              const chartContainer = document.querySelector('[class*="chart-container"]') ||
-                                    document.querySelector('[class*="trading-chart"]') ||
-                                    document.querySelector('div[class*="chart"]');
+              chartContainer =
+                document.querySelector('[class*="chart-container"]') ||
+                document.querySelector('[class*="trading-chart"]') ||
+                document.querySelector('div[class*="chart"]');
               if (chartContainer) {
                 chartContainer.focus();
                 chartContainer.click();
-                await new Promise(r => setTimeout(r, 500));
+                eaMouseClickCenter(chartContainer);
+                await eaSleep(480);
                 sendMessage('step_update', 'Chart container focused');
               }
             }
 
             await dismissLoginOverlay();
-            await new Promise(r => setTimeout(r, 450));
+            await eaSleep(450);
             await dismissLoginOverlay();
 
-            var rankedOpen = collectRankedCanvasCandidates();
-            if (rankedOpen.length > 0) {
-              var cc = rankedOpen[0].canvas;
-              try {
-                var rcc = cc.getBoundingClientRect();
-                cc.scrollIntoView({ block: 'center', inline: 'nearest' });
-                cc.dispatchEvent(
-                  new MouseEvent('click', {
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: rcc.left + rcc.width / 2,
-                    clientY: rcc.top + rcc.height / 2,
-                    view: window
-                  })
-                );
-              } catch (eoc) {}
-            }
-            sendMessage('step_update', 'Closing search panel after chart open...');
-            await closeSearchPanelAfterSymbolSelect();
-            await new Promise(r => setTimeout(r, 600));
-          } catch(e) {
+            return !!(eaFindLargestVisibleCanvas() || chartElement || chartContainer);
+          } catch (e) {
             sendMessage('error', 'Error opening chart: ' + e.message);
+            return false;
           }
         };
+
+        async function ensureChartOpenForSymbol(symbolName) {
+          var sym = String(symbolName || '').trim();
+          if (!sym) return false;
+          var maxRounds = ${chartEnsureMaxRounds};
+          var baseDelay = ${chartEnsureBaseDelayMs};
+          for (var r = 0; r < maxRounds; r++) {
+            sendMessage(
+              'step_update',
+              'Ensuring chart for ' + sym + ' (round ' + (r + 1) + '/' + maxRounds + ')...'
+            );
+            await searchForSymbol(sym);
+            await openChart(sym);
+            await eaSleep(baseDelay + r * 200);
+            if (eaVerifyChartShowsInstrument(sym)) {
+              sendMessage('step_update', 'Chart verified for ' + sym + ' after ' + (r + 1) + ' round(s)');
+              return true;
+            }
+            sendMessage('step_update', 'Chart not verified for ' + sym + ' — retrying search/select...');
+            await eaSleep(450 + r * 90);
+          }
+          sendMessage(
+            'error',
+            'Could not open/verify chart for ' + sym + ' after ' + maxRounds + ' attempts'
+          );
+          return false;
+        }
 
         // Helper function to simulate mouse click
         const mouseClick = (element) => {
@@ -2714,6 +2838,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         /** Used by RN-injected AI trade script to re-select instrument before opening the order dialog */
         window.__eaSearchForSymbol = searchForSymbol;
         window.__eaOpenChart = openChart;
+        window.__eaEnsureChartOpenForSymbol = ensureChartOpenForSymbol;
+        window.__eaVerifyChartShowsInstrument = eaVerifyChartShowsInstrument;
 
         var __eaStartAuthOnce = (function() {
           var done = false;

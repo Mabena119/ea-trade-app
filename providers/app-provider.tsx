@@ -1556,7 +1556,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         if (Platform.OS === 'android') {
           import('@/services/overlay-service')
             .then(({ overlayService }) => overlayService.stopNativeBackgroundPolling())
-            .catch(() => {});
+            .catch(() => { });
         }
         setSignalLogs([]);
         setNewSignal(null);
@@ -2540,7 +2540,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 };
                 setSignalLogs(prev => [...prev, signalLog]);
                 if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
-                  pausePolling().catch(() => {});
+                  pausePolling().catch(() => { });
                   scheduleOpenMT5ExecutionOverlay(signalLog);
                 } else if (mt5Account && mt5Account.connected) {
                   console.log('⏭️ Native poll — symbol not on Quotes:', signal.asset);
