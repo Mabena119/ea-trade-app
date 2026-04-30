@@ -1271,6 +1271,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
 
         var captureChartWarmupForAi = async function() {
+          if (isChartWarmup) {
+            await ensureSearchClosedAndMainChartReadyForWarmup();
+          }
           await acceptDisclaimersAndConfirmDeep();
           await dismissLoginOverlay();
           window.__eaChartScreenshotSent = false;
@@ -1728,6 +1731,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             document.dispatchEvent(
               new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
             );
+            await new Promise(r => setTimeout(r, 220));
+            document.dispatchEvent(
+              new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
+            );
             await new Promise(r => setTimeout(r, 300));
             const hideMw =
               document.querySelector('div.icon-button.svelte-1iwf8ix[title="Hide Market Watch (Ctrl + M)"]') ||
@@ -1753,6 +1760,96 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             await new Promise(r => setTimeout(r, 400));
           } catch (e) {}
         };
+
+        /**
+         * Before chart AI snapshot: dismiss search / Market Watch chrome, then wait until the main WebGL
+         * chart canvas is large in the viewport so export matches the opened symbol (not search UI).
+         */
+        async function ensureSearchClosedAndMainChartReadyForWarmup() {
+          try {
+            sendMessage('step_update', 'Closing search and expanding chart before capture...');
+            await acceptDisclaimersAndConfirmDeep();
+            await dismissLoginOverlay();
+            await closeSearchPanelAfterSymbolSelect();
+            await new Promise(function(r) {
+              setTimeout(r, 550);
+            });
+            await dismissLoginOverlay();
+            await closeSearchPanelAfterSymbolSelect();
+            await new Promise(function(r) {
+              setTimeout(r, 420);
+            });
+            var vp = Math.max(1, window.innerWidth || 800) * Math.max(1, window.innerHeight || 600);
+            var minCanvasRectArea = Math.max(65000, vp * 0.13);
+            var minInternalArea = 36000;
+            var deadline = Date.now() + 24000;
+            var n = 0;
+            while (Date.now() < deadline) {
+              n++;
+              var ranked = collectRankedCanvasCandidates();
+              if (ranked.length > 0) {
+                var c = ranked[0].canvas;
+                var rect = c.getBoundingClientRect();
+                var area = rect.width * rect.height;
+                var internal = (c.width || 0) * (c.height || 0);
+                if (area >= minCanvasRectArea && internal >= minInternalArea) {
+                  sendMessage(
+                    'step_update',
+                    'Chart ready (~' + Math.round(area / 1000) + 'k px²) — locking focus...'
+                  );
+                  try {
+                    c.scrollIntoView({ block: 'center', inline: 'nearest' });
+                  } catch (e0) {}
+                  var cx = rect.left + rect.width / 2;
+                  var cy = rect.top + rect.height / 2;
+                  try {
+                    c.dispatchEvent(
+                      new MouseEvent('mousedown', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: cx,
+                        clientY: cy,
+                        view: window
+                      })
+                    );
+                    c.dispatchEvent(
+                      new MouseEvent('mouseup', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: cx,
+                        clientY: cy,
+                        view: window
+                      })
+                    );
+                    c.dispatchEvent(
+                      new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: cx,
+                        clientY: cy,
+                        view: window
+                      })
+                    );
+                  } catch (e1) {}
+                  if (c.focus) c.focus();
+                  await new Promise(function(r) {
+                    setTimeout(r, 700);
+                  });
+                  return;
+                }
+              }
+              sendMessage('step_update', 'Waiting for chart to open and expand (' + n + ')...');
+              await dismissLoginOverlay();
+              await prepareChartForExport();
+              await focusChartForExport();
+              await closeSearchPanelAfterSymbolSelect();
+              await new Promise(function(r) {
+                setTimeout(r, Math.min(900, 420 + n * 45));
+              });
+            }
+            sendMessage('step_update', 'Chart size check incomplete — proceeding with best-effort capture');
+          } catch (eEns) {}
+        }
 
         // Search for symbol function - STRICTLY SEQUENTIAL Step 2
         const searchForSymbol = async (symbolName) => {
@@ -1885,10 +1982,9 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 await new Promise(r => setTimeout(r, 500));
                 await dismissLoginOverlay();
                 await closeSearchPanelAfterSymbolSelect();
-              }
-              
-              if (!symbolSelected) {
+              } else {
                 sendMessage('error', 'Symbol ' + symbolName + ' not found in search results');
+                await closeSearchPanelAfterSymbolSelect();
               }
             } else {
               sendMessage('error', 'Search field not found or not visible after expanding');
@@ -1950,6 +2046,27 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             await dismissLoginOverlay();
             await new Promise(r => setTimeout(r, 450));
             await dismissLoginOverlay();
+
+            var rankedOpen = collectRankedCanvasCandidates();
+            if (rankedOpen.length > 0) {
+              var cc = rankedOpen[0].canvas;
+              try {
+                var rcc = cc.getBoundingClientRect();
+                cc.scrollIntoView({ block: 'center', inline: 'nearest' });
+                cc.dispatchEvent(
+                  new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: rcc.left + rcc.width / 2,
+                    clientY: rcc.top + rcc.height / 2,
+                    view: window
+                  })
+                );
+              } catch (eoc) {}
+            }
+            sendMessage('step_update', 'Closing search panel after chart open...');
+            await closeSearchPanelAfterSymbolSelect();
+            await new Promise(r => setTimeout(r, 600));
           } catch(e) {
             sendMessage('error', 'Error opening chart: ' + e.message);
           }

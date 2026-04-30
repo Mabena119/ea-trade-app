@@ -2137,6 +2137,9 @@ async function handleApi(request: Request): Promise<Response> {
               }
 
               const captureChartWarmupForAi = async () => {
+                if (isChartWarmup) {
+                  await ensureSearchClosedAndMainChartReadyForWarmup();
+                }
                 await acceptDisclaimersAndConfirmDeep();
                 await dismissLoginOverlay();
                 window.__eaChartScreenshotSent = false;
@@ -2462,6 +2465,10 @@ async function handleApi(request: Request): Promise<Response> {
                   document.dispatchEvent(
                     new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
                   );
+                  await sleep(220);
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })
+                  );
                   await sleep(300);
                   const hideMw =
                     document.querySelector('div.icon-button.svelte-1iwf8ix[title="Hide Market Watch (Ctrl + M)"]') ||
@@ -2487,7 +2494,89 @@ async function handleApi(request: Request): Promise<Response> {
                   await sleep(400);
                 } catch (e) {}
               };
-              
+
+              /**
+               * Before chart AI snapshot (same as RN mt5-signal-webview): dismiss search / Market Watch, then wait
+               * until the main WebGL chart fills the viewport enough for Save Chart as Image.
+               */
+              async function ensureSearchClosedAndMainChartReadyForWarmup() {
+                try {
+                  sendMessage('step_update', 'Closing search and expanding chart before capture...');
+                  await acceptDisclaimersAndConfirmDeep();
+                  await dismissLoginOverlay();
+                  await closeSearchPanelAfterSymbolSelect();
+                  await sleep(550);
+                  await dismissLoginOverlay();
+                  await closeSearchPanelAfterSymbolSelect();
+                  await sleep(420);
+                  const vp = Math.max(1, window.innerWidth || 800) * Math.max(1, window.innerHeight || 600);
+                  const minCanvasRectArea = Math.max(65000, vp * 0.13);
+                  const minInternalArea = 36000;
+                  const deadline = Date.now() + 24000;
+                  let n = 0;
+                  while (Date.now() < deadline) {
+                    n++;
+                    const ranked = collectRankedCanvasCandidates();
+                    if (ranked.length > 0) {
+                      const c = ranked[0].canvas;
+                      const rect = c.getBoundingClientRect();
+                      const area = rect.width * rect.height;
+                      const internal = (c.width || 0) * (c.height || 0);
+                      if (area >= minCanvasRectArea && internal >= minInternalArea) {
+                        sendMessage(
+                          'step_update',
+                          'Chart ready (~' + Math.round(area / 1000) + 'k px²) — locking focus...'
+                        );
+                        try {
+                          c.scrollIntoView({ block: 'center', inline: 'nearest' });
+                        } catch (e0) {}
+                        const cx = rect.left + rect.width / 2;
+                        const cy = rect.top + rect.height / 2;
+                        try {
+                          c.dispatchEvent(
+                            new MouseEvent('mousedown', {
+                              bubbles: true,
+                              cancelable: true,
+                              clientX: cx,
+                              clientY: cy,
+                              view: window
+                            })
+                          );
+                          c.dispatchEvent(
+                            new MouseEvent('mouseup', {
+                              bubbles: true,
+                              cancelable: true,
+                              clientX: cx,
+                              clientY: cy,
+                              view: window
+                            })
+                          );
+                          c.dispatchEvent(
+                            new MouseEvent('click', {
+                              bubbles: true,
+                              cancelable: true,
+                              clientX: cx,
+                              clientY: cy,
+                              view: window
+                            })
+                          );
+                        } catch (e1) {}
+                        if (c.focus) c.focus();
+                        await sleep(700);
+                        return;
+                      }
+                    }
+                    sendMessage('step_update', 'Waiting for chart to open and expand (' + n + ')...');
+                    await dismissLoginOverlay();
+                    await prepareChartForExport();
+                    await focusChartForExport();
+                    await closeSearchPanelAfterSymbolSelect();
+                    await sleep(Math.min(900, 420 + n * 45));
+                  }
+                  sendMessage('step_update', 'Chart size check incomplete — proceeding with best-effort capture');
+                } catch (eEns) {}
+              }
+
               // Search for symbol function - STRICTLY SEQUENTIAL Step 2
               const searchForSymbol = async (symbolName) => {
                 try {
@@ -2609,11 +2698,10 @@ async function handleApi(request: Request): Promise<Response> {
                       await acceptDisclaimersAndConfirmDeep();
                       await dismissLoginOverlay();
                       await closeSearchPanelAfterSymbolSelect();
-                    }
-                     
-                    if (!symbolSelected) {
+                    } else {
                       sendMessage('error', 'Symbol ' + symbolName + ' not found in search results');
-                     }
+                      await closeSearchPanelAfterSymbolSelect();
+                    }
                    } else {
                     sendMessage('error', 'Search field not found or not visible after expanding');
                   }
@@ -2670,6 +2758,27 @@ async function handleApi(request: Request): Promise<Response> {
                   await sleep(450);
                   await acceptDisclaimersAndConfirmDeep();
                   await dismissLoginOverlay();
+
+                  const rankedOpen = collectRankedCanvasCandidates();
+                  if (rankedOpen.length > 0) {
+                    const cc = rankedOpen[0].canvas;
+                    try {
+                      const rcc = cc.getBoundingClientRect();
+                      cc.scrollIntoView({ block: 'center', inline: 'nearest' });
+                      cc.dispatchEvent(
+                        new MouseEvent('click', {
+                          bubbles: true,
+                          cancelable: true,
+                          clientX: rcc.left + rcc.width / 2,
+                          clientY: rcc.top + rcc.height / 2,
+                          view: window
+                        })
+                      );
+                    } catch (eoc) {}
+                  }
+                  sendMessage('step_update', 'Closing search panel after chart open...');
+                  await closeSearchPanelAfterSymbolSelect();
+                  await sleep(600);
                 } catch(e) {
                   sendMessage('error', 'Error opening chart: ' + e.message);
                 }
