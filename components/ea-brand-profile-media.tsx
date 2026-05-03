@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Platform, StyleSheet, type StyleProp, View, type ViewStyle } from 'react-native';
-import type { AVPlaybackStatus } from 'expo-av';
 import { ResizeMode, Video } from 'expo-av';
 
 import { deriveEALogoMp4Url } from '@/utils/ea-logo-video-url';
@@ -9,7 +8,7 @@ type ContentFit = 'cover' | 'contain';
 
 export type EABrandProfileMediaProps = {
   /**
-   * Resolved profile image URL (basename used for `.mp4`; still shown under / behind video).
+   * Resolved profile image URL (basename used for `.mp4`; still shown under video until frames display).
    */
   brandImageUrl: string | null;
   photoUnavailable?: boolean;
@@ -28,10 +27,6 @@ export type EABrandProfileMediaProps = {
   testIDPhoto?: string;
   testIDVideo?: string;
 };
-
-function isFatalPlaybackFailure(status: AVPlaybackStatus): boolean {
-  return !status.isLoaded && typeof status.error === 'string' && status.error.length > 0;
-}
 
 export function EABrandProfileMedia({
   brandImageUrl,
@@ -60,39 +55,31 @@ export function EABrandProfileMedia({
     setNativeVideoFailed(false);
   }, [videoCandidate, brandImageUrl]);
 
+  useEffect(() => {
+    if (__DEV__ && videoCandidate) {
+      console.log('[EABrandProfileMedia] looping video URL:', videoCandidate);
+    }
+  }, [videoCandidate]);
+
   const resizeModeVideo = contentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER;
 
   const onVideoErr = useCallback((msg: string) => {
-    console.warn('[EABrandProfileMedia] video error:', msg);
+    console.warn('[EABrandProfileMedia] Video onError:', msg);
     setNativeVideoFailed(true);
-  }, []);
-
-  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
-    if (isFatalPlaybackFailure(status)) {
-      setNativeVideoFailed(true);
-    }
   }, []);
 
   const showVideoLayer = Boolean(videoCandidate && tryVideo && !nativeVideoFailed);
   const photoUri = !photoUnavailable && brandImageUrl ? brandImageUrl : null;
 
-  const stillLayer =
-    photoUri != null ? (
-      <Image
-        testID={testIDPhoto}
-        source={{ uri: photoUri }}
-        style={mediaStyle}
-        resizeMode={contentFit}
-        onError={onPhotoError}
-      />
-    ) : (
-      <Image
-        testID={testIDPhoto}
-        source={fallbackSource}
-        style={mediaStyle}
-        resizeMode={fallbackContentFit ?? 'contain'}
-      />
-    );
+  const innerStill = (
+    <Image
+      testID={testIDPhoto}
+      source={photoUri != null ? { uri: photoUri } : fallbackSource}
+      style={StyleSheet.absoluteFillObject}
+      resizeMode={photoUri ? contentFit : fallbackContentFit ?? 'contain'}
+      {...(photoUri ? { onError: onPhotoError } : {})}
+    />
+  );
 
   const videoLayer =
     showVideoLayer && videoCandidate ? (
@@ -100,23 +87,17 @@ export function EABrandProfileMedia({
         testID={testIDVideo}
         key={videoCandidate}
         source={{ uri: videoCandidate }}
-        style={[mediaStyle, styles.videoOverlay]}
+        style={[mediaStyle as ViewStyle, styles.videoOverlay]}
         resizeMode={resizeModeVideo}
         shouldPlay
         isLooping
         isMuted
         volume={0}
         useNativeControls={false}
+        /** Do not combine with our own stacked PNG — expo poster can stall / mask the Surface on some OS builds. */
+        usePoster={false}
         pointerEvents="none"
         onError={onVideoErr}
-        onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-        {...(photoUri
-          ? {
-              usePoster: true,
-              posterSource: { uri: photoUri },
-              posterStyle: StyleSheet.absoluteFillObject,
-            }
-          : {})}
       />
     ) : null;
 
@@ -124,15 +105,19 @@ export function EABrandProfileMedia({
 
   return (
     <View style={rootStyle} pointerEvents="box-none">
-      {stillLayer}
+      <View style={[mediaStyle as ViewStyle, styles.stillUnderlay]}>{innerStill}</View>
       {videoLayer}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  stillUnderlay: {
+    zIndex: 0,
+  },
   videoOverlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
     zIndex: 2,
     elevation: 2,
   },
