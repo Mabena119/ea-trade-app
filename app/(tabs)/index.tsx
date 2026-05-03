@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Notifications from 'expo-notifications';
 import { Play, Square, Scan, Activity, Trash2, Plus } from 'lucide-react-native';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -226,6 +227,7 @@ export default function HomeScreen() {
   const screenBg = getScreenBackgroundColor(theme, themeName);
   const isMatrix = isMatrixStyleTheme(themeName);
   const isEAGlass = themeName === 'matrixYellow';
+  const isBlackTheme = themeName === 'black';
 
   // EA Glass: dynamic logo source from the active EA (or app icon fallback)
   const eaGlassLogoSource = useMemo(() => {
@@ -548,30 +550,169 @@ export default function HomeScreen() {
             )}
 
             <View style={styles.topSection}>
-              <TouchableOpacity
-                style={styles.circularLogoContainer}
-                onPress={handleLogoTap}
-                activeOpacity={0.9}
-              >
-                <View style={styles.circularLogoRing}>
-                  {primaryEAImage && !logoError ? (
-                    <Image
-                      testID="ea-logo-circular"
-                      source={{ uri: primaryEAImage }}
-                      style={styles.circularLogo}
-                      resizeMode="cover"
-                      onError={() => setLogoError(true)}
+              {isBlackTheme ? (
+                <TouchableOpacity
+                  style={styles.blackHeroLogoTouchable}
+                  onPress={handleLogoTap}
+                  activeOpacity={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel="Robot logo, triple-tap to change theme"
+                >
+                  <View style={styles.blackHeroLogoStage}>
+                    {primaryEAImage && !logoError ? (
+                      <Image
+                        testID="ea-logo-hero-fade"
+                        source={{ uri: primaryEAImage }}
+                        style={styles.blackHeroLogoImage}
+                        resizeMode="contain"
+                        onError={() => setLogoError(true)}
+                      />
+                    ) : (
+                      <Image
+                        testID="fallback-logo-hero-fade"
+                        source={require('../../assets/images/icon.png')}
+                        style={styles.blackHeroLogoImage}
+                        resizeMode="contain"
+                      />
+                    )}
+                    {/* Black theme: layered “cinema matte” fades — radial body + sculpted linear rims */}
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={[
+                        'rgba(92,94,102,0.18)',
+                        'rgba(54,54,58,0.07)',
+                        'rgba(10,10,12,0)',
+                        'rgba(0,0,0,0)',
+                      ]}
+                      locations={[0, 0.12, 0.38, 1]}
+                      style={StyleSheet.absoluteFill}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
                     />
-                  ) : (
-                    <Image
-                      testID="fallback-logo-circular"
-                      source={require('../../assets/images/icon.png')}
-                      style={styles.circularLogo}
-                      resizeMode="contain"
+                    <Svg
+                      pointerEvents="none"
+                      style={styles.blackHeroFadeSvg}
+                      width="100%"
+                      height="100%"
+                      preserveAspectRatio="none"
+                    >
+                      <Defs>
+                        <RadialGradient
+                          id="blackHeroLogoRadial"
+                          cx="49%"
+                          cy="38%"
+                          fx="46%"
+                          fy="30%"
+                          rx="71%"
+                          ry="84%"
+                          gradientUnits="objectBoundingBox"
+                        >
+                          <Stop offset="0%" stopColor="#000000" stopOpacity={0} />
+                          <Stop offset="48%" stopColor="#030303" stopOpacity={0.09} />
+                          <Stop offset="72%" stopColor="#000000" stopOpacity={0.42} />
+                          <Stop offset="100%" stopColor="#000000" stopOpacity={0.93} />
+                        </RadialGradient>
+                      </Defs>
+                      <Rect width="100%" height="100%" fill="url(#blackHeroLogoRadial)" />
+                    </Svg>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={[
+                        'rgba(255,255,255,0.055)',
+                        'rgba(255,255,255,0)',
+                        'rgba(255,255,255,0)',
+                        'rgba(255,255,255,0)',
+                      ]}
+                      locations={[0, 0.22, 0.55, 1]}
+                      style={StyleSheet.absoluteFill}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0.55 }}
                     />
-                  )}
-                </View>
-              </TouchableOpacity>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={[
+                        'rgba(0,0,0,0.4)',
+                        'rgba(0,0,0,0.06)',
+                        'rgba(0,0,0,0)',
+                        'rgba(0,0,0,0.05)',
+                        'rgba(0,0,0,0.42)',
+                      ]}
+                      locations={[0, 0.28, 0.52, 0.72, 1]}
+                      style={[StyleSheet.absoluteFill, { opacity: 0.62 }]}
+                      start={{ x: 0.08, y: 0 }}
+                      end={{ x: 0.94, y: 1 }}
+                    />
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={[
+                        'rgba(0,0,0,0.52)',
+                        'rgba(0,0,0,0.06)',
+                        'rgba(0,0,0,0)',
+                        'rgba(0,0,0,0.06)',
+                        'rgba(0,0,0,0.52)',
+                      ]}
+                      locations={[0, 0.11, 0.48, 0.89, 1]}
+                      style={[StyleSheet.absoluteFill, { opacity: 0.74 }]}
+                      start={{ x: 1, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                    />
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={[
+                        'rgba(0,0,0,0.38)',
+                        'rgba(0,0,0,0.06)',
+                        'rgba(0,0,0,0)',
+                        'rgba(0,0,0,0.06)',
+                        'rgba(0,0,0,0.38)',
+                      ]}
+                      locations={[0, 0.14, 0.5, 0.86, 1]}
+                      style={StyleSheet.absoluteFill}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                    />
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={[
+                        'rgba(0,0,0,0)',
+                        'rgba(0,0,0,0)',
+                        'rgba(0,0,0,0.18)',
+                        'rgba(0,0,0,0.52)',
+                        'rgba(0,0,0,0.88)',
+                        'rgba(0,0,0,0.98)',
+                      ]}
+                      locations={[0, 0.38, 0.58, 0.76, 0.92, 1]}
+                      style={styles.blackHeroBottomVeil}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.circularLogoContainer}
+                  onPress={handleLogoTap}
+                  activeOpacity={0.9}
+                >
+                  <View style={styles.circularLogoRing}>
+                    {primaryEAImage && !logoError ? (
+                      <Image
+                        testID="ea-logo-circular"
+                        source={{ uri: primaryEAImage }}
+                        style={styles.circularLogo}
+                        resizeMode="cover"
+                        onError={() => setLogoError(true)}
+                      />
+                    ) : (
+                      <Image
+                        testID="fallback-logo-circular"
+                        source={require('../../assets/images/icon.png')}
+                        style={styles.circularLogo}
+                        resizeMode="contain"
+                      />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              )}
               <View style={styles.titleBlock}>
                 <View style={styles.botNameContainer}>
                   <Text
@@ -986,6 +1127,31 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
     zIndex: 3,
+  },
+  blackHeroLogoTouchable: {
+    alignSelf: 'stretch',
+    width: '100%',
+    marginBottom: 12,
+  },
+  blackHeroLogoStage: {
+    width: '100%',
+    height: 172,
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  blackHeroFadeSvg: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  blackHeroBottomVeil: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: '18%',
+  },
+  blackHeroLogoImage: {
+    ...StyleSheet.absoluteFillObject,
   },
   circularLogoContainer: {
     width: 180,
