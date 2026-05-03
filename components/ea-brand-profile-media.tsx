@@ -88,7 +88,8 @@ export function EABrandProfileMedia({
   }, [tryVideo]);
 
   /**
-   * Prefer `file://` — expo-av + HTTPS range/CDN can be flaky; FileSystem.download uses fallback header sets.
+   * Stream HTTPS `.mp4` immediately (best first-frame latency). Warm disk cache in parallel —
+   * `onError` repair path + next session can use `file://` without waiting on a full download first.
    */
   useEffect(() => {
     setVideoPlaybackFailed(false);
@@ -98,30 +99,13 @@ export function EABrandProfileMedia({
       return;
     }
 
-    let cancelled = false;
+    setPlayUri(remoteMp4);
 
-    if (Platform.OS === 'web') {
-      setPlayUri(remoteMp4);
-      return () => {
-        cancelled = true;
-      };
+    if (Platform.OS !== 'web') {
+      void ensureEaBrandMp4Cached(remoteMp4, imageStem).catch(() => {
+        /** Prefetch failures are non-fatal while streaming succeeds */
+      });
     }
-
-    setPlayUri(null);
-
-    void (async () => {
-      try {
-        const localUri = await ensureEaBrandMp4Cached(remoteMp4, imageStem);
-        if (!cancelled) setPlayUri(localUri);
-      } catch (e) {
-        if (__DEV__) console.warn('[EABrandProfileMedia] cache/download failed — streaming mp4:', e);
-        if (!cancelled) setPlayUri(remoteMp4);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [tryVideo, canonicalStillUrl, remoteMp4, imageStem]);
 
   useEffect(() => {
