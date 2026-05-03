@@ -1,16 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Image,
-  LayoutChangeEvent,
-  Platform,
-  StyleSheet,
-  type StyleProp,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { Image, Platform, StyleSheet, type StyleProp, View, type ViewStyle } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { Audio, ResizeMode, Video } from 'expo-av';
-import type { VideoReadyForDisplayEvent } from 'expo-av/build/Video.types';
 
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import { ensureEaBrandMp4Cached } from '@/utils/ea-brand-profile-video-cache';
@@ -19,8 +10,6 @@ import { deriveEaBrandImageStemFromUrl, deriveEALogoMp4Url } from '@/utils/ea-lo
 type ContentFit = 'cover' | 'contain';
 
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
-/** Fallback aspect for EA uploads like `*.mp4` portrait reels until `naturalSize` is known — only ratio matters for crop math. */
-const PORTRAIT_9_16_INTRINSICS = { width: 9, height: 16 };
 
 export type EABrandProfileMediaProps = {
   /**
@@ -49,52 +38,6 @@ function buildVideoPlaybackSource(playUri: string): { uri: string; overrideFileE
     return { uri: playUri, overrideFileExtensionAndroid: 'mp4' };
   }
   return { uri: playUri };
-}
-
-/** Center-cropped “aspect fill”: fractional layout avoids asymmetric rounding drift. */
-function centeredCoverFrame(
-  boxW: number,
-  boxH: number,
-  naturalW: number,
-  naturalH: number
-): { left: number; top: number; width: number; height: number } | null {
-  if (!(boxW > 0) || !(boxH > 0) || !(naturalW > 0) || !(naturalH > 0)) return null;
-  const scale = Math.max(boxW / naturalW, boxH / naturalH);
-  const width = naturalW * scale;
-  const height = naturalH * scale;
-  return {
-    width,
-    height,
-    left: (boxW - width) / 2,
-    top: (boxH - height) / 2,
-  };
-}
-
-/**
- * expo-av `naturalSize` for phone MP4s can disagree across width×height×orientation tags.
- * Hero EA uploads are portrait 9×16 — force height ≥ width for crop math (fixes “stripe hugging edge”).
- */
-function eaProfilePortraitIntrinsics(evt: VideoReadyForDisplayEvent): { width: number; height: number } | null {
-  let w = evt.naturalSize.width;
-  let h = evt.naturalSize.height;
-  const o = evt.naturalSize.orientation;
-
-  if (o === 'portrait' && w > h) {
-    const t = w;
-    w = h;
-    h = t;
-  } else if (o === 'landscape' && h > w) {
-    const t = w;
-    w = h;
-    h = t;
-  }
-  if (w > h) {
-    const t = w;
-    w = h;
-    h = t;
-  }
-  if (!(w > 0) || !(h > 0)) return null;
-  return { width: w, height: h };
 }
 
 async function deleteCachedMp4ForStem(imageStem: string): Promise<void> {
@@ -236,58 +179,6 @@ export function EABrandProfileMedia({
 
   const showVideoLayer = Boolean(playUri && tryVideo && !videoPlaybackFailed && remoteMp4 && imageStem);
 
-  /** Hero full-bleed: native COVER sometimes crops portrait MP4 toward one edge — we center-crop in JS instead. */
-  const useManualCenterCover = fillParent && contentFit === 'cover';
-
-  const [mediaBox, setMediaBox] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
-  /** From `onReadyForDisplay`; when null we assume portrait 9:16 brand clips so crops are centered immediately. */
-  const [confirmedVideoIntrinsics, setConfirmedVideoIntrinsics] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-
-  useEffect(() => {
-    setConfirmedVideoIntrinsics(null);
-  }, [canonicalStillUrl, remoteMp4]);
-
-  /** Prefer confirmed dimensions; EA profile MP4s are expected 9×16 portrait (see uploads naming). */
-  const intrinsicsForCrop =
-    useManualCenterCover && showVideoLayer
-      ? (confirmedVideoIntrinsics ?? PORTRAIT_9_16_INTRINSICS)
-      : null;
-
-  const onManualMediaLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const { width, height } = e.nativeEvent.layout;
-      setMediaBox((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
-    },
-    []
-  );
-
-  const onVideoReadyForDisplay = useCallback((evt: VideoReadyForDisplayEvent) => {
-    const normalized = eaProfilePortraitIntrinsics(evt);
-    if (normalized != null) setConfirmedVideoIntrinsics(normalized);
-  }, []);
-
-  const manualCropFrame =
-    useManualCenterCover &&
-    mediaBox.width > 0 &&
-    mediaBox.height > 0 &&
-    intrinsicsForCrop != null
-      ? centeredCoverFrame(
-          mediaBox.width,
-          mediaBox.height,
-          intrinsicsForCrop.width,
-          intrinsicsForCrop.height
-        )
-      : null;
-
-  const showManualCropVideo =
-    useManualCenterCover && manualCropFrame != null && showVideoLayer;
-
-  /** Native fullscreen COVER is skipped for hero-only manual path — it mis-crops portrait assets (right-edge bias). */
-  const showDefaultFullscreenVideo = showVideoLayer && !useManualCenterCover;
-
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
 
   const videoSource =
@@ -303,65 +194,40 @@ export function EABrandProfileMedia({
     />
   );
 
-  const sharedVideoPlayback = useMemo(
-    () => ({
-      shouldPlay: true as const,
-      isLooping: true as const,
-      isMuted: true as const,
-      volume: 0 as const,
-      useNativeControls: false as const,
-      usePoster: false as const,
-      pointerEvents: 'none' as const,
-      onError: onVideoErr,
-      onReadyForDisplay: useManualCenterCover ? onVideoReadyForDisplay : undefined,
-    }),
-    [onVideoErr, onVideoReadyForDisplay, useManualCenterCover]
-  );
-
-  const videoFullscreenDefault =
-    videoSource != null && showDefaultFullscreenVideo ? (
-      <Video
-        testID={testIDVideo}
-        key={`full:${playUri}:${canonicalStillUrl ?? ''}`}
-        source={videoSource}
-        style={[mediaStyle as ViewStyle, styles.videoOverlay]}
-        resizeMode={resizeModeVideo}
-        {...sharedVideoPlayback}
-      />
-    ) : null;
-
-  const videoManualCrop =
-    videoSource != null && showManualCropVideo && manualCropFrame ? (
-      <View style={[styles.videoOverlay, mediaStyle as ViewStyle]} pointerEvents="none">
-        <View
-          style={[
-            {
-              position: 'absolute',
-              overflow: 'hidden',
-            },
-            manualCropFrame,
-          ]}
-        >
-          <Video
-            testID={testIDVideo}
-            key={`crop:${manualCropFrame.width}x${manualCropFrame.height}:${playUri}:${canonicalStillUrl ?? ''}`}
-            source={videoSource}
-            style={styles.manualCropVideoShell}
-            videoStyle={styles.manualCropVideoInner}
-            resizeMode={ResizeMode.STRETCH}
-            {...sharedVideoPlayback}
-          />
-        </View>
+  /**
+   * Render the video with the **exact same wrapper + fill** as the still poster, and the matching
+   * native cover gravity. Wrapping in an `overflow:'hidden'` view (vs. styling the `<Video>` directly)
+   * gives the iOS player a stable bounded surface and avoids the asymmetric crop drift that some
+   * portrait MP4s (e.g. `admin/uploads/*.mp4`) showed when `<Video>` was the absolute-fill layer.
+   */
+  const videoLayer =
+    videoSource != null ? (
+      <View style={[mediaStyle as ViewStyle, styles.videoOverlay]} pointerEvents="none">
+        <Video
+          testID={testIDVideo}
+          key={`${playUri}:${canonicalStillUrl ?? ''}`}
+          source={videoSource}
+          style={styles.videoFill}
+          videoStyle={styles.videoFill}
+          resizeMode={resizeModeVideo}
+          shouldPlay
+          isLooping
+          isMuted
+          volume={0}
+          useNativeControls={false}
+          usePoster={false}
+          pointerEvents="none"
+          onError={onVideoErr}
+        />
       </View>
     ) : null;
 
   const rootStyle: StyleProp<ViewStyle> = [fillParent && StyleSheet.absoluteFillObject, containerStyle];
 
   return (
-    <View style={rootStyle} pointerEvents="box-none" onLayout={useManualCenterCover ? onManualMediaLayout : undefined}>
+    <View style={rootStyle} pointerEvents="box-none">
       <View style={[mediaStyle as ViewStyle, styles.stillUnderlay]}>{innerStill}</View>
-      {videoFullscreenDefault}
-      {videoManualCrop}
+      {videoLayer}
     </View>
   );
 }
@@ -373,16 +239,11 @@ const styles = StyleSheet.create({
   videoOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
+    overflow: 'hidden',
     zIndex: 2,
     elevation: 2,
   },
-  manualCropVideoShell: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'transparent',
-    overflow: 'hidden',
-  },
-  manualCropVideoInner: {
+  videoFill: {
     ...StyleSheet.absoluteFillObject,
   },
 });
