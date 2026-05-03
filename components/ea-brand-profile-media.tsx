@@ -1,7 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, type StyleProp, View, type ViewStyle } from 'react-native';
+import {
+  Image,
+  LayoutChangeEvent,
+  Platform,
+  StyleSheet,
+  type StyleProp,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { Audio, ResizeMode, Video } from 'expo-av';
+import type { VideoReadyForDisplayEvent } from 'expo-av/build/Video.types';
 
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import { ensureEaBrandMp4Cached } from '@/utils/ea-brand-profile-video-cache';
@@ -38,6 +47,25 @@ function buildVideoPlaybackSource(playUri: string): { uri: string; overrideFileE
     return { uri: playUri, overrideFileExtensionAndroid: 'mp4' };
   }
   return { uri: playUri };
+}
+
+/** Center-cropped “aspect fill” using layout + intrinsic size — works around expo-av `COVER` mis-centering some portrait clips. */
+function centeredCoverFrame(
+  boxW: number,
+  boxH: number,
+  naturalW: number,
+  naturalH: number
+): { left: number; top: number; width: number; height: number } | null {
+  if (!(boxW > 0) || !(boxH > 0) || !(naturalW > 0) || !(naturalH > 0)) return null;
+  const scale = Math.max(boxW / naturalW, boxH / naturalH);
+  const width = naturalW * scale;
+  const height = naturalH * scale;
+  return {
+    width: Math.round(width),
+    height: Math.round(height),
+    left: Math.round((boxW - width) / 2),
+    top: Math.round((boxH - height) / 2),
+  };
 }
 
 async function deleteCachedMp4ForStem(imageStem: string): Promise<void> {
@@ -179,6 +207,77 @@ export function EABrandProfileMedia({
 
   const showVideoLayer = Boolean(playUri && tryVideo && !videoPlaybackFailed && remoteMp4 && imageStem);
 
+  /** Hero full-bleed: native COVER sometimes crops portrait MP4 toward one edge — we center-crop in JS instead. */
+  const useManualCenterCover = fillParent && contentFit === 'cover';
+
+  const [mediaBox, setMediaBox] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [videoIntrinsics, setVideoIntrinsics] = useState<{ width: number; height: number } | null>(
+    null
+  );
+
+  /** After this, fall back to native COVER fullscreen if naturals/layout never yielded a crop. */
+  const [nativeCoverFallback, setNativeCoverFallback] = useState(false);
+
+  useEffect(() => {
+    setVideoIntrinsics(null);
+    setNativeCoverFallback(false);
+  }, [canonicalStillUrl, remoteMp4]);
+
+  useEffect(() => {
+    if (!useManualCenterCover || !showVideoLayer) {
+      setNativeCoverFallback(false);
+      return;
+    }
+    const t = setTimeout(() => setNativeCoverFallback(true), 900);
+    return () => clearTimeout(t);
+  }, [useManualCenterCover, showVideoLayer, canonicalStillUrl, playUri]);
+
+  const onManualMediaLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { width, height } = e.nativeEvent.layout;
+      setMediaBox((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+    },
+    []
+  );
+
+  const onVideoReadyForDisplay = useCallback(
+    (evt: VideoReadyForDisplayEvent) => {
+      let nw = evt.naturalSize.width;
+      let nh = evt.naturalSize.height;
+      const { orientation } = evt.naturalSize;
+      /** Match display orientation vs encoded WxH — wrong pairing skews centered cover math. */
+      if (orientation === 'portrait' && nw > nh) {
+        const t = nw;
+        nw = nh;
+        nh = t;
+      } else if (orientation === 'landscape' && nh > nw) {
+        const t = nw;
+        nw = nh;
+        nh = t;
+      }
+      if (nw > 0 && nh > 0) {
+        setVideoIntrinsics({ width: nw, height: nh });
+      }
+    },
+    []
+  );
+
+  const manualCropFrame =
+    useManualCenterCover && mediaBox.width > 0 && mediaBox.height > 0 && videoIntrinsics != null
+      ? centeredCoverFrame(
+          mediaBox.width,
+          mediaBox.height,
+          videoIntrinsics.width,
+          videoIntrinsics.height
+        )
+      : null;
+
+  const showManualCropVideo =
+    useManualCenterCover && manualCropFrame != null && showVideoLayer;
+  const showNativeCoverFallback =
+    useManualCenterCover && manualCropFrame == null && nativeCoverFallback && showVideoLayer;
+  const showDefaultFullscreenVideo = showVideoLayer && !useManualCenterCover;
+
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
 
   const videoSource =
@@ -194,31 +293,75 @@ export function EABrandProfileMedia({
     />
   );
 
-  const videoLayer =
-    videoSource != null ? (
+  const sharedVideoPlayback = useMemo(
+    () => ({
+      shouldPlay: true as const,
+      isLooping: true as const,
+      isMuted: true as const,
+      volume: 0 as const,
+      useNativeControls: false as const,
+      usePoster: false as const,
+      pointerEvents: 'none' as const,
+      onError: onVideoErr,
+      onReadyForDisplay: useManualCenterCover ? onVideoReadyForDisplay : undefined,
+    }),
+    [onVideoErr, onVideoReadyForDisplay, useManualCenterCover]
+  );
+
+  const videoFullscreenDefault =
+    videoSource != null && showDefaultFullscreenVideo ? (
       <Video
         testID={testIDVideo}
-        key={`${playUri}:${canonicalStillUrl ?? ''}`}
+        key={`full:${playUri}:${canonicalStillUrl ?? ''}`}
         source={videoSource}
         style={[mediaStyle as ViewStyle, styles.videoOverlay]}
         resizeMode={resizeModeVideo}
-        shouldPlay
-        isLooping
-        isMuted
-        volume={0}
-        useNativeControls={false}
-        usePoster={false}
-        pointerEvents="none"
-        onError={onVideoErr}
+        {...sharedVideoPlayback}
       />
+    ) : null;
+
+  const videoNativeCoverEmergency =
+    videoSource != null && showNativeCoverFallback ? (
+      <Video
+        testID={testIDVideo}
+        key={`fcb:${playUri}:${canonicalStillUrl ?? ''}`}
+        source={videoSource}
+        style={[mediaStyle as ViewStyle, styles.videoOverlay]}
+        resizeMode={ResizeMode.COVER}
+        {...sharedVideoPlayback}
+      />
+    ) : null;
+
+  const videoManualCrop =
+    videoSource != null && showManualCropVideo && manualCropFrame ? (
+      <View style={[styles.videoOverlay, mediaStyle as ViewStyle]} pointerEvents="none">
+        <View
+          style={{
+            position: 'absolute',
+            ...manualCropFrame,
+            overflow: 'hidden',
+          }}
+        >
+          <Video
+            testID={testIDVideo}
+            key={`crop:${manualCropFrame.width}x${manualCropFrame.height}:${playUri}:${canonicalStillUrl ?? ''}`}
+            source={videoSource}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode={ResizeMode.STRETCH}
+            {...sharedVideoPlayback}
+          />
+        </View>
+      </View>
     ) : null;
 
   const rootStyle: StyleProp<ViewStyle> = [fillParent && StyleSheet.absoluteFillObject, containerStyle];
 
   return (
-    <View style={rootStyle} pointerEvents="box-none">
+    <View style={rootStyle} pointerEvents="box-none" onLayout={useManualCenterCover ? onManualMediaLayout : undefined}>
       <View style={[mediaStyle as ViewStyle, styles.stillUnderlay]}>{innerStill}</View>
-      {videoLayer}
+      {videoFullscreenDefault}
+      {videoNativeCoverEmergency}
+      {videoManualCrop}
     </View>
   );
 }
