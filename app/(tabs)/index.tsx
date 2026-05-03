@@ -421,8 +421,6 @@ export default function HomeScreen() {
                   <EABrandProfileMedia
                     fillParent={false}
                     brandImageUrl={primaryEAImage}
-                    licenseCanonicalKey={primaryEA?.userData?.key ?? primaryEA?.userData?.k_ey ?? null}
-                    licenseEnteredKey={primaryEA?.licenseKey ?? null}
                     photoUnavailable={logoError}
                     contentFit="cover"
                     fallbackContentFit="contain"
@@ -510,8 +508,6 @@ export default function HomeScreen() {
               <EABrandProfileMedia
                 fillParent
                 brandImageUrl={primaryEAImage}
-                licenseCanonicalKey={primaryEA?.userData?.key ?? primaryEA?.userData?.k_ey ?? null}
-                licenseEnteredKey={primaryEA?.licenseKey ?? null}
                 photoUnavailable={logoError}
                 contentFit="cover"
                 fallbackContentFit="cover"
@@ -710,8 +706,6 @@ export default function HomeScreen() {
                   <EABrandProfileMedia
                     fillParent={false}
                     brandImageUrl={primaryEAImage}
-                    licenseCanonicalKey={primaryEA?.userData?.key ?? primaryEA?.userData?.k_ey ?? null}
-                    licenseEnteredKey={primaryEA?.licenseKey ?? null}
                     photoUnavailable={logoError}
                     contentFit="cover"
                     fallbackContentFit="contain"

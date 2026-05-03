@@ -2,20 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Platform, StyleSheet, type StyleProp, View, type ViewStyle } from 'react-native';
 import { ResizeMode, Video, type AVPlaybackStatus } from 'expo-av';
 
-import { buildEaProfileMp4CandidateUrls } from '@/utils/ea-logo-video-url';
+import { ensureEaBrandMp4Cached } from '@/utils/ea-brand-profile-video-cache';
+import { deriveEaBrandImageStemFromUrl, deriveEALogoMp4Url } from '@/utils/ea-logo-video-url';
 
 type ContentFit = 'cover' | 'contain';
 
 export type EABrandProfileMediaProps = {
   /**
-   * Resolved profile image URL (basename used for `.mp4`; still shown under video until frames display).
+   * Resolved profile image URL (`owner.logo`): looping video URL is identical path with `.mp4`
+   * (basename e.g. `FFE-A60-B6C-83A`).
    */
   brandImageUrl: string | null;
-  /**
-   * Fallback mp4 lookups when looping video basename ≠ `owner.logo` (CDN often stores `{robotKey}.mp4`).
-   */
-  licenseCanonicalKey?: string | null;
-  licenseEnteredKey?: string | null;
   photoUnavailable?: boolean;
   preferLoopingVideo?: boolean;
   contentFit?: ContentFit;
@@ -35,8 +32,6 @@ export type EABrandProfileMediaProps = {
 
 export function EABrandProfileMedia({
   brandImageUrl,
-  licenseCanonicalKey = null,
-  licenseEnteredKey = null,
   photoUnavailable = false,
   preferLoopingVideo,
   contentFit = 'cover',
@@ -51,91 +46,90 @@ export function EABrandProfileMedia({
 }: EABrandProfileMediaProps) {
   const tryVideo = preferLoopingVideo ?? Platform.OS !== 'web';
 
-  const videoCandidates = useMemo(
-    () =>
-      tryVideo
-        ? buildEaProfileMp4CandidateUrls({
-            brandImageUrl,
-            licenseCanonicalKey,
-            licenseEnteredKey,
-          })
-        : [],
-    [brandImageUrl, licenseCanonicalKey, licenseEnteredKey, tryVideo]
-  );
+  const remoteMp4 = useMemo(() => deriveEALogoMp4Url(brandImageUrl), [brandImageUrl]);
+  const imageStem = useMemo(() => deriveEaBrandImageStemFromUrl(brandImageUrl), [brandImageUrl]);
 
-  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [playUri, setPlayUri] = useState<string | null>(null);
+  const [videoPlaybackFailed, setVideoPlaybackFailed] = useState(false);
+
+  /** Increment to ignore stale downloads when `brandImageUrl` changes mid-flight. */
+  const fetchGen = useRef(0);
 
   useEffect(() => {
-    setCandidateIndex(0);
-  }, [brandImageUrl, licenseCanonicalKey, licenseEnteredKey, tryVideo]);
+    fetchGen.current += 1;
+    const gen = fetchGen.current;
+    setVideoPlaybackFailed(false);
 
-  useEffect(() => {
-    if (__DEV__ && videoCandidates.length) {
-      console.log('[EABrandProfileMedia] mp4 candidates:', videoCandidates, 'trying index:', candidateIndex);
+    if (!tryVideo || !remoteMp4 || !imageStem) {
+      setPlayUri(null);
+      return;
     }
-  }, [videoCandidates, candidateIndex]);
 
-  const videoCandidatesRef = useRef(videoCandidates);
-  videoCandidatesRef.current = videoCandidates;
+    /** Native: fetch & cache `{stem}.mp4` beside logo; web: unchanged (streaming only if opted in). */
+    if (Platform.OS === 'web') {
+      setPlayUri(remoteMp4);
+      return;
+    }
 
-  const advanceOrExhaustCandidates = useCallback(() => {
-    setCandidateIndex((i) => {
-      if (videoCandidatesRef.current.length === 0) return 0;
-      const next = i + 1;
-      const len = videoCandidatesRef.current.length;
-      if (__DEV__ && next < len) {
-        console.warn('[EABrandProfileMedia] mp4 load failed — trying:', videoCandidatesRef.current[next]);
-      } else if (__DEV__ && next >= len) {
-        console.warn('[EABrandProfileMedia] all mp4 candidates failed.');
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const local = await ensureEaBrandMp4Cached(remoteMp4, imageStem);
+        if (cancelled || gen !== fetchGen.current) return;
+        setPlayUri(local);
+      } catch (e) {
+        if (__DEV__) console.warn('[EABrandProfileMedia] mp4 fetch/cache:', e);
+        if (cancelled || gen !== fetchGen.current) return;
+        setPlayUri(null);
       }
-      return next >= len ? len : next;
-    });
-  }, []);
+    })();
 
-  /** Prevent double-advance when expo-av reports the same fatal load via multiple callbacks. */
-  const bumpedForMp4Uri = useRef<string | null>(null);
-  const candidateIndexRef = useRef(0);
-  candidateIndexRef.current = candidateIndex;
-
-  const videoCandidate = videoCandidates[candidateIndex] ?? null;
+    return () => {
+      cancelled = true;
+    };
+  }, [tryVideo, remoteMp4, imageStem]);
 
   useEffect(() => {
-    bumpedForMp4Uri.current = null;
-  }, [videoCandidate]);
+    if (__DEV__ && tryVideo && remoteMp4 && imageStem) {
+      console.log('[EABrandProfileMedia] logo stem:', imageStem, 'remote mp4:', remoteMp4);
+    }
+  }, [tryVideo, remoteMp4, imageStem]);
 
-  const reportMp4LoadFailedOnce = useCallback(() => {
-    const idx = candidateIndexRef.current;
-    const uri = videoCandidatesRef.current[idx];
-    if (!uri) return;
-    if (bumpedForMp4Uri.current === uri) return;
-    bumpedForMp4Uri.current = uri;
-    advanceOrExhaustCandidates();
-  }, [advanceOrExhaustCandidates]);
+  const playbackFailOnce = useRef<string | null>(null);
+
+  useEffect(() => {
+    playbackFailOnce.current = null;
+  }, [playUri]);
+
+  const bailPlayback = useCallback(() => {
+    if (!playUri || playbackFailOnce.current === playUri) return;
+    playbackFailOnce.current = playUri;
+    setVideoPlaybackFailed(true);
+    if (__DEV__) console.warn('[EABrandProfileMedia] Playback failed — using still image:', playUri);
+  }, [playUri]);
 
   const onVideoErr = useCallback(
     (msg: string) => {
       console.warn('[EABrandProfileMedia] Video onError:', msg);
-      reportMp4LoadFailedOnce();
+      bailPlayback();
     },
-    [reportMp4LoadFailedOnce]
+    [bailPlayback]
   );
 
   const onPlaybackStatusUpdate = useCallback(
     (status: AVPlaybackStatus) => {
       if ('isLoaded' in status && !status.isLoaded && status.error) {
-        if (__DEV__) {
-          console.warn('[EABrandProfileMedia] Video playback status error:', status.error);
-        }
-        reportMp4LoadFailedOnce();
+        bailPlayback();
       }
     },
-    [reportMp4LoadFailedOnce]
+    [bailPlayback]
   );
 
   const resizeModeVideo = contentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER;
 
   const showVideoLayer = Boolean(
-    videoCandidate && tryVideo && videoCandidates.length > 0 && candidateIndex < videoCandidates.length
+    playUri && tryVideo && !videoPlaybackFailed && !!(remoteMp4 && imageStem)
   );
   const photoUri = !photoUnavailable && brandImageUrl ? brandImageUrl : null;
 
@@ -150,11 +144,11 @@ export function EABrandProfileMedia({
   );
 
   const videoLayer =
-    showVideoLayer && videoCandidate ? (
+    showVideoLayer && playUri ? (
       <Video
         testID={testIDVideo}
-        key={videoCandidate}
-        source={{ uri: videoCandidate, overrideFileExtensionAndroid: 'mp4' }}
+        key={playUri}
+        source={{ uri: playUri, overrideFileExtensionAndroid: 'mp4' }}
         style={[mediaStyle as ViewStyle, styles.videoOverlay]}
         resizeMode={resizeModeVideo}
         shouldPlay
