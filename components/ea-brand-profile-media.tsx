@@ -51,7 +51,7 @@ function buildVideoPlaybackSource(playUri: string): { uri: string; overrideFileE
   return { uri: playUri };
 }
 
-/** Center-cropped “aspect fill” using layout + intrinsic size — works around expo-av `COVER` mis-centering some portrait clips. */
+/** Center-cropped “aspect fill”: fractional layout avoids asymmetric rounding drift. */
 function centeredCoverFrame(
   boxW: number,
   boxH: number,
@@ -63,11 +63,38 @@ function centeredCoverFrame(
   const width = naturalW * scale;
   const height = naturalH * scale;
   return {
-    width: Math.round(width),
-    height: Math.round(height),
-    left: Math.round((boxW - width) / 2),
-    top: Math.round((boxH - height) / 2),
+    width,
+    height,
+    left: (boxW - width) / 2,
+    top: (boxH - height) / 2,
   };
+}
+
+/**
+ * expo-av `naturalSize` for phone MP4s can disagree across width×height×orientation tags.
+ * Hero EA uploads are portrait 9×16 — force height ≥ width for crop math (fixes “stripe hugging edge”).
+ */
+function eaProfilePortraitIntrinsics(evt: VideoReadyForDisplayEvent): { width: number; height: number } | null {
+  let w = evt.naturalSize.width;
+  let h = evt.naturalSize.height;
+  const o = evt.naturalSize.orientation;
+
+  if (o === 'portrait' && w > h) {
+    const t = w;
+    w = h;
+    h = t;
+  } else if (o === 'landscape' && h > w) {
+    const t = w;
+    w = h;
+    h = t;
+  }
+  if (w > h) {
+    const t = w;
+    w = h;
+    h = t;
+  }
+  if (!(w > 0) || !(h > 0)) return null;
+  return { width: w, height: h };
 }
 
 async function deleteCachedMp4ForStem(imageStem: string): Promise<void> {
@@ -237,14 +264,10 @@ export function EABrandProfileMedia({
     []
   );
 
-  const onVideoReadyForDisplay = useCallback(
-    (evt: VideoReadyForDisplayEvent) => {
-      const nw = evt.naturalSize.width;
-      const nh = evt.naturalSize.height;
-      if (nw > 0 && nh > 0) setConfirmedVideoIntrinsics({ width: nw, height: nh });
-    },
-    []
-  );
+  const onVideoReadyForDisplay = useCallback((evt: VideoReadyForDisplayEvent) => {
+    const normalized = eaProfilePortraitIntrinsics(evt);
+    if (normalized != null) setConfirmedVideoIntrinsics(normalized);
+  }, []);
 
   const manualCropFrame =
     useManualCenterCover &&
@@ -311,11 +334,13 @@ export function EABrandProfileMedia({
     videoSource != null && showManualCropVideo && manualCropFrame ? (
       <View style={[styles.videoOverlay, mediaStyle as ViewStyle]} pointerEvents="none">
         <View
-          style={{
-            position: 'absolute',
-            ...manualCropFrame,
-            overflow: 'hidden',
-          }}
+          style={[
+            {
+              position: 'absolute',
+              overflow: 'hidden',
+            },
+            manualCropFrame,
+          ]}
         >
           <Video
             testID={testIDVideo}
