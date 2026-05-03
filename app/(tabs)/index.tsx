@@ -16,7 +16,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Notifications from 'expo-notifications';
 import { Play, Square, Scan, Activity, Trash2, Plus } from 'lucide-react-native';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -493,6 +492,148 @@ export default function HomeScreen() {
               </View>
             </View>
 
+          ) : isBlackTheme && !isMatrix ? (
+          <View style={[styles.heroContent, styles.heroContentBlackFullBleed, { shadowColor: theme.colors.glowColor }]}>
+            <LinearGradient
+              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
+              style={styles.gradientBackground}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            <TouchableOpacity
+              style={[styles.blackHeroFullBleedMedia, { height: BLACK_HERO_MEDIA_HEIGHT }]}
+              onPress={handleLogoTap}
+              activeOpacity={1}
+              accessibilityRole="button"
+              accessibilityLabel="Robot logo, triple-tap to change theme"
+            >
+              {primaryEAImage && !logoError ? (
+                <Image
+                  testID="ea-logo-hero-fade"
+                  source={{ uri: primaryEAImage }}
+                  style={styles.blackHeroFullBleedImage}
+                  resizeMode="cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <Image
+                  testID="fallback-logo-hero-fade"
+                  source={require('../../assets/images/icon.png')}
+                  style={styles.blackHeroFullBleedImage}
+                  resizeMode="cover"
+                />
+              )}
+              {/* Bottom-anchored bloom: long ease—keeps artwork clean, dissolves professionally into UI */}
+              <View style={styles.blackHeroBloomHost} pointerEvents="none">
+                <LinearGradient
+                  colors={[
+                    'rgba(0,0,0,0)',
+                    'rgba(0,0,0,0)',
+                    'rgba(0,0,0,0.02)',
+                    'rgba(0,0,0,0.068)',
+                    'rgba(0,0,0,0.155)',
+                    'rgba(0,0,0,0.286)',
+                    'rgba(0,0,0,0.438)',
+                    'rgba(0,0,0,0.628)',
+                    'rgba(0,0,0,0.782)',
+                    'rgba(0,0,0,0.902)',
+                    'rgba(0,0,0,0.964)',
+                    'rgba(0,0,0,1)',
+                  ]}
+                  locations={[0, 0.085, 0.17, 0.28, 0.395, 0.505, 0.598, 0.685, 0.765, 0.848, 0.925, 1]}
+                  style={styles.blackHeroBloomGradient}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                />
+              </View>
+              {/* Soft top veil—ties into charcoal rim without pooling on the artwork */}
+              <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(36,37,41,0.28)', 'rgba(18,18,20,0.08)', 'rgba(0,0,0,0)']}
+                locations={[0, 0.5, 1]}
+                style={styles.blackHeroTopVeil}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+              {/* Feathered edge whisper—no harsh vertical side cuts */}
+              <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.2)']}
+                locations={[0, 0.11, 0.89, 1]}
+                style={styles.blackHeroEdgeWhisper}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+              />
+              {/* Paper-thin bloom along bottom curve of card */}
+              <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0)']}
+                locations={[0, 0.5, 1]}
+                style={styles.blackHeroBloomHighlight}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+            </TouchableOpacity>
+            <View
+              style={[styles.blackHeroForeground, { paddingTop: BLACK_HERO_MEDIA_HEIGHT - BLACK_HERO_OVERLAP_TITLE }]}
+            >
+              <View style={[styles.titleBlock, styles.blackHeroTitleWrap]}>
+                <View style={styles.botNameContainer}>
+                  <Text
+                    testID="ea-title"
+                    style={[styles.botMainName, styles.botMainNameBlackHero]}
+                    numberOfLines={3}
+                    ellipsizeMode="tail"
+                  >
+                    {primaryEA.name.toUpperCase()}
+                  </Text>
+                  <View
+                    style={[
+                      styles.botStatusDot,
+                      isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive,
+                    ]}
+                  />
+                </View>
+              </View>
+              <View style={[styles.bottomActions, styles.blackHeroBottomActions]}>
+                <TouchableOpacity
+                  testID="action-start"
+                  style={[styles.actionButton, styles.tradeButton]}
+                  onPress={() => {
+                    try {
+                      setBotActive(!isBotActive);
+                    } catch (error) {
+                      console.error('Error changing bot state:', error);
+                    }
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <View style={styles.tradeButtonContent}>
+                    {isBotActive ? (
+                      <Square color="#FFFFFF" size={28} strokeWidth={2.5} />
+                    ) : (
+                      <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />
+                    )}
+                    <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
+                  <View style={styles.secondaryButtonContent}>
+                    <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
+                    <Text style={styles.secondaryButtonText}>QUOTES</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
+                  <View style={styles.secondaryButtonContent}>
+                    <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
+                    <Text style={styles.secondaryButtonText}>Remove</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
           ) : (
           /* ════════════════════════════════════════════════════
              ALL OTHER THEMES — original layout unchanged
@@ -550,169 +691,30 @@ export default function HomeScreen() {
             )}
 
             <View style={styles.topSection}>
-              {isBlackTheme ? (
-                <TouchableOpacity
-                  style={styles.blackHeroLogoTouchable}
-                  onPress={handleLogoTap}
-                  activeOpacity={0.9}
-                  accessibilityRole="button"
-                  accessibilityLabel="Robot logo, triple-tap to change theme"
-                >
-                  <View style={styles.blackHeroLogoStage}>
-                    {primaryEAImage && !logoError ? (
-                      <Image
-                        testID="ea-logo-hero-fade"
-                        source={{ uri: primaryEAImage }}
-                        style={styles.blackHeroLogoImage}
-                        resizeMode="contain"
-                        onError={() => setLogoError(true)}
-                      />
-                    ) : (
-                      <Image
-                        testID="fallback-logo-hero-fade"
-                        source={require('../../assets/images/icon.png')}
-                        style={styles.blackHeroLogoImage}
-                        resizeMode="contain"
-                      />
-                    )}
-                    {/* Black theme: layered “cinema matte” fades — radial body + sculpted linear rims */}
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={[
-                        'rgba(92,94,102,0.18)',
-                        'rgba(54,54,58,0.07)',
-                        'rgba(10,10,12,0)',
-                        'rgba(0,0,0,0)',
-                      ]}
-                      locations={[0, 0.12, 0.38, 1]}
-                      style={StyleSheet.absoluteFill}
-                      start={{ x: 0.5, y: 0 }}
-                      end={{ x: 0.5, y: 1 }}
+              <TouchableOpacity
+                style={styles.circularLogoContainer}
+                onPress={handleLogoTap}
+                activeOpacity={0.9}
+              >
+                <View style={styles.circularLogoRing}>
+                  {primaryEAImage && !logoError ? (
+                    <Image
+                      testID="ea-logo-circular"
+                      source={{ uri: primaryEAImage }}
+                      style={styles.circularLogo}
+                      resizeMode="cover"
+                      onError={() => setLogoError(true)}
                     />
-                    <Svg
-                      pointerEvents="none"
-                      style={styles.blackHeroFadeSvg}
-                      width="100%"
-                      height="100%"
-                      preserveAspectRatio="none"
-                    >
-                      <Defs>
-                        <RadialGradient
-                          id="blackHeroLogoRadial"
-                          cx="49%"
-                          cy="38%"
-                          fx="46%"
-                          fy="30%"
-                          rx="71%"
-                          ry="84%"
-                          gradientUnits="objectBoundingBox"
-                        >
-                          <Stop offset="0%" stopColor="#000000" stopOpacity={0} />
-                          <Stop offset="48%" stopColor="#030303" stopOpacity={0.09} />
-                          <Stop offset="72%" stopColor="#000000" stopOpacity={0.42} />
-                          <Stop offset="100%" stopColor="#000000" stopOpacity={0.93} />
-                        </RadialGradient>
-                      </Defs>
-                      <Rect width="100%" height="100%" fill="url(#blackHeroLogoRadial)" />
-                    </Svg>
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={[
-                        'rgba(255,255,255,0.055)',
-                        'rgba(255,255,255,0)',
-                        'rgba(255,255,255,0)',
-                        'rgba(255,255,255,0)',
-                      ]}
-                      locations={[0, 0.22, 0.55, 1]}
-                      style={StyleSheet.absoluteFill}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0.55 }}
+                  ) : (
+                    <Image
+                      testID="fallback-logo-circular"
+                      source={require('../../assets/images/icon.png')}
+                      style={styles.circularLogo}
+                      resizeMode="contain"
                     />
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={[
-                        'rgba(0,0,0,0.4)',
-                        'rgba(0,0,0,0.06)',
-                        'rgba(0,0,0,0)',
-                        'rgba(0,0,0,0.05)',
-                        'rgba(0,0,0,0.42)',
-                      ]}
-                      locations={[0, 0.28, 0.52, 0.72, 1]}
-                      style={[StyleSheet.absoluteFill, { opacity: 0.62 }]}
-                      start={{ x: 0.08, y: 0 }}
-                      end={{ x: 0.94, y: 1 }}
-                    />
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={[
-                        'rgba(0,0,0,0.52)',
-                        'rgba(0,0,0,0.06)',
-                        'rgba(0,0,0,0)',
-                        'rgba(0,0,0,0.06)',
-                        'rgba(0,0,0,0.52)',
-                      ]}
-                      locations={[0, 0.11, 0.48, 0.89, 1]}
-                      style={[StyleSheet.absoluteFill, { opacity: 0.74 }]}
-                      start={{ x: 1, y: 0 }}
-                      end={{ x: 0, y: 1 }}
-                    />
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={[
-                        'rgba(0,0,0,0.38)',
-                        'rgba(0,0,0,0.06)',
-                        'rgba(0,0,0,0)',
-                        'rgba(0,0,0,0.06)',
-                        'rgba(0,0,0,0.38)',
-                      ]}
-                      locations={[0, 0.14, 0.5, 0.86, 1]}
-                      style={StyleSheet.absoluteFill}
-                      start={{ x: 0, y: 0.5 }}
-                      end={{ x: 1, y: 0.5 }}
-                    />
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={[
-                        'rgba(0,0,0,0)',
-                        'rgba(0,0,0,0)',
-                        'rgba(0,0,0,0.18)',
-                        'rgba(0,0,0,0.52)',
-                        'rgba(0,0,0,0.88)',
-                        'rgba(0,0,0,0.98)',
-                      ]}
-                      locations={[0, 0.38, 0.58, 0.76, 0.92, 1]}
-                      style={styles.blackHeroBottomVeil}
-                      start={{ x: 0.5, y: 0 }}
-                      end={{ x: 0.5, y: 1 }}
-                    />
-                  </View>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.circularLogoContainer}
-                  onPress={handleLogoTap}
-                  activeOpacity={0.9}
-                >
-                  <View style={styles.circularLogoRing}>
-                    {primaryEAImage && !logoError ? (
-                      <Image
-                        testID="ea-logo-circular"
-                        source={{ uri: primaryEAImage }}
-                        style={styles.circularLogo}
-                        resizeMode="cover"
-                        onError={() => setLogoError(true)}
-                      />
-                    ) : (
-                      <Image
-                        testID="fallback-logo-circular"
-                        source={require('../../assets/images/icon.png')}
-                        style={styles.circularLogo}
-                        resizeMode="contain"
-                      />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              )}
+                  )}
+                </View>
+              </TouchableOpacity>
               <View style={styles.titleBlock}>
                 <View style={styles.botNameContainer}>
                   <Text
@@ -953,6 +955,10 @@ export default function HomeScreen() {
 }
 
 const { width } = Dimensions.get('window');
+/** Black hero poster: upper band height (~full card width) for edge-to-edge cover art */
+const BLACK_HERO_MEDIA_HEIGHT = Math.round(width * 0.575);
+/** Title overlaps scrim ramp by this much for a silky transition into actionable UI */
+const BLACK_HERO_OVERLAP_TITLE = 60;
 
 const styles = StyleSheet.create({
   splashContainer: {
@@ -1128,30 +1134,76 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 40,
     zIndex: 3,
   },
-  blackHeroLogoTouchable: {
-    alignSelf: 'stretch',
-    width: '100%',
-    marginBottom: 12,
+  heroContentBlackFullBleed: {
+    paddingTop: 0,
+    paddingHorizontal: 0,
   },
-  blackHeroLogoStage: {
-    width: '100%',
-    height: 172,
-    borderRadius: 24,
+  /** Full-width image band locked to card top corners (same clip as hero). */
+  blackHeroFullBleedMedia: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
     overflow: 'hidden',
-    position: 'relative',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
   },
-  blackHeroFadeSvg: {
+  blackHeroFullBleedImage: {
     ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
   },
-  blackHeroBottomVeil: {
+  /** Scrim occupies lower ~88% of media—avoids muddying crisp logo mids */
+  blackHeroBloomHost: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    top: '18%',
+    top: '12%',
   },
-  blackHeroLogoImage: {
+  blackHeroBloomGradient: {
+    flex: 1,
+  },
+  blackHeroTopVeil: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '44%',
+  },
+  blackHeroEdgeWhisper: {
     ...StyleSheet.absoluteFillObject,
+    opacity: 0.55,
+  },
+  blackHeroBloomHighlight: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '18%',
+    opacity: 0.38,
+  },
+  blackHeroForeground: {
+    position: 'relative',
+    zIndex: 6,
+    width: '100%',
+  },
+  blackHeroTitleWrap: {
+    marginBottom: 12,
+    paddingHorizontal: 20,
+  },
+  blackHeroBottomActions: {
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    marginTop: 2,
+  },
+  botMainNameBlackHero: {
+    paddingHorizontal: 8,
+    lineHeight: 31,
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 16,
   },
   circularLogoContainer: {
     width: 180,
