@@ -492,11 +492,15 @@ export default function HomeScreen() {
               </View>
             </View>
 
-          ) : isBlackTheme && !isMatrix ? (
+          ) : (
           <View style={[styles.heroContent, styles.heroContentBlackFullBleed, { shadowColor: theme.colors.glowColor }]}>
             <LinearGradient
-              colors={theme.colors.primaryGradient as [string, string, ...string[]]}
-              style={styles.gradientBackground}
+              colors={
+                isMatrix
+                  ? (matrixCardGradient as [string, string, ...string[]])
+                  : (theme.colors.primaryGradient as [string, string, ...string[]])
+              }
+              style={[styles.gradientBackground, isMatrix && { opacity: 0.95 }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
@@ -511,6 +515,7 @@ export default function HomeScreen() {
                 fillParent
                 brandImageUrl={primaryEAImage}
                 photoUnavailable={logoError}
+                preferLoopingVideo={isBlackTheme && !isMatrix}
                 contentFit="cover"
                 fallbackContentFit="cover"
                 mediaStyle={styles.blackHeroFullBleedImage}
@@ -640,136 +645,6 @@ export default function HomeScreen() {
                   </View>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
-          ) : (
-          /* ════════════════════════════════════════════════════
-             ALL OTHER THEMES — original layout unchanged
-             ════════════════════════════════════════════════════ */
-          <View style={[styles.heroContent, { shadowColor: theme.colors.glowColor }]}>
-            {/* Beautiful gradient background with glass effect */}
-            <LinearGradient
-              colors={
-                isMatrix
-                  ? (matrixCardGradient as [string, string, ...string[]])
-                  : (theme.colors.primaryGradient as [string, string, ...string[]])
-              }
-              style={[styles.gradientBackground, isMatrix && { opacity: 0.95 }]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-
-            {Platform.OS === 'ios' && !isMatrix && (
-              <BlurView intensity={40} tint="light" style={styles.glassOverlay} />
-            )}
-
-            {!isMatrix && (
-              <>
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.4)', 'rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0)']}
-                  style={styles.glossShine}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
-                  style={styles.leftHighlight}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                />
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.15)']}
-                  style={styles.rightHighlight}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                />
-                <LinearGradient
-                  colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-                  style={styles.edgeFadeTop}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
-                <LinearGradient
-                  colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']}
-                  style={styles.edgeFadeBottom}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                />
-              </>
-            )}
-
-            <View style={styles.topSection}>
-              <TouchableOpacity
-                style={styles.circularLogoContainer}
-                onPress={handleLogoTap}
-                activeOpacity={0.9}
-              >
-                <View style={styles.circularLogoRing}>
-                  <EABrandProfileMedia
-                    fillParent={false}
-                    brandImageUrl={primaryEAImage}
-                    photoUnavailable={logoError}
-                    contentFit="cover"
-                    fallbackContentFit="contain"
-                    containerStyle={[styles.circularLogo, styles.eaProfileMediaClip]}
-                    mediaStyle={StyleSheet.absoluteFillObject}
-                    onPhotoError={() => setLogoError(true)}
-                    fallbackSource={require('../../assets/images/icon.png')}
-                    testIDPhoto="ea-logo-circular"
-                    testIDVideo="ea-logo-circular-video"
-                  />
-                </View>
-              </TouchableOpacity>
-              <View style={styles.titleBlock}>
-                <View style={styles.botNameContainer}>
-                  <Text
-                    testID="ea-title"
-                    style={styles.botMainName}
-                    numberOfLines={3}
-                    ellipsizeMode="tail"
-                  >
-                    {primaryEA.name.toUpperCase()}
-                  </Text>
-                  <View style={[
-                    styles.botStatusDot,
-                    isBotActive ? styles.botStatusDotActive : styles.botStatusDotInactive
-                  ]} />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.bottomActions}>
-              <TouchableOpacity
-                testID="action-start"
-                style={[styles.actionButton, styles.tradeButton]}
-                onPress={() => {
-                  try { setBotActive(!isBotActive); } catch (error) { console.error('Error changing bot state:', error); }
-                }}
-                activeOpacity={0.6}
-              >
-                <View style={styles.tradeButtonContent}>
-                  {isBotActive ? (
-                    <Square color="#FFFFFF" size={28} strokeWidth={2.5} />
-                  ) : (
-                    <Play color="#FFFFFF" size={28} strokeWidth={2.5} fill="#FFFFFF" />
-                  )}
-                  <Text style={styles.tradeButtonText}>{isBotActive ? 'Stop' : 'Start'}</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity testID="action-quotes" style={[styles.actionButton, styles.secondaryButton]} onPress={handleQuotes} activeOpacity={0.6}>
-                <View style={styles.secondaryButtonContent}>
-                  <Activity color="#FFFFFF" size={24} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>QUOTES</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity testID="action-remove" style={[styles.actionButton, styles.secondaryButton]} onPress={handleRemoveActiveBot} activeOpacity={0.6}>
-                <View style={styles.secondaryButtonContent}>
-                  <Trash2 color="#FFFFFF" size={24} strokeWidth={2.5} />
-                  <Text style={styles.secondaryButtonText}>Remove</Text>
-                </View>
-              </TouchableOpacity>
             </View>
           </View>
           )}
@@ -1083,16 +958,6 @@ const styles = StyleSheet.create({
     zIndex: 0,
     opacity: 0.9,
   },
-  glassOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 40,
-    zIndex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
   glossShine: {
     position: 'absolute',
     top: 0,
@@ -1102,42 +967,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
     zIndex: 2,
-  },
-  leftHighlight: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    width: 2,
-    height: 200,
-    zIndex: 2,
-  },
-  rightHighlight: {
-    position: 'absolute',
-    top: 60,
-    right: 0,
-    width: 2,
-    height: 200,
-    zIndex: 2,
-  },
-  edgeFadeTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    zIndex: 3,
-  },
-  edgeFadeBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 40,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    zIndex: 3,
   },
   heroContentBlackFullBleed: {
     paddingTop: 0,
