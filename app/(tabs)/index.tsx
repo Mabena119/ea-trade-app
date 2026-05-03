@@ -26,6 +26,7 @@ import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { EABrandProfileMedia } from '@/components/ea-brand-profile-media';
 import { overlayService } from '@/services/overlay-service';
 import colors from '@/constants/colors';
+import { getHeroFullBleedFade } from '@/utils/theme-hero-fades';
 
 export default function HomeScreen() {
   const { eas, isFirstTime, setIsFirstTime, removeEA, isBotActive, setBotActive, setActiveEA, mt5Account } = useApp();
@@ -245,6 +246,11 @@ export default function HomeScreen() {
     }
     return ['rgb(0, 58, 30)', 'rgb(0, 36, 18)', 'rgb(0, 72, 38)'];
   }, [themeName]);
+
+  const heroBleedFade = useMemo(
+    () => getHeroFullBleedFade(theme, { isBlackTheme, isMatrix }),
+    [theme, isBlackTheme, isMatrix]
+  );
 
   // Block rendering if not authenticated
   if (!isAuthenticated) {
@@ -527,20 +533,8 @@ export default function HomeScreen() {
               {/* Bottom-anchored bloom—softer caps so imagery shows through buttons region */}
               <View style={styles.blackHeroBloomHost} pointerEvents="none">
                 <LinearGradient
-                  colors={[
-                    'rgba(0,0,0,0)',
-                    'rgba(0,0,0,0)',
-                    'rgba(0,0,0,0.016)',
-                    'rgba(0,0,0,0.058)',
-                    'rgba(0,0,0,0.118)',
-                    'rgba(0,0,0,0.218)',
-                    'rgba(0,0,0,0.348)',
-                    'rgba(0,0,0,0.478)',
-                    'rgba(0,0,0,0.582)',
-                    'rgba(0,0,0,0.668)',
-                    'rgba(0,0,0,0.734)',
-                  ]}
-                  locations={[0, 0.085, 0.17, 0.275, 0.38, 0.482, 0.575, 0.665, 0.755, 0.84, 1]}
+                  colors={heroBleedFade.bloom as [string, string, ...string[]]}
+                  locations={[...heroBleedFade.bloomLocations]}
                   style={styles.blackHeroBloomGradient}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
@@ -549,7 +543,7 @@ export default function HomeScreen() {
               {/* Extra read legibility stripe over control row—still translucent */}
               <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.38)', 'rgba(0,0,0,0.52)']}
+                colors={heroBleedFade.controlsScrim as [string, string, ...string[]]}
                 locations={[0, 0.35, 0.78, 1]}
                 style={styles.blackHeroControlsScrim}
                 start={{ x: 0.5, y: 0 }}
@@ -558,7 +552,7 @@ export default function HomeScreen() {
               {/* Soft top veil—ties into charcoal rim */}
               <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(36,37,41,0.26)', 'rgba(18,18,20,0.06)', 'rgba(0,0,0,0)']}
+                colors={heroBleedFade.topVeil as [string, string, ...string[]]}
                 locations={[0, 0.5, 1]}
                 style={styles.blackHeroTopVeil}
                 start={{ x: 0.5, y: 0 }}
@@ -567,7 +561,7 @@ export default function HomeScreen() {
               {/* Feathered edge */}
               <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(0,0,0,0.17)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.17)']}
+                colors={heroBleedFade.edgeWhisper as [string, string, ...string[]]}
                 locations={[0, 0.11, 0.89, 1]}
                 style={styles.blackHeroEdgeWhisper}
                 start={{ x: 0, y: 0.5 }}
@@ -575,7 +569,7 @@ export default function HomeScreen() {
               />
               <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.028)', 'rgba(255,255,255,0)']}
+                colors={heroBleedFade.bloomHighlight as [string, string, ...string[]]}
                 locations={[0, 0.5, 1]}
                 style={styles.blackHeroBloomHighlight}
                 start={{ x: 0.5, y: 0 }}
