@@ -501,7 +501,7 @@ export default function HomeScreen() {
               end={{ x: 1, y: 1 }}
             />
             <TouchableOpacity
-              style={[styles.blackHeroFullBleedMedia, { height: BLACK_HERO_MEDIA_HEIGHT }]}
+              style={styles.blackHeroFullBleedMedia}
               onPress={handleLogoTap}
               activeOpacity={1}
               accessibilityRole="button"
@@ -523,51 +523,58 @@ export default function HomeScreen() {
                   resizeMode="cover"
                 />
               )}
-              {/* Bottom-anchored bloom: long ease—keeps artwork clean, dissolves professionally into UI */}
+              {/* Bottom-anchored bloom—softer caps so imagery shows through buttons region */}
               <View style={styles.blackHeroBloomHost} pointerEvents="none">
                 <LinearGradient
                   colors={[
                     'rgba(0,0,0,0)',
                     'rgba(0,0,0,0)',
-                    'rgba(0,0,0,0.02)',
-                    'rgba(0,0,0,0.068)',
-                    'rgba(0,0,0,0.155)',
-                    'rgba(0,0,0,0.286)',
-                    'rgba(0,0,0,0.438)',
-                    'rgba(0,0,0,0.628)',
-                    'rgba(0,0,0,0.782)',
-                    'rgba(0,0,0,0.902)',
-                    'rgba(0,0,0,0.964)',
-                    'rgba(0,0,0,1)',
+                    'rgba(0,0,0,0.016)',
+                    'rgba(0,0,0,0.058)',
+                    'rgba(0,0,0,0.118)',
+                    'rgba(0,0,0,0.218)',
+                    'rgba(0,0,0,0.348)',
+                    'rgba(0,0,0,0.478)',
+                    'rgba(0,0,0,0.582)',
+                    'rgba(0,0,0,0.668)',
+                    'rgba(0,0,0,0.734)',
                   ]}
-                  locations={[0, 0.085, 0.17, 0.28, 0.395, 0.505, 0.598, 0.685, 0.765, 0.848, 0.925, 1]}
+                  locations={[0, 0.085, 0.17, 0.275, 0.38, 0.482, 0.575, 0.665, 0.755, 0.84, 1]}
                   style={styles.blackHeroBloomGradient}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                 />
               </View>
-              {/* Soft top veil—ties into charcoal rim without pooling on the artwork */}
+              {/* Extra read legibility stripe over control row—still translucent */}
               <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(36,37,41,0.28)', 'rgba(18,18,20,0.08)', 'rgba(0,0,0,0)']}
+                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.38)', 'rgba(0,0,0,0.52)']}
+                locations={[0, 0.35, 0.78, 1]}
+                style={styles.blackHeroControlsScrim}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+              {/* Soft top veil—ties into charcoal rim */}
+              <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(36,37,41,0.26)', 'rgba(18,18,20,0.06)', 'rgba(0,0,0,0)']}
                 locations={[0, 0.5, 1]}
                 style={styles.blackHeroTopVeil}
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
               />
-              {/* Feathered edge whisper—no harsh vertical side cuts */}
+              {/* Feathered edge */}
               <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.2)']}
+                colors={['rgba(0,0,0,0.17)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.17)']}
                 locations={[0, 0.11, 0.89, 1]}
                 style={styles.blackHeroEdgeWhisper}
                 start={{ x: 0, y: 0.5 }}
                 end={{ x: 1, y: 0.5 }}
               />
-              {/* Paper-thin bloom along bottom curve of card */}
               <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0)']}
+                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.028)', 'rgba(255,255,255,0)']}
                 locations={[0, 0.5, 1]}
                 style={styles.blackHeroBloomHighlight}
                 start={{ x: 0.5, y: 0 }}
@@ -575,9 +582,11 @@ export default function HomeScreen() {
               />
             </TouchableOpacity>
             <View
-              style={[styles.blackHeroForeground, { paddingTop: BLACK_HERO_MEDIA_HEIGHT - BLACK_HERO_OVERLAP_TITLE }]}
+              pointerEvents="box-none"
+              style={[styles.blackHeroForeground, { minHeight: BLACK_HERO_CARD_MIN_HEIGHT }]}
             >
-              <View style={[styles.titleBlock, styles.blackHeroTitleWrap]}>
+              <View style={{ height: BLACK_HERO_TOP_SPACER }} pointerEvents="none" />
+              <View style={[styles.titleBlock, styles.blackHeroTitleWrap]} pointerEvents="box-none">
                 <View style={styles.botNameContainer}>
                   <Text
                     testID="ea-title"
@@ -955,10 +964,12 @@ export default function HomeScreen() {
 }
 
 const { width } = Dimensions.get('window');
-/** Black hero poster: upper band height (~full card width) for edge-to-edge cover art */
+/** Black hero poster: layout band used for spacer / vertical rhythm (~half card width). */
 const BLACK_HERO_MEDIA_HEIGHT = Math.round(width * 0.575);
-/** Title overlaps scrim ramp by this much for a silky transition into actionable UI */
-const BLACK_HERO_OVERLAP_TITLE = 60;
+/** Space below top of card before title row (imagery dominates above). */
+const BLACK_HERO_TOP_SPACER = Math.round(BLACK_HERO_MEDIA_HEIGHT * 0.5);
+/** Minimum card height: spacer + title + control row + padding. */
+const BLACK_HERO_CARD_MIN_HEIGHT = BLACK_HERO_TOP_SPACER + 240;
 
 const styles = StyleSheet.create({
   splashContainer: {
@@ -1138,29 +1149,31 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingHorizontal: 0,
   },
-  /** Full-width image band locked to card top corners (same clip as hero). */
+  /** Full-card cover art; parent height follows in-flow foreground. */
   blackHeroFullBleedMedia: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    ...StyleSheet.absoluteFillObject,
     zIndex: 3,
     overflow: 'hidden',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
+  },
+  blackHeroControlsScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '46%',
   },
   blackHeroFullBleedImage: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
   },
-  /** Scrim occupies lower ~88% of media—avoids muddying crisp logo mids */
+  /** Scrim: lower portion of card (image spans full hero). */
   blackHeroBloomHost: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    top: '12%',
+    top: '8%',
   },
   blackHeroBloomGradient: {
     flex: 1,
@@ -1174,20 +1187,21 @@ const styles = StyleSheet.create({
   },
   blackHeroEdgeWhisper: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.55,
+    opacity: 0.42,
   },
   blackHeroBloomHighlight: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '18%',
-    opacity: 0.38,
+    height: '22%',
+    opacity: 0.32,
   },
   blackHeroForeground: {
     position: 'relative',
-    zIndex: 6,
+    zIndex: 8,
     width: '100%',
+    paddingBottom: 4,
   },
   blackHeroTitleWrap: {
     marginBottom: 12,
