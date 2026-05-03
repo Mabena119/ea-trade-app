@@ -529,6 +529,7 @@ export default function HomeScreen() {
                 fallbackSource={require('../../assets/images/icon.png')}
                 testIDPhoto="ea-logo-hero-fade"
                 testIDVideo="ea-logo-hero-video"
+                videoPortraitAspectWH={[9, 16]}
               />
               {/* Bottom-anchored bloom—softer caps so imagery shows through buttons region */}
               <View style={styles.blackHeroBloomHost} pointerEvents="none">

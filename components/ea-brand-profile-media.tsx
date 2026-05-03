@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, type StyleProp, View, type ViewStyle } from 'react-native';
+import {
+  Image,
+  LayoutChangeEvent,
+  Platform,
+  StyleSheet,
+  type StyleProp,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { Audio, ResizeMode, Video } from 'expo-av';
 
@@ -10,6 +18,19 @@ import { deriveEaBrandImageStemFromUrl, deriveEALogoMp4Url } from '@/utils/ea-lo
 type ContentFit = 'cover' | 'contain';
 
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
+
+/** Fits width:height viewport (e.g. 9×16 portrait) inside a box without cropping; returns pixel size centered in parent */
+function portraitAspectBox(boxW: number, boxH: number, vw: number, vh: number): { width: number; height: number } {
+  if (boxW <= 0 || boxH <= 0 || vw <= 0 || vh <= 0) return { width: 0, height: 0 };
+  const ar = vw / vh;
+  let height = boxH;
+  let width = height * ar;
+  if (width > boxW) {
+    width = boxW;
+    height = width / ar;
+  }
+  return { width: Math.round(width), height: Math.round(height) };
+}
 
 export type EABrandProfileMediaProps = {
   /**
@@ -31,6 +52,11 @@ export type EABrandProfileMediaProps = {
   fallbackSource: number;
   testIDPhoto?: string;
   testIDVideo?: string;
+  /**
+   * When set (e.g. `[9, 16]` portrait reels), the **video layer** fits that aspect ratio inside the
+   * parent, centered (`CONTAIN`). The **still poster** stays full-bleed. Omit for fullscreen video (carousel / circles).
+   */
+  videoPortraitAspectWH?: readonly [number, number];
 };
 
 function buildVideoPlaybackSource(playUri: string): { uri: string; overrideFileExtensionAndroid?: string } {
@@ -62,6 +88,7 @@ export function EABrandProfileMedia({
   fallbackSource,
   testIDPhoto,
   testIDVideo,
+  videoPortraitAspectWH,
 }: EABrandProfileMediaProps) {
   const tryVideo = preferLoopingVideo ?? Platform.OS !== 'web';
 
@@ -177,7 +204,33 @@ export function EABrandProfileMedia({
 
   const resizeModeVideo = contentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER;
 
+  const [parentLayout, setParentLayout] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+
+  const onParentLayout = useCallback((e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setParentLayout((prev) =>
+      prev.width === width && prev.height === height ? prev : { width, height }
+    );
+  }, []);
+
   const showVideoLayer = Boolean(playUri && tryVideo && !videoPlaybackFailed && remoteMp4 && imageStem);
+
+  const vw = videoPortraitAspectWH?.[0] ?? 0;
+  const vh = videoPortraitAspectWH?.[1] ?? 0;
+  const wantsPortraitVideoSlot = vw > 0 && vh > 0;
+
+  const portraitSlotDims = wantsPortraitVideoSlot
+    ? portraitAspectBox(parentLayout.width, parentLayout.height, vw, vh)
+    : null;
+
+  const portraitSlotReady = !!(portraitSlotDims?.width && portraitSlotDims?.height);
+
+  /** Wait for layout before mounting video — avoids fullscreen COVER flashing before centered slot fits 9 : 16 */
+  const showPortraitCenteredVideo = showVideoLayer && wantsPortraitVideoSlot && portraitSlotReady;
+  const showFullscreenVideoLayer = showVideoLayer && !wantsPortraitVideoSlot;
 
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
 
@@ -194,11 +247,11 @@ export function EABrandProfileMedia({
     />
   );
 
-  const videoLayer =
-    videoSource != null ? (
+  const videoLayerFullscreen =
+    videoSource != null && showFullscreenVideoLayer ? (
       <Video
         testID={testIDVideo}
-        key={`${playUri}:${canonicalStillUrl ?? ''}`}
+        key={`fs:${playUri}:${canonicalStillUrl ?? ''}`}
         source={videoSource}
         style={[mediaStyle as ViewStyle, styles.videoOverlay]}
         resizeMode={resizeModeVideo}
@@ -213,12 +266,39 @@ export function EABrandProfileMedia({
       />
     ) : null;
 
+  const videoLayerCentered =
+    videoSource != null &&
+    showPortraitCenteredVideo &&
+    portraitSlotDims?.width &&
+    portraitSlotDims?.height ? (
+      <View style={styles.videoCenterHost} pointerEvents="none">
+        <View style={{ width: portraitSlotDims.width, height: portraitSlotDims.height }}>
+          <Video
+            testID={testIDVideo}
+            key={`c:${portraitSlotDims.width}:${portraitSlotDims.height}:${playUri}:${canonicalStillUrl ?? ''}`}
+            source={videoSource}
+            style={[StyleSheet.absoluteFillObject]}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay
+            isLooping
+            isMuted
+            volume={0}
+            useNativeControls={false}
+            usePoster={false}
+            pointerEvents="none"
+            onError={onVideoErr}
+          />
+        </View>
+      </View>
+    ) : null;
+
   const rootStyle: StyleProp<ViewStyle> = [fillParent && StyleSheet.absoluteFillObject, containerStyle];
 
   return (
-    <View style={rootStyle} pointerEvents="box-none">
+    <View style={rootStyle} pointerEvents="box-none" onLayout={videoPortraitAspectWH ? onParentLayout : undefined}>
       <View style={[mediaStyle as ViewStyle, styles.stillUnderlay]}>{innerStill}</View>
-      {videoLayer}
+      {videoLayerFullscreen}
+      {videoLayerCentered}
     </View>
   );
 }
@@ -232,5 +312,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     zIndex: 2,
     elevation: 2,
+  },
+  videoCenterHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+    elevation: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
