@@ -585,7 +585,10 @@ export default function HomeScreen() {
               pointerEvents="box-none"
               style={[styles.blackHeroForeground, { minHeight: BLACK_HERO_CARD_MIN_HEIGHT }]}
             >
-              <View style={{ height: BLACK_HERO_TOP_SPACER }} pointerEvents="none" />
+              <View
+                pointerEvents="none"
+                style={styles.blackHeroTopFlexSpacer}
+              />
               <View style={[styles.titleBlock, styles.blackHeroTitleWrap]} pointerEvents="box-none">
                 <View style={styles.botNameContainer}>
                   <Text
@@ -964,12 +967,10 @@ export default function HomeScreen() {
 }
 
 const { width } = Dimensions.get('window');
-/** Black hero poster: layout band used for spacer / vertical rhythm (~half card width). */
-const BLACK_HERO_MEDIA_HEIGHT = Math.round(width * 0.575);
-/** Space below top of card before title row (imagery dominates above); higher = title + controls sit lower. */
-const BLACK_HERO_TOP_SPACER = Math.round(BLACK_HERO_MEDIA_HEIGHT * 0.66);
-/** Minimum card height: spacer + title + control row + padding. */
-const BLACK_HERO_CARD_MIN_HEIGHT = BLACK_HERO_TOP_SPACER + 256;
+/** Floor for how tall the black hero poster card should feel (ratio of screen width). */
+const BLACK_HERO_CARD_MIN_HEIGHT = Math.round(width * 1.08);
+/** Thin strip so content never kisses the rounded top edge on rotation / large text */
+const BLACK_HERO_TOP_ART_FLOOR = Math.round(width * 0.04);
 
 const styles = StyleSheet.create({
   splashContainer: {
@@ -1198,19 +1199,29 @@ const styles = StyleSheet.create({
     opacity: 0.32,
   },
   blackHeroForeground: {
+    flexDirection: 'column',
     position: 'relative',
     zIndex: 8,
     width: '100%',
-    paddingBottom: 4,
+    paddingBottom: 10,
+  },
+  /** Eats leftover height so robot name + controls sit toward the bottom of the card */
+  blackHeroTopFlexSpacer: {
+    flex: 1,
+    minHeight: BLACK_HERO_TOP_ART_FLOOR,
+    width: '100%',
   },
   blackHeroTitleWrap: {
-    marginBottom: 12,
+    flexShrink: 0,
+    marginBottom: 8,
     paddingHorizontal: 20,
   },
   blackHeroBottomActions: {
+    flexShrink: 0,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    marginTop: 2,
+    paddingTop: 2,
+    marginTop: 0,
+    marginBottom: 2,
   },
   botMainNameBlackHero: {
     paddingHorizontal: 8,
