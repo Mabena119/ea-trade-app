@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 
+import { EA_BRAND_CDN_HEADERS } from '@/utils/ea-brand-image';
+
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
 /** Tiny placeholder / error-body responses are skipped. */
 const MIN_MP4_BYTES = 512;
@@ -41,7 +43,9 @@ export async function ensureEaBrandMp4Cached(remoteMp4Uri: string, imageBasename
     return localUri;
   }
 
-  const dl = await FileSystem.downloadAsync(remoteMp4Uri, localUri);
+  const dl = await FileSystem.downloadAsync(remoteMp4Uri, localUri, {
+    headers: EA_BRAND_CDN_HEADERS,
+  });
   const ok = dl.status >= 200 && dl.status < 300;
   if (!ok) {
     try {

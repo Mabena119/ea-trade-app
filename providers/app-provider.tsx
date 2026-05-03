@@ -12,6 +12,7 @@ import {
   sanitizeManualLotSize,
   sanitizeManualTradesCount,
 } from '@/utils/equity-trade-preset';
+import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 
 function normalizeSymbolKeyLocal(s: string): string {
   return s.replace(/\s/g, '').toUpperCase();
@@ -546,12 +547,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (!ea || !ea.userData || !ea.userData.owner) return null;
     const raw = (ea.userData.owner.logo || '').toString().trim();
     if (!raw) return null;
-    // If already an absolute URL, return as-is
-    if (/^https?:\/\//i.test(raw)) return raw;
-    // Otherwise, treat as filename and prefix uploads base URL
-    const filename = raw.replace(/^\/+/, '');
-    const base = 'https://www.eatrade.io/admin/uploads';
-    return `${base}/${filename}`;
+    const resolved = /^https?:\/\//i.test(raw)
+      ? normalizeEaBrandLogoHttpUrl(raw)
+      : normalizeEaBrandLogoHttpUrl(raw.replace(/^\/+/, ''));
+    return resolved;
   }, []);
 
   const loadPersistedData = async () => {

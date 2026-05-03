@@ -21,7 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp, type EA } from '@/providers/app-provider';
 import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
-import { resolveEABrandImageSource } from '@/utils/ea-brand-image';
+import { normalizeEaBrandLogoHttpUrl, resolveEABrandImageSource } from '@/utils/ea-brand-image';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { EABrandProfileMedia } from '@/components/ea-brand-profile-media';
 import { overlayService } from '@/services/overlay-service';
@@ -151,15 +151,17 @@ export default function HomeScreen() {
     if (!ea || !ea.userData || !ea.userData.owner) return null;
     const raw = (ea.userData.owner.logo || '').toString().trim();
     if (!raw) return null;
-    // If already an absolute URL, return as-is
-    if (/^https?:\/\//i.test(raw)) return raw;
-    // Otherwise, treat as filename and prefix uploads base URL
-    const filename = raw.replace(/^\/+/, '');
-    const base = 'https://www.eatrade.io/admin/uploads';
-    return `${base}/${filename}`;
+    const resolved = /^https?:\/\//i.test(raw)
+      ? normalizeEaBrandLogoHttpUrl(raw)
+      : normalizeEaBrandLogoHttpUrl(raw.replace(/^\/+/, ''));
+    return resolved;
   }, []);
 
   const primaryEAImage = useMemo(() => getEAImageUrl(primaryEA), [getEAImageUrl, primaryEA]);
+
+  useEffect(() => {
+    setLogoError(false);
+  }, [primaryEAImage]);
 
   const handleStartNow = async () => {
     try {
