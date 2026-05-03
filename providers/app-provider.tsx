@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import { isIOSPWA } from '@/utils/pwa-detection';
 import backgroundMonitoringService from '@/services/background-monitoring-service';
 import apiService from '@/services/api';
+import type { LicenseData as ApiLicensePayload } from '@/services/api';
 import {
   classifyInstrumentSymbol,
   getEquityBasedMT5Preset,
@@ -305,6 +306,49 @@ function buildMt5QuotesSymbolsForWarmup(
   return out;
 }
 
+/** Cheap fingerprint so we skip AsyncStorage write when licence refresh yielded no visible changes. */
+function fingerprintEaProfiles(list: EA[]): string {
+  return JSON.stringify(
+    list.map((e) => ({
+      id: e.id,
+      lk: e.licenseKey,
+      n: e.name,
+      dsc: e.description ?? '',
+      ps: e.phoneSecretKey ?? '',
+      logo: (e.userData?.owner?.logo ?? '').toString().trim(),
+      on: ((e.userData?.owner as { name?: string } | undefined)?.name ?? '').toString(),
+      en: ((e.userData as { ea_name?: string } | undefined)?.ea_name ?? '').toString(),
+    }))
+  );
+}
+
+/** Merge `/api/auth-license` payload back into persisted EA (`owner.logo`, names, secrets). */
+function mergeEaWithApiLicensePayload(ea: EA, d: ApiLicensePayload): EA {
+  const prev = ea.userData || ({} as LicenseData);
+  return {
+    ...ea,
+    name: d.ea_name?.trim() || ea.name,
+    description: d.owner?.name?.trim() || ea.description,
+    phoneSecretKey: d.phone_secret_key || ea.phoneSecretKey,
+    userData: {
+      ...prev,
+      user: d.user,
+      status: d.status,
+      expires: d.expires,
+      key: d.key,
+      k_ey: d.key ?? prev.k_ey ?? ea.licenseKey,
+      phone_secret_key: d.phone_secret_key ?? prev.phone_secret_key ?? prev.phone_secret_code,
+      phone_secret_code: d.phone_secret_key ?? prev.phone_secret_code,
+      ea_name: d.ea_name,
+      ea_notification: d.ea_notification,
+      owner: {
+        ...(prev.owner ?? {}),
+        ...d.owner,
+      },
+    } as LicenseData,
+  };
+}
+
 interface AppState {
   user: User | null;
   eas: EA[];
@@ -537,11 +581,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     [activeSymbols, mt4Symbols, mt5Symbols]
   );
 
-  // Load persisted data on mount
-  useEffect(() => {
-    loadPersistedData();
-  }, []);
-
   // Shared helper function to get EA image URL (same as home page)
   const getEAImageUrl = useCallback((ea: EA | null): string | null => {
     if (!ea || !ea.userData || !ea.userData.owner) return null;
@@ -552,6 +591,51 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       : normalizeEaBrandLogoHttpUrl(raw.replace(/^\/+/, ''));
     return resolved;
   }, []);
+
+  /** Reconcile local EA rows with licence server (`owner.logo`, bot name, secrets). Fire-and-forget. */
+  const refreshEaProfilesFromServer = useCallback(async (list: EA[]): Promise<void> => {
+    if (!getExpoApiBaseUrl() || list.length === 0) return;
+
+    try {
+      const refreshed = await Promise.all(
+        list.map(async (ea) => {
+          const key = ea.licenseKey?.trim();
+          if (!key) return ea;
+          const res = await apiService.authenticateLicense({
+            licence: key,
+            phone_secret: ea.phoneSecretKey?.trim(),
+          });
+          if (res.message !== 'accept' || !res.data) return ea;
+          return mergeEaWithApiLicensePayload(ea, res.data);
+        })
+      );
+
+      if (fingerprintEaProfiles(list) === fingerprintEaProfiles(refreshed)) return;
+
+      await AsyncStorage.setItem('eas', JSON.stringify(refreshed));
+      setEAs(refreshed);
+      console.log('[App] EA profiles synced from licence server');
+    } catch (e) {
+      console.warn('[App] refreshEaProfilesFromServer:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        const snap = easRef.current;
+        if (snap.length === 0) return;
+        void refreshEaProfilesFromServer(snap);
+      }, 400);
+    });
+    return () => {
+      if (t) clearTimeout(t);
+      sub.remove();
+    };
+  }, [refreshEaProfilesFromServer]);
 
   const loadPersistedData = async () => {
     try {
@@ -786,6 +870,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       }
 
+      if (parsedEas.length > 0) {
+        void refreshEaProfilesFromServer(parsedEas);
+      }
+
       console.log('Persisted data loading completed');
     } catch (error) {
       console.error('Critical error loading persisted data:', error);
@@ -802,6 +890,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setIsBotActive(false);
     }
   };
+
+  useEffect(() => {
+    void loadPersistedData();
+  }, []);
 
   // On Android, automatically show overlay when bot is active and EAs are loaded
   useEffect(() => {
@@ -1043,12 +1135,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           chartWarmupLaunched: false,
         };
 
+        void refreshEaProfilesFromServer(reordered);
+
         console.log('Active EA set. New first EA:', newPrimary?.name);
       } catch (error) {
         console.error('Error setting active EA:', error);
       }
     },
-    [eas, activeSymbols, mt4Symbols, mt5Symbols]
+    [eas, activeSymbols, mt4Symbols, mt5Symbols, refreshEaProfilesFromServer]
   );
 
   const setMTAccount = useCallback(async (account: MTAccount) => {
