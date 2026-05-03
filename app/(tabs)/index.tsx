@@ -585,7 +585,6 @@ export default function HomeScreen() {
               pointerEvents="box-none"
               style={[styles.blackHeroForeground, { minHeight: BLACK_HERO_CARD_MIN_HEIGHT }]}
             >
-              <View style={{ height: BLACK_HERO_TOP_SPACER }} pointerEvents="none" />
               <View style={[styles.titleBlock, styles.blackHeroTitleWrap]} pointerEvents="box-none">
                 <View style={styles.botNameContainer}>
                   <Text
@@ -964,12 +963,10 @@ export default function HomeScreen() {
 }
 
 const { width } = Dimensions.get('window');
-/** Black hero poster: layout band used for spacer / vertical rhythm (~half card width). */
+/** Black hero poster: layout rhythm reference (~fraction of screen width). */
 const BLACK_HERO_MEDIA_HEIGHT = Math.round(width * 0.575);
-/** Space below top of card before title row (imagery dominates above). */
-const BLACK_HERO_TOP_SPACER = Math.round(BLACK_HERO_MEDIA_HEIGHT * 0.5);
-/** Minimum card height: spacer + title + control row + padding. */
-const BLACK_HERO_CARD_MIN_HEIGHT = BLACK_HERO_TOP_SPACER + 240;
+/** Tall card—name + controls sit toward bottom (poster layout). */
+const BLACK_HERO_CARD_MIN_HEIGHT = Math.round(Math.max(width * 1.06, BLACK_HERO_MEDIA_HEIGHT + 272));
 
 const styles = StyleSheet.create({
   splashContainer: {
@@ -1198,19 +1195,23 @@ const styles = StyleSheet.create({
     opacity: 0.32,
   },
   blackHeroForeground: {
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
     position: 'relative',
     zIndex: 8,
     width: '100%',
-    paddingBottom: 4,
+    paddingBottom: 12,
+    paddingTop: 8,
   },
   blackHeroTitleWrap: {
-    marginBottom: 12,
+    marginBottom: 16,
     paddingHorizontal: 20,
   },
   blackHeroBottomActions: {
     paddingHorizontal: 20,
-    paddingTop: 6,
-    marginTop: 2,
+    paddingTop: 0,
+    marginTop: 0,
+    marginBottom: 4,
   },
   botMainNameBlackHero: {
     paddingHorizontal: 8,
