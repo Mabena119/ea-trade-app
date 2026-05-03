@@ -19,6 +19,8 @@ import { deriveEaBrandImageStemFromUrl, deriveEALogoMp4Url } from '@/utils/ea-lo
 type ContentFit = 'cover' | 'contain';
 
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
+/** Fallback aspect for EA uploads like `*.mp4` portrait reels until `naturalSize` is known — only ratio matters for crop math. */
+const PORTRAIT_9_16_INTRINSICS = { width: 9, height: 16 };
 
 export type EABrandProfileMediaProps = {
   /**
@@ -211,26 +213,21 @@ export function EABrandProfileMedia({
   const useManualCenterCover = fillParent && contentFit === 'cover';
 
   const [mediaBox, setMediaBox] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
-  const [videoIntrinsics, setVideoIntrinsics] = useState<{ width: number; height: number } | null>(
-    null
-  );
-
-  /** After this, fall back to native COVER fullscreen if naturals/layout never yielded a crop. */
-  const [nativeCoverFallback, setNativeCoverFallback] = useState(false);
+  /** From `onReadyForDisplay`; when null we assume portrait 9:16 brand clips so crops are centered immediately. */
+  const [confirmedVideoIntrinsics, setConfirmedVideoIntrinsics] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
   useEffect(() => {
-    setVideoIntrinsics(null);
-    setNativeCoverFallback(false);
+    setConfirmedVideoIntrinsics(null);
   }, [canonicalStillUrl, remoteMp4]);
 
-  useEffect(() => {
-    if (!useManualCenterCover || !showVideoLayer) {
-      setNativeCoverFallback(false);
-      return;
-    }
-    const t = setTimeout(() => setNativeCoverFallback(true), 900);
-    return () => clearTimeout(t);
-  }, [useManualCenterCover, showVideoLayer, canonicalStillUrl, playUri]);
+  /** Prefer confirmed dimensions; EA profile MP4s are expected 9×16 portrait (see uploads naming). */
+  const intrinsicsForCrop =
+    useManualCenterCover && showVideoLayer
+      ? (confirmedVideoIntrinsics ?? PORTRAIT_9_16_INTRINSICS)
+      : null;
 
   const onManualMediaLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -242,40 +239,30 @@ export function EABrandProfileMedia({
 
   const onVideoReadyForDisplay = useCallback(
     (evt: VideoReadyForDisplayEvent) => {
-      let nw = evt.naturalSize.width;
-      let nh = evt.naturalSize.height;
-      const { orientation } = evt.naturalSize;
-      /** Match display orientation vs encoded WxH — wrong pairing skews centered cover math. */
-      if (orientation === 'portrait' && nw > nh) {
-        const t = nw;
-        nw = nh;
-        nh = t;
-      } else if (orientation === 'landscape' && nh > nw) {
-        const t = nw;
-        nw = nh;
-        nh = t;
-      }
-      if (nw > 0 && nh > 0) {
-        setVideoIntrinsics({ width: nw, height: nh });
-      }
+      const nw = evt.naturalSize.width;
+      const nh = evt.naturalSize.height;
+      if (nw > 0 && nh > 0) setConfirmedVideoIntrinsics({ width: nw, height: nh });
     },
     []
   );
 
   const manualCropFrame =
-    useManualCenterCover && mediaBox.width > 0 && mediaBox.height > 0 && videoIntrinsics != null
+    useManualCenterCover &&
+    mediaBox.width > 0 &&
+    mediaBox.height > 0 &&
+    intrinsicsForCrop != null
       ? centeredCoverFrame(
           mediaBox.width,
           mediaBox.height,
-          videoIntrinsics.width,
-          videoIntrinsics.height
+          intrinsicsForCrop.width,
+          intrinsicsForCrop.height
         )
       : null;
 
   const showManualCropVideo =
     useManualCenterCover && manualCropFrame != null && showVideoLayer;
-  const showNativeCoverFallback =
-    useManualCenterCover && manualCropFrame == null && nativeCoverFallback && showVideoLayer;
+
+  /** Native fullscreen COVER is skipped for hero-only manual path — it mis-crops portrait assets (right-edge bias). */
   const showDefaultFullscreenVideo = showVideoLayer && !useManualCenterCover;
 
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
@@ -320,18 +307,6 @@ export function EABrandProfileMedia({
       />
     ) : null;
 
-  const videoNativeCoverEmergency =
-    videoSource != null && showNativeCoverFallback ? (
-      <Video
-        testID={testIDVideo}
-        key={`fcb:${playUri}:${canonicalStillUrl ?? ''}`}
-        source={videoSource}
-        style={[mediaStyle as ViewStyle, styles.videoOverlay]}
-        resizeMode={ResizeMode.COVER}
-        {...sharedVideoPlayback}
-      />
-    ) : null;
-
   const videoManualCrop =
     videoSource != null && showManualCropVideo && manualCropFrame ? (
       <View style={[styles.videoOverlay, mediaStyle as ViewStyle]} pointerEvents="none">
@@ -346,7 +321,8 @@ export function EABrandProfileMedia({
             testID={testIDVideo}
             key={`crop:${manualCropFrame.width}x${manualCropFrame.height}:${playUri}:${canonicalStillUrl ?? ''}`}
             source={videoSource}
-            style={{ width: '100%', height: '100%' }}
+            style={styles.manualCropVideoShell}
+            videoStyle={styles.manualCropVideoInner}
             resizeMode={ResizeMode.STRETCH}
             {...sharedVideoPlayback}
           />
@@ -360,7 +336,6 @@ export function EABrandProfileMedia({
     <View style={rootStyle} pointerEvents="box-none" onLayout={useManualCenterCover ? onManualMediaLayout : undefined}>
       <View style={[mediaStyle as ViewStyle, styles.stillUnderlay]}>{innerStill}</View>
       {videoFullscreenDefault}
-      {videoNativeCoverEmergency}
       {videoManualCrop}
     </View>
   );
@@ -375,5 +350,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     zIndex: 2,
     elevation: 2,
+  },
+  manualCropVideoShell: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  manualCropVideoInner: {
+    ...StyleSheet.absoluteFillObject,
   },
 });
