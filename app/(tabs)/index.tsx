@@ -419,11 +419,13 @@ export default function HomeScreen() {
               >
                 <View style={[styles.circularLogoRing, styles.eaGlassLogoRing]}>
                   <EABrandProfileMedia
+                    fillParent={false}
                     brandImageUrl={primaryEAImage}
                     photoUnavailable={logoError}
                     contentFit="cover"
                     fallbackContentFit="contain"
-                    mediaStyle={[styles.circularLogo, styles.eaGlassCircularLogo]}
+                    containerStyle={[styles.circularLogo, styles.eaGlassCircularLogo, styles.eaProfileMediaClip]}
+                    mediaStyle={StyleSheet.absoluteFillObject}
                     onPhotoError={() => setLogoError(true)}
                     fallbackSource={require('../../assets/images/icon.png')}
                     testIDPhoto="ea-logo-circular"
@@ -504,6 +506,7 @@ export default function HomeScreen() {
               accessibilityLabel="Robot logo, triple-tap to change theme"
             >
               <EABrandProfileMedia
+                fillParent
                 brandImageUrl={primaryEAImage}
                 photoUnavailable={logoError}
                 contentFit="cover"
@@ -701,11 +704,13 @@ export default function HomeScreen() {
               >
                 <View style={styles.circularLogoRing}>
                   <EABrandProfileMedia
+                    fillParent={false}
                     brandImageUrl={primaryEAImage}
                     photoUnavailable={logoError}
                     contentFit="cover"
                     fallbackContentFit="contain"
-                    mediaStyle={styles.circularLogo}
+                    containerStyle={[styles.circularLogo, styles.eaProfileMediaClip]}
+                    mediaStyle={StyleSheet.absoluteFillObject}
                     onPhotoError={() => setLogoError(true)}
                     fallbackSource={require('../../assets/images/icon.png')}
                     testIDPhoto="ea-logo-circular"
@@ -1244,6 +1249,11 @@ const styles = StyleSheet.create({
     height: 140,
     borderRadius: 70,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  /** Image+video stack clips to circle / rounded square */
+  eaProfileMediaClip: {
+    overflow: 'hidden',
+    position: 'relative',
   },
   botInfoContainer: {
     alignItems: 'center',
