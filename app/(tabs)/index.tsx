@@ -23,6 +23,7 @@ import { useApp, type EA } from '@/providers/app-provider';
 import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
 import { resolveEABrandImageSource } from '@/utils/ea-brand-image';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
+import { EABrandProfileMedia } from '@/components/ea-brand-profile-media';
 import { overlayService } from '@/services/overlay-service';
 import colors from '@/constants/colors';
 
@@ -417,22 +418,17 @@ export default function HomeScreen() {
                 activeOpacity={0.9}
               >
                 <View style={[styles.circularLogoRing, styles.eaGlassLogoRing]}>
-                  {primaryEAImage && !logoError ? (
-                    <Image
-                      testID="ea-logo-circular"
-                      source={{ uri: primaryEAImage }}
-                      style={[styles.circularLogo, styles.eaGlassCircularLogo]}
-                      resizeMode="cover"
-                      onError={() => setLogoError(true)}
-                    />
-                  ) : (
-                    <Image
-                      testID="fallback-logo-circular"
-                      source={require('../../assets/images/icon.png')}
-                      style={[styles.circularLogo, styles.eaGlassCircularLogo]}
-                      resizeMode="contain"
-                    />
-                  )}
+                  <EABrandProfileMedia
+                    brandImageUrl={primaryEAImage}
+                    photoUnavailable={logoError}
+                    contentFit="cover"
+                    fallbackContentFit="contain"
+                    mediaStyle={[styles.circularLogo, styles.eaGlassCircularLogo]}
+                    onPhotoError={() => setLogoError(true)}
+                    fallbackSource={require('../../assets/images/icon.png')}
+                    testIDPhoto="ea-logo-circular"
+                    testIDVideo="ea-logo-circular-video"
+                  />
                 </View>
               </TouchableOpacity>
 
@@ -507,22 +503,17 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Robot logo, triple-tap to change theme"
             >
-              {primaryEAImage && !logoError ? (
-                <Image
-                  testID="ea-logo-hero-fade"
-                  source={{ uri: primaryEAImage }}
-                  style={styles.blackHeroFullBleedImage}
-                  resizeMode="cover"
-                  onError={() => setLogoError(true)}
-                />
-              ) : (
-                <Image
-                  testID="fallback-logo-hero-fade"
-                  source={require('../../assets/images/icon.png')}
-                  style={styles.blackHeroFullBleedImage}
-                  resizeMode="cover"
-                />
-              )}
+              <EABrandProfileMedia
+                brandImageUrl={primaryEAImage}
+                photoUnavailable={logoError}
+                contentFit="cover"
+                fallbackContentFit="cover"
+                mediaStyle={styles.blackHeroFullBleedImage}
+                onPhotoError={() => setLogoError(true)}
+                fallbackSource={require('../../assets/images/icon.png')}
+                testIDPhoto="ea-logo-hero-fade"
+                testIDVideo="ea-logo-hero-video"
+              />
               {/* Bottom-anchored bloom—softer caps so imagery shows through buttons region */}
               <View style={styles.blackHeroBloomHost} pointerEvents="none">
                 <LinearGradient
@@ -709,22 +700,17 @@ export default function HomeScreen() {
                 activeOpacity={0.9}
               >
                 <View style={styles.circularLogoRing}>
-                  {primaryEAImage && !logoError ? (
-                    <Image
-                      testID="ea-logo-circular"
-                      source={{ uri: primaryEAImage }}
-                      style={styles.circularLogo}
-                      resizeMode="cover"
-                      onError={() => setLogoError(true)}
-                    />
-                  ) : (
-                    <Image
-                      testID="fallback-logo-circular"
-                      source={require('../../assets/images/icon.png')}
-                      style={styles.circularLogo}
-                      resizeMode="contain"
-                    />
-                  )}
+                  <EABrandProfileMedia
+                    brandImageUrl={primaryEAImage}
+                    photoUnavailable={logoError}
+                    contentFit="cover"
+                    fallbackContentFit="contain"
+                    mediaStyle={styles.circularLogo}
+                    onPhotoError={() => setLogoError(true)}
+                    fallbackSource={require('../../assets/images/icon.png')}
+                    testIDPhoto="ea-logo-circular"
+                    testIDVideo="ea-logo-circular-video"
+                  />
                 </View>
               </TouchableOpacity>
               <View style={styles.titleBlock}>
@@ -1241,6 +1227,7 @@ const styles = StyleSheet.create({
     width: 165,
     height: 165,
     borderRadius: 82.5,
+    overflow: 'hidden',
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.3)',
