@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, StyleSheet, type StyleProp, View, type ViewStyle } from 'react-native';
-import { ResizeMode, Video } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import { Audio, ResizeMode, Video } from 'expo-av';
 
-import { EA_BRAND_CDN_HEADERS, normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
+import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import { ensureEaBrandMp4Cached } from '@/utils/ea-brand-profile-video-cache';
 import { deriveEaBrandImageStemFromUrl, deriveEALogoMp4Url } from '@/utils/ea-logo-video-url';
 
 type ContentFit = 'cover' | 'contain';
+
+const CACHE_SUBDIR = 'ea-brand-profile-videos/';
 
 export type EABrandProfileMediaProps = {
   /**
@@ -29,6 +32,22 @@ export type EABrandProfileMediaProps = {
   testIDPhoto?: string;
   testIDVideo?: string;
 };
+
+function buildVideoPlaybackSource(playUri: string): { uri: string; overrideFileExtensionAndroid?: string } {
+  if (Platform.OS === 'android' && (playUri.startsWith('http://') || playUri.startsWith('https://'))) {
+    return { uri: playUri, overrideFileExtensionAndroid: 'mp4' };
+  }
+  return { uri: playUri };
+}
+
+async function deleteCachedMp4ForStem(imageStem: string): Promise<void> {
+  const stem = imageStem.trim();
+  if (!stem) return;
+  const base = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? '';
+  if (!base) return;
+  const path = `${base}${CACHE_SUBDIR}${stem}.mp4`;
+  await FileSystem.deleteAsync(path, { idempotent: true }).catch(() => {});
+}
 
 export function EABrandProfileMedia({
   brandImageUrl,
@@ -56,7 +75,21 @@ export function EABrandProfileMedia({
   const playUriLatestRef = useRef<string | null>(null);
   playUriLatestRef.current = playUri;
 
-  /** Remote stream first; avoids blocking UI on disk download when CDN is reachable. */
+  /** Needed on iOS for muted looping clips when hardware mute switch is on. */
+  useEffect(() => {
+    if (Platform.OS === 'web' || !tryVideo) return;
+    void Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      allowsRecordingIOS: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).catch((e) => console.warn('[EABrandProfileMedia] Audio session:', e));
+  }, [tryVideo]);
+
+  /**
+   * Prefer `file://` — expo-av + HTTPS range/CDN can be flaky; FileSystem.download uses fallback header sets.
+   */
   useEffect(() => {
     setVideoPlaybackFailed(false);
 
@@ -65,23 +98,45 @@ export function EABrandProfileMedia({
       return;
     }
 
-    setPlayUri(remoteMp4);
+    let cancelled = false;
 
-    if (Platform.OS !== 'web') {
-      void ensureEaBrandMp4Cached(remoteMp4, imageStem).catch(() => {
-        /** Warm cache silently; playback uses HTTPS until retry path fires. */
-      });
+    if (Platform.OS === 'web') {
+      setPlayUri(remoteMp4);
+      return () => {
+        cancelled = true;
+      };
     }
+
+    setPlayUri(null);
+
+    void (async () => {
+      try {
+        const localUri = await ensureEaBrandMp4Cached(remoteMp4, imageStem);
+        if (!cancelled) setPlayUri(localUri);
+      } catch (e) {
+        if (__DEV__) console.warn('[EABrandProfileMedia] cache/download failed — streaming mp4:', e);
+        if (!cancelled) setPlayUri(remoteMp4);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [tryVideo, canonicalStillUrl, remoteMp4, imageStem]);
 
   useEffect(() => {
     if (__DEV__ && tryVideo && canonicalStillUrl && remoteMp4) {
-      console.log('[EABrandProfileMedia] still:', canonicalStillUrl, '| mp4:', remoteMp4, '| stem:', imageStem);
+      console.log('[EABrandProfileMedia] still:', canonicalStillUrl, '| mp4:', remoteMp4);
     }
-  }, [tryVideo, canonicalStillUrl, remoteMp4, imageStem]);
+  }, [tryVideo, canonicalStillUrl, remoteMp4]);
 
   const playbackFailOnce = useRef<string | null>(null);
   const recoveringLocalRef = useRef(false);
+  const videoRepairAttemptsRef = useRef(0);
+
+  useEffect(() => {
+    videoRepairAttemptsRef.current = 0;
+  }, [canonicalStillUrl, remoteMp4]);
 
   const bailPlayback = useCallback(() => {
     const u = playUriLatestRef.current;
@@ -95,8 +150,7 @@ export function EABrandProfileMedia({
     playbackFailOnce.current = null;
   }, [playUri]);
 
-  /** After remote HTTPS fails once, retry from on-device cache download (CDN often matches Image but blocks bare clients without Referer). */
-  const retryFromDiskCacheOnce = useCallback(async () => {
+  const retryFromFreshDownloadOrRemote = useCallback(async () => {
     if (
       recoveringLocalRef.current ||
       Platform.OS === 'web' ||
@@ -108,13 +162,16 @@ export function EABrandProfileMedia({
     }
     recoveringLocalRef.current = true;
     try {
+      await deleteCachedMp4ForStem(imageStem);
       const localUri = await ensureEaBrandMp4Cached(remoteMp4, imageStem);
       setVideoPlaybackFailed(false);
       playbackFailOnce.current = null;
       setPlayUri(localUri);
     } catch (e) {
-      if (__DEV__) console.warn('[EABrandProfileMedia] Local mp4 fallback failed:', e);
-      bailPlayback();
+      if (__DEV__) console.warn('[EABrandProfileMedia] Retry download failed:', e);
+      setVideoPlaybackFailed(false);
+      playbackFailOnce.current = null;
+      setPlayUri(remoteMp4);
     } finally {
       recoveringLocalRef.current = false;
     }
@@ -124,18 +181,14 @@ export function EABrandProfileMedia({
     (msg: string) => {
       console.warn('[EABrandProfileMedia] Video onError:', msg);
       if (recoveringLocalRef.current) return;
-
-      const u = playUriLatestRef.current;
-      if (!u) return;
-
-      if (u.startsWith('file')) {
+      videoRepairAttemptsRef.current += 1;
+      if (videoRepairAttemptsRef.current > 2) {
         bailPlayback();
         return;
       }
-
-      void retryFromDiskCacheOnce();
+      void retryFromFreshDownloadOrRemote();
     },
-    [retryFromDiskCacheOnce, bailPlayback]
+    [retryFromFreshDownloadOrRemote, bailPlayback]
   );
 
   const resizeModeVideo = contentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER;
@@ -145,11 +198,7 @@ export function EABrandProfileMedia({
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
 
   const videoSource =
-    playUri != null
-      ? Platform.OS !== 'web'
-        ? ({ uri: playUri, headers: EA_BRAND_CDN_HEADERS, overrideFileExtensionAndroid: 'mp4' } as const)
-        : ({ uri: playUri, overrideFileExtensionAndroid: 'mp4' } as const)
-      : null;
+    showVideoLayer && playUri != null ? buildVideoPlaybackSource(playUri) : null;
 
   const innerStill = (
     <Image
@@ -162,10 +211,10 @@ export function EABrandProfileMedia({
   );
 
   const videoLayer =
-    showVideoLayer && videoSource ? (
+    videoSource != null ? (
       <Video
         testID={testIDVideo}
-        key={playUri}
+        key={`${playUri}:${canonicalStillUrl ?? ''}`}
         source={videoSource}
         style={[mediaStyle as ViewStyle, styles.videoOverlay]}
         resizeMode={resizeModeVideo}

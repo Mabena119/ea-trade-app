@@ -3,8 +3,44 @@ import * as FileSystem from 'expo-file-system';
 import { EA_BRAND_CDN_HEADERS } from '@/utils/ea-brand-image';
 
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
-/** Tiny placeholder / error-body responses are skipped. */
-const MIN_MP4_BYTES = 512;
+/** Skip obvious HTML/error stub bodies; modest floor for corrupt partials. */
+const MIN_MP4_BYTES = 128;
+
+const CDN_DOWNLOAD_HEADER_ATTEMPTS: Record<string, string>[] = [
+  EA_BRAND_CDN_HEADERS,
+  {
+    Referer: 'https://www.eatrade.io/',
+    Accept: '*/*',
+    'User-Agent':
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  },
+  {
+    Accept: '*/*',
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  },
+  {},
+];
+
+async function downloadRemoteMp4Attempt(remoteMp4Uri: string, localUri: string): Promise<number> {
+  let lastStatus = -1;
+  for (const headers of CDN_DOWNLOAD_HEADER_ATTEMPTS) {
+    const dl = await FileSystem.downloadAsync(remoteMp4Uri, localUri, {
+      headers: Object.keys(headers).length ? headers : undefined,
+    });
+    lastStatus = dl.status;
+    if (dl.status >= 200 && dl.status < 300) {
+      return dl.status;
+    }
+    /** Next attempt replaces file */
+    try {
+      await FileSystem.deleteAsync(localUri, { idempotent: true });
+    } catch {
+      /* ignore */
+    }
+  }
+  return lastStatus;
+}
 
 function storageBaseUri(): string | null {
   return FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? null;
@@ -43,17 +79,15 @@ export async function ensureEaBrandMp4Cached(remoteMp4Uri: string, imageBasename
     return localUri;
   }
 
-  const dl = await FileSystem.downloadAsync(remoteMp4Uri, localUri, {
-    headers: EA_BRAND_CDN_HEADERS,
-  });
-  const ok = dl.status >= 200 && dl.status < 300;
+  const dlStatus = await downloadRemoteMp4Attempt(remoteMp4Uri, localUri);
+  const ok = dlStatus >= 200 && dlStatus < 300;
   if (!ok) {
     try {
       await FileSystem.deleteAsync(localUri, { idempotent: true });
     } catch {
       /* ignore */
     }
-    throw new Error(`ea-brand-video: HTTP ${dl.status}`);
+    throw new Error(`ea-brand-video: HTTP ${dlStatus}`);
   }
 
   const after = await FileSystem.getInfoAsync(localUri);
