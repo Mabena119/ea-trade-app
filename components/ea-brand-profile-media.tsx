@@ -129,13 +129,18 @@ export function EABrandProfileMedia({
   const videoRef = useRef<Video | null>(null);
 
   /**
-   * When iOS backgrounds the app the video pauses and the native AVPlayer shows a
-   * play-button overlay on resume. Re-calling playAsync() the moment the app becomes
-   * active again suppresses that overlay and instantly resumes looping.
+   * iOS 18+ shows a native play-button overlay whenever AVPlayer is paused and visible.
+   * Strategy:
+   *  • background / inactive → flip back to still immediately (video becomes opacity 0)
+   *    so there is nothing to show a play-button on.
+   *  • active → call playAsync(); onPlaybackStatusUpdate will re-trigger the crossfade
+   *    to video the moment isPlaying=true is confirmed.
    */
   useEffect(() => {
     const handleAppState = (next: AppStateStatus) => {
-      if (next === 'active') {
+      if (next === 'background' || next === 'inactive') {
+        setFirstFrameSeen(false);
+      } else if (next === 'active') {
         videoRef.current?.playAsync().catch(() => {});
       }
     };
@@ -257,12 +262,24 @@ export function EABrandProfileMedia({
 
   // ── Playback callbacks ────────────────────────────────────────────────────
   const onReady = useCallback((evt: VideoReadyForDisplayEvent | undefined) => {
-    void evt; // naturalSize not needed — aspect is fixed 9:16
-    setFirstFrameSeen(true);
+    void evt;
   }, []);
 
   const onLoad = useCallback((status: AVPlaybackStatus) => {
-    if (status?.isLoaded) setFirstFrameSeen(true);
+    void status;
+  }, []);
+
+  /**
+   * Only crossfade to video once isPlaying=true is confirmed.
+   * onLoad / onReadyForDisplay fire when the video is *loaded*, not necessarily
+   * *playing* — on iOS 18+ AVPlayer briefly shows a play-button overlay during
+   * that gap. Waiting for isPlaying=true ensures the still stays on top until
+   * the video is genuinely rendering frames.
+   */
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (status.isLoaded && status.isPlaying) {
+      setFirstFrameSeen(true);
+    }
   }, []);
 
   const showVideo = Boolean(playUri && tryVideo && !videoFailed && remoteMp4 && imageStem);
@@ -271,7 +288,7 @@ export function EABrandProfileMedia({
   // ── Fallback timeout: show video even if callbacks are unreliable ─────────
   useEffect(() => {
     if (!videoSource || firstFrameSeen) return;
-    const t = setTimeout(() => setFirstFrameSeen(true), 1500);
+    const t = setTimeout(() => setFirstFrameSeen(true), 3000);
     return () => clearTimeout(t);
   }, [videoSource, firstFrameSeen]);
 
@@ -303,12 +320,13 @@ export function EABrandProfileMedia({
       volume: 0 as const,
       useNativeControls: false as const,
       usePoster: false as const,
-      pointerEvents: 'none' as const,
+      progressUpdateIntervalMillis: 100,
       onError: onVideoError,
       onLoad: onLoad,
       onReadyForDisplay: onReady,
+      onPlaybackStatusUpdate: onPlaybackStatusUpdate,
     }),
-    [onVideoError, onLoad, onReady]
+    [onVideoError, onLoad, onReady, onPlaybackStatusUpdate]
   );
 
   // ── Still image ───────────────────────────────────────────────────────────
