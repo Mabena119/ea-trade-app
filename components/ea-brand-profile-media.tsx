@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
+  type AppStateStatus,
   Animated,
   Image,
   LayoutChangeEvent,
@@ -122,6 +124,24 @@ export function EABrandProfileMedia({
   const [firstFrameSeen, setFirstFrameSeen] = useState(false);
   const playUriRef = useRef<string | null>(null);
   playUriRef.current = playUri;
+
+  /** Ref to the Video component so we can call playAsync() on app-foreground resume. */
+  const videoRef = useRef<Video | null>(null);
+
+  /**
+   * When iOS backgrounds the app the video pauses and the native AVPlayer shows a
+   * play-button overlay on resume. Re-calling playAsync() the moment the app becomes
+   * active again suppresses that overlay and instantly resumes looping.
+   */
+  useEffect(() => {
+    const handleAppState = (next: AppStateStatus) => {
+      if (next === 'active') {
+        videoRef.current?.playAsync().catch(() => {});
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, []);
 
   // ── Audio session (iOS silent-mode muted autoplay) ────────────────────────
   useEffect(() => {
@@ -320,6 +340,7 @@ export function EABrandProfileMedia({
   const heroVideo =
     videoSource != null && isHeroMode && rect ? (
       <Video
+        ref={videoRef}
         testID={testIDVideo}
         key={`hero:${rect.width.toFixed(0)}x${rect.height.toFixed(0)}:${playUri}`}
         source={videoSource}
@@ -341,6 +362,7 @@ export function EABrandProfileMedia({
   const nativeVideo =
     videoSource != null && !isHeroMode ? (
       <Video
+        ref={videoRef}
         testID={testIDVideo}
         key={`native:${playUri}`}
         source={videoSource}
