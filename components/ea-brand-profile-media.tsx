@@ -36,6 +36,11 @@ const EA_VIDEO_ASPECT_H = 16;
 const STILL_TO_VIDEO_FADE_MS = 380;
 const VIDEO_TO_STILL_FADE_MS = 220;
 
+function normalizeAspect(width: number, height: number): { w: number; h: number } | null {
+  if (!(width > 0) || !(height > 0)) return null;
+  return { w: width, h: height };
+}
+
 function normalizeVideoAspect(width: number, height: number): { w: number; h: number } | null {
   if (!(width > 0) || !(height > 0)) return null;
   // EA profile clips are portrait; flip if the runtime reports rotated axes.
@@ -126,6 +131,10 @@ export function EABrandProfileMedia({
   const [videoPlaybackFailed, setVideoPlaybackFailed] = useState(false);
   /** True after `onLoad` / `onReadyForDisplay` fires — triggers crossfade to video layer. */
   const [videoFirstFrameSeen, setVideoFirstFrameSeen] = useState(false);
+  const [stillAspect, setStillAspect] = useState<{ w: number; h: number }>({
+    w: EA_VIDEO_ASPECT_W,
+    h: EA_VIDEO_ASPECT_H,
+  });
   const [videoAspect, setVideoAspect] = useState<{ w: number; h: number }>({
     w: EA_VIDEO_ASPECT_W,
     h: EA_VIDEO_ASPECT_H,
@@ -150,6 +159,7 @@ export function EABrandProfileMedia({
   useEffect(() => {
     setVideoPlaybackFailed(false);
     setVideoFirstFrameSeen(false);
+    setStillAspect({ w: EA_VIDEO_ASPECT_W, h: EA_VIDEO_ASPECT_H });
     setVideoAspect({ w: EA_VIDEO_ASPECT_W, h: EA_VIDEO_ASPECT_H });
 
     if (!tryVideo || !canonicalStillUrl || !remoteMp4 || !imageStem) {
@@ -276,16 +286,46 @@ export function EABrandProfileMedia({
     setVideoFirstFrameSeen(true);
   }, []);
 
-  /** Pre-computed pixel rect that mirrors `<Image resizeMode="cover">` for the same box. */
+  const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
+
+  useEffect(() => {
+    if (!photoUri) return;
+    let cancelled = false;
+    Image.getSize(
+      photoUri,
+      (w, h) => {
+        if (cancelled) return;
+        const aspect = normalizeAspect(w, h);
+        if (aspect) setStillAspect(aspect);
+      },
+      () => {}
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [photoUri]);
+
+  const manualCoverAspect = photoUri != null ? stillAspect : videoAspect;
+
+  /** Pre-computed pixel rect shared by still + video in hero mode. */
   const coverRect = useMemo(
     () =>
       useManualCoverRect && containerBox.width > 0 && containerBox.height > 0
-        ? aspectFillRect(containerBox.width, containerBox.height, videoAspect.w, videoAspect.h)
+        ? aspectFillRect(
+            containerBox.width,
+            containerBox.height,
+            manualCoverAspect.w,
+            manualCoverAspect.h
+          )
         : null,
-    [useManualCoverRect, containerBox.width, containerBox.height, videoAspect.w, videoAspect.h]
+    [
+      useManualCoverRect,
+      containerBox.width,
+      containerBox.height,
+      manualCoverAspect.w,
+      manualCoverAspect.h,
+    ]
   );
-
-  const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
 
   const videoSource =
     showVideoLayer && playUri != null ? buildVideoPlaybackSource(playUri) : null;
@@ -346,6 +386,28 @@ export function EABrandProfileMedia({
     />
   );
 
+  const heroStillLayer =
+    useManualCoverRect && coverRect ? (
+      <View
+        style={{
+          position: 'absolute',
+          left: coverRect.left,
+          top: coverRect.top,
+          width: coverRect.width,
+          height: coverRect.height,
+        }}
+        pointerEvents="none"
+      >
+        <Image
+          testID={testIDPhoto}
+          source={photoUri != null ? { uri: photoUri } : fallbackSource}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode={photoUri ? 'stretch' : fallbackContentFit ?? 'contain'}
+          {...(photoUri ? { onError: onPhotoError } : {})}
+        />
+      </View>
+    ) : null;
+
   /**
    * Hero (`fillParent + cover`): pin the `<Video>` inside an explicit absolute rect that
    * mirrors what `<Image resizeMode="cover">` produces for the same container, then use
@@ -403,7 +465,7 @@ export function EABrandProfileMedia({
         style={[styles.layer, mediaStyle as ViewStyle, { opacity: stillOpacity, zIndex: 1 }]}
         pointerEvents="none"
       >
-        {innerStill}
+        {useManualCoverRect ? heroStillLayer ?? innerStill : innerStill}
       </Animated.View>
 
       {/* Looping video — pinned to the same cover rect as the still, fades in when ready. */}
