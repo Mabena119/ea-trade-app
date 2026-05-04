@@ -294,10 +294,15 @@ export function EABrandProfileMedia({
   // ── Playback callbacks ────────────────────────────────────────────────────
   const onReady = useCallback((evt: VideoReadyForDisplayEvent | undefined) => {
     void evt;
+    // Explicitly start playback on ready — belt-and-suspenders over shouldPlay
+    // for iOS 18 cold-start where the system can hold AVPlayer paused briefly.
+    videoRef.current?.playAsync().catch(() => {});
   }, []);
 
   const onLoad = useCallback((status: AVPlaybackStatus) => {
-    void status;
+    if (status?.isLoaded) {
+      videoRef.current?.playAsync().catch(() => {});
+    }
   }, []);
 
   /**
@@ -321,6 +326,19 @@ export function EABrandProfileMedia({
 
   const showVideo = Boolean(playUri && tryVideo && !videoFailed && remoteMp4 && imageStem);
   const videoSource = showVideo && playUri ? buildVideoSource(playUri) : null;
+
+  // ── Force-play timer: kick playAsync() shortly after Video mounts ─────────
+  /**
+   * On iOS 18 cold-start the system can hold AVPlayer in a pre-play state even
+   * with shouldPlay=true. Calling playAsync() at 150 ms and again at 600 ms after
+   * the URI is set covers the window before onLoad/onReady fire.
+   */
+  useEffect(() => {
+    if (!playUri) return;
+    const t1 = setTimeout(() => videoRef.current?.playAsync().catch(() => {}), 150);
+    const t2 = setTimeout(() => videoRef.current?.playAsync().catch(() => {}), 600);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [playUri]);
 
   // ── Fallback timeout: show video even if callbacks are unreliable ─────────
   useEffect(() => {
