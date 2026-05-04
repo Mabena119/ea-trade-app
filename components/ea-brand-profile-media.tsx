@@ -36,6 +36,12 @@ const EA_VIDEO_ASPECT_H = 16;
 const STILL_TO_VIDEO_FADE_MS = 380;
 const VIDEO_TO_STILL_FADE_MS = 220;
 
+function normalizeVideoAspect(width: number, height: number): { w: number; h: number } | null {
+  if (!(width > 0) || !(height > 0)) return null;
+  // EA profile clips are portrait; flip if the runtime reports rotated axes.
+  return width > height ? { w: height, h: width } : { w: width, h: height };
+}
+
 export type EABrandProfileMediaProps = {
   /**
    * Resolved profile image URL (`owner.logo`): looping video URL is sibling `.mp4` beside this still.
@@ -120,6 +126,10 @@ export function EABrandProfileMedia({
   const [videoPlaybackFailed, setVideoPlaybackFailed] = useState(false);
   /** True after `onLoad` / `onReadyForDisplay` fires — triggers crossfade to video layer. */
   const [videoFirstFrameSeen, setVideoFirstFrameSeen] = useState(false);
+  const [videoAspect, setVideoAspect] = useState<{ w: number; h: number }>({
+    w: EA_VIDEO_ASPECT_W,
+    h: EA_VIDEO_ASPECT_H,
+  });
 
   const playUriLatestRef = useRef<string | null>(null);
   playUriLatestRef.current = playUri;
@@ -140,6 +150,7 @@ export function EABrandProfileMedia({
   useEffect(() => {
     setVideoPlaybackFailed(false);
     setVideoFirstFrameSeen(false);
+    setVideoAspect({ w: EA_VIDEO_ASPECT_W, h: EA_VIDEO_ASPECT_H });
 
     if (!tryVideo || !canonicalStillUrl || !remoteMp4 || !imageStem) {
       setPlayUri(null);
@@ -242,8 +253,9 @@ export function EABrandProfileMedia({
 
   /** Reveal the video layer once the player reports it can paint a first frame. */
   const onVideoReadyForDisplay = useCallback((evt: VideoReadyForDisplayEvent | undefined) => {
-    /** Some expo-av builds fire `onReadyForDisplay` with no `naturalSize`; treat any fire as ready. */
-    void evt;
+    const naturalSize = (evt as Partial<VideoReadyForDisplayEvent> | undefined)?.naturalSize;
+    const aspect = normalizeVideoAspect(naturalSize?.width ?? 0, naturalSize?.height ?? 0);
+    if (aspect) setVideoAspect(aspect);
     setVideoFirstFrameSeen(true);
   }, []);
 
@@ -252,16 +264,25 @@ export function EABrandProfileMedia({
    * so it doubles as a "video is renderable" trigger to complete the crossfade.
    */
   const onVideoLoad = useCallback((status: AVPlaybackStatus) => {
-    if (status?.isLoaded) setVideoFirstFrameSeen(true);
+    if (!status?.isLoaded) return;
+    const loaded = status as AVPlaybackStatus & {
+      naturalSize?: { width?: number; height?: number };
+    };
+    const aspect = normalizeVideoAspect(
+      loaded.naturalSize?.width ?? 0,
+      loaded.naturalSize?.height ?? 0
+    );
+    if (aspect) setVideoAspect(aspect);
+    setVideoFirstFrameSeen(true);
   }, []);
 
   /** Pre-computed pixel rect that mirrors `<Image resizeMode="cover">` for the same box. */
   const coverRect = useMemo(
     () =>
       useManualCoverRect && containerBox.width > 0 && containerBox.height > 0
-        ? aspectFillRect(containerBox.width, containerBox.height, EA_VIDEO_ASPECT_W, EA_VIDEO_ASPECT_H)
+        ? aspectFillRect(containerBox.width, containerBox.height, videoAspect.w, videoAspect.h)
         : null,
-    [useManualCoverRect, containerBox.width, containerBox.height]
+    [useManualCoverRect, containerBox.width, containerBox.height, videoAspect.w, videoAspect.h]
   );
 
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
