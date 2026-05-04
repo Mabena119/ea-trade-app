@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  ImageBackground,
   Platform,
   Dimensions,
   AppState,
@@ -21,7 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp, type EA } from '@/providers/app-provider';
 import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/providers/theme-provider';
-import { normalizeEaBrandLogoHttpUrl, resolveEABrandImageSource } from '@/utils/ea-brand-image';
+import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { EABrandProfileMedia } from '@/components/ea-brand-profile-media';
 import { overlayService } from '@/services/overlay-service';
@@ -232,12 +231,6 @@ export default function HomeScreen() {
   const isEAGlass = themeName === 'matrixYellow';
   const isBlackTheme = themeName === 'black';
 
-  // EA Glass: dynamic logo source from the active EA (or app icon fallback)
-  const eaGlassLogoSource = useMemo(() => {
-    if (!isEAGlass) return null;
-    const rawLogo = primaryEA?.userData?.owner?.logo;
-    return resolveEABrandImageSource(rawLogo);
-  }, [isEAGlass, primaryEA?.userData?.owner?.logo]);
 
   // Fully opaque so matrix rain (drawn behind cards) does not read through the card surface
   const matrixCardGradient = useMemo((): [string, string, string] => {
@@ -370,15 +363,19 @@ export default function HomeScreen() {
       style={[styles.container, dynamicStyles.container]}
       edges={['top', 'right', 'bottom', 'left']}
     >
-      {/* ── EA GLASS BACKDROP ── full-screen logo canvas behind all content ── */}
-      {isEAGlass && eaGlassLogoSource && (
-        <ImageBackground
-          source={eaGlassLogoSource}
-          style={StyleSheet.absoluteFill}
-          imageStyle={styles.eaGlassBg}
-          resizeMode="cover"
-          pointerEvents="none"
-        >
+      {/* ── EA GLASS BACKDROP ── full-screen looping video (photo fallback) ── */}
+      {isEAGlass && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <EABrandProfileMedia
+            fillParent
+            brandImageUrl={primaryEAImage}
+            photoUnavailable={logoError}
+            preferLoopingVideo={isEAGlass}
+            contentFit="cover"
+            fallbackContentFit="cover"
+            mediaStyle={styles.blackHeroFullBleedImage}
+            fallbackSource={require('../../assets/images/icon.png')}
+          />
           {/* Edge-to-edge vignette for depth and text legibility */}
           <LinearGradient
             colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.65)']}
@@ -386,8 +383,9 @@ export default function HomeScreen() {
             style={StyleSheet.absoluteFill}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
+            pointerEvents="none"
           />
-        </ImageBackground>
+        </View>
       )}
 
       <MatrixSceneRain>
