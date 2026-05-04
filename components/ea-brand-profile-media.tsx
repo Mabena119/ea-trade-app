@@ -23,9 +23,12 @@ type ContentFit = 'cover' | 'contain';
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
 
 /**
- * EA `admin/uploads/*.mp4` are encoded **720×1280 portrait, no rotation tag** (verified with ffprobe).
- * iOS `AVPlayerLayer.videoGravity = ResizeAspectFill` mis-positions some of these clips far off-center,
- * so we render the layer inside a flex-centered, aspect-matched slot ourselves.
+ * EA `admin/uploads/*.mp4` are encoded **9:16 portrait** (verified with ffprobe).
+ * On iOS, `AVPlayerLayer.videoGravity = ResizeAspectFill` does NOT always center the
+ * source frame the same way `UIView.contentMode = scaleAspectFill` does for the
+ * still poster — for some clips the video drifts to one side. To keep the video
+ * pixel-aligned with the image cover-fit, we compute the cover-fit rectangle in JS
+ * and pin the `<Video>` to it with explicit absolute positioning + neutral resize.
  */
 const EA_VIDEO_ASPECT_W = 9;
 const EA_VIDEO_ASPECT_H = 16;
@@ -63,18 +66,25 @@ function buildVideoPlaybackSource(playUri: string): { uri: string; overrideFileE
 }
 
 /**
- * Returns the **aspect-fill size** for `aw × ah` source rendered inside `boxW × boxH`.
- * Slot is the size only — placement is handled by the flex parent (`alignItems` / `justifyContent`).
+ * Pixel-precise cover-fit rectangle for `aw × ah` source rendered inside `boxW × boxH`.
+ * Mirrors `UIView.contentMode = scaleAspectFill`: scale to fill, center-anchored crop.
  */
-function aspectFillSize(
+function aspectFillRect(
   boxW: number,
   boxH: number,
   aw: number,
   ah: number
-): { width: number; height: number } | null {
+): { left: number; top: number; width: number; height: number } | null {
   if (!(boxW > 0) || !(boxH > 0) || !(aw > 0) || !(ah > 0)) return null;
   const scale = Math.max(boxW / aw, boxH / ah);
-  return { width: aw * scale, height: ah * scale };
+  const width = aw * scale;
+  const height = ah * scale;
+  return {
+    width,
+    height,
+    left: (boxW - width) / 2,
+    top: (boxH - height) / 2,
+  };
 }
 
 async function deleteCachedMp4ForStem(imageStem: string): Promise<void> {
@@ -108,7 +118,7 @@ export function EABrandProfileMedia({
 
   const [playUri, setPlayUri] = useState<string | null>(null);
   const [videoPlaybackFailed, setVideoPlaybackFailed] = useState(false);
-  /** True after `onReadyForDisplay` fires successfully — triggers crossfade to video layer. */
+  /** True after `onLoad` / `onReadyForDisplay` fires — triggers crossfade to video layer. */
   const [videoFirstFrameSeen, setVideoFirstFrameSeen] = useState(false);
 
   const playUriLatestRef = useRef<string | null>(null);
@@ -215,8 +225,8 @@ export function EABrandProfileMedia({
 
   const showVideoLayer = Boolean(playUri && tryVideo && !videoPlaybackFailed && remoteMp4 && imageStem);
 
-  /** Hero (`fillParent` + `cover`) → manual aspect-fill slot; circles/glass keep native gravity. */
-  const useManualAspectFillSlot = fillParent && contentFit === 'cover';
+  /** Hero (`fillParent` + `cover`) → manual cover-fit rect; circles/glass keep native gravity. */
+  const useManualCoverRect = fillParent && contentFit === 'cover';
 
   const [containerBox, setContainerBox] = useState<{ width: number; height: number }>({
     width: 0,
@@ -230,38 +240,28 @@ export function EABrandProfileMedia({
     );
   }, []);
 
-  const [refinedAspect, setRefinedAspect] = useState<{ w: number; h: number }>({
-    w: EA_VIDEO_ASPECT_W,
-    h: EA_VIDEO_ASPECT_H,
-  });
-
-  useEffect(() => {
-    setRefinedAspect({ w: EA_VIDEO_ASPECT_W, h: EA_VIDEO_ASPECT_H });
-  }, [canonicalStillUrl, remoteMp4]);
-
+  /** Reveal the video layer once the player reports it can paint a first frame. */
   const onVideoReadyForDisplay = useCallback((evt: VideoReadyForDisplayEvent | undefined) => {
-    /** Some expo-av builds and HTTP streams fire `onReadyForDisplay` without `naturalSize`. */
-    const naturalSize = (evt as Partial<VideoReadyForDisplayEvent> | undefined)?.naturalSize;
-    const nw = naturalSize?.width ?? 0;
-    const nh = naturalSize?.height ?? 0;
-    if (nw > 0 && nh > 0) setRefinedAspect({ w: nw, h: nh });
+    /** Some expo-av builds fire `onReadyForDisplay` with no `naturalSize`; treat any fire as ready. */
+    void evt;
     setVideoFirstFrameSeen(true);
   }, []);
 
   /**
-   * Backup signal: not every expo-av build fires `onReadyForDisplay` for streamed `.mp4`. `onLoad` runs once
-   * per loaded source, so it doubles as a “video is renderable” trigger so the crossfade still completes.
+   * `onLoad` fires once per loaded source even if `onReadyForDisplay` doesn't,
+   * so it doubles as a "video is renderable" trigger to complete the crossfade.
    */
   const onVideoLoad = useCallback((status: AVPlaybackStatus) => {
     if (status?.isLoaded) setVideoFirstFrameSeen(true);
   }, []);
 
-  const aspectSlotSize = useMemo(
+  /** Pre-computed pixel rect that mirrors `<Image resizeMode="cover">` for the same box. */
+  const coverRect = useMemo(
     () =>
-      useManualAspectFillSlot && containerBox.width > 0 && containerBox.height > 0
-        ? aspectFillSize(containerBox.width, containerBox.height, refinedAspect.w, refinedAspect.h)
+      useManualCoverRect && containerBox.width > 0 && containerBox.height > 0
+        ? aspectFillRect(containerBox.width, containerBox.height, EA_VIDEO_ASPECT_W, EA_VIDEO_ASPECT_H)
         : null,
-    [useManualAspectFillSlot, containerBox.width, containerBox.height, refinedAspect.w, refinedAspect.h]
+    [useManualCoverRect, containerBox.width, containerBox.height]
   );
 
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
@@ -313,48 +313,57 @@ export function EABrandProfileMedia({
     [onVideoErr, onVideoLoad, onVideoReadyForDisplay]
   );
 
+  const stillResizeMode: ContentFit = photoUri ? contentFit : (fallbackContentFit ?? 'contain');
+
   const innerStill = (
     <Image
       testID={testIDPhoto}
       source={photoUri != null ? { uri: photoUri } : fallbackSource}
       style={StyleSheet.absoluteFillObject}
-      resizeMode={photoUri ? contentFit : fallbackContentFit ?? 'contain'}
+      resizeMode={stillResizeMode}
       {...(photoUri ? { onError: onPhotoError } : {})}
     />
   );
 
   /**
-   * Manual aspect-fill (hero): slot is sized = aspectFill(card, source). Flex centering on the
-   * `overflow: hidden` parent handles position, no absolute math needed. Slot aspect == source aspect ⇒
-   * `STRETCH` is a uniform scale, defeating AVPlayerLayer's gravity-induced centering bug.
+   * Hero (`fillParent + cover`): pin the `<Video>` inside an explicit absolute rect that
+   * mirrors what `<Image resizeMode="cover">` produces for the same container, then use
+   * `STRETCH` (uniform scale, since rect aspect == 9:16). This is pixel-identical to
+   * the still's positioning and dodges the AVPlayerLayer drift.
    */
-  const videoLayerManualSlot =
-    videoSource != null && useManualAspectFillSlot && aspectSlotSize ? (
+  const heroVideoLayer =
+    videoSource != null && useManualCoverRect && coverRect ? (
       <View
-        style={{ width: aspectSlotSize.width, height: aspectSlotSize.height }}
+        style={{
+          position: 'absolute',
+          left: coverRect.left,
+          top: coverRect.top,
+          width: coverRect.width,
+          height: coverRect.height,
+        }}
         pointerEvents="none"
       >
         <Video
           testID={testIDVideo}
-          key={`slot:${aspectSlotSize.width.toFixed(1)}x${aspectSlotSize.height.toFixed(1)}:${playUri}:${canonicalStillUrl ?? ''}`}
+          key={`hero:${coverRect.width.toFixed(1)}x${coverRect.height.toFixed(1)}:${playUri}:${canonicalStillUrl ?? ''}`}
           source={videoSource}
-          style={styles.fillAbsolute}
-          videoStyle={styles.fillAbsolute}
+          style={StyleSheet.absoluteFillObject}
+          videoStyle={StyleSheet.absoluteFillObject}
           resizeMode={ResizeMode.STRETCH}
           {...sharedVideoPlayback}
         />
       </View>
     ) : null;
 
-  /** Fallback when not in hero mode (circular/glass): native COVER/CONTAIN. */
-  const videoLayerNative =
-    videoSource != null && !useManualAspectFillSlot ? (
+  /** Fallback when not in hero mode (circles/glass): native COVER/CONTAIN matches `<Image>`. */
+  const nativeVideoLayer =
+    videoSource != null && !useManualCoverRect ? (
       <Video
         testID={testIDVideo}
-        key={`fs:${playUri}:${canonicalStillUrl ?? ''}`}
+        key={`native:${playUri}:${canonicalStillUrl ?? ''}`}
         source={videoSource}
-        style={styles.fillAbsolute}
-        videoStyle={styles.fillAbsolute}
+        style={StyleSheet.absoluteFillObject}
+        videoStyle={StyleSheet.absoluteFillObject}
         resizeMode={contentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER}
         {...sharedVideoPlayback}
       />
@@ -366,32 +375,23 @@ export function EABrandProfileMedia({
     <View
       style={rootStyle}
       pointerEvents="box-none"
-      onLayout={useManualAspectFillSlot ? onContainerLayout : undefined}
+      onLayout={useManualCoverRect ? onContainerLayout : undefined}
     >
-      {/* Still poster — fades out when video first frame is seen. */}
+      {/* Still poster — sits underneath, fades out when video first frame is seen. */}
       <Animated.View
-        style={[
-          styles.layer,
-          mediaStyle as ViewStyle,
-          { opacity: stillOpacity, zIndex: 1 },
-        ]}
+        style={[styles.layer, mediaStyle as ViewStyle, { opacity: stillOpacity, zIndex: 1 }]}
         pointerEvents="none"
       >
         {innerStill}
       </Animated.View>
 
-      {/* Looping video — fades in once the player reports first frame; flex-centered into aspect-fill slot for hero. */}
+      {/* Looping video — pinned to the same cover rect as the still, fades in when ready. */}
       {videoSource != null ? (
         <Animated.View
-          style={[
-            styles.layer,
-            mediaStyle as ViewStyle,
-            useManualAspectFillSlot && styles.flexCenterClipped,
-            { opacity: videoOpacity, zIndex: 2 },
-          ]}
+          style={[styles.layer, mediaStyle as ViewStyle, { opacity: videoOpacity, zIndex: 2 }]}
           pointerEvents="none"
         >
-          {useManualAspectFillSlot ? videoLayerManualSlot : videoLayerNative}
+          {useManualCoverRect ? heroVideoLayer : nativeVideoLayer}
         </Animated.View>
       ) : null}
     </View>
@@ -402,14 +402,6 @@ const styles = StyleSheet.create({
   layer: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
-  },
-  /** Hero video host: clip overflow + center the aspect-fill slot. */
-  flexCenterClipped: {
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fillAbsolute: {
-    ...StyleSheet.absoluteFillObject,
   },
 });
