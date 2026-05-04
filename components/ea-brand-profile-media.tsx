@@ -35,6 +35,14 @@ const EA_VIDEO_ASPECT_H = 16;
 
 const STILL_TO_VIDEO_FADE_MS = 380;
 const VIDEO_TO_STILL_FADE_MS = 220;
+const CHARACTER_STILL_ASPECT_MAX = 0.8;
+const CHARACTER_VIDEO_FOCAL_X = 0.62;
+const CHARACTER_VIDEO_ZOOM = 1.32;
+
+function normalizeImageAspect(width: number, height: number): { w: number; h: number } | null {
+  if (!(width > 0) || !(height > 0)) return null;
+  return { w: width, h: height };
+}
 
 function normalizeVideoAspect(width: number, height: number): { w: number; h: number } | null {
   if (!(width > 0) || !(height > 0)) return null;
@@ -79,17 +87,25 @@ function aspectFillRect(
   boxW: number,
   boxH: number,
   aw: number,
-  ah: number
+  ah: number,
+  opts?: { focalX?: number; focalY?: number; zoom?: number }
 ): { left: number; top: number; width: number; height: number } | null {
   if (!(boxW > 0) || !(boxH > 0) || !(aw > 0) || !(ah > 0)) return null;
-  const scale = Math.max(boxW / aw, boxH / ah);
+  const zoom = Math.max(1, opts?.zoom ?? 1);
+  const focalX = Math.min(1, Math.max(0, opts?.focalX ?? 0.5));
+  const focalY = Math.min(1, Math.max(0, opts?.focalY ?? 0.5));
+  const scale = Math.max(boxW / aw, boxH / ah) * zoom;
   const width = aw * scale;
   const height = ah * scale;
+  const minLeft = boxW - width;
+  const minTop = boxH - height;
+  const left = Math.min(0, Math.max(minLeft, boxW / 2 - width * focalX));
+  const top = Math.min(0, Math.max(minTop, boxH / 2 - height * focalY));
   return {
     width,
     height,
-    left: (boxW - width) / 2,
-    top: (boxH - height) / 2,
+    left,
+    top,
   };
 }
 
@@ -128,6 +144,7 @@ export function EABrandProfileMedia({
   const [videoPlaybackFailed, setVideoPlaybackFailed] = useState(false);
   /** True after `onLoad` / `onReadyForDisplay` fires — triggers crossfade to video layer. */
   const [videoFirstFrameSeen, setVideoFirstFrameSeen] = useState(false);
+  const [stillAspect, setStillAspect] = useState<{ w: number; h: number } | null>(null);
   const [videoAspect, setVideoAspect] = useState<{ w: number; h: number }>({
     w: EA_VIDEO_ASPECT_W,
     h: EA_VIDEO_ASPECT_H,
@@ -152,6 +169,7 @@ export function EABrandProfileMedia({
   useEffect(() => {
     setVideoPlaybackFailed(false);
     setVideoFirstFrameSeen(false);
+    setStillAspect(null);
     setVideoAspect({ w: EA_VIDEO_ASPECT_W, h: EA_VIDEO_ASPECT_H });
 
     if (!tryVideo || !canonicalStillUrl || !remoteMp4 || !imageStem) {
@@ -280,6 +298,25 @@ export function EABrandProfileMedia({
 
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
 
+  useEffect(() => {
+    if (!photoUri) return;
+    let cancelled = false;
+    Image.getSize(
+      photoUri,
+      (w, h) => {
+        if (cancelled) return;
+        setStillAspect(normalizeImageAspect(w, h));
+      },
+      () => {}
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [photoUri]);
+
+  const isCharacterStyleMedia =
+    stillAspect != null && stillAspect.w / stillAspect.h <= CHARACTER_STILL_ASPECT_MAX;
+
   /** Pre-computed pixel rect for 9:16 video cover-fill in hero mode. */
   const coverRect = useMemo(
     () =>
@@ -288,7 +325,10 @@ export function EABrandProfileMedia({
             containerBox.width,
             containerBox.height,
             videoAspect.w,
-            videoAspect.h
+            videoAspect.h,
+            isCharacterStyleMedia
+              ? { focalX: CHARACTER_VIDEO_FOCAL_X, zoom: CHARACTER_VIDEO_ZOOM }
+              : undefined
           )
         : null,
     [
@@ -297,6 +337,7 @@ export function EABrandProfileMedia({
       containerBox.height,
       videoAspect.w,
       videoAspect.h,
+      isCharacterStyleMedia,
     ]
   );
 
