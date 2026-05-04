@@ -1317,7 +1317,7 @@ const styles = StyleSheet.create({
   /** Wrapper that creates vertical space for the floating logo above the card */
   eaGlassHeroWrapper: {
     marginHorizontal: 16,
-    marginTop: 64,
+    marginTop: 28,
     position: 'relative',
     alignItems: 'center',
   },
@@ -1348,10 +1348,9 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: BLACK_HERO_CARD_MIN_HEIGHT + 52,
   },
-  /** Pushes controls to bottom of the glass card — mirrors blackHeroTopFlexSpacer */
+  /** Small gap between name and controls — keeps them close together */
   eaGlassFlexSpacer: {
-    flex: 1,
-    minHeight: 16,
+    height: 12,
   },
   eaGlassTopSection: {
     paddingTop: 0,
