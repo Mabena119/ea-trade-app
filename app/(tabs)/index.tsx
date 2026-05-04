@@ -1314,7 +1314,7 @@ const styles = StyleSheet.create({
   /** Wrapper that creates vertical space for the floating logo above the card */
   eaGlassHeroWrapper: {
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 64,
     position: 'relative',
     alignItems: 'center',
   },
