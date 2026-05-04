@@ -47,6 +47,7 @@
     "expo-symbols": "~0.4.5",
     "expo-system-ui": "~5.0.11",
     "expo-task-manager": "~13.1.6",
+    "expo-video": "~2.2.2",
     "expo-web-browser": "~14.2.0",
     "fbjs": "^3.0.5",
     "lucide-react-native": "^0.475.0",
