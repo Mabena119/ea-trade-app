@@ -35,9 +35,12 @@ const EA_VIDEO_ASPECT_H = 16;
 
 const STILL_TO_VIDEO_FADE_MS = 380;
 const VIDEO_TO_STILL_FADE_MS = 220;
+/**
+ * Portrait character logos (still aspect ≤ this) trigger a slight upward focal bias so the
+ * robot's head/face is visible even on short hero cards. No zoom — just crop-window shift.
+ */
 const CHARACTER_STILL_ASPECT_MAX = 0.8;
-const CHARACTER_VIDEO_FOCAL_X = 0.62;
-const CHARACTER_VIDEO_ZOOM = 1.32;
+const CHARACTER_VIDEO_FOCAL_Y = 0.4;
 
 function normalizeImageAspect(width: number, height: number): { w: number; h: number } | null {
   if (!(width > 0) || !(height > 0)) return null;
@@ -327,7 +330,7 @@ export function EABrandProfileMedia({
             videoAspect.w,
             videoAspect.h,
             isCharacterStyleMedia
-              ? { focalX: CHARACTER_VIDEO_FOCAL_X, zoom: CHARACTER_VIDEO_ZOOM }
+              ? { focalY: CHARACTER_VIDEO_FOCAL_Y }
               : undefined
           )
         : null,
