@@ -12,7 +12,9 @@ import {
   type ViewStyle,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { Audio, ResizeMode, Video } from 'expo-av';
+import type { AVPlaybackStatus } from 'expo-av';
+import type { VideoReadyForDisplayEvent } from 'expo-av/build/Video.types';
 
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import { ensureEaBrandMp4Cached } from '@/utils/ea-brand-profile-video-cache';
@@ -23,9 +25,11 @@ type ContentFit = 'cover' | 'contain';
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
 
 /**
- * EA profile videos are encoded **9:16 portrait** (verified with ffprobe).
- * See coverFillRect for why we use transform-based positioning instead of
- * layout offsets for the video layer.
+ * EA `admin/uploads/*.mp4` are encoded **9:16 portrait** (verified with ffprobe).
+ * Using ResizeMode.COVER with AVPlayerLayer on iOS drifts to one side for certain clips.
+ * We instead compute the center cover-fill rect in JS, position the Video at (0,0) and
+ * apply a CSS transform for the crop offset — transforms are applied post-layout so
+ * they don't trigger iOS's out-of-bounds clipping of absolute children.
  */
 const EA_VIDEO_ASPECT_W = 9;
 const EA_VIDEO_ASPECT_H = 16;
@@ -34,11 +38,18 @@ const STILL_TO_VIDEO_FADE_MS = 380;
 const VIDEO_TO_STILL_FADE_MS = 220;
 
 export type EABrandProfileMediaProps = {
+  /**
+   * Resolved profile image URL (`owner.logo`): looping video URL is the sibling `.mp4`.
+   */
   brandImageUrl: string | null;
   photoUnavailable?: boolean;
   preferLoopingVideo?: boolean;
   contentFit?: ContentFit;
   fallbackContentFit?: ContentFit;
+  /**
+   * Hero / full-bleed: set `true` so the component fills its parent TouchableOpacity.
+   * Circles / glass: set `false` and control sizing via `containerStyle`.
+   */
   fillParent?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
   mediaStyle: StyleProp<ViewStyle>;
@@ -48,9 +59,17 @@ export type EABrandProfileMediaProps = {
   testIDVideo?: string;
 };
 
+function buildVideoSource(uri: string): { uri: string; overrideFileExtensionAndroid?: string } {
+  if (Platform.OS === 'android' && (uri.startsWith('http://') || uri.startsWith('https://'))) {
+    return { uri, overrideFileExtensionAndroid: 'mp4' };
+  }
+  return { uri };
+}
+
 /**
  * Compute the pixel rect that makes `aw × ah` source fill `boxW × boxH`
  * via center-anchored cover (same as UIImageView scaleAspectFill).
+ * Returns null when any dimension is non-positive.
  */
 function coverFillRect(
   boxW: number,
@@ -62,6 +81,7 @@ function coverFillRect(
   const scale = Math.max(boxW / aw, boxH / ah);
   const width = aw * scale;
   const height = ah * scale;
+  // Clamp offsets so the video never leaves a gap at any edge.
   const offsetX = Math.min(0, Math.max(boxW - width, (boxW - width) / 2));
   const offsetY = Math.min(0, Math.max(boxH - height, (boxH - height) / 2));
   return { width, height, offsetX, offsetY };
@@ -95,15 +115,9 @@ export function EABrandProfileMedia({
   const resolvedContentFit: ContentFit = contentFit;
   const resolvedFallbackFit: ContentFit = fallbackContentFit ?? 'contain';
 
-  const canonicalStillUrl = useMemo(
-    () => normalizeEaBrandLogoHttpUrl(brandImageUrl),
-    [brandImageUrl]
-  );
+  const canonicalStillUrl = useMemo(() => normalizeEaBrandLogoHttpUrl(brandImageUrl), [brandImageUrl]);
   const remoteMp4 = useMemo(() => deriveEALogoMp4Url(canonicalStillUrl), [canonicalStillUrl]);
-  const imageStem = useMemo(
-    () => deriveEaBrandImageStemFromUrl(canonicalStillUrl),
-    [canonicalStillUrl]
-  );
+  const imageStem = useMemo(() => deriveEaBrandImageStemFromUrl(canonicalStillUrl), [canonicalStillUrl]);
 
   const [playUri, setPlayUri] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -111,10 +125,58 @@ export function EABrandProfileMedia({
   const playUriRef = useRef<string | null>(null);
   playUriRef.current = playUri;
 
-  // ── Video source URI management ───────────────────────────────────────────
+  /** Ref to the Video component so we can call playAsync() on app-foreground resume. */
+  const videoRef = useRef<Video | null>(null);
+
+  /**
+   * True while the video SHOULD be visible and playing (crossfade has completed).
+   * Used by onPlaybackStatusUpdate to decide whether to force-resume on an unexpected pause.
+   * A plain ref avoids re-creating the callback every time the state changes.
+   */
+  const shouldKeepPlayingRef = useRef(false);
+
+  /**
+   * iOS 18+ shows a native AVPlayer play-button overlay that lives above React Native's
+   * layer hierarchy — React Native opacity alone cannot hide it.
+   *
+   * Strategy:
+   *  • background / inactive  → reset firstFrameSeen so the still immediately re-covers the
+   *    video; shouldKeepPlayingRef=false so onPlaybackStatusUpdate won't fight iOS pause.
+   *  • active                 → call playAsync(); status update will re-trigger crossfade.
+   *  • while showing (shouldKeepPlayingRef=true) → if the video pauses for any reason
+   *    (buffering, iOS interrupt) call playAsync() instantly so the overlay never has time
+   *    to paint (handled in onPlaybackStatusUpdate below).
+   */
+  useEffect(() => {
+    const handleAppState = (next: AppStateStatus) => {
+      if (next === 'background' || next === 'inactive') {
+        shouldKeepPlayingRef.current = false;
+        setFirstFrameSeen(false);
+      } else if (next === 'active') {
+        videoRef.current?.playAsync().catch(() => {});
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, []);
+
+  // ── Audio session (iOS silent-mode muted autoplay) ────────────────────────
+  useEffect(() => {
+    if (Platform.OS === 'web' || !tryVideo) return;
+    void Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      allowsRecordingIOS: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).catch(() => {});
+  }, [tryVideo]);
+
+  // ── Kick off video URI + background cache warm-up ─────────────────────────
   useEffect(() => {
     setVideoFailed(false);
     setFirstFrameSeen(false);
+    shouldKeepPlayingRef.current = false;
 
     if (!tryVideo || !canonicalStillUrl || !remoteMp4 || !imageStem) {
       setPlayUri(null);
@@ -127,13 +189,27 @@ export function EABrandProfileMedia({
     }
   }, [tryVideo, canonicalStillUrl, remoteMp4, imageStem]);
 
+  if (__DEV__) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useEffect(() => {
+      if (tryVideo && canonicalStillUrl && remoteMp4) {
+        console.log('[EABrandProfileMedia] still:', canonicalStillUrl, '| mp4:', remoteMp4);
+      }
+    }, [tryVideo, canonicalStillUrl, remoteMp4]);
+  }
+
   // ── Error recovery ────────────────────────────────────────────────────────
   const failOnce = useRef<string | null>(null);
   const recoveringRef = useRef(false);
   const repairAttempts = useRef(0);
 
-  useEffect(() => { repairAttempts.current = 0; }, [canonicalStillUrl, remoteMp4]);
-  useEffect(() => { failOnce.current = null; }, [playUri]);
+  useEffect(() => {
+    repairAttempts.current = 0;
+  }, [canonicalStillUrl, remoteMp4]);
+
+  useEffect(() => {
+    failOnce.current = null;
+  }, [playUri]);
 
   const bail = useCallback(() => {
     const u = playUriRef.current;
@@ -164,90 +240,25 @@ export function EABrandProfileMedia({
     }
   }, [remoteMp4, imageStem, bail]);
 
-  // ── Video player (expo-video) ─────────────────────────────────────────────
-  const showVideo = Boolean(playUri && tryVideo && !videoFailed && remoteMp4 && imageStem);
-  const activeUri = showVideo ? playUri : null;
-
-  /**
-   * expo-video's useVideoPlayer replaces expo-av's Video component.
-   * Key benefit: nativeControls={false} on VideoView is respected on iOS 18+
-   * without any play-button overlay appearing, unlike expo-av.
-   *
-   * IMPORTANT: useVideoPlayer only calls the setup callback on initial creation.
-   * When activeUri changes from null → URI it calls player.replace() internally
-   * WITHOUT re-running the setup callback, so p.play() inside setup is never
-   * called for the real source. We therefore set loop/muted in setup (one-time)
-   * and drive playback imperatively via useEffect below.
-   */
-  const player = useVideoPlayer(activeUri ?? '', (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.volume = 0;
-  });
-
-  // Imperatively start looping playback whenever the active URI changes.
-  useEffect(() => {
-    player.loop = true;
-    player.muted = true;
-    player.volume = 0;
-    if (activeUri) {
-      try { player.play(); } catch {}
-    } else {
-      try { player.pause(); } catch {}
-    }
-  }, [activeUri, player]);
-
-  // Detect first confirmed-playing frame → trigger crossfade
-  useEffect(() => {
-    if (!activeUri) return;
-    const sub = player.addListener('playingChange', (event) => {
-      if (event.isPlaying) setFirstFrameSeen(true);
-    });
-    return () => sub.remove();
-  }, [player, activeUri]);
-
-  // Error handling
-  useEffect(() => {
-    if (!activeUri) return;
-    const sub = player.addListener('statusChange', (event) => {
-      if (event.status === 'error') {
-        console.warn('[EABrandProfileMedia] Video error:', event.error?.message);
-        if (recoveringRef.current) return;
-        repairAttempts.current += 1;
-        if (repairAttempts.current > 2) { bail(); return; }
-        void retryOrBail();
-      }
-    });
-    return () => sub.remove();
-  }, [player, activeUri, bail, retryOrBail]);
-
-  /**
-   * iOS pauses video on background/inactive. On iOS 18+ a paused-but-visible
-   * AVPlayer shows a play-button overlay. Fix:
-   *  • background → flip back to still immediately (videoOpacity=0)
-   *  • active → player.play(); playingChange event re-triggers the crossfade
-   */
-  useEffect(() => {
-    const handleAppState = (next: AppStateStatus) => {
-      if (next === 'background' || next === 'inactive') {
-        setFirstFrameSeen(false);
-      } else if (next === 'active' && activeUri) {
-        try { player.play(); } catch {}
-      }
-    };
-    const sub = AppState.addEventListener('change', handleAppState);
-    return () => sub.remove();
-  }, [player, activeUri]);
-
-  // Fallback: if playingChange never fires (network slow etc.), show video after 3s
-  useEffect(() => {
-    if (!activeUri || firstFrameSeen) return;
-    const t = setTimeout(() => setFirstFrameSeen(true), 3000);
-    return () => clearTimeout(t);
-  }, [activeUri, firstFrameSeen]);
+  const onVideoError = useCallback(
+    (msg: string) => {
+      console.warn('[EABrandProfileMedia] Video error:', msg);
+      if (recoveringRef.current) return;
+      repairAttempts.current += 1;
+      if (repairAttempts.current > 2) { bail(); return; }
+      void retryOrBail();
+    },
+    [bail, retryOrBail]
+  );
 
   // ── Hero cover-fill rectangle ─────────────────────────────────────────────
+  /**
+   * In hero mode (`fillParent + cover`) we manually compute and pin the Video into
+   * the exact same cover-fill rectangle that UIImageView uses for the still poster.
+   * This eliminates AVPlayerLayer's axis-alignment drift on iOS.
+   */
   const isHeroMode = fillParent && resolvedContentFit === 'cover';
+
   const [box, setBox] = useState({ w: 0, h: 0 });
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -262,12 +273,50 @@ export function EABrandProfileMedia({
     [isHeroMode, box.w, box.h]
   );
 
+  // ── Playback callbacks ────────────────────────────────────────────────────
+  const onReady = useCallback((evt: VideoReadyForDisplayEvent | undefined) => {
+    void evt;
+  }, []);
+
+  const onLoad = useCallback((status: AVPlaybackStatus) => {
+    void status;
+  }, []);
+
+  /**
+   * Only crossfade to video once isPlaying=true is confirmed — this keeps the still
+   * on top until frames are genuinely rendering, hiding any AVPlayer overlay.
+   *
+   * After crossfade, if the video pauses for any reason (iOS 18 buffering interrupt,
+   * system resource pressure, etc.) call playAsync() immediately so the play-button
+   * overlay never has time to become visible.
+   */
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    if (status.isPlaying) {
+      shouldKeepPlayingRef.current = true;
+      setFirstFrameSeen(true);
+    } else if (shouldKeepPlayingRef.current) {
+      // Unexpected pause while video is supposed to be showing — resume instantly.
+      videoRef.current?.playAsync().catch(() => {});
+    }
+  }, []);
+
+  const showVideo = Boolean(playUri && tryVideo && !videoFailed && remoteMp4 && imageStem);
+  const videoSource = showVideo && playUri ? buildVideoSource(playUri) : null;
+
+  // ── Fallback timeout: show video even if callbacks are unreliable ─────────
+  useEffect(() => {
+    if (!videoSource || firstFrameSeen) return;
+    const t = setTimeout(() => setFirstFrameSeen(true), 3000);
+    return () => clearTimeout(t);
+  }, [videoSource, firstFrameSeen]);
+
   // ── Crossfade animation ───────────────────────────────────────────────────
   const stillOpacity = useRef(new Animated.Value(1)).current;
   const videoOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const toVideo = activeUri != null && firstFrameSeen && !videoFailed;
+    const toVideo = videoSource != null && firstFrameSeen && !videoFailed;
     Animated.parallel([
       Animated.timing(stillOpacity, {
         toValue: toVideo ? 0 : 1,
@@ -280,7 +329,24 @@ export function EABrandProfileMedia({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [activeUri, firstFrameSeen, videoFailed, stillOpacity, videoOpacity]);
+  }, [videoSource, firstFrameSeen, videoFailed, stillOpacity, videoOpacity]);
+
+  const sharedPlayback = useMemo(
+    () => ({
+      shouldPlay: true as const,
+      isLooping: true as const,
+      isMuted: true as const,
+      volume: 0 as const,
+      useNativeControls: false as const,
+      usePoster: false as const,
+      progressUpdateIntervalMillis: 100,
+      onError: onVideoError,
+      onLoad: onLoad,
+      onReadyForDisplay: onReady,
+      onPlaybackStatusUpdate: onPlaybackStatusUpdate,
+    }),
+    [onVideoError, onLoad, onReady, onPlaybackStatusUpdate]
+  );
 
   // ── Still image ───────────────────────────────────────────────────────────
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
@@ -296,64 +362,51 @@ export function EABrandProfileMedia({
     />
   );
 
-  // ── Video layers ──────────────────────────────────────────────────────────
+  // ── Video layer ───────────────────────────────────────────────────────────
   /**
    * HERO PATH — manual cover-fill with transform-based offset.
-   * `top: 0` keeps layout inside parent bounds; `transform` shifts the crop
-   * window. This avoids the iOS `overflow:hidden` layout-clip bug for absolute
-   * children with negative `top`.
-   */
-  /**
-   * Hero video: use an explicit-size clipping View (overflow:hidden) positioned
-   * at (0,0) inside the Animated.View. The VideoView is sized to the full cover
-   * rect and shifted via transform. This avoids the iOS layout-clip bug where
-   * absolute children with negative top get entirely hidden when the parent has
-   * overflow:hidden (transform is applied post-layout, so the layout origin
-   * stays within bounds and clipping works correctly).
+   *
+   * Why transform instead of layout `top/left`?
+   * The cover-fill rect typically has a negative offsetY to crop the video vertically.
+   * On iOS, setting `top: negative` on an absolute child whose layout starts outside
+   * the parent's bounds triggers Yoga/CALayer to skip rendering the child when the
+   * parent has `overflow: hidden`.  Using `top: 0` + `transform: translateY(offsetY)`
+   * keeps the layout origin inside the parent so iOS renders it normally, then the
+   * transform shifts the visual output and `overflow: hidden` clips it correctly.
    */
   const heroVideo =
-    activeUri != null && isHeroMode && rect ? (
-      <View
+    videoSource != null && isHeroMode && rect ? (
+      <Video
+        ref={videoRef}
+        testID={testIDVideo}
+        key={`hero:${rect.width.toFixed(0)}x${rect.height.toFixed(0)}:${playUri}`}
+        source={videoSource}
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
-          width: box.w,
-          height: box.h,
-          overflow: 'hidden',
+          width: rect.width,
+          height: rect.height,
+          transform: [{ translateX: rect.offsetX }, { translateY: rect.offsetY }],
         }}
-        pointerEvents="none"
-      >
-        <VideoView
-          testID={testIDVideo}
-          player={player}
-          nativeControls={false}
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-          contentFit="fill"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: rect.width,
-            height: rect.height,
-            transform: [{ translateX: rect.offsetX }, { translateY: rect.offsetY }],
-          }}
-        />
-      </View>
+        videoStyle={{ width: rect.width, height: rect.height }}
+        resizeMode={ResizeMode.STRETCH}
+        {...sharedPlayback}
+      />
     ) : null;
 
-  /** NATIVE PATH — circles / glass: use contentFit="cover" directly. */
+  /** NATIVE PATH — circles / glass: let AVPlayerLayer handle it (no cover drift in circles). */
   const nativeVideo =
-    activeUri != null && !isHeroMode ? (
-      <VideoView
+    videoSource != null && !isHeroMode ? (
+      <Video
+        ref={videoRef}
         testID={testIDVideo}
-        player={player}
-        nativeControls={false}
-        allowsFullscreen={false}
-        allowsPictureInPicture={false}
-        contentFit={resolvedContentFit === 'contain' ? 'contain' : 'cover'}
+        key={`native:${playUri}`}
+        source={videoSource}
         style={StyleSheet.absoluteFillObject}
+        videoStyle={StyleSheet.absoluteFillObject}
+        resizeMode={resolvedContentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER}
+        {...sharedPlayback}
       />
     ) : null;
 
@@ -364,6 +417,7 @@ export function EABrandProfileMedia({
       pointerEvents="box-none"
       onLayout={isHeroMode ? onLayout : undefined}
     >
+      {/* Still poster — always rendered underneath; fades out when video is ready */}
       <Animated.View
         style={[styles.layer, mediaStyle as ViewStyle, { opacity: stillOpacity, zIndex: 1 }]}
         pointerEvents="none"
@@ -371,7 +425,8 @@ export function EABrandProfileMedia({
         {stillLayer}
       </Animated.View>
 
-      {activeUri != null ? (
+      {/* Video — fades in once the player signals first-frame ready */}
+      {videoSource != null ? (
         <Animated.View
           style={[styles.layer, mediaStyle as ViewStyle, { opacity: videoOpacity, zIndex: 2 }]}
           pointerEvents="none"
