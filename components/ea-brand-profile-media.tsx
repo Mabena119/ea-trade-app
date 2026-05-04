@@ -466,7 +466,20 @@ export function EABrandProfileMedia({
       {/* Looping video — pinned to the same cover rect as the still, fades in when ready. */}
       {videoSource != null ? (
         <Animated.View
-          style={[styles.layer, mediaStyle as ViewStyle, { opacity: videoOpacity, zIndex: 2 }]}
+          style={[
+            styles.layer,
+            /**
+             * In hero (manual cover-rect) mode the heroVideoLayer is positioned with a negative
+             * `top` to implement the upward-biased crop. `overflow: 'hidden'` on this Animated.View
+             * causes iOS to clip the entire absolutely-positioned child when it starts outside the
+             * parent's bounds, making the video invisible or falling back to native AVPlayerLayer
+             * gravity. Setting `overflow: 'visible'` here lets the heroVideoLayer render freely;
+             * the ancestor `blackHeroFullBleedMedia` (overflow: hidden) clips to card bounds.
+             */
+            useManualCoverRect && { overflow: 'visible' },
+            mediaStyle as ViewStyle,
+            { opacity: videoOpacity, zIndex: 2 },
+          ]}
           pointerEvents="none"
         >
           {useManualCoverRect ? heroVideoLayer : nativeVideoLayer}
