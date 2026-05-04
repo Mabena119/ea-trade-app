@@ -1,7 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, type StyleProp, View, type ViewStyle } from 'react-native';
+import {
+  Image,
+  LayoutChangeEvent,
+  Platform,
+  StyleSheet,
+  type StyleProp,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { Audio, ResizeMode, Video } from 'expo-av';
+import type { VideoReadyForDisplayEvent } from 'expo-av/build/Video.types';
 
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import { ensureEaBrandMp4Cached } from '@/utils/ea-brand-profile-video-cache';
@@ -10,6 +19,13 @@ import { deriveEaBrandImageStemFromUrl, deriveEALogoMp4Url } from '@/utils/ea-lo
 type ContentFit = 'cover' | 'contain';
 
 const CACHE_SUBDIR = 'ea-brand-profile-videos/';
+/**
+ * EA `admin/uploads/*.mp4` are encoded **720×1280 portrait, no rotation tag** (verified with ffprobe).
+ * iOS `AVPlayerLayer.videoGravity = ResizeAspectFill` mis-positions some of these clips far off-center,
+ * so we render the layer at this **fixed aspect** and place it ourselves (center-crop).
+ */
+const EA_VIDEO_ASPECT_W = 9;
+const EA_VIDEO_ASPECT_H = 16;
 
 export type EABrandProfileMediaProps = {
   /**
@@ -38,6 +54,25 @@ function buildVideoPlaybackSource(playUri: string): { uri: string; overrideFileE
     return { uri: playUri, overrideFileExtensionAndroid: 'mp4' };
   }
   return { uri: playUri };
+}
+
+/** Aspect-fill slot: scaled (`aw×ah`) box that fully covers (`boxW×boxH`), centered. Fractional layout — no rounding drift. */
+function aspectFillSlot(
+  boxW: number,
+  boxH: number,
+  aw: number,
+  ah: number
+): { left: number; top: number; width: number; height: number } | null {
+  if (!(boxW > 0) || !(boxH > 0) || !(aw > 0) || !(ah > 0)) return null;
+  const scale = Math.max(boxW / aw, boxH / ah);
+  const width = aw * scale;
+  const height = ah * scale;
+  return {
+    width,
+    height,
+    left: (boxW - width) / 2,
+    top: (boxH - height) / 2,
+  };
 }
 
 async function deleteCachedMp4ForStem(imageStem: string): Promise<void> {
@@ -179,6 +214,47 @@ export function EABrandProfileMedia({
 
   const showVideoLayer = Boolean(playUri && tryVideo && !videoPlaybackFailed && remoteMp4 && imageStem);
 
+  /** Hero (`fillParent` + `cover`) → manual aspect-fill slot; circles/glass keep native gravity. */
+  const useManualAspectFillSlot = fillParent && contentFit === 'cover';
+
+  const [containerBox, setContainerBox] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+
+  const onContainerLayout = useCallback((e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setContainerBox((prev) =>
+      prev.width === width && prev.height === height ? prev : { width, height }
+    );
+  }, []);
+
+  /** Default to known EA aspect; refine if `naturalSize` reports a portrait shape that disagrees. */
+  const [refinedAspect, setRefinedAspect] = useState<{ w: number; h: number }>({
+    w: EA_VIDEO_ASPECT_W,
+    h: EA_VIDEO_ASPECT_H,
+  });
+
+  useEffect(() => {
+    setRefinedAspect({ w: EA_VIDEO_ASPECT_W, h: EA_VIDEO_ASPECT_H });
+  }, [canonicalStillUrl, remoteMp4]);
+
+  const onVideoReadyForDisplay = useCallback((evt: VideoReadyForDisplayEvent) => {
+    const nw = evt.naturalSize.width;
+    const nh = evt.naturalSize.height;
+    if (!(nw > 0) || !(nh > 0)) return;
+    /** Source is portrait when the encoded shape is taller than wide; landscape encodings stay as-is so non-EA usages still work. */
+    setRefinedAspect({ w: nw, h: nh });
+  }, []);
+
+  const aspectSlot =
+    useManualAspectFillSlot && containerBox.width > 0 && containerBox.height > 0
+      ? aspectFillSlot(containerBox.width, containerBox.height, refinedAspect.w, refinedAspect.h)
+      : null;
+
+  const showManualSlotVideo = useManualAspectFillSlot && aspectSlot != null && showVideoLayer;
+  const showNativeFullscreenVideo = showVideoLayer && !useManualAspectFillSlot;
+
   const photoUri = !photoUnavailable && canonicalStillUrl ? canonicalStillUrl : null;
 
   const videoSource =
@@ -194,40 +270,76 @@ export function EABrandProfileMedia({
     />
   );
 
+  const sharedVideoPlayback = useMemo(
+    () => ({
+      shouldPlay: true as const,
+      isLooping: true as const,
+      isMuted: true as const,
+      volume: 0 as const,
+      useNativeControls: false as const,
+      usePoster: false as const,
+      pointerEvents: 'none' as const,
+      onError: onVideoErr,
+      onReadyForDisplay: useManualAspectFillSlot ? onVideoReadyForDisplay : undefined,
+    }),
+    [onVideoErr, onVideoReadyForDisplay, useManualAspectFillSlot]
+  );
+
+  const videoNativeFullscreen =
+    videoSource != null && showNativeFullscreenVideo ? (
+      <Video
+        testID={testIDVideo}
+        key={`fs:${playUri}:${canonicalStillUrl ?? ''}`}
+        source={videoSource}
+        style={[mediaStyle as ViewStyle, styles.videoOverlay]}
+        resizeMode={resizeModeVideo}
+        {...sharedVideoPlayback}
+      />
+    ) : null;
+
   /**
-   * Render the video with the **exact same wrapper + fill** as the still poster, and the matching
-   * native cover gravity. Wrapping in an `overflow:'hidden'` view (vs. styling the `<Video>` directly)
-   * gives the iOS player a stable bounded surface and avoids the asymmetric crop drift that some
-   * portrait MP4s (e.g. `admin/uploads/*.mp4`) showed when `<Video>` was the absolute-fill layer.
+   * Manual aspect-fill: pre-size the slot to match the source aspect (`refinedAspect`) at scale=max(card),
+   * then `STRETCH` the player into that slot. Because slot aspect == source aspect, stretch == uniform scale
+   * (no distortion) and AVPlayerLayer cannot shift the image off-center.
    */
-  const videoLayer =
-    videoSource != null ? (
-      <View style={[mediaStyle as ViewStyle, styles.videoOverlay]} pointerEvents="none">
-        <Video
-          testID={testIDVideo}
-          key={`${playUri}:${canonicalStillUrl ?? ''}`}
-          source={videoSource}
-          style={styles.videoFill}
-          videoStyle={styles.videoFill}
-          resizeMode={resizeModeVideo}
-          shouldPlay
-          isLooping
-          isMuted
-          volume={0}
-          useNativeControls={false}
-          usePoster={false}
-          pointerEvents="none"
-          onError={onVideoErr}
-        />
+  const videoManualSlot =
+    videoSource != null && showManualSlotVideo && aspectSlot ? (
+      <View style={[styles.videoOverlay, mediaStyle as ViewStyle]} pointerEvents="none">
+        <View
+          style={[
+            styles.videoSlotShell,
+            {
+              left: aspectSlot.left,
+              top: aspectSlot.top,
+              width: aspectSlot.width,
+              height: aspectSlot.height,
+            },
+          ]}
+        >
+          <Video
+            testID={testIDVideo}
+            key={`slot:${aspectSlot.width.toFixed(1)}x${aspectSlot.height.toFixed(1)}:${playUri}:${canonicalStillUrl ?? ''}`}
+            source={videoSource}
+            style={styles.videoSlotInnerShell}
+            videoStyle={styles.videoSlotInnerShell}
+            resizeMode={ResizeMode.STRETCH}
+            {...sharedVideoPlayback}
+          />
+        </View>
       </View>
     ) : null;
 
   const rootStyle: StyleProp<ViewStyle> = [fillParent && StyleSheet.absoluteFillObject, containerStyle];
 
   return (
-    <View style={rootStyle} pointerEvents="box-none">
+    <View
+      style={rootStyle}
+      pointerEvents="box-none"
+      onLayout={useManualAspectFillSlot ? onContainerLayout : undefined}
+    >
       <View style={[mediaStyle as ViewStyle, styles.stillUnderlay]}>{innerStill}</View>
-      {videoLayer}
+      {videoNativeFullscreen}
+      {videoManualSlot}
     </View>
   );
 }
@@ -243,7 +355,12 @@ const styles = StyleSheet.create({
     zIndex: 2,
     elevation: 2,
   },
-  videoFill: {
+  videoSlotShell: {
+    position: 'absolute',
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+  },
+  videoSlotInnerShell: {
     ...StyleSheet.absoluteFillObject,
   },
 });
