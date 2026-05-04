@@ -122,6 +122,13 @@ export function EABrandProfileMedia({
   const [playUri, setPlayUri] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [firstFrameSeen, setFirstFrameSeen] = useState(false);
+  /**
+   * Incremented every time we need a full video reinitialisation (app foreground,
+   * theme change). Adding it to the setup-effect deps tears down the Video component
+   * and rebuilds it from scratch so autoplay is always guaranteed.
+   */
+  const [reinitKey, setReinitKey] = useState(0);
+
   const playUriRef = useRef<string | null>(null);
   playUriRef.current = playUri;
 
@@ -136,40 +143,34 @@ export function EABrandProfileMedia({
   const shouldKeepPlayingRef = useRef(false);
 
   /**
-   * iOS 18+ shows a native AVPlayer play-button overlay that lives above React Native's
-   * layer hierarchy — React Native opacity alone cannot hide it.
+   * Full reinitialisation strategy:
+   *  • background / inactive → hide video immediately (still re-covers it).
+   *  • active → bump reinitKey, which re-runs the audio-await → set-URI effect so
+   *    the Video component unmounts, the audio session is re-confirmed, and it
+   *    remounts fresh. The still stays visible throughout, so no play-button flash.
    *
-   * Strategy:
-   *  • background / inactive  → reset firstFrameSeen so the still immediately re-covers the
-   *    video; shouldKeepPlayingRef=false so onPlaybackStatusUpdate won't fight iOS pause.
-   *  • active                 → call playAsync(); status update will re-trigger crossfade.
-   *  • while showing (shouldKeepPlayingRef=true) → if the video pauses for any reason
-   *    (buffering, iOS interrupt) call playAsync() instantly so the overlay never has time
-   *    to paint (handled in onPlaybackStatusUpdate below).
+   * This handles both cold-start (iOS doesn't honour shouldPlay before audio session
+   * is ready) and foreground-resume (AVPlayer paused state after backgrounding).
    */
   useEffect(() => {
     const handleAppState = (next: AppStateStatus) => {
       if (next === 'background' || next === 'inactive') {
         shouldKeepPlayingRef.current = false;
         setFirstFrameSeen(false);
+        setPlayUri(null); // unmount Video while hidden — clean slate on resume
       } else if (next === 'active') {
-        videoRef.current?.playAsync().catch(() => {});
+        setReinitKey((k) => k + 1); // triggers full re-init below
       }
     };
     const sub = AppState.addEventListener('change', handleAppState);
     return () => sub.remove();
   }, []);
 
-  // ── Audio session + kick off video URI ───────────────────────────────────
+  // ── Audio session + video URI (re-runs on source change OR reinitKey bump) ─
   /**
-   * On cold-start with the video theme active, `Audio.setAudioModeAsync` and the
-   * Video source assignment used to race: AVPlayer could receive its source before
-   * iOS granted silent-mode playback, causing a brief paused state that triggered
-   * the play-button overlay.
-   *
-   * Fix: await the audio session first, THEN set playUri so the Video component
-   * only mounts once silent-mode is confirmed. One combined async effect replaces
-   * the two previously racing effects.
+   * Always await the audio session before assigning a URI to the Video component.
+   * This prevents the cold-start race where AVPlayer receives its source before iOS
+   * has granted silent-mode playback, which caused a brief paused state + play button.
    */
   useEffect(() => {
     setVideoFailed(false);
@@ -202,7 +203,9 @@ export function EABrandProfileMedia({
 
     void setupThenPlay();
     return () => { cancelled = true; };
-  }, [tryVideo, canonicalStillUrl, remoteMp4, imageStem]);
+    // reinitKey intentionally included: bumping it forces a full teardown + rebuild
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tryVideo, canonicalStillUrl, remoteMp4, imageStem, reinitKey]);
 
   if (__DEV__) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
