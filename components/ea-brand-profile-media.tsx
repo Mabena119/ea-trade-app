@@ -160,19 +160,17 @@ export function EABrandProfileMedia({
     return () => sub.remove();
   }, []);
 
-  // ── Audio session (iOS silent-mode muted autoplay) ────────────────────────
-  useEffect(() => {
-    if (Platform.OS === 'web' || !tryVideo) return;
-    void Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      allowsRecordingIOS: false,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    }).catch(() => {});
-  }, [tryVideo]);
-
-  // ── Kick off video URI + background cache warm-up ─────────────────────────
+  // ── Audio session + kick off video URI ───────────────────────────────────
+  /**
+   * On cold-start with the video theme active, `Audio.setAudioModeAsync` and the
+   * Video source assignment used to race: AVPlayer could receive its source before
+   * iOS granted silent-mode playback, causing a brief paused state that triggered
+   * the play-button overlay.
+   *
+   * Fix: await the audio session first, THEN set playUri so the Video component
+   * only mounts once silent-mode is confirmed. One combined async effect replaces
+   * the two previously racing effects.
+   */
   useEffect(() => {
     setVideoFailed(false);
     setFirstFrameSeen(false);
@@ -182,11 +180,28 @@ export function EABrandProfileMedia({
       setPlayUri(null);
       return;
     }
-    setPlayUri(remoteMp4);
 
-    if (Platform.OS !== 'web') {
-      void ensureEaBrandMp4Cached(remoteMp4, imageStem).catch(() => {});
-    }
+    let cancelled = false;
+
+    const setupThenPlay = async () => {
+      if (Platform.OS !== 'web') {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          allowsRecordingIOS: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        }).catch(() => {});
+      }
+      if (cancelled) return;
+      setPlayUri(remoteMp4);
+      if (Platform.OS !== 'web') {
+        void ensureEaBrandMp4Cached(remoteMp4, imageStem).catch(() => {});
+      }
+    };
+
+    void setupThenPlay();
+    return () => { cancelled = true; };
   }, [tryVideo, canonicalStillUrl, remoteMp4, imageStem]);
 
   if (__DEV__) {
