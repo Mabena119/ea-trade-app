@@ -245,6 +245,17 @@ export default function HomeScreen() {
     [theme, isBlackTheme, isMatrix]
   );
 
+  /**
+   * Very dark screen backgrounds (#000, near-black navies, dark red, etc.) were picking up
+   * visible banding from the global white "page gloss" + section gloss overlays. Disable those
+   * and use a short black→screenBg falloff strip between hero and scroll instead.
+   */
+  const deepDarkChrome = useMemo(() => {
+    if (isMatrix || isEAGlass) return false;
+    const L = hexBackgroundLuminance(screenBg);
+    return L != null && L <= 0.1;
+  }, [isMatrix, isEAGlass, screenBg]);
+
   // Block rendering if not authenticated
   if (!isAuthenticated) {
     return (
@@ -389,7 +400,7 @@ export default function HomeScreen() {
       )}
 
       <MatrixSceneRain>
-        {!isMatrix && !isEAGlass && (
+        {!isMatrix && !isEAGlass && !deepDarkChrome && (
           <LinearGradient
             colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0)']}
             style={styles.pageGlossTop}
@@ -398,7 +409,7 @@ export default function HomeScreen() {
             pointerEvents="none"
           />
         )}
-        {!isMatrix && !isEAGlass && (
+        {!isMatrix && !isEAGlass && !deepDarkChrome && (
           <LinearGradient
             colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.03)']}
             style={styles.pageGlossBottom}
@@ -645,9 +656,21 @@ export default function HomeScreen() {
             )}
           </View>
 
+          {deepDarkChrome && (
+            <View style={styles.chromeFalloffStrip} pointerEvents="none">
+              <LinearGradient
+                colors={['rgba(0,0,0,0.5)', screenBg]}
+                locations={[0, 1]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+            </View>
+          )}
+
           {/* Scrollable Connected Bots Section */}
           <View style={styles.connectedBotsWrapper}>
-            {!isMatrix && !isEAGlass && (
+            {!isMatrix && !isEAGlass && !deepDarkChrome && (
               <LinearGradient
                 colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0)']}
                 style={styles.sectionGloss}
@@ -830,6 +853,17 @@ export default function HomeScreen() {
 }
 
 const { width } = Dimensions.get('window');
+
+/** sRGB luminance for #RRGGBB; null if not a 6-digit hex (e.g. `transparent`). */
+function hexBackgroundLuminance(hex: string): number | null {
+  const h = hex.replace(/^#/, '').trim();
+  if (h.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 /** Floor for how tall the black hero poster card should feel (ratio of screen width). */
 const BLACK_HERO_CARD_MIN_HEIGHT = Math.round(width * 1.08);
 /** Thin strip so content never kisses the rounded top edge on rotation / large text */
@@ -942,6 +976,13 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 16,
     backgroundColor: 'transparent',
+  },
+  /** Softens hero → scroll transition on very dark themes (no white gloss in that case). */
+  chromeFalloffStrip: {
+    height: 48,
+    width: '100%',
+    overflow: 'hidden',
+    zIndex: 5,
   },
   gradientBackground: {
     position: 'absolute',
