@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { Audio, ResizeMode, Video } from 'expo-av';
+import type { AVPlaybackStatus } from 'expo-av';
 import type { VideoReadyForDisplayEvent } from 'expo-av/build/Video.types';
 
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
@@ -238,11 +239,21 @@ export function EABrandProfileMedia({
     setRefinedAspect({ w: EA_VIDEO_ASPECT_W, h: EA_VIDEO_ASPECT_H });
   }, [canonicalStillUrl, remoteMp4]);
 
-  const onVideoReadyForDisplay = useCallback((evt: VideoReadyForDisplayEvent) => {
-    const nw = evt.naturalSize.width;
-    const nh = evt.naturalSize.height;
+  const onVideoReadyForDisplay = useCallback((evt: VideoReadyForDisplayEvent | undefined) => {
+    /** Some expo-av builds and HTTP streams fire `onReadyForDisplay` without `naturalSize`. */
+    const naturalSize = (evt as Partial<VideoReadyForDisplayEvent> | undefined)?.naturalSize;
+    const nw = naturalSize?.width ?? 0;
+    const nh = naturalSize?.height ?? 0;
     if (nw > 0 && nh > 0) setRefinedAspect({ w: nw, h: nh });
     setVideoFirstFrameSeen(true);
+  }, []);
+
+  /**
+   * Backup signal: not every expo-av build fires `onReadyForDisplay` for streamed `.mp4`. `onLoad` runs once
+   * per loaded source, so it doubles as a “video is renderable” trigger so the crossfade still completes.
+   */
+  const onVideoLoad = useCallback((status: AVPlaybackStatus) => {
+    if (status?.isLoaded) setVideoFirstFrameSeen(true);
   }, []);
 
   const aspectSlotSize = useMemo(
@@ -257,6 +268,14 @@ export function EABrandProfileMedia({
 
   const videoSource =
     showVideoLayer && playUri != null ? buildVideoPlaybackSource(playUri) : null;
+
+  /** Hard timeout: even if neither `onReadyForDisplay` nor `onLoad` fires (rare), reveal the video so the user isn't stuck on the still. */
+  useEffect(() => {
+    if (videoSource == null) return;
+    if (videoFirstFrameSeen) return;
+    const timer = setTimeout(() => setVideoFirstFrameSeen(true), 1500);
+    return () => clearTimeout(timer);
+  }, [videoSource, videoFirstFrameSeen]);
 
   /** Crossfade between still poster and looping video — opacities driven by `videoFirstFrameSeen`. */
   const stillOpacity = useRef(new Animated.Value(1)).current;
@@ -288,9 +307,10 @@ export function EABrandProfileMedia({
       usePoster: false as const,
       pointerEvents: 'none' as const,
       onError: onVideoErr,
+      onLoad: onVideoLoad,
       onReadyForDisplay: onVideoReadyForDisplay,
     }),
-    [onVideoErr, onVideoReadyForDisplay]
+    [onVideoErr, onVideoLoad, onVideoReadyForDisplay]
   );
 
   const innerStill = (
