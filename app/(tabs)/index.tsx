@@ -467,6 +467,9 @@ export default function HomeScreen() {
                     </View>
                   </View>
 
+                  {/* Flex spacer — pushes controls to the bottom of the card */}
+                  <View style={styles.eaGlassFlexSpacer} />
+
                   {/* Action buttons */}
                   <View style={styles.bottomActions}>
                     <TouchableOpacity
@@ -1343,6 +1346,12 @@ const styles = StyleSheet.create({
     marginTop: 90,
     paddingTop: 104,
     width: '100%',
+    minHeight: BLACK_HERO_CARD_MIN_HEIGHT + 52,
+  },
+  /** Pushes controls to bottom of the glass card — mirrors blackHeroTopFlexSpacer */
+  eaGlassFlexSpacer: {
+    flex: 1,
+    minHeight: 16,
   },
   eaGlassTopSection: {
     paddingTop: 0,
