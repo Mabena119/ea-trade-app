@@ -451,8 +451,8 @@ export const ALL_THEMES: Theme[] = [
   redTheme,
   matrixTheme,
   matrixRedTheme,
-  matrixYellowTheme,
   blackTheme,
+  matrixYellowTheme,
 ];
 export type ThemeName =
   | 'purple'
