@@ -1370,8 +1370,8 @@ const styles = StyleSheet.create({
     }),
   },
   eaGlassLogoRing: {
-    borderColor: 'transparent',
     borderWidth: 0,
+    borderColor: 'transparent',
     backgroundColor: 'transparent',
     overflow: 'hidden',
     ...Platform.select({
