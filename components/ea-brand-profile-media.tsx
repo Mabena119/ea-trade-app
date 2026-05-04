@@ -122,6 +122,9 @@ export function EABrandProfileMedia({
   testIDVideo,
 }: EABrandProfileMediaProps) {
   const tryVideo = preferLoopingVideo ?? Platform.OS !== 'web';
+  const resolvedContentFit: ContentFit =
+    fillParent && Boolean(preferLoopingVideo) ? 'contain' : contentFit;
+  const resolvedFallbackFit: ContentFit = fallbackContentFit ?? 'contain';
 
   const canonicalStillUrl = useMemo(() => normalizeEaBrandLogoHttpUrl(brandImageUrl), [brandImageUrl]);
   const remoteMp4 = useMemo(() => deriveEALogoMp4Url(canonicalStillUrl), [canonicalStillUrl]);
@@ -247,7 +250,7 @@ export function EABrandProfileMedia({
   const showVideoLayer = Boolean(playUri && tryVideo && !videoPlaybackFailed && remoteMp4 && imageStem);
 
   /** Hero (`fillParent` + `cover`) → manual cover-fit rect; circles/glass keep native gravity. */
-  const useManualCoverRect = fillParent && contentFit === 'cover';
+  const useManualCoverRect = fillParent && resolvedContentFit === 'cover';
 
   const [containerBox, setContainerBox] = useState<{ width: number; height: number }>({
     width: 0,
@@ -374,7 +377,7 @@ export function EABrandProfileMedia({
     [onVideoErr, onVideoLoad, onVideoReadyForDisplay]
   );
 
-  const stillResizeMode: ContentFit = photoUri ? contentFit : (fallbackContentFit ?? 'contain');
+  const stillResizeMode: ContentFit = photoUri ? resolvedContentFit : resolvedFallbackFit;
 
   const innerStill = (
     <Image
@@ -402,7 +405,7 @@ export function EABrandProfileMedia({
           testID={testIDPhoto}
           source={photoUri != null ? { uri: photoUri } : fallbackSource}
           style={StyleSheet.absoluteFillObject}
-          resizeMode={photoUri ? 'stretch' : fallbackContentFit ?? 'contain'}
+          resizeMode={photoUri ? 'stretch' : resolvedFallbackFit}
           {...(photoUri ? { onError: onPhotoError } : {})}
         />
       </View>
@@ -447,7 +450,7 @@ export function EABrandProfileMedia({
         source={videoSource}
         style={StyleSheet.absoluteFillObject}
         videoStyle={StyleSheet.absoluteFillObject}
-        resizeMode={contentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER}
+        resizeMode={resolvedContentFit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER}
         {...sharedVideoPlayback}
       />
     ) : null;
