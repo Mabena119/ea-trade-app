@@ -172,13 +172,30 @@ export function EABrandProfileMedia({
    * expo-video's useVideoPlayer replaces expo-av's Video component.
    * Key benefit: nativeControls={false} on VideoView is respected on iOS 18+
    * without any play-button overlay appearing, unlike expo-av.
+   *
+   * IMPORTANT: useVideoPlayer only calls the setup callback on initial creation.
+   * When activeUri changes from null → URI it calls player.replace() internally
+   * WITHOUT re-running the setup callback, so p.play() inside setup is never
+   * called for the real source. We therefore set loop/muted in setup (one-time)
+   * and drive playback imperatively via useEffect below.
    */
-  const player = useVideoPlayer(activeUri, (p) => {
+  const player = useVideoPlayer(activeUri ?? '', (p) => {
     p.loop = true;
     p.muted = true;
     p.volume = 0;
-    if (activeUri) p.play();
   });
+
+  // Imperatively start looping playback whenever the active URI changes.
+  useEffect(() => {
+    player.loop = true;
+    player.muted = true;
+    player.volume = 0;
+    if (activeUri) {
+      try { player.play(); } catch {}
+    } else {
+      try { player.pause(); } catch {}
+    }
+  }, [activeUri, player]);
 
   // Detect first confirmed-playing frame → trigger crossfade
   useEffect(() => {
@@ -286,24 +303,44 @@ export function EABrandProfileMedia({
    * window. This avoids the iOS `overflow:hidden` layout-clip bug for absolute
    * children with negative `top`.
    */
+  /**
+   * Hero video: use an explicit-size clipping View (overflow:hidden) positioned
+   * at (0,0) inside the Animated.View. The VideoView is sized to the full cover
+   * rect and shifted via transform. This avoids the iOS layout-clip bug where
+   * absolute children with negative top get entirely hidden when the parent has
+   * overflow:hidden (transform is applied post-layout, so the layout origin
+   * stays within bounds and clipping works correctly).
+   */
   const heroVideo =
     activeUri != null && isHeroMode && rect ? (
-      <VideoView
-        testID={testIDVideo}
-        player={player}
-        nativeControls={false}
-        allowsFullscreen={false}
-        allowsPictureInPicture={false}
-        contentFit="fill"
+      <View
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
-          width: rect.width,
-          height: rect.height,
-          transform: [{ translateX: rect.offsetX }, { translateY: rect.offsetY }],
+          width: box.w,
+          height: box.h,
+          overflow: 'hidden',
         }}
-      />
+        pointerEvents="none"
+      >
+        <VideoView
+          testID={testIDVideo}
+          player={player}
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+          contentFit="fill"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: rect.width,
+            height: rect.height,
+            transform: [{ translateX: rect.offsetX }, { translateY: rect.offsetY }],
+          }}
+        />
+      </View>
     ) : null;
 
   /** NATIVE PATH — circles / glass: use contentFit="cover" directly. */
