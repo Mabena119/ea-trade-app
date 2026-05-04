@@ -1346,11 +1346,10 @@ const styles = StyleSheet.create({
     marginTop: 90,
     paddingTop: 104,
     width: '100%',
-    minHeight: BLACK_HERO_CARD_MIN_HEIGHT + 52,
   },
-  /** Small gap between name and controls — keeps them close together */
+  /** Small gap between name and controls */
   eaGlassFlexSpacer: {
-    height: 12,
+    height: 20,
   },
   eaGlassTopSection: {
     paddingTop: 0,
