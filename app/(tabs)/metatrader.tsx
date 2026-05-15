@@ -536,6 +536,8 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Exness-MT5Real22': 'https://mt5real22.exwebterm.com/terminal',
   'Exness-MT5Real23': 'https://mt5real23.exwebterm.com/terminal',
   'Exness-MT5Real24': 'https://mt5real24.exwebterm.com/terminal',
+  'Weltrade-Real': 'https://mt5.real.weltrade.com/terminal',
+  'Weltrade-Demo': 'https://mt5.demo.weltrade.com/terminal',
 };
 
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);

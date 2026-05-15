@@ -170,6 +170,8 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Exness-MT5Real22': 'https://mt5real22.exwebterm.com/terminal',
   'Exness-MT5Real23': 'https://mt5real23.exwebterm.com/terminal',
   'Exness-MT5Real24': 'https://mt5real24.exwebterm.com/terminal',
+  'Weltrade-Real': 'https://mt5.real.weltrade.com/terminal',
+  'Weltrade-Demo': 'https://mt5.demo.weltrade.com/terminal',
 };
 
 /** Same chart image: server cache + low model temp; client retries transient network/API errors with same snapshot. */
