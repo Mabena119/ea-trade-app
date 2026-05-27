@@ -99,14 +99,14 @@ export default function AIPaymentScreen() {
       {/* PayFast blocks in-app framing (X-Frame-Options: DENY), so launch external checkout */}
       <View style={styles.webViewContainer}>
         <Text style={[styles.detailsText, { color: theme.colors.textSecondary }]}>
-          Secure checkout opens in your browser because PayFast does not allow embedded pages.
+          Click Below to Unlock Scanner
         </Text>
         <TouchableOpacity
           onPress={openExternalCheckout}
           activeOpacity={0.8}
           style={[styles.openButton, { borderColor: `${theme.colors.accent}88`, backgroundColor: `${theme.colors.accent}22` }]}
         >
-          <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Open Secure Checkout</Text>
+          <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Unlock Now</Text>
         </TouchableOpacity>
       </View>
 
