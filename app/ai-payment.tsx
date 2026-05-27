@@ -15,15 +15,28 @@ import { WebView } from 'react-native-webview';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/providers/theme-provider';
 
-const PAYSTACK_BASE = 'https://paystack.shop/pay/za670n3c51';
+const PAYFAST_BASE = 'https://www.payfast.co.za/eng/process';
+const PAYFAST_MERCHANT_ID = '34856565';
+const PAYFAST_ITEM_NAME = 'Core Market';
+const PAYFAST_AMOUNT = '349.99';
+const PAYFAST_NOTIFY_URL = 'https://www.eatrade.io/shop/notifya.php';
 
 export default function AIPaymentScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ email?: string }>();
   const email = (params.email || '').trim().toLowerCase();
-  const paymentUrl = email
-    ? `${PAYSTACK_BASE}?email=${encodeURIComponent(email)}`
-    : PAYSTACK_BASE;
+  const notifyUrl = email
+    ? `${PAYFAST_NOTIFY_URL}?email=${encodeURIComponent(email)}`
+    : PAYFAST_NOTIFY_URL;
+
+  const paymentParams = new URLSearchParams({
+    merchant_id: PAYFAST_MERCHANT_ID,
+    item_name: PAYFAST_ITEM_NAME,
+    amount: PAYFAST_AMOUNT,
+    notify_url: notifyUrl,
+  });
+  if (email) paymentParams.set('email_address', email);
+  const paymentUrl = `${PAYFAST_BASE}?${paymentParams.toString()}`;
 
   const handleBack = () => {
     router.back();
@@ -77,7 +90,7 @@ export default function AIPaymentScreen() {
         </View>
       </View>
 
-      {/* WebView - Paystack payment */}
+      {/* WebView - PayFast payment */}
       <View style={styles.webViewContainer}>
         {Platform.OS === 'web' ? (
           <iframe

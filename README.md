@@ -33,7 +33,7 @@ The AI Scanner can be gated by a `scanner` column on the `members` table. Run:
 ```sql
 ALTER TABLE members ADD COLUMN scanner TINYINT(1) DEFAULT 0;
 ```
-See `scripts/add-scanner-column.sql`. When `scanner` is 0/false, users see a blurred screen with "UNLOCK AI SCANNER" that opens an in-app payment page (Paystack).
+See `scripts/add-scanner-column.sql`. When `scanner` is 0/false, users see a blurred screen with "UNLOCK AI SCANNER" that opens an in-app payment page (PayFast).
 
 **Webhook:** Your existing webhook handles DB updates. The app only shows the payment page and re-checks scanner status when the user returns.
 
