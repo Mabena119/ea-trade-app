@@ -17,6 +17,7 @@ import { useTheme } from '@/providers/theme-provider';
 
 const PAYFAST_BASE = 'https://www.payfast.co.za/eng/process';
 const PAYFAST_MERCHANT_ID = '34856565';
+const PAYFAST_MERCHANT_KEY = 'adrkur9bochww';
 const PAYFAST_ITEM_NAME = 'Core Market';
 const PAYFAST_AMOUNT = '349.99';
 const PAYFAST_NOTIFY_URL = 'https://www.eatrade.io/shop/notifya.php';
@@ -31,6 +32,7 @@ export default function AIPaymentScreen() {
 
   const paymentParams = new URLSearchParams({
     merchant_id: PAYFAST_MERCHANT_ID,
+    merchant_key: PAYFAST_MERCHANT_KEY,
     item_name: PAYFAST_ITEM_NAME,
     amount: PAYFAST_AMOUNT,
     notify_url: notifyUrl,
