@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,9 +26,10 @@ const PAYFAST_NOTIFY_URL = 'https://www.eatrade.io/shop/notifya.php';
 export default function AIPaymentScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ email?: string }>();
+  const [paymentError, setPaymentError] = React.useState<string | null>(null);
   const email = (params.email || '').trim().toLowerCase();
   const notifyUrl = email
-    ? `${PAYFAST_NOTIFY_URL}?email=${encodeURIComponent(email)}`
+    ? `${PAYFAST_NOTIFY_URL}?email=${email}`
     : PAYFAST_NOTIFY_URL;
 
   const paymentParams = new URLSearchParams({
@@ -42,6 +44,14 @@ export default function AIPaymentScreen() {
 
   const handleBack = () => {
     router.back();
+  };
+
+  const openExternalCheckout = async () => {
+    try {
+      await Linking.openURL(paymentUrl);
+    } catch {
+      setPaymentError('Could not open checkout. Please try again.');
+    }
   };
 
   return (
@@ -104,7 +114,18 @@ export default function AIPaymentScreen() {
         ) : (
           <WebView
             source={{ uri: paymentUrl }}
+            javaScriptEnabled
+            domStorageEnabled
+            sharedCookiesEnabled
+            thirdPartyCookiesEnabled
             startInLoadingState
+            onError={(event) => {
+              const desc = event.nativeEvent?.description || 'Payment page failed to load.';
+              setPaymentError(desc);
+            }}
+            onHttpError={(event) => {
+              setPaymentError(`Payment page returned HTTP ${event.nativeEvent.statusCode}.`);
+            }}
             renderLoading={() => (
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator size="large" color={theme.colors.accent} />
@@ -117,6 +138,19 @@ export default function AIPaymentScreen() {
           />
         )}
       </View>
+
+      {paymentError ? (
+        <View style={styles.errorWrap}>
+          <Text style={[styles.errorText, { color: theme.colors.textMuted }]}>{paymentError}</Text>
+          <TouchableOpacity
+            onPress={openExternalCheckout}
+            activeOpacity={0.8}
+            style={[styles.openButton, { borderColor: `${theme.colors.accent}88`, backgroundColor: `${theme.colors.accent}22` }]}
+          >
+            <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Open Secure Checkout</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <Text style={[styles.footerNote, { color: theme.colors.textMuted }]}>
         After payment, tap back to return. Your access will unlock automatically once payment is confirmed.
@@ -220,5 +254,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 16,
     lineHeight: 18,
+  },
+  errorWrap: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    gap: 8,
+  },
+  errorText: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  openButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  openButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });
