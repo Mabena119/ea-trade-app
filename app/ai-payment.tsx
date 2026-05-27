@@ -5,14 +5,11 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
-  Platform,
-  ActivityIndicator,
   Linking,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Scan } from 'lucide-react-native';
-import { WebView } from 'react-native-webview';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/providers/theme-provider';
 
@@ -26,7 +23,6 @@ const PAYFAST_NOTIFY_URL = 'https://www.eatrade.io/shop/notifya.php';
 export default function AIPaymentScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ email?: string }>();
-  const [paymentError, setPaymentError] = React.useState<string | null>(null);
   const email = (params.email || '').trim().toLowerCase();
   const notifyUrl = email
     ? `${PAYFAST_NOTIFY_URL}?email=${email}`
@@ -49,9 +45,7 @@ export default function AIPaymentScreen() {
   const openExternalCheckout = async () => {
     try {
       await Linking.openURL(paymentUrl);
-    } catch {
-      setPaymentError('Could not open checkout. Please try again.');
-    }
+    } catch {}
   };
 
   return (
@@ -102,55 +96,19 @@ export default function AIPaymentScreen() {
         </View>
       </View>
 
-      {/* WebView - PayFast payment */}
+      {/* PayFast blocks in-app framing (X-Frame-Options: DENY), so launch external checkout */}
       <View style={styles.webViewContainer}>
-        {Platform.OS === 'web' ? (
-          <iframe
-            src={paymentUrl}
-            style={styles.webView}
-            title="AI Scanner Payment"
-            allow="payment *; clipboard-write;"
-          />
-        ) : (
-          <WebView
-            source={{ uri: paymentUrl }}
-            javaScriptEnabled
-            domStorageEnabled
-            sharedCookiesEnabled
-            thirdPartyCookiesEnabled
-            startInLoadingState
-            onError={(event) => {
-              const desc = event.nativeEvent?.description || 'Payment page failed to load.';
-              setPaymentError(desc);
-            }}
-            onHttpError={(event) => {
-              setPaymentError(`Payment page returned HTTP ${event.nativeEvent.statusCode}.`);
-            }}
-            renderLoading={() => (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={theme.colors.accent} />
-                <Text style={[styles.loadingText, { color: theme.colors.textMuted }]}>
-                  Loading payment...
-                </Text>
-              </View>
-            )}
-            style={styles.webView}
-          />
-        )}
+        <Text style={[styles.detailsText, { color: theme.colors.textSecondary }]}>
+          Secure checkout opens in your browser because PayFast does not allow embedded pages.
+        </Text>
+        <TouchableOpacity
+          onPress={openExternalCheckout}
+          activeOpacity={0.8}
+          style={[styles.openButton, { borderColor: `${theme.colors.accent}88`, backgroundColor: `${theme.colors.accent}22` }]}
+        >
+          <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Open Secure Checkout</Text>
+        </TouchableOpacity>
       </View>
-
-      {paymentError ? (
-        <View style={styles.errorWrap}>
-          <Text style={[styles.errorText, { color: theme.colors.textMuted }]}>{paymentError}</Text>
-          <TouchableOpacity
-            onPress={openExternalCheckout}
-            activeOpacity={0.8}
-            style={[styles.openButton, { borderColor: `${theme.colors.accent}88`, backgroundColor: `${theme.colors.accent}22` }]}
-          >
-            <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Open Secure Checkout</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
 
       <Text style={[styles.footerNote, { color: theme.colors.textMuted }]}>
         After payment, tap back to return. Your access will unlock automatically once payment is confirmed.
@@ -226,43 +184,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   webViewContainer: {
-    flex: 1,
     marginHorizontal: 20,
+    marginBottom: 12,
     borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    minHeight: 400,
-  },
-  webView: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    minHeight: 400,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
+    borderWidth: 1,
+    padding: 16,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
+    gap: 12,
   },
   footerNote: {
     fontSize: 11,
     textAlign: 'center',
     padding: 16,
     lineHeight: 18,
-  },
-  errorWrap: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    gap: 8,
-  },
-  errorText: {
-    fontSize: 12,
-    textAlign: 'center',
   },
   openButton: {
     borderWidth: 1,
