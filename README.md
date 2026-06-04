@@ -33,9 +33,9 @@ The AI Scanner can be gated by a `scanner` column on the `members` table. Run:
 ```sql
 ALTER TABLE members ADD COLUMN scanner TINYINT(1) DEFAULT 0;
 ```
-See `scripts/add-scanner-column.sql`. When `scanner` is 0/false, users see a blurred screen with "UNLOCK AI SCANNER" that starts an Ozow checkout (R349.99, Core Market).
+See `scripts/add-scanner-column.sql`. When `scanner` is 0/false, users see a blurred screen with "UNLOCK AI SCANNER" that starts an Ozow checkout (R350).
 
-**Ozow (server env):** Set `OZOW_SITE_CODE`, `OZOW_API_KEY`, `OZOW_PRIVATE_KEY`, and `OZOW_NOTIFY_URL` on the API host (see `.env.example`). The private key must never ship in the mobile app.
+**Ozow (server env):** Set `OZOW_SITE_CODE`, `OZOW_API_KEY`, `OZOW_PRIVATE_KEY`, and `OZOW_NOTIFY_URL` on the API host (see `.env.example`). Use `OZOW_IS_TEST=false` for live payments. The private key must never ship in the mobile app.
 
 **Webhook:** Ozow posts payment results to your notify URL (e.g. Hookdeck). The app opens checkout in the browser and re-checks scanner status when the user returns.
 

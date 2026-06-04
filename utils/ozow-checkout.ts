@@ -203,6 +203,7 @@ export function getOzowConfigFromEnv(): OzowCheckoutConfig | null {
     notifyUrl,
     returnUrl: process.env.OZOW_RETURN_URL || 'https://www.eatrade.io/',
     amount: process.env.OZOW_AMOUNT || OZOW_AMOUNT_DEFAULT,
-    isTest: process.env.OZOW_IS_TEST === 'true',
+    // Production default: only explicit OZOW_IS_TEST=true enables Ozow test mode.
+    isTest: String(process.env.OZOW_IS_TEST || 'false').toLowerCase() === 'true',
   };
 }
