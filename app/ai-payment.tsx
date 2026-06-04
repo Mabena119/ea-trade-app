@@ -89,7 +89,7 @@ export default function AIPaymentScreen() {
           <Text style={[styles.detailsText, { color: theme.colors.textSecondary }]}>
             Get AI-powered chart analysis with BUY/SELL/NEUTRAL signals, entry price, stop loss, and take profit levels.
           </Text>
-          <Text style={[styles.priceText, { color: theme.colors.accent }]}>R349.99 — Core Market</Text>
+          <Text style={[styles.priceText, { color: theme.colors.accent }]}>R350</Text>
         </View>
       </View>
 

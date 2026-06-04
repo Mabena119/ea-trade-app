@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'crypto';
 
 export const OZOW_PAYMENT_API = 'https://api.ozow.com/postpaymentrequest';
-export const OZOW_AMOUNT_DEFAULT = '349.99';
-export const OZOW_BANK_REFERENCE = 'CoreMarket';
+export const OZOW_AMOUNT_DEFAULT = '350.00';
+export const OZOW_BANK_REFERENCE = 'EA VPS';
 
 export type OzowCheckoutConfig = {
   siteCode: string;
@@ -21,32 +21,69 @@ export type OzowPostPaymentBody = {
   Amount: string;
   TransactionReference: string;
   BankReference: string;
+  Optional1: string;
+  Optional2: string;
+  Optional3: string;
+  Optional4: string;
+  Optional5: string;
+  Customer: string;
   CancelUrl: string;
   ErrorUrl: string;
   SuccessUrl: string;
   NotifyUrl: string;
   IsTest: boolean;
-  Customer?: string;
-  Optional1?: string;
 };
 
-/** Ozow hash: lowercase(concat field values in post order + privateKey), then SHA512 hex. */
+/**
+ * Ozow hash: concat posted fields in merchant post table order, append private key,
+ * lowercase, SHA512. Optional1–5 only included when any optional is set; Customer only when set.
+ */
 export function buildOzowHashCheck(fields: OzowPostPaymentBody, privateKey: string): string {
-  const parts = [
+  const parts: string[] = [
     fields.SiteCode,
     fields.CountryCode,
     fields.CurrencyCode,
     fields.Amount,
     fields.TransactionReference,
     fields.BankReference,
+  ];
+
+  const hasOptionals =
+    fields.Optional1 ||
+    fields.Optional2 ||
+    fields.Optional3 ||
+    fields.Optional4 ||
+    fields.Optional5;
+  if (hasOptionals) {
+    parts.push(
+      fields.Optional1,
+      fields.Optional2,
+      fields.Optional3,
+      fields.Optional4,
+      fields.Optional5
+    );
+  }
+
+  if (fields.Customer) {
+    parts.push(fields.Customer);
+  }
+
+  parts.push(
     fields.CancelUrl,
     fields.ErrorUrl,
     fields.SuccessUrl,
     fields.NotifyUrl,
-    fields.IsTest ? 'true' : 'false',
-  ];
+    fields.IsTest ? 'true' : 'false'
+  );
+
   const input = `${parts.join('')}${privateKey}`.toLowerCase();
   return createHash('sha512').update(input).digest('hex');
+}
+
+export function formatOzowAmount(amount: string | number): string {
+  const n = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/[^\d.]/g, ''));
+  if (!Number.isFinite(n)) return OZOW_AMOUNT_DEFAULT;
+  return n.toFixed(2);
 }
 
 export function buildTransactionReference(): string {
@@ -69,26 +106,49 @@ export function buildOzowPostBody(
   const returnUrl = config.returnUrl;
   const notifyUrl = buildNotifyUrl(config.notifyUrl, email || undefined);
 
-  const body: OzowPostPaymentBody = {
+  return {
     SiteCode: config.siteCode,
     CountryCode: 'ZA',
     CurrencyCode: 'ZAR',
-    Amount: config.amount || OZOW_AMOUNT_DEFAULT,
+    Amount: formatOzowAmount(config.amount || OZOW_AMOUNT_DEFAULT),
     TransactionReference: options.transactionReference || buildTransactionReference(),
     BankReference: OZOW_BANK_REFERENCE,
+    Optional1: email,
+    Optional2: '',
+    Optional3: '',
+    Optional4: '',
+    Optional5: '',
+    Customer: email,
     CancelUrl: returnUrl,
     ErrorUrl: returnUrl,
     SuccessUrl: returnUrl,
     NotifyUrl: notifyUrl,
     IsTest: config.isTest ?? false,
   };
+}
 
-  if (email) {
-    body.Customer = email;
-    body.Optional1 = email;
-  }
-
-  return body;
+/** JSON payload: omit empty optional strings Ozow does not require in body. */
+export function toOzowApiPayload(
+  postBody: OzowPostPaymentBody,
+  hashCheck: string
+): Record<string, string | boolean> {
+  const payload: Record<string, string | boolean> = {
+    SiteCode: postBody.SiteCode,
+    CountryCode: postBody.CountryCode,
+    CurrencyCode: postBody.CurrencyCode,
+    Amount: postBody.Amount,
+    TransactionReference: postBody.TransactionReference,
+    BankReference: postBody.BankReference,
+    CancelUrl: postBody.CancelUrl,
+    ErrorUrl: postBody.ErrorUrl,
+    SuccessUrl: postBody.SuccessUrl,
+    NotifyUrl: postBody.NotifyUrl,
+    IsTest: postBody.IsTest,
+    HashCheck: hashCheck,
+  };
+  if (postBody.Optional1) payload.Optional1 = postBody.Optional1;
+  if (postBody.Customer) payload.Customer = postBody.Customer;
+  return payload;
 }
 
 export async function requestOzowPaymentUrl(
@@ -97,7 +157,7 @@ export async function requestOzowPaymentUrl(
 ): Promise<{ url: string } | { error: string }> {
   const postBody = buildOzowPostBody(config, options);
   const hashCheck = buildOzowHashCheck(postBody, config.privateKey);
-  const payload = { ...postBody, HashCheck: hashCheck };
+  const payload = toOzowApiPayload(postBody, hashCheck);
 
   const res = await fetch(OZOW_PAYMENT_API, {
     method: 'POST',
