@@ -254,6 +254,14 @@ async function handleApi(request: Request): Promise<Response> {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
+    if (pathname === '/api/ozow-checkout') {
+      const route = await import('./app/api/ozow-checkout/route.ts');
+      if (request.method === 'POST' && typeof route.POST === 'function') {
+        return route.POST(request) as Promise<Response>;
+      }
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
     // Add terminal-proxy routing
     if (pathname === '/api/terminal-proxy') {
       const route = await import('./app/api/terminal-proxy.ts');

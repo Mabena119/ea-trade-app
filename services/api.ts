@@ -253,6 +253,27 @@ class ApiService {
     }
   }
 
+  async createOzowCheckout(email?: string): Promise<{ url?: string; error?: string }> {
+    if (!BASE_URL) {
+      return { error: 'API base URL not configured' };
+    }
+    try {
+      const res = await fetch(`${BASE_URL}/api/ozow-checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(email ? { email } : {}),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok) {
+        return { error: data.error || 'Payment could not be started' };
+      }
+      return data;
+    } catch (e) {
+      console.error('createOzowCheckout error:', e);
+      return { error: 'Payment could not be started' };
+    }
+  }
+
   async fetchMt5TradeSizing(body: {
     equity?: string | null;
     balance?: string | null;

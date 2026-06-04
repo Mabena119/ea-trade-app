@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,46 +6,42 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Linking,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Scan } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/providers/theme-provider';
-
-const PAYFAST_BASE = 'https://www.payfast.co.za/eng/process';
-const PAYFAST_MERCHANT_ID = '34856565';
-const PAYFAST_MERCHANT_KEY = 'adrkur9bochww';
-const PAYFAST_ITEM_NAME = 'Core Market';
-const PAYFAST_AMOUNT = '349.99';
-const PAYFAST_NOTIFY_URL = 'https://www.eatrade.io/shop/notifya.php';
+import { apiService } from '@/services/api';
 
 export default function AIPaymentScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ email?: string }>();
   const email = (params.email || '').trim().toLowerCase();
-  const notifyUrl = email
-    ? `${PAYFAST_NOTIFY_URL}?email=${email}`
-    : PAYFAST_NOTIFY_URL;
-
-  const paymentParams = new URLSearchParams({
-    merchant_id: PAYFAST_MERCHANT_ID,
-    merchant_key: PAYFAST_MERCHANT_KEY,
-    item_name: PAYFAST_ITEM_NAME,
-    amount: PAYFAST_AMOUNT,
-    notify_url: notifyUrl,
-  });
-  if (email) paymentParams.set('email_address', email);
-  const paymentUrl = `${PAYFAST_BASE}?${paymentParams.toString()}`;
+  const [loading, setLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const handleBack = () => {
     router.back();
   };
 
-  const openExternalCheckout = async () => {
+  const openOzowCheckout = async () => {
+    setCheckoutError(null);
+    setLoading(true);
     try {
-      await Linking.openURL(paymentUrl);
-    } catch {}
+      const result = await apiService.createOzowCheckout(email || undefined);
+      if (!result.url) {
+        setCheckoutError(result.error || 'Could not start payment. Please try again.');
+        return;
+      }
+      await Linking.openURL(result.url);
+    } catch {
+      setCheckoutError('Could not start payment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -93,21 +89,36 @@ export default function AIPaymentScreen() {
           <Text style={[styles.detailsText, { color: theme.colors.textSecondary }]}>
             Get AI-powered chart analysis with BUY/SELL/NEUTRAL signals, entry price, stop loss, and take profit levels.
           </Text>
+          <Text style={[styles.priceText, { color: theme.colors.accent }]}>R349.99 — Core Market</Text>
         </View>
       </View>
 
-      {/* PayFast blocks in-app framing (X-Frame-Options: DENY), so launch external checkout */}
-      <View style={styles.webViewContainer}>
+      <View style={[styles.webViewContainer, { borderColor: theme.colors.borderColor }]}>
         <Text style={[styles.detailsText, { color: theme.colors.textSecondary }]}>
           Click Below to Unlock Scanner
         </Text>
         <TouchableOpacity
-          onPress={openExternalCheckout}
+          onPress={openOzowCheckout}
           activeOpacity={0.8}
-          style={[styles.openButton, { borderColor: `${theme.colors.accent}88`, backgroundColor: `${theme.colors.accent}22` }]}
+          disabled={loading}
+          style={[
+            styles.openButton,
+            {
+              borderColor: `${theme.colors.accent}88`,
+              backgroundColor: `${theme.colors.accent}22`,
+              opacity: loading ? 0.7 : 1,
+            },
+          ]}
         >
-          <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Unlock Now</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.colors.accent} />
+          ) : (
+            <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Unlock Now</Text>
+          )}
         </TouchableOpacity>
+        {checkoutError ? (
+          <Text style={[styles.errorText, { color: theme.colors.textMuted }]}>{checkoutError}</Text>
+        ) : null}
       </View>
 
       <Text style={[styles.footerNote, { color: theme.colors.textMuted }]}>
@@ -183,6 +194,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+  priceText: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 10,
+  },
   webViewContainer: {
     marginHorizontal: 20,
     marginBottom: 12,
@@ -202,12 +218,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 24,
     alignItems: 'center',
+    minWidth: 160,
   },
   openButtonText: {
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  errorText: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
