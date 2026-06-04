@@ -89,7 +89,6 @@ export default function AIPaymentScreen() {
           <Text style={[styles.detailsText, { color: theme.colors.textSecondary }]}>
             Get AI-powered chart analysis with BUY/SELL/NEUTRAL signals, entry price, stop loss, and take profit levels.
           </Text>
-          <Text style={[styles.priceText, { color: theme.colors.accent }]}>R350</Text>
         </View>
       </View>
 
@@ -193,11 +192,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 8,
     textAlign: 'center',
-  },
-  priceText: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 10,
   },
   webViewContainer: {
     marginHorizontal: 20,
