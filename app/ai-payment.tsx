@@ -11,25 +11,36 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Scan } from 'lucide-react-native';
+import { ArrowLeft, CreditCard, Landmark, Scan } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/providers/theme-provider';
 import { apiService } from '@/services/api';
+
+const WHOP_CHECKOUT_URL = 'https://whop.com/checkout/plan_CN9y3j02PlLmN';
 
 export default function AIPaymentScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ email?: string }>();
   const email = (params.email || '').trim().toLowerCase();
-  const [loading, setLoading] = useState(false);
+  const [ozowLoading, setOzowLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const handleBack = () => {
     router.back();
   };
 
+  const openWhopCheckout = async () => {
+    setCheckoutError(null);
+    try {
+      await Linking.openURL(WHOP_CHECKOUT_URL);
+    } catch {
+      setCheckoutError('Could not open checkout. Please try again.');
+    }
+  };
+
   const openOzowCheckout = async () => {
     setCheckoutError(null);
-    setLoading(true);
+    setOzowLoading(true);
     try {
       const result = await apiService.createOzowCheckout(email || undefined);
       if (!result.url) {
@@ -40,7 +51,7 @@ export default function AIPaymentScreen() {
     } catch {
       setCheckoutError('Could not start payment. Please try again.');
     } finally {
-      setLoading(false);
+      setOzowLoading(false);
     }
   };
 
@@ -92,29 +103,65 @@ export default function AIPaymentScreen() {
         </View>
       </View>
 
-      <View style={[styles.webViewContainer, { borderColor: theme.colors.borderColor }]}>
-        <Text style={[styles.detailsText, { color: theme.colors.textSecondary }]}>
-          Click Below to Unlock Scanner
+      <View style={[styles.paymentSection, { borderColor: theme.colors.borderColor }]}>
+        <Text style={[styles.paymentSectionTitle, { color: theme.colors.textPrimary }]}>
+          Choose payment method
         </Text>
+
         <TouchableOpacity
-          onPress={openOzowCheckout}
+          onPress={openWhopCheckout}
           activeOpacity={0.8}
-          disabled={loading}
           style={[
-            styles.openButton,
+            styles.paymentOption,
             {
               borderColor: `${theme.colors.accent}88`,
               backgroundColor: `${theme.colors.accent}22`,
-              opacity: loading ? 0.7 : 1,
             },
           ]}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.colors.accent} />
-          ) : (
-            <Text style={[styles.openButtonText, { color: theme.colors.textPrimary }]}>Unlock Now</Text>
-          )}
+          <View style={[styles.paymentIconWrap, { backgroundColor: `${theme.colors.accent}33` }]}>
+            <CreditCard color={theme.colors.accent} size={22} strokeWidth={2.5} />
+          </View>
+          <View style={styles.paymentOptionText}>
+            <Text style={[styles.paymentOptionTitle, { color: theme.colors.textPrimary }]}>
+              Card · Apple Pay · Crypto · International
+            </Text>
+            <Text style={[styles.paymentOptionSubtitle, { color: theme.colors.textMuted }]}>
+              Pay with Whop checkout
+            </Text>
+          </View>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={openOzowCheckout}
+          activeOpacity={0.8}
+          disabled={ozowLoading}
+          style={[
+            styles.paymentOption,
+            {
+              borderColor: theme.colors.borderColor,
+              backgroundColor: `${theme.colors.textPrimary}08`,
+              opacity: ozowLoading ? 0.7 : 1,
+            },
+          ]}
+        >
+          <View style={[styles.paymentIconWrap, { backgroundColor: `${theme.colors.textPrimary}12` }]}>
+            {ozowLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.accent} />
+            ) : (
+              <Landmark color={theme.colors.textSecondary} size={22} strokeWidth={2.5} />
+            )}
+          </View>
+          <View style={styles.paymentOptionText}>
+            <Text style={[styles.paymentOptionTitle, { color: theme.colors.textPrimary }]}>
+              EFT · Payment
+            </Text>
+            <Text style={[styles.paymentOptionSubtitle, { color: theme.colors.textMuted }]}>
+              Pay with Ozow (South Africa)
+            </Text>
+          </View>
+        </TouchableOpacity>
+
         {checkoutError ? (
           <Text style={[styles.errorText, { color: theme.colors.textMuted }]}>{checkoutError}</Text>
         ) : null}
@@ -193,33 +240,53 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  webViewContainer: {
+  paymentSection: {
     marginHorizontal: 20,
     marginBottom: 12,
     borderRadius: 16,
     borderWidth: 1,
     padding: 16,
-    alignItems: 'center',
     gap: 12,
+  },
+  paymentSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+  },
+  paymentIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentOptionText: {
+    flex: 1,
+    gap: 4,
+  },
+  paymentOptionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  paymentOptionSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   footerNote: {
     fontSize: 11,
     textAlign: 'center',
     padding: 16,
     lineHeight: 18,
-  },
-  openButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    minWidth: 160,
-  },
-  openButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
   },
   errorText: {
     fontSize: 12,
