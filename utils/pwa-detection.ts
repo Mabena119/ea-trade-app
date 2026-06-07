@@ -32,6 +32,35 @@ export function isIOSPWA(): boolean {
 }
 
 /**
+ * True on iPhone/iPad Safari (or iOS browser), including before Add to Home Screen.
+ */
+export function isIOSDevice(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+/**
+ * iOS Safari tab — not yet installed via Add to Home Screen.
+ */
+export function shouldShowIOSAddToHomePrompt(): boolean {
+  if (Platform.OS !== 'web') {
+    return false;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return isIOSDevice() && !isIOSPWA();
+}
+
+/**
  * Detects if the app is running in a browser (not PWA)
  */
 export function isInBrowser(): boolean {

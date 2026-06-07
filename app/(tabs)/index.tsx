@@ -23,6 +23,7 @@ import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/provid
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { EABrandProfileMedia } from '@/components/ea-brand-profile-media';
+import { IOSAddToHomeBanner } from '@/components/ios-add-to-home-banner';
 import { overlayService } from '@/services/overlay-service';
 import colors from '@/constants/colors';
 import { getHeroFullBleedFade } from '@/utils/theme-hero-fades';
@@ -333,6 +334,7 @@ export default function HomeScreen() {
             <Text style={[styles.startButtonText, { color: '#FFFFFF' }]}>START</Text>
           </TouchableOpacity>
         </View>
+        <IOSAddToHomeBanner accentColor={SPLASH_ACCENT} />
       </View>
     );
   }
