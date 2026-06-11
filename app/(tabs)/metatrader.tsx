@@ -538,6 +538,10 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'Exness-MT5Real24': 'https://mt5real24.exwebterm.com/terminal',
   'Weltrade-Real': 'https://mt5.real.weltrade.com/terminal',
   'Weltrade-Demo': 'https://mt5.demo.weltrade.com/terminal',
+  'JustMarkets-Live': 'https://live.justmarkets.com/terminal',
+  'JustMarkets-Live2': 'https://live2.justmarkets.com/terminal',
+  'JustMarkets-Demo': 'https://demo.justmarkets.com/terminal',
+  'JustMarkets-Demo2': 'https://demo2.justmarkets.com/terminal',
 };
 
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);

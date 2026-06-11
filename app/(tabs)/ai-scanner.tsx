@@ -110,6 +110,29 @@ export default function AIScannerScreen() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, []);
 
+  const getUserEmail = useCallback(async (): Promise<string | undefined> => {
+    let email = user?.email;
+    if (email) return email.trim().toLowerCase();
+    try {
+      const stored = await AsyncStorage.getItem('user');
+      if (stored) {
+        const parsed = JSON.parse(stored) as { email?: string };
+        email = parsed?.email;
+      }
+    } catch {
+      /* ignore */
+    }
+    return email?.trim().toLowerCase();
+  }, [user?.email]);
+
+  const resetScannerSessionState = useCallback(() => {
+    setImageUri(null);
+    setImageBase64(null);
+    setResult(null);
+    setError(null);
+    setAnalyzing(false);
+  }, []);
+
   const loadHistory = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(SCANNER_HISTORY_KEY);
@@ -181,19 +204,23 @@ export default function AIScannerScreen() {
 
   const handleBack = () => router.back();
 
-  const checkScanner = useCallback(async () => {
-    let email = user?.email;
-    if (!email) {
-      try {
-        const stored = await AsyncStorage.getItem('user');
-        if (stored) {
-          const parsed = JSON.parse(stored) as { email?: string };
-          email = parsed?.email;
-        }
-      } catch {
-        // ignore
-      }
+  const handleUploadLimitReached = useCallback(async () => {
+    resetScannerSessionState();
+    setError(null);
+    const email = await getUserEmail();
+    if (email) {
+      await apiService.revokeScannerAccess(email);
     }
+    setScannerUnlocked(false);
+    Alert.alert(
+      'Uploads complete',
+      `You have used all ${MAX_UPLOADS} chart uploads. Unlock the AI Scanner again to start a new batch.`,
+      [{ text: 'OK' }]
+    );
+  }, [getUserEmail, resetScannerSessionState]);
+
+  const checkScanner = useCallback(async () => {
+    const email = await getUserEmail();
     if (!email) {
       setScannerUnlocked(false);
       return;
@@ -202,9 +229,10 @@ export default function AIScannerScreen() {
     if (scannerUnlocked === false && scanner) {
       await AsyncStorage.setItem(SCANNER_UPLOAD_COUNT_KEY, '0');
       setUploadCount(0);
+      resetScannerSessionState();
     }
     setScannerUnlocked(scanner);
-  }, [user?.email, scannerUnlocked]);
+  }, [getUserEmail, scannerUnlocked, resetScannerSessionState]);
 
   useEffect(() => {
     checkScanner();
@@ -221,18 +249,7 @@ export default function AIScannerScreen() {
   );
 
   const handleUnlockPress = async () => {
-    let email = user?.email;
-    if (!email) {
-      try {
-        const stored = await AsyncStorage.getItem('user');
-        if (stored) {
-          const parsed = JSON.parse(stored) as { email?: string };
-          email = parsed?.email;
-        }
-      } catch {
-        // ignore
-      }
-    }
+    const email = await getUserEmail();
     router.push({
       pathname: '/ai-payment',
       params: email ? { email } : {},
@@ -396,23 +413,7 @@ export default function AIScannerScreen() {
       return;
     }
     if (uploadCount >= MAX_UPLOADS) {
-      setError(`${MAX_UPLOADS} upload limit reached. Unlock to continue.`);
-      let email = user?.email;
-      if (!email) {
-        try {
-          const stored = await AsyncStorage.getItem('user');
-          if (stored) {
-            const parsed = JSON.parse(stored) as { email?: string };
-            email = parsed?.email;
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-      if (email) {
-        await apiService.revokeScannerAccess(email);
-        setScannerUnlocked(false);
-      }
+      await handleUploadLimitReached();
       return;
     }
     // Client-side size check to avoid 502 (Render limits)
@@ -437,22 +438,7 @@ export default function AIScannerScreen() {
           if (imageUri) {
             const newCount = await saveToHistory(imageUri, imageBase64, response.data);
             if (newCount >= MAX_UPLOADS) {
-              let email = user?.email;
-              if (!email) {
-                try {
-                  const stored = await AsyncStorage.getItem('user');
-                  if (stored) {
-                    const parsed = JSON.parse(stored) as { email?: string };
-                    email = parsed?.email;
-                  }
-                } catch {
-                  /* ignore */
-                }
-              }
-              if (email) {
-                await apiService.revokeScannerAccess(email);
-                setScannerUnlocked(false);
-              }
+              await handleUploadLimitReached();
             }
           }
           return;
@@ -571,6 +557,7 @@ export default function AIScannerScreen() {
         : theme.colors.textMuted;
 
   const isLocked = scannerUnlocked === false;
+  const uploadsComplete = isLocked && uploadCount >= MAX_UPLOADS;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
@@ -727,7 +714,7 @@ export default function AIScannerScreen() {
             {uploadCount >= MAX_UPLOADS && (
               <View style={[styles.limitBanner, { backgroundColor: `${theme.colors.warning}22`, borderColor: theme.colors.warning }]}>
                 <Text style={[styles.limitBannerText, { color: theme.colors.warning }]}>
-                  {MAX_UPLOADS} upload limit reached ({uploadCount}/{MAX_UPLOADS}). Unlock to continue.
+                  Uploads are done ({uploadCount}/{MAX_UPLOADS}). Unlock again to continue scanning.
                 </Text>
               </View>
             )}
@@ -977,10 +964,21 @@ export default function AIScannerScreen() {
               activeOpacity={0.8}
             >
               <Lock color={theme.colors.onAccent} size={28} strokeWidth={2.5} />
-              <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>UNLOCK AI SCANNER</Text>
-              <Text style={[styles.unlockButtonSubtext, { color: theme.colors.onAccent, opacity: 0.9 }]}>
-                Tap to unlock
-              </Text>
+              {uploadsComplete ? (
+                <>
+                  <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>UPLOADS COMPLETE</Text>
+                  <Text style={[styles.unlockButtonSubtext, { color: theme.colors.onAccent, opacity: 0.9 }]}>
+                    All {MAX_UPLOADS} chart uploads are done. Tap to unlock again.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>UNLOCK AI SCANNER</Text>
+                  <Text style={[styles.unlockButtonSubtext, { color: theme.colors.onAccent, opacity: 0.9 }]}>
+                    Tap to unlock
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         )}

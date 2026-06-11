@@ -3855,6 +3855,10 @@ const server = Bun.serve({
           'exness-mt5real24': 'https://mt5real24.exwebterm.com',
           'weltrade-real': 'https://mt5.real.weltrade.com',
           'weltrade-demo': 'https://mt5.demo.weltrade.com',
+          'justmarkets-live': 'https://live.justmarkets.com',
+          'justmarkets-live2': 'https://live2.justmarkets.com',
+          'justmarkets-demo': 'https://demo.justmarkets.com',
+          'justmarkets-demo2': 'https://demo2.justmarkets.com',
         };
 
         // Try to detect broker from query param first
