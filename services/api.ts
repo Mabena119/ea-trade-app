@@ -83,6 +83,7 @@ export interface LicenseData {
   phone_secret_key: string;
   ea_name: string;
   ea_notification: string;
+  ea_martingale?: boolean;
   owner: Owner;
 }
 

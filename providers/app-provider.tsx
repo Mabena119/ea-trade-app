@@ -14,6 +14,11 @@ import {
   sanitizeManualTradesCount,
 } from '@/utils/equity-trade-preset';
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
+import {
+  AI_CHART_TRADING_ENABLED,
+  isMartingaleEa,
+  MARTINGALE_PLACEHOLDER_LOT,
+} from '@/utils/trading-features';
 
 function normalizeSymbolKeyLocal(s: string): string {
   return s.replace(/\s/g, '').toUpperCase();
@@ -63,6 +68,7 @@ export interface SignalLog {
   sl: string;
   time: string;
   latestupdate?: string;
+  lot?: string;
   receivedAt?: Date;
   type?: string;
   source?: string;
@@ -80,6 +86,7 @@ export interface DatabaseSignal {
   sl: string;
   time: string;
   results?: string;
+  lot?: string;
 }
 
 // Android background monitoring removed - using JavaScript polling only for cross-platform compatibility
@@ -341,6 +348,7 @@ function mergeEaWithApiLicensePayload(ea: EA, d: ApiLicensePayload): EA {
       phone_secret_code: d.phone_secret_key ?? prev.phone_secret_code,
       ea_name: d.ea_name,
       ea_notification: d.ea_notification,
+      ea_martingale: d.ea_martingale,
       owner: {
         ...(prev.owner ?? {}),
         ...d.owner,
@@ -1184,6 +1192,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const setMt5LotSizingMode = useCallback(async (mode: MT5LotSizingMode) => {
+    if (isMartingaleEa(eas)) {
+      console.log('[MT5] Lot sizing mode locked — martingale bot uses signal lots only');
+      return;
+    }
     setMt5LotSizingModeState(mode);
     if (mode === 'auto') {
       lastProcessedMt5SizingKeyRef.current = '';
@@ -1193,13 +1205,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     } catch (error) {
       console.error('Error saving mt5 lot sizing mode:', error);
     }
-  }, []);
+  }, [eas]);
 
   const activateSymbol = useCallback(async (symbolConfig: Omit<ActiveSymbol, 'activatedAt'>) => {
     let effective = symbolConfig;
     if (symbolConfig.platform === 'MT5') {
-      const p =
-        mt5LotSizingMode === 'manual'
+      const martingale = isMartingaleEa(eas);
+      const p = martingale
+        ? {
+          lotSize: MARTINGALE_PLACEHOLDER_LOT,
+          numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
+          direction: 'BOTH' as const,
+          platform: 'MT5' as const,
+        }
+        : mt5LotSizingMode === 'manual'
           ? {
             lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
             numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
@@ -1246,7 +1265,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
       return updatedSymbols;
     });
-  }, [mt5Account?.equity, mt5LotSizingMode]);
+  }, [mt5Account?.equity, mt5LotSizingMode, eas]);
 
   const deactivateSymbol = useCallback(async (symbol: string) => {
     setActiveSymbols(currentSymbols => {
@@ -1296,8 +1315,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const activateMT5Symbol = useCallback(async (symbolConfig: Omit<MT5Symbol, 'activatedAt'>) => {
-    const preset =
-      mt5LotSizingMode === 'manual'
+    const martingale = isMartingaleEa(eas);
+    const preset = martingale
+      ? {
+        lotSize: MARTINGALE_PLACEHOLDER_LOT,
+        numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
+        direction: 'BOTH' as const,
+      }
+      : mt5LotSizingMode === 'manual'
         ? {
           lotSize: sanitizeManualLotSize(symbolConfig.lotSize),
           numberOfTrades: sanitizeManualTradesCount(symbolConfig.numberOfTrades),
@@ -1341,10 +1366,44 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('MT5 symbol activated:', symbolConfig.symbol);
       return updatedSymbols;
     });
-  }, [mt5Account?.equity, mt5LotSizingMode]);
+  }, [mt5Account?.equity, mt5LotSizingMode, eas]);
+
+  /** Martingale bots: never keep user-defined lots on MT5 symbol rows. */
+  useEffect(() => {
+    if (!isMartingaleEa(eas)) return;
+    setMT5Symbols(current => {
+      let changed = false;
+      const next = current.map(s => {
+        if (s.lotSize === MARTINGALE_PLACEHOLDER_LOT) return s;
+        changed = true;
+        return { ...s, lotSize: MARTINGALE_PLACEHOLDER_LOT };
+      });
+      if (changed) {
+        AsyncStorage.setItem('mt5Symbols', JSON.stringify(next)).catch(err => {
+          console.error('Error saving MT5 symbols (martingale lot reset):', err);
+        });
+      }
+      return changed ? next : current;
+    });
+    setActiveSymbols(current => {
+      let changed = false;
+      const next = current.map(s => {
+        if (s.platform !== 'MT5' || s.lotSize === MARTINGALE_PLACEHOLDER_LOT) return s;
+        changed = true;
+        return { ...s, lotSize: MARTINGALE_PLACEHOLDER_LOT };
+      });
+      if (changed) {
+        AsyncStorage.setItem('activeSymbols', JSON.stringify(next)).catch(err => {
+          console.error('Error saving active symbols (martingale lot reset):', err);
+        });
+      }
+      return changed ? next : current;
+    });
+  }, [eas]);
 
   /** After MT5 login / equity refresh: ask AI for per-symbol lot + trade count; fallback to equity heuristics. Manual mode: never touch lots when equity updates. */
   useEffect(() => {
+    if (isMartingaleEa(eas)) return;
     if (mt5LotSizingMode === 'manual') return;
     if (!mt5Account?.connected || !String(mt5Account.equity ?? '').trim()) return;
     const symList = mt5SizingSymbolsRef.current;
@@ -1450,6 +1509,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     mt5Account?.balance,
     mt5Account?.login,
     mt5Symbols,
+    eas,
   ]);
 
   const deactivateMT4Symbol = useCallback(async (symbol: string) => {
@@ -1899,6 +1959,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         type: 'DATABASE_SIGNAL',
         source: 'database',
         latestupdate: signal.latestupdate,
+        lot: signal.lot,
       };
 
       console.log('🎯 Converted to SignalLog:', signalLog);
@@ -1936,6 +1997,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     };
 
     const onPollComplete = () => {
+      if (!AI_CHART_TRADING_ENABLED) {
+        return;
+      }
       const hasTradeNow =
         activeSymbols.length > 0 || mt4Symbols.length > 0 || mt5Symbols.length > 0;
       if (!hasTradeNow) {
@@ -1997,6 +2061,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   startDatabaseSignalPollingRef.current = startDatabaseSignalPolling;
 
   const openChartWarmupTerminal = useCallback((source: 'db_bootstrap_chart_warmup' | 'interval_45m'): boolean => {
+    if (!AI_CHART_TRADING_ENABLED) {
+      console.log(`[Chart Warmup] Skipped (${source}) — AI chart trading disabled`);
+      return false;
+    }
     if (showMT5SignalWebViewRef.current) {
       console.log('[Chart Warmup] Skipped — MT5 overlay already open');
       return false;
@@ -2127,7 +2195,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   /** Repeat chart warmup every 45 minutes while bot is running — only when MT5 Quotes symbols exist. */
   useEffect(() => {
-    if (!isBotActive || !hasMt5QuotesForChartWarmup) return;
+    if (!AI_CHART_TRADING_ENABLED || !isBotActive || !hasMt5QuotesForChartWarmup) return;
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     if (!primaryEA?.licenseKey) return;
 
@@ -2552,7 +2620,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         time: signal.time,
         type: 'NATIVE_BACKGROUND_SIGNAL',
         source: 'native_background',
-        latestupdate: signal.latestupdate
+        latestupdate: signal.latestupdate,
+        lot: signal.lot,
       };
 
       console.log('🎯 Converted native signal to SignalLog:', signalLog);
@@ -2657,13 +2726,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 '[Android native poll] Discarding pending action — bot off, paused, or no trade symbols'
               );
             } else if (pending.type === 'chart_warmup') {
-              const opened = openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup') === true;
-              if (opened) {
-                dbBootstrapSessionRef.current.chartWarmupLaunched = true;
+              if (!AI_CHART_TRADING_ENABLED) {
+                console.log('[Android native poll] Chart warmup discarded — AI chart trading disabled');
+              } else {
+                const opened = openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup') === true;
+                if (opened) {
+                  dbBootstrapSessionRef.current.chartWarmupLaunched = true;
+                }
+                console.log(
+                  `[Android native poll] Chart warmup foreground — ${opened ? 'opened' : 'skipped (no MT5 Quotes / overlay)'}`
+                );
               }
-              console.log(
-                `[Android native poll] Chart warmup foreground — ${opened ? 'opened' : 'skipped (no MT5 Quotes / overlay)'}`
-              );
             } else if (pending.type === 'signal' && pending.payload) {
               let rows: unknown[] = [];
               try {
@@ -2685,6 +2758,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                   tp: String(row.tp ?? ''),
                   sl: String(row.sl ?? ''),
                   time: String(row.time ?? ''),
+                  lot: row.lot != null && String(row.lot).trim() !== '' ? String(row.lot) : undefined,
                 };
                 const { shouldProcess, ageInSeconds, reason, cooldownRemaining } = shouldProcessSignal(
                   signal.id,
@@ -2722,6 +2796,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                   type: 'DATABASE_SIGNAL',
                   source: 'native_bg_poll',
                   latestupdate: signal.latestupdate,
+                  lot: signal.lot,
                 };
                 setSignalLogs(prev => [...prev, signalLog]);
                 if (mt5Account && mt5Account.connected && isSymbolConfiguredForTrading(signal.asset)) {
@@ -2802,7 +2877,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                   time: signal.time,
                   type: 'DATABASE_SIGNAL',
                   source: 'database',
-                  latestupdate: signal.latestupdate
+                  latestupdate: signal.latestupdate,
+                  lot: signal.lot,
                 };
                 setSignalLogs(prev => [...prev, signalLog]);
 
@@ -2890,7 +2966,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 time: signal.time,
                 type: 'DATABASE_SIGNAL',
                 source: 'database',
-                latestupdate: signal.latestupdate
+                latestupdate: signal.latestupdate,
+                lot: signal.lot,
               };
               setSignalLogs(prev => [...prev, signalLog]);
 
@@ -2990,7 +3067,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 time: signal.time,
                 type: 'DATABASE_SIGNAL',
                 source: 'database',
-                latestupdate: signal.latestupdate
+                latestupdate: signal.latestupdate,
+                lot: signal.lot,
               };
               setSignalLogs(prev => [...prev, signalLog]);
 

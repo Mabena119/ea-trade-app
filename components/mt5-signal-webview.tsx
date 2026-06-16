@@ -21,6 +21,7 @@ import { computeFallbackSlTp, ensureMinRewardRisk, stripNumericPrice } from '@/u
 import { getTradeModeForAnalysis, resolveConfiguredTradeSymbol } from '@/utils/trade-symbol-match';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import { formatAutoSizedLotString, sanitizeManualLotSize } from '@/utils/equity-trade-preset';
+import { AI_CHART_TRADING_ENABLED, isMartingaleEa, parseSignalLot } from '@/utils/trading-features';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_TRADING } from '@/utils/web-terminal-scope';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
@@ -394,8 +395,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return isNaN(numTrades) || numTrades < 1 ? 1 : numTrades;
   }, [signal, mt5Symbols]);
 
-  /** Lot size from trade config (MT5 symbol row); defaults to 0.01 if unset/invalid */
+  /** Lot size from trade config (MT5 symbol row); martingale EAs use lot from signal only */
   const getVolume = useCallback((): string => {
+    const activeEa = eas.find((e) => e.status === 'connected') ?? eas[0];
+    const isMartingale = isMartingaleEa([activeEa]);
+    if (isMartingale) {
+      const fromSignal = parseSignalLot(signal?.lot);
+      return fromSignal ? sanitizeManualLotSize(fromSignal) : '';
+    }
     if (!signal?.asset || !mt5Symbols || mt5Symbols.length === 0) {
       return '0.01';
     }
@@ -404,7 +411,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return mt5LotSizingMode === 'manual'
       ? sanitizeManualLotSize(symbolConfig.lotSize)
       : formatAutoSizedLotString(symbolConfig.lotSize);
-  }, [signal, mt5Symbols, mt5LotSizingMode]);
+  }, [signal, mt5Symbols, mt5LotSizingMode, eas]);
 
   const buildAiTradePayloadFromAnalysis = useCallback(
     (data: ChartAnalysisResult): AiTradePayload | null => {
@@ -422,13 +429,22 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       const action = data.signal === 'SELL' ? 'sell' : 'buy';
       const symCfg = mt5Symbols.find((s) => s.symbol === sym);
       const tradeMode: MT5TradeMode = symCfg?.tradeMode === 'scalper' ? 'scalper' : 'swing';
-      const lot = symCfg?.lotSize;
-      const volume =
-        lot && !Number.isNaN(parseFloat(String(lot)))
-          ? mt5LotSizingMode === 'manual'
-            ? sanitizeManualLotSize(lot)
-            : formatAutoSizedLotString(lot)
-          : '0.01';
+      const activeEa = eas.find((e) => e.status === 'connected') ?? eas[0];
+      const isMartingale = isMartingaleEa([activeEa]);
+      const signalLot = parseSignalLot(signalRef.current?.lot);
+      let volume = '0.01';
+      if (isMartingale) {
+        if (!signalLot) return null;
+        volume = sanitizeManualLotSize(signalLot);
+      } else {
+        const lot = symCfg?.lotSize;
+        volume =
+          lot && !Number.isNaN(parseFloat(String(lot)))
+            ? mt5LotSizingMode === 'manual'
+              ? sanitizeManualLotSize(lot)
+              : formatAutoSizedLotString(lot)
+            : '0.01';
+      }
 
       const dir = data.signal === 'SELL' ? 'SELL' : 'BUY';
       let sl = stripNumericPrice(data.stopLoss);
@@ -452,7 +468,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
       }
       return { action, sl, tp, symbol: sym, volume };
     },
-    [mt5Symbols, mt4Symbols, activeSymbols, mt5LotSizingMode]
+    [mt5Symbols, mt4Symbols, activeSymbols, mt5LotSizingMode, eas]
   );
 
   const runAiTradeInject = useCallback(
@@ -2983,6 +2999,14 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setCurrentStep('Analysing chart');
         void (async () => {
           const isWarmup = signalRef.current?.type === 'CHART_WARMUP';
+          if (isWarmup && !AI_CHART_TRADING_ENABLED) {
+            setCurrentStep('AI chart trading is disabled — polling resumed');
+            void Promise.resolve(resumePolling()).catch((err: unknown) => {
+              console.error('Error resuming polling (AI chart trading disabled):', err);
+            });
+            setTimeout(() => onClose(), 500);
+            return;
+          }
           /** Warmup pauses DB polling — keep it paused until trade finishes or we explicitly abandon (avoid stuck / duplicate flows). */
           let shouldResumePolling = !isWarmup;
           const aiRunKey = signalStableSessionKeyRef.current;
@@ -3048,7 +3072,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 !isLowConfidence || signalRef.current?.type !== 'CHART_WARMUP'
                   ? buildAiTradePayloadFromAnalysis(result.data)
                   : null;
-              if (payload && signalRef.current?.type === 'CHART_WARMUP' && !isLowConfidence) {
+              if (payload && signalRef.current?.type === 'CHART_WARMUP' && !isLowConfidence && AI_CHART_TRADING_ENABLED) {
                 setCurrentStep('AI suggests a trade — placing order in MT5...');
                 shouldResumePolling = false;
                 runAiTradeInject(payload);
@@ -3193,6 +3217,12 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     mt5TradeOverlayMessage ||
     (signal && !hasMt5Credentials
       ? 'MT5 account not connected. Add your MT5 login in the MetaTrader tab.'
+      : null) ||
+    (signal &&
+    signal.type !== 'CHART_WARMUP' &&
+    isMartingaleEa(eas) &&
+    !parseSignalLot(signal.lot)
+      ? 'Martingale bot — this signal has no lot size. Trade skipped.'
       : null);
 
   if (blockMessage) {
@@ -3330,7 +3360,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         </View>
       </View>
 
-      {isChartWarmupSignal &&
+      {AI_CHART_TRADING_ENABLED &&
+        isChartWarmupSignal &&
         (chartAiAnalyzing || chartAiResult || chartAiError) &&
         !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&
         !warmupExpandTerminal ? (

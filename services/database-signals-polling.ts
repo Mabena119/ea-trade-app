@@ -32,6 +32,7 @@ export interface DatabaseSignal {
   sl: string;
   time: string;
   results: string;
+  lot?: string;
 }
 
 export interface LicenseData {

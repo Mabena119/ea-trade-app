@@ -8,6 +8,7 @@ import { useApp, type MT5TradeMode } from '@/providers/app-provider';
 import { useTheme } from '@/providers/theme-provider';
 import colors from '@/constants/colors';
 import { getEquityBasedMT5Preset, sanitizeManualLotSize, sanitizeManualTradesCount } from '@/utils/equity-trade-preset';
+import { isMartingaleEa, MARTINGALE_PLACEHOLDER_LOT, MARTINGALE_SIGNAL_LOT_LABEL } from '@/utils/trading-features';
 
 export default function TradeConfigScreen() {
   const { symbol: symbolParam } = useLocalSearchParams<{ symbol?: string | string[] }>();
@@ -18,6 +19,7 @@ export default function TradeConfigScreen() {
   }, [symbolParam]);
 
   const {
+    eas,
     activeSymbols,
     deactivateSymbol,
     mt5Symbols,
@@ -28,6 +30,7 @@ export default function TradeConfigScreen() {
     setMt5LotSizingMode,
   } = useApp();
   const { theme } = useTheme();
+  const isMartingaleBot = isMartingaleEa(eas);
 
   const preset = useMemo(
     () => getEquityBasedMT5Preset(mt5Account?.equity, symbol),
@@ -74,10 +77,16 @@ export default function TradeConfigScreen() {
 
   const handleSetSymbol = () => {
     if (!symbol) return;
-    const lot =
-      mt5LotSizingMode === 'manual' ? sanitizeManualLotSize(manualLot) : preset.lotSize;
-    const numberOfTrades =
-      mt5LotSizingMode === 'manual' ? sanitizeManualTradesCount(manualTrades) : preset.numberOfTrades;
+    const lot = isMartingaleBot
+      ? MARTINGALE_PLACEHOLDER_LOT
+      : mt5LotSizingMode === 'manual'
+        ? sanitizeManualLotSize(manualLot)
+        : preset.lotSize;
+    const numberOfTrades = isMartingaleBot
+      ? sanitizeManualTradesCount(autoTradesDisplay)
+      : mt5LotSizingMode === 'manual'
+        ? sanitizeManualTradesCount(manualTrades)
+        : preset.numberOfTrades;
     activateMT5Symbol({
       symbol,
       lotSize: lot,
@@ -124,7 +133,9 @@ export default function TradeConfigScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.notice, { color: theme.colors.textSecondary }]}>
-          Lots: Auto/Manual on Quotes · Scalper/Swing = execution style
+          {isMartingaleBot
+            ? 'Martingale bot — lot size comes from EA signals only'
+            : 'Lots: Auto/Manual on Quotes · Scalper/Swing = execution style'}
         </Text>
         {!mt5Account?.connected && (
           <Text style={[styles.warn, { color: theme.colors.warning }]}>
@@ -162,39 +173,56 @@ export default function TradeConfigScreen() {
 
           <View style={styles.cardContent}>
             <View style={styles.configSection}>
-              <Text
-                style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}
-              >
-                LOT SIZING
-              </Text>
-              <View style={styles.modeRow}>
-                {(['auto', 'manual'] as const).map((m) => {
-                  const selected = mt5LotSizingMode === m;
-                  return (
-                    <TouchableOpacity
-                      key={m}
-                      onPress={() => void setMt5LotSizingMode(m)}
-                      activeOpacity={0.75}
-                      style={[
-                        styles.modeChip,
-                        {
-                          borderColor: selected ? theme.colors.accent : theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
-                          backgroundColor: selected ? `${theme.colors.accent}44` : theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.modeChipText,
-                          { color: theme.colors.textPrimary, fontWeight: selected ? '800' : '600' },
-                        ]}
-                      >
-                        {m === 'auto' ? 'Auto (AI)' : 'Manual'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              {isMartingaleBot ? (
+                <>
+                  <Text
+                    style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}
+                  >
+                    LOT SIZE
+                  </Text>
+                  <View style={[styles.readOnlyBox, { backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)', borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.12)' }]}>
+                    <Text style={[styles.readOnlyText, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}>
+                      {MARTINGALE_SIGNAL_LOT_LABEL}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text
+                    style={[styles.sectionTitle, { color: theme.isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)' }]}
+                  >
+                    LOT SIZING
+                  </Text>
+                  <View style={styles.modeRow}>
+                    {(['auto', 'manual'] as const).map((m) => {
+                      const selected = mt5LotSizingMode === m;
+                      return (
+                        <TouchableOpacity
+                          key={m}
+                          onPress={() => void setMt5LotSizingMode(m)}
+                          activeOpacity={0.75}
+                          style={[
+                            styles.modeChip,
+                            {
+                              borderColor: selected ? theme.colors.accent : theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+                              backgroundColor: selected ? `${theme.colors.accent}44` : theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.modeChipText,
+                              { color: theme.colors.textPrimary, fontWeight: selected ? '800' : '600' },
+                            ]}
+                          >
+                            {m === 'auto' ? 'Auto (AI)' : 'Manual'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
             </View>
 
             <View style={styles.configSection}>
@@ -233,7 +261,9 @@ export default function TradeConfigScreen() {
               </View>
             </View>
 
-            {mt5LotSizingMode === 'auto' ? (
+            {isMartingaleBot ? (
+              <ReadOnlyRow label="NUMBER OF TRADES" value={String(autoTradesDisplay)} />
+            ) : mt5LotSizingMode === 'auto' ? (
               <>
                 <ReadOnlyRow label="LOT SIZE" value={autoLotDisplay} />
                 <ReadOnlyRow label="NUMBER OF TRADES" value={String(autoTradesDisplay)} />

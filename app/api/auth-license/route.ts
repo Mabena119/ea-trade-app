@@ -41,6 +41,7 @@ export async function POST(request: Request): Promise<Response> {
           l.ea                  AS ea_id,
           e.name                AS ea_name,
           e.notification_key    AS ea_notification,
+          e.martingale          AS ea_martingale,
           e.owner               AS owner_id,
           a.displayname         AS owner_name,
           a.email               AS owner_email,
@@ -94,6 +95,7 @@ export async function POST(request: Request): Promise<Response> {
       phone_secret_key: effectiveSecret || '',
       ea_name: row.ea_name || 'EA TRADE',
       ea_notification: row.ea_notification || '',
+      ea_martingale: Boolean(Number(row.ea_martingale ?? 0)),
       owner: {
         name: row.owner_name || 'EA TRADE',
         email: row.owner_email || '',

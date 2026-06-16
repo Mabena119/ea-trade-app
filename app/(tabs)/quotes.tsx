@@ -11,6 +11,7 @@ import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import { Symbol as ApiSymbol, apiService } from '@/services/api';
 import colors from '@/constants/colors';
 import { formatLotSizeForDisplay, getEquityBasedMT5Preset } from '@/utils/equity-trade-preset';
+import { isMartingaleEa, MARTINGALE_SIGNAL_LOT_LABEL } from '@/utils/trading-features';
 
 interface Quote {
   symbol: string;
@@ -44,6 +45,7 @@ export default function QuotesScreen() {
   const previousBotIdRef = useRef<string | undefined>(undefined);
 
   const primaryEA = eas.length > 0 ? eas[0] : null;
+  const isMartingaleBot = isMartingaleEa(eas);
   const hasActiveQuotes = activeSymbols.length > 0 || mt4Symbols.length > 0 || mt5Symbols.length > 0;
   const hasConnectedEA = primaryEA && primaryEA.status === 'connected' && primaryEA.phoneSecretKey;
 
@@ -436,46 +438,54 @@ export default function QuotesScreen() {
           },
         ]}
       >
-        <Text style={[styles.sizingModeLabel, { color: theme.colors.textSecondary }]}>LOT SIZING</Text>
-        <View style={styles.sizingModeChips}>
-          {(['auto', 'manual'] as const).map((m) => {
-            const selected = mt5LotSizingMode === m;
-            return (
-              <TouchableOpacity
-                key={m}
-                onPress={() => void setMt5LotSizingMode(m)}
-                activeOpacity={0.75}
-                style={[
-                  styles.sizingModeChip,
-                  {
-                    borderColor: selected
-                      ? theme.colors.accent
-                      : isMatrix
-                        ? themeName === 'matrixRed'
-                          ? 'rgba(255,80,100,0.2)'
-                          : 'rgba(0,255,100,0.2)'
-                        : theme.isDark
-                          ? 'rgba(255,255,255,0.2)'
-                          : 'rgba(0,0,0,0.15)',
-                    backgroundColor: selected
-                      ? `${theme.colors.accent}55`
-                      : isMatrix
-                        ? themeName === 'matrixRed'
-                          ? 'rgba(255,40,60,0.06)'
-                          : 'rgba(0,255,80,0.06)'
-                        : theme.isDark
-                          ? 'rgba(255,255,255,0.06)'
-                          : 'rgba(0,0,0,0.04)',
-                  },
-                ]}
-              >
-                <Text style={[styles.sizingModeChipText, { color: theme.colors.textPrimary, fontWeight: selected ? '800' : '600' }]}>
-                  {m === 'auto' ? 'Auto (AI)' : 'Manual'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {isMartingaleBot ? (
+          <Text style={[styles.martingaleNotice, { color: theme.colors.textSecondary }]}>
+            Martingale bot — lot size is set by EA signals only
+          </Text>
+        ) : (
+          <>
+            <Text style={[styles.sizingModeLabel, { color: theme.colors.textSecondary }]}>LOT SIZING</Text>
+            <View style={styles.sizingModeChips}>
+              {(['auto', 'manual'] as const).map((m) => {
+                const selected = mt5LotSizingMode === m;
+                return (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() => void setMt5LotSizingMode(m)}
+                    activeOpacity={0.75}
+                    style={[
+                      styles.sizingModeChip,
+                      {
+                        borderColor: selected
+                          ? theme.colors.accent
+                          : isMatrix
+                            ? themeName === 'matrixRed'
+                              ? 'rgba(255,80,100,0.2)'
+                              : 'rgba(0,255,100,0.2)'
+                            : theme.isDark
+                              ? 'rgba(255,255,255,0.2)'
+                              : 'rgba(0,0,0,0.15)',
+                        backgroundColor: selected
+                          ? `${theme.colors.accent}55`
+                          : isMatrix
+                            ? themeName === 'matrixRed'
+                              ? 'rgba(255,40,60,0.06)'
+                              : 'rgba(0,255,80,0.06)'
+                            : theme.isDark
+                              ? 'rgba(255,255,255,0.06)'
+                              : 'rgba(0,0,0,0.04)',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.sizingModeChipText, { color: theme.colors.textPrimary, fontWeight: selected ? '800' : '600' }]}>
+                      {m === 'auto' ? 'Auto (AI)' : 'Manual'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
       </View>
 
       {/* Content */}
@@ -592,7 +602,9 @@ export default function QuotesScreen() {
                   <View style={styles.priceContainer}>
                     <View style={styles.priceColumn}>
                       <Text style={styles.priceLabel}>LOT SIZE</Text>
-                      <Text style={styles.priceValue}>{formatLotSize(quote.lotSize)}</Text>
+                      <Text style={styles.priceValue}>
+                        {isMartingaleBot ? MARTINGALE_SIGNAL_LOT_LABEL : formatLotSize(quote.lotSize)}
+                      </Text>
                     </View>
                     <View style={styles.priceColumn}>
                       <Text style={styles.priceLabel}>TRADES</Text>
@@ -686,6 +698,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1,
+  },
+  martingaleNotice: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
   },
   sizingModeChips: {
     flexDirection: 'row',

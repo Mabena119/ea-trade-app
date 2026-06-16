@@ -3626,7 +3626,7 @@ async function handleApi(request: Request): Promise<Response> {
             // Get signals since a specific time
             // Query only existing columns: id, ea, asset, latestupdate, action, price, tp, sl, time
             query = `
-              SELECT id, ea, asset, latestupdate, action, price, tp, sl, time
+              SELECT id, ea, asset, latestupdate, action, price, tp, sl, time, lot
               FROM \`signals\` 
               WHERE ea = ? AND latestupdate > ?
               ORDER BY latestupdate DESC
@@ -3636,7 +3636,7 @@ async function handleApi(request: Request): Promise<Response> {
           } else {
             // Get recent signals for EA (last 50)
             query = `
-              SELECT id, ea, asset, latestupdate, action, price, tp, sl, time
+              SELECT id, ea, asset, latestupdate, action, price, tp, sl, time, lot
               FROM \`signals\` 
               WHERE ea = ?
               ORDER BY latestupdate DESC

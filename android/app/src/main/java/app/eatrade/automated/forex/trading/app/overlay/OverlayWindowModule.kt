@@ -72,6 +72,8 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
     private const val KEY_PENDING_TYPE = "pending_type"
     private const val KEY_PENDING_JSON = "pending_payload"
     private const val EMPTY_POLLS_BEFORE_WARMUP = 15
+    /** Must match `AI_CHART_TRADING_ENABLED` in utils/trading-features.ts */
+    private const val CHART_WARMUP_ENABLED = false
   }
 
   override fun getName(): String = "OverlayWindowModule"
@@ -532,7 +534,7 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
         .putInt(KEY_EMPTY_COUNT, nextCount)
         .putString(KEY_LAST_POLL, isoUtc(System.currentTimeMillis() - 5000))
         .apply()
-      if (nextCount >= EMPTY_POLLS_BEFORE_WARMUP) {
+      if (CHART_WARMUP_ENABLED && nextCount >= EMPTY_POLLS_BEFORE_WARMUP) {
         prefs.edit()
           .putString(KEY_PENDING_TYPE, "chart_warmup")
           .remove(KEY_PENDING_JSON)
