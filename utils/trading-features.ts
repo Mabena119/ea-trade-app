@@ -18,7 +18,7 @@ export function isMartingaleEa(
   return Boolean(ea?.userData?.ea_martingale);
 }
 
-/** Standard bots: AI chart analysis → trade → poll → repeat. Martingale: DB copy-trade signals only. */
+/** Standard bots: poll 15× idle → AI trade → poll; 45 min resets cycle. Martingale: poll only. */
 export function isAiChartTradingEnabled(
   eas: EaMartingaleLike[] | null | undefined
 ): boolean {
