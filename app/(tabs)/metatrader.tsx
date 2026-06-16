@@ -542,6 +542,7 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'JustMarkets-Live2': 'https://live2.justmarkets.com/terminal',
   'JustMarkets-Demo': 'https://demo.justmarkets.com/terminal',
   'JustMarkets-Demo2': 'https://demo2.justmarkets.com/terminal',
+  'JPMarkets-Live': 'https://web.jpmarkets.co.za/terminal',
 };
 
 const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);

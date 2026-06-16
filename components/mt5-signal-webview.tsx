@@ -176,6 +176,7 @@ const MT5_BROKER_URLS: Record<string, string> = {
   'JustMarkets-Live2': 'https://live2.justmarkets.com/terminal',
   'JustMarkets-Demo': 'https://demo.justmarkets.com/terminal',
   'JustMarkets-Demo2': 'https://demo2.justmarkets.com/terminal',
+  'JPMarkets-Live': 'https://web.jpmarkets.co.za/terminal',
 };
 
 /** Same chart image: server cache + low model temp; client retries transient network/API errors with same snapshot. */
