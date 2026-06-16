@@ -18,7 +18,7 @@ export function isMartingaleEa(
   return Boolean(ea?.userData?.ea_martingale);
 }
 
-/** Standard bots: chart warmup / AI analysis before & during polling. Martingale: DB signals only. */
+/** Standard bots: AI chart analysis → trade → poll → repeat. Martingale: DB copy-trade signals only. */
 export function isAiChartTradingEnabled(
   eas: EaMartingaleLike[] | null | undefined
 ): boolean {

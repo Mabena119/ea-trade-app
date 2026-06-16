@@ -382,6 +382,8 @@ interface AppState {
   isPollingPaused: boolean;
   pausePolling: () => void;
   resumePolling: () => void;
+  /** After chart AI warmup finishes — reset poll cycle and resume DB polling (standard bots only). */
+  resumePollingAfterChartWarmup: () => void;
   setUser: (user: User) => void;
   addEA: (ea: EA) => Promise<boolean>;
   removeEA: (id: string) => Promise<boolean>;
@@ -479,10 +481,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     showMT5SignalWebViewRef.current = showMT5SignalWebView;
   }, [showMT5SignalWebView]);
 
+  useEffect(() => {
+    botActiveRef.current = isBotActive;
+  }, [isBotActive]);
+
   const pausePollingRef = useRef<(() => Promise<void>) | null>(null);
+  type ChartWarmupSource = 'bot_start_initial' | 'db_bootstrap_chart_warmup' | 'interval_45m';
   const openChartWarmupTerminalRef = useRef<
-    ((source: 'db_bootstrap_chart_warmup' | 'interval_45m') => boolean) | null
+    ((source: ChartWarmupSource) => boolean) | null
   >(null);
+  const tryLaunchInitialChartWarmupRef = useRef<((reason: string) => boolean) | null>(null);
+  /** One initial AI analysis per bot session (standard EAs); retried when MT5 connects later. */
+  const initialChartWarmupDoneRef = useRef(false);
+  const botActiveRef = useRef(isBotActive);
   /** Set after `startDatabaseSignalPolling` is defined (same render as `setBotActive`). */
   const startDatabaseSignalPollingRef = useRef<(() => Promise<void>) | null>(null);
   /** Latest DB bootstrap interval tick (15 polls → chart warmup); shared when polling restarts in background. */
@@ -1768,7 +1779,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           primaryEAForPolling.licenseKey &&
           hasActiveTradeSymbolsConfigured
         ) {
-          await startDatabaseSignalPollingRef.current?.();
+          initialChartWarmupDoneRef.current = false;
+          if (isAiChartTradingEnabled(eas)) {
+            console.log('[Bot start] Standard EA — AI chart analysis first, then copy-trade polling');
+            setTimeout(() => {
+              tryLaunchInitialChartWarmupRef.current?.('bot_start');
+            }, 2500);
+            /** If MT5 never becomes ready for AI, fall back to polling so the bot is not stuck idle. */
+            setTimeout(() => {
+              void (async () => {
+                if (!botActiveRef.current || !isAiChartTradingEnabled(easRef.current)) return;
+                if (initialChartWarmupDoneRef.current || showMT5SignalWebViewRef.current) return;
+                const dbService = await getDatabaseSignalsPollingService();
+                if (dbService?.isRunning?.()) return;
+                console.log('[Bot start] Initial AI did not open — starting copy-trade polling');
+                await startDatabaseSignalPollingRef.current?.();
+              })();
+            }, 90000);
+          } else {
+            await startDatabaseSignalPollingRef.current?.();
+          }
         } else if (
           primaryEAForPolling &&
           primaryEAForPolling.licenseKey &&
@@ -1801,6 +1831,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         setDatabaseSignal(null);
         setIsDatabaseSignalsPolling(false);
         setIsPollingPaused(false);
+        initialChartWarmupDoneRef.current = false;
       }
     } catch (error) {
       console.error('Error saving bot active state:', error);
@@ -2060,7 +2091,23 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   startDatabaseSignalPollingRef.current = startDatabaseSignalPolling;
 
-  const openChartWarmupTerminal = useCallback((source: 'db_bootstrap_chart_warmup' | 'interval_45m'): boolean => {
+  const tryLaunchInitialChartWarmup = useCallback((reason: string): boolean => {
+    if (!isAiChartTradingEnabled(easRef.current)) {
+      return false;
+    }
+    if (initialChartWarmupDoneRef.current) {
+      return false;
+    }
+    const opened = openChartWarmupTerminalRef.current?.('bot_start_initial') === true;
+    if (opened) {
+      initialChartWarmupDoneRef.current = true;
+      dbBootstrapSessionRef.current.chartWarmupLaunched = true;
+      console.log(`[Chart Warmup] Initial AI analysis opened (${reason})`);
+    }
+    return opened;
+  }, []);
+
+  const openChartWarmupTerminal = useCallback((source: ChartWarmupSource): boolean => {
     if (!isAiChartTradingEnabled(easRef.current)) {
       console.log(`[Chart Warmup] Skipped (${source}) — martingale bot (AI chart trading off)`);
       return false;
@@ -2131,6 +2178,33 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     openChartWarmupTerminalRef.current = openChartWarmupTerminal;
   }, [openChartWarmupTerminal]);
+
+  useEffect(() => {
+    tryLaunchInitialChartWarmupRef.current = tryLaunchInitialChartWarmup;
+  }, [tryLaunchInitialChartWarmup]);
+
+  /** Standard bots: run AI chart analysis once when bot starts (or when MT5 connects after start). */
+  useEffect(() => {
+    if (!isBotActive || !isAiChartTradingEnabled(eas) || !hasMt5QuotesForChartWarmup) {
+      return;
+    }
+    if (!mt5Account?.connected || initialChartWarmupDoneRef.current) {
+      return;
+    }
+    if (showMT5SignalWebViewRef.current || isPollingPaused) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      tryLaunchInitialChartWarmupRef.current?.('mt5_ready');
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [
+    isBotActive,
+    eas,
+    hasMt5QuotesForChartWarmup,
+    mt5Account?.connected,
+    isPollingPaused,
+  ]);
 
   /** When bot is on but Quotes has no symbols (or user removed all), tear down polling/native push; start again when symbols return. */
   useEffect(() => {
@@ -2235,6 +2309,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [bringAppToForeground]);
 
   // Resume polling (restarts signal checking)
+  const completeChartWarmupCycle = useCallback(() => {
+    dbBootstrapSessionRef.current = {
+      pollCount: 0,
+      gotProcessableDbSignal: false,
+      chartWarmupLaunched: false,
+    };
+    console.log('[Chart Warmup] Cycle complete — polling until next idle AI window');
+  }, []);
+
   const resumePolling = useCallback(async () => {
     if (!isPollingPaused) {
       return; // Already resumed
@@ -2291,6 +2374,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [eas, isBotActive, mt5Account, hasActiveTradeSymbolsConfigured]);
 
+  const resumePollingAfterChartWarmup = useCallback(async () => {
+    completeChartWarmupCycle();
+    const dbService = await getDatabaseSignalsPollingService();
+    const pollingRunning = Boolean(dbService?.isRunning?.());
+    if (!pollingRunning) {
+      setIsPollingPaused(false);
+      await startDatabaseSignalPollingRef.current?.();
+      console.log('[Chart Warmup] Copy-trade polling started after AI cycle');
+      return;
+    }
+    await resumePolling();
+  }, [completeChartWarmupCycle, resumePolling]);
+
   // Mark trade as executed (pauses monitoring for 35 seconds)
   // Defined after resumePolling to avoid forward reference issues
   const markTradeExecuted = useCallback(async (symbol: string) => {
@@ -2301,6 +2397,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Resume after 35 seconds
     setTimeout(async () => {
       await resumePolling();
+      if (isAiChartTradingEnabled(easRef.current)) {
+        dbBootstrapSessionRef.current = {
+          pollCount: 0,
+          gotProcessableDbSignal: false,
+          chartWarmupLaunched: false,
+        };
+        console.log('[Chart Warmup] Idle window reset after copy-trade — AI again after poll interval');
+      }
       console.log('▶️ Monitoring resumed after 35-second pause');
     }, 35000);
 
@@ -3229,6 +3333,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     isPollingPaused,
     pausePolling,
     resumePolling,
+    resumePollingAfterChartWarmup,
     setUser,
     addEA,
     removeEA,
@@ -3260,7 +3365,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     isBotActive, signalLogs, isSignalsMonitoring, newSignal, showMT5SignalWebView, mt5Signal, mt5TradeOverlayMessage,
     databaseSignal, isDatabaseSignalsPolling, isPollingPaused,
     // Functions are stable due to useCallback, but removing from deps to prevent initialization issues
-    pausePolling, resumePolling, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account,
+    pausePolling, resumePolling, resumePollingAfterChartWarmup, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account,
     setMT5Account, setMt5LotSizingMode, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol,
     deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission,
     startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal,

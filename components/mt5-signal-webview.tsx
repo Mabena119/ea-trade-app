@@ -277,6 +277,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     markTradeExecuted,
     mt5TradeOverlayMessage,
     resumePolling,
+    resumePollingAfterChartWarmup,
   } = useApp();
   const mt5AccountRef = useRef(mt5Account);
   useEffect(() => {
@@ -352,12 +353,22 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   }, [webViewKey, signalStableSessionKey]);
 
   /** Chart warmup uses in-tree overlay (not Modal); Android: same for all auto-trade paths — Modal + hidden WebView often fails to composite. */
+  const resumeFromWarmup = useCallback(() => {
+    return resumePollingAfterChartWarmup();
+  }, [resumePollingAfterChartWarmup]);
+
   const handleRequestClose = useCallback(() => {
-    void Promise.resolve(resumePolling()).catch((err: unknown) => {
-      console.error('resumePolling on MT5 overlay close:', err);
-    });
+    if (signalRef.current?.type === 'CHART_WARMUP') {
+      void Promise.resolve(resumeFromWarmup()).catch((err: unknown) => {
+        console.error('resumePollingAfterChartWarmup on MT5 overlay close:', err);
+      });
+    } else {
+      void Promise.resolve(resumePolling()).catch((err: unknown) => {
+        console.error('resumePolling on MT5 overlay close:', err);
+      });
+    }
     onClose();
-  }, [onClose, resumePolling]);
+  }, [onClose, resumePolling, resumeFromWarmup]);
 
   useEffect(() => {
     if (!visible || Platform.OS !== 'android') return;
@@ -3100,7 +3111,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           } finally {
             setChartAiAnalyzing(false);
             if (shouldResumePolling) {
-              void Promise.resolve(resumePolling()).catch((err: unknown) => {
+              const resume = isWarmup ? resumeFromWarmup : resumePolling;
+              void Promise.resolve(resume()).catch((err: unknown) => {
                 console.error('Error resuming polling after chart AI:', err);
               });
             }
@@ -3110,20 +3122,21 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         const msg = typeof data.message === 'string' ? data.message : 'Could not start auto-trade';
         setChartAiError(prev => (prev ? prev + ' · ' + msg : msg));
         setCurrentStep('Auto-trade failed — polling resumed');
-        void Promise.resolve(resumePolling()).catch((err: unknown) => {
+        const resume = signal?.type === 'CHART_WARMUP' ? resumeFromWarmup : resumePolling;
+        void Promise.resolve(resume()).catch((err: unknown) => {
           console.error('Error resuming polling after AI trade inject failure:', err);
         });
       } else if (data.type === 'chart_warmup_capture_failed') {
         setChartAiError(typeof data.message === 'string' ? data.message : 'Could not capture chart');
         setCurrentStep('Chart snapshot failed — polling resumed');
-        void Promise.resolve(resumePolling()).catch((err: unknown) => {
+        void Promise.resolve(resumeFromWarmup()).catch((err: unknown) => {
           console.error('Error resuming polling after capture failure:', err);
         });
       } else if (data.type === 'all_trades_completed') {
         applyTerminalEquity();
         setCurrentStep('All trades completed - Closing...');
         if (signal?.type === 'CHART_WARMUP') {
-          void Promise.resolve(resumePolling()).catch((err: unknown) => {
+          void Promise.resolve(resumeFromWarmup()).catch((err: unknown) => {
             console.error('Error resuming polling after chart warmup trade:', err);
           });
         } else if (signal?.asset) {
@@ -3146,6 +3159,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     setMT5Account,
     setMTAccount,
     resumePolling,
+    resumeFromWarmup,
     buildAiTradePayloadFromAnalysis,
     runAiTradeInject,
     mt5Symbols,
