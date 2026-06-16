@@ -6,27 +6,30 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Linking,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, CreditCard, Landmark, Scan } from 'lucide-react-native';
+import { ArrowLeft, CreditCard, Scan } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/providers/theme-provider';
-import { apiService } from '@/services/api';
 
 const WHOP_CHECKOUT_URL = 'https://whop.com/checkout/plan_CN9y3j02PlLmN';
+const PAYSTACK_CHECKOUT_URL = 'https://paystack.shop/pay/204p1hwqij';
 
 export default function AIPaymentScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams<{ email?: string }>();
   const email = (params.email || '').trim().toLowerCase();
-  const [ozowLoading, setOzowLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const handleBack = () => {
     router.back();
+  };
+
+  const buildPaystackUrl = () => {
+    if (!email) return PAYSTACK_CHECKOUT_URL;
+    return `${PAYSTACK_CHECKOUT_URL}?email=${encodeURIComponent(email)}`;
   };
 
   const openWhopCheckout = async () => {
@@ -38,20 +41,12 @@ export default function AIPaymentScreen() {
     }
   };
 
-  const openOzowCheckout = async () => {
+  const openPaystackCheckout = async () => {
     setCheckoutError(null);
-    setOzowLoading(true);
     try {
-      const result = await apiService.createOzowCheckout(email || undefined);
-      if (!result.url) {
-        setCheckoutError(result.error || 'Could not start payment. Please try again.');
-        return;
-      }
-      await Linking.openURL(result.url);
+      await Linking.openURL(buildPaystackUrl());
     } catch {
-      setCheckoutError('Could not start payment. Please try again.');
-    } finally {
-      setOzowLoading(false);
+      setCheckoutError('Could not open checkout. Please try again.');
     }
   };
 
@@ -133,31 +128,25 @@ export default function AIPaymentScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={openOzowCheckout}
+          onPress={openPaystackCheckout}
           activeOpacity={0.8}
-          disabled={ozowLoading}
           style={[
             styles.paymentOption,
             {
               borderColor: theme.colors.borderColor,
               backgroundColor: `${theme.colors.textPrimary}08`,
-              opacity: ozowLoading ? 0.7 : 1,
             },
           ]}
         >
           <View style={[styles.paymentIconWrap, { backgroundColor: `${theme.colors.textPrimary}12` }]}>
-            {ozowLoading ? (
-              <ActivityIndicator size="small" color={theme.colors.accent} />
-            ) : (
-              <Landmark color={theme.colors.textSecondary} size={22} strokeWidth={2.5} />
-            )}
+            <CreditCard color={theme.colors.textSecondary} size={22} strokeWidth={2.5} />
           </View>
           <View style={styles.paymentOptionText}>
             <Text style={[styles.paymentOptionTitle, { color: theme.colors.textPrimary }]}>
-              EFT · Payment
+              Card payment
             </Text>
             <Text style={[styles.paymentOptionSubtitle, { color: theme.colors.textMuted }]}>
-              Pay with Ozow (South Africa)
+              Pay with Paystack (South Africa)
             </Text>
           </View>
         </TouchableOpacity>
