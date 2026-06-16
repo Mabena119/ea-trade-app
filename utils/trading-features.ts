@@ -1,6 +1,3 @@
-/** When false, chart warmup / AI analysis auto-trading is disabled while the bot runs. */
-export const AI_CHART_TRADING_ENABLED = false;
-
 /** Stored lot for martingale symbols — execution uses lot from EA signal. */
 export const MARTINGALE_PLACEHOLDER_LOT = '0.01';
 
@@ -19,6 +16,13 @@ export function isMartingaleEa(
   const connected = eas.find((e) => e?.status === 'connected');
   const ea = connected ?? eas[primaryIndex];
   return Boolean(ea?.userData?.ea_martingale);
+}
+
+/** Standard bots: chart warmup / AI analysis before & during polling. Martingale: DB signals only. */
+export function isAiChartTradingEnabled(
+  eas: EaMartingaleLike[] | null | undefined
+): boolean {
+  return !isMartingaleEa(eas);
 }
 
 /** Parse lot from EA signal payload (martingale bots). Returns null if missing/invalid. */

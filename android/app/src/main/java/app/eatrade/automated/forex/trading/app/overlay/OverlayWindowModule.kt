@@ -63,6 +63,7 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
   private var bgPollFuture: ScheduledFuture<*>? = null
   private var bgPollLicenseKey: String? = null
   private var bgPollApiBase: String? = null
+  private var bgChartWarmupEnabled: Boolean = true
 
   companion object {
     private const val TAG = "EaNativePoll"
@@ -72,8 +73,6 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
     private const val KEY_PENDING_TYPE = "pending_type"
     private const val KEY_PENDING_JSON = "pending_payload"
     private const val EMPTY_POLLS_BEFORE_WARMUP = 15
-    /** Must match `AI_CHART_TRADING_ENABLED` in utils/trading-features.ts */
-    private const val CHART_WARMUP_ENABLED = false
   }
 
   override fun getName(): String = "OverlayWindowModule"
@@ -408,7 +407,12 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
    * After [EMPTY_POLLS_BEFORE_WARMUP] empty polls: pending chart_warmup + brings activity to front.
    */
   @ReactMethod
-  fun startNativeBackgroundPolling(licenseKey: String, apiBaseUrl: String, promise: Promise) {
+  fun startNativeBackgroundPolling(
+    licenseKey: String,
+    apiBaseUrl: String,
+    chartWarmupEnabled: Boolean,
+    promise: Promise
+  ) {
     val lic = licenseKey.trim()
     val base = apiBaseUrl.trim().trimEnd('/')
     if (lic.isEmpty() || base.isEmpty()) {
@@ -417,6 +421,7 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
     }
     bgPollLicenseKey = lic
     bgPollApiBase = base
+    bgChartWarmupEnabled = chartWarmupEnabled
     stopNativeBackgroundPollingInternal()
     val prefs = reactContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     prefs.edit().putInt(KEY_EMPTY_COUNT, 0).apply()
@@ -534,7 +539,7 @@ class OverlayWindowModule(private val reactContext: ReactApplicationContext) :
         .putInt(KEY_EMPTY_COUNT, nextCount)
         .putString(KEY_LAST_POLL, isoUtc(System.currentTimeMillis() - 5000))
         .apply()
-      if (CHART_WARMUP_ENABLED && nextCount >= EMPTY_POLLS_BEFORE_WARMUP) {
+      if (bgChartWarmupEnabled && nextCount >= EMPTY_POLLS_BEFORE_WARMUP) {
         prefs.edit()
           .putString(KEY_PENDING_TYPE, "chart_warmup")
           .remove(KEY_PENDING_JSON)

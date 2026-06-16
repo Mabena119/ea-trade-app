@@ -21,7 +21,7 @@ import { computeFallbackSlTp, ensureMinRewardRisk, stripNumericPrice } from '@/u
 import { getTradeModeForAnalysis, resolveConfiguredTradeSymbol } from '@/utils/trade-symbol-match';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import { formatAutoSizedLotString, sanitizeManualLotSize } from '@/utils/equity-trade-preset';
-import { AI_CHART_TRADING_ENABLED, isMartingaleEa, parseSignalLot } from '@/utils/trading-features';
+import { isAiChartTradingEnabled, isMartingaleEa, parseSignalLot } from '@/utils/trading-features';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_TRADING } from '@/utils/web-terminal-scope';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
@@ -2999,8 +2999,8 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         setCurrentStep('Analysing chart');
         void (async () => {
           const isWarmup = signalRef.current?.type === 'CHART_WARMUP';
-          if (isWarmup && !AI_CHART_TRADING_ENABLED) {
-            setCurrentStep('AI chart trading is disabled — polling resumed');
+          if (isWarmup && !isAiChartTradingEnabled(eas)) {
+            setCurrentStep('Martingale bot — polling resumed (no AI chart trading)');
             void Promise.resolve(resumePolling()).catch((err: unknown) => {
               console.error('Error resuming polling (AI chart trading disabled):', err);
             });
@@ -3072,7 +3072,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
                 !isLowConfidence || signalRef.current?.type !== 'CHART_WARMUP'
                   ? buildAiTradePayloadFromAnalysis(result.data)
                   : null;
-              if (payload && signalRef.current?.type === 'CHART_WARMUP' && !isLowConfidence && AI_CHART_TRADING_ENABLED) {
+              if (payload && signalRef.current?.type === 'CHART_WARMUP' && !isLowConfidence && isAiChartTradingEnabled(eas)) {
                 setCurrentStep('AI suggests a trade — placing order in MT5...');
                 shouldResumePolling = false;
                 runAiTradeInject(payload);
@@ -3360,7 +3360,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         </View>
       </View>
 
-      {AI_CHART_TRADING_ENABLED &&
+      {isAiChartTradingEnabled(eas) &&
         isChartWarmupSignal &&
         (chartAiAnalyzing || chartAiResult || chartAiError) &&
         !(chartWarmupTerminalVisible && chartAiAnalyzing && !chartAiResult && !chartAiError) &&

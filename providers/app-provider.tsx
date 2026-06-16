@@ -15,7 +15,7 @@ import {
 } from '@/utils/equity-trade-preset';
 import { normalizeEaBrandLogoHttpUrl } from '@/utils/ea-brand-image';
 import {
-  AI_CHART_TRADING_ENABLED,
+  isAiChartTradingEnabled,
   isMartingaleEa,
   MARTINGALE_PLACEHOLDER_LOT,
 } from '@/utils/trading-features';
@@ -1997,7 +1997,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     };
 
     const onPollComplete = () => {
-      if (!AI_CHART_TRADING_ENABLED) {
+      if (!isAiChartTradingEnabled(easRef.current)) {
         return;
       }
       const hasTradeNow =
@@ -2061,8 +2061,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   startDatabaseSignalPollingRef.current = startDatabaseSignalPolling;
 
   const openChartWarmupTerminal = useCallback((source: 'db_bootstrap_chart_warmup' | 'interval_45m'): boolean => {
-    if (!AI_CHART_TRADING_ENABLED) {
-      console.log(`[Chart Warmup] Skipped (${source}) — AI chart trading disabled`);
+    if (!isAiChartTradingEnabled(easRef.current)) {
+      console.log(`[Chart Warmup] Skipped (${source}) — martingale bot (AI chart trading off)`);
       return false;
     }
     if (showMT5SignalWebViewRef.current) {
@@ -2195,7 +2195,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   /** Repeat chart warmup every 45 minutes while bot is running — only when MT5 Quotes symbols exist. */
   useEffect(() => {
-    if (!AI_CHART_TRADING_ENABLED || !isBotActive || !hasMt5QuotesForChartWarmup) return;
+    if (!isAiChartTradingEnabled(eas) || !isBotActive || !hasMt5QuotesForChartWarmup) return;
     const primaryEA = Array.isArray(eas) && eas.length > 0 ? eas[0] : null;
     if (!primaryEA?.licenseKey) return;
 
@@ -2726,8 +2726,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
                 '[Android native poll] Discarding pending action — bot off, paused, or no trade symbols'
               );
             } else if (pending.type === 'chart_warmup') {
-              if (!AI_CHART_TRADING_ENABLED) {
-                console.log('[Android native poll] Chart warmup discarded — AI chart trading disabled');
+              if (!isAiChartTradingEnabled(easRef.current)) {
+                console.log('[Android native poll] Chart warmup discarded — martingale bot');
               } else {
                 const opened = openChartWarmupTerminalRef.current?.('db_bootstrap_chart_warmup') === true;
                 if (opened) {
@@ -3011,7 +3011,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         if (primaryEA?.licenseKey && base) {
           try {
             const { overlayService } = await import('@/services/overlay-service');
-            const ok = await overlayService.startNativeBackgroundPolling(primaryEA.licenseKey, base);
+            const ok = await overlayService.startNativeBackgroundPolling(
+              primaryEA.licenseKey,
+              base,
+              isAiChartTradingEnabled(eas)
+            );
             console.log('[Android native poll] Background API polling:', ok ? 'started' : 'failed');
           } catch (e) {
             console.error('[Android native poll] start error:', e);

@@ -10,7 +10,7 @@ interface OverlayWindowModuleInterface {
   hideOverlay(): Promise<boolean>;
   getOverlayViewTag(): Promise<number>;
   updateOverlayData(botName: string, isActive: boolean, isPaused: boolean, botImageURL: string | null): Promise<boolean>;
-  startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string): Promise<boolean>;
+  startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string, chartWarmupEnabled?: boolean): Promise<boolean>;
   stopNativeBackgroundPolling(): Promise<boolean>;
   consumePendingForegroundAction(): Promise<{ type: string; payload?: string } | null>;
 }
@@ -29,7 +29,7 @@ interface OverlayService {
   hideOverlay(): Promise<boolean>;
   getOverlayViewTag(): Promise<number>;
   updateOverlayData(botName: string, isActive: boolean, isPaused: boolean, botImageURL: string | null): Promise<boolean>;
-  startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string): Promise<boolean>;
+  startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string, chartWarmupEnabled?: boolean): Promise<boolean>;
   stopNativeBackgroundPolling(): Promise<boolean>;
   consumePendingForegroundAction(): Promise<{ type: string; payload?: string } | null>;
 }
@@ -188,10 +188,18 @@ class OverlayService implements OverlayService {
    * Android: while the activity is backgrounded, JS timers may not run — native polls the same APIs.
    * Call stop when returning to foreground; then consumePendingForegroundAction().
    */
-  async startNativeBackgroundPolling(licenseKey: string, apiBaseUrl: string): Promise<boolean> {
+  async startNativeBackgroundPolling(
+    licenseKey: string,
+    apiBaseUrl: string,
+    chartWarmupEnabled = true
+  ): Promise<boolean> {
     if (Platform.OS !== 'android' || !OverlayWindowModule) return false;
     try {
-      return await OverlayWindowModule.startNativeBackgroundPolling(licenseKey, apiBaseUrl);
+      return await OverlayWindowModule.startNativeBackgroundPolling(
+        licenseKey,
+        apiBaseUrl,
+        chartWarmupEnabled
+      );
     } catch (e) {
       console.error('[OverlayService] startNativeBackgroundPolling', e);
       return false;
