@@ -1,7 +1,7 @@
 import { MT5_BROKER_SHEET_MARKERS_JS, MT5_FORM_INPUT_HELPERS_JS, MT5_TERMINAL_READY_WAIT_JS } from './mt5-brokers';
 
 /**
- * Patches duplicated MT5 auth/trading inline scripts in server.ts for JustMarkets + Cloudflare.
+ * Patches duplicated MT5 auth/trading inline scripts in server.ts.
  */
 export function patchMt5InlineAuthScript(script: string): string {
   if (!script || script.includes('pageHasBrokerAccountsSheet')) {

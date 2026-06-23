@@ -319,7 +319,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return resolveMt5TerminalUrl(mt5Account.server);
   }, [mt5Account]);
 
-  const mt5BootstrapJs = useMemo(() => getMt5WebViewBootstrapJs(false), []);
+  const mt5BootstrapJs = useMemo(() => getMt5WebViewBootstrapJs(), []);
 
   /** Stable reference: inline `source={{ uri }}` changes every render and can reload Android WebView on state updates. */
   const mt5WebViewSource = useMemo(() => {
