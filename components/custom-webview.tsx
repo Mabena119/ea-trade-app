@@ -1,6 +1,11 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
+import {
+  getMt5LinkShellProbeJs,
+  getMt5LinkShellProbeMaxWaitMs,
+  getMt5WebViewBootstrapJs,
+} from '@/utils/mt5-brokers';
 
 interface CustomWebViewProps {
   url: string;
@@ -10,6 +15,10 @@ interface CustomWebViewProps {
   style?: any;
   /** Wait after each load before injecting automation. */
   postLoadDelayMs?: number;
+  /** Direct terminal URL (e.g. JustMarkets): preserve Cloudflare session, retry inject across redirects. */
+  directTerminalLoad?: boolean;
+  /** Broker server key for shell-probe tuning. */
+  brokerServer?: string;
 }
 
 const CustomWebView: React.FC<CustomWebViewProps> = ({
@@ -19,11 +28,15 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   onLoadEnd,
   style,
   postLoadDelayMs = 3000,
+  directTerminalLoad = false,
+  brokerServer = '',
 }) => {
   const webViewRef = useRef<WebView>(null);
   const injectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const authStartedRef = useRef(false);
   const authFinalizedRef = useRef(false);
+  const automationActiveRef = useRef(false);
   const loadGenerationRef = useRef(0);
   const scriptRef = useRef(script);
 
@@ -36,23 +49,51 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
     }
   }, []);
 
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearInterval(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     authStartedRef.current = false;
     authFinalizedRef.current = false;
+    automationActiveRef.current = false;
     loadGenerationRef.current += 1;
     clearInjectTimer();
-  }, [url, clearInjectTimer]);
+    clearRetryTimer();
+  }, [url, clearInjectTimer, clearRetryTimer]);
 
-  useEffect(() => () => clearInjectTimer(), [clearInjectTimer]);
+  useEffect(() => () => {
+    clearInjectTimer();
+    clearRetryTimer();
+  }, [clearInjectTimer, clearRetryTimer]);
 
-  const injectScript = useCallback(() => {
+  const injectScript = useCallback((force = false) => {
     const currentScript = scriptRef.current;
-    if (!webViewRef.current || !currentScript?.trim() || authStartedRef.current || authFinalizedRef.current) {
+    if (!webViewRef.current || !currentScript?.trim() || authFinalizedRef.current) {
+      return;
+    }
+    if (authStartedRef.current && !force) {
       return;
     }
     authStartedRef.current = true;
     console.log('Injecting MT5 automation script...');
-    webViewRef.current.injectJavaScript(`${currentScript.trim()}\ntrue;`);
+    const body = currentScript.trim();
+    const wrapped = `(function(){
+  try {
+    if (window.__eaMt5LinkAuthRunning) return;
+    window.__eaMt5LinkAuthRunning = true;
+    ${body}
+  } catch(e) {
+    window.__eaMt5LinkAuthRunning = false;
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'injection_error', error: String(e && e.message || e) }));
+    } catch(e2) {}
+  }
+})();true;`;
+    webViewRef.current.injectJavaScript(wrapped);
   }, []);
 
   const scheduleInjectAfterLoad = useCallback(() => {
@@ -64,10 +105,16 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
     const delay = Math.max(800, postLoadDelayMs);
 
     injectTimerRef.current = setTimeout(() => {
-      if (generation !== loadGenerationRef.current || authStartedRef.current || authFinalizedRef.current) {
+      if (generation !== loadGenerationRef.current || authFinalizedRef.current) {
         return;
       }
       if (!webViewRef.current) {
+        return;
+      }
+
+      if (directTerminalLoad) {
+        const probeMaxWait = getMt5LinkShellProbeMaxWaitMs(brokerServer);
+        webViewRef.current.injectJavaScript(getMt5LinkShellProbeJs(generation, probeMaxWait));
         return;
       }
 
@@ -86,17 +133,45 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         }
       })();true;`);
     }, delay);
-  }, [clearInjectTimer, postLoadDelayMs]);
+  }, [brokerServer, clearInjectTimer, directTerminalLoad, postLoadDelayMs]);
+
+  const scheduleDirectTerminalRetry = useCallback(() => {
+    if (!directTerminalLoad) {
+      return;
+    }
+    clearRetryTimer();
+    retryTimerRef.current = setInterval(() => {
+      if (authFinalizedRef.current || automationActiveRef.current) {
+        clearRetryTimer();
+        return;
+      }
+      console.log('Direct terminal: retrying MT5 script injection...');
+      authStartedRef.current = false;
+      try {
+        webViewRef.current?.injectJavaScript('window.__eaMt5LinkAuthRunning=false;true;');
+      } catch (e) {}
+      scheduleInjectAfterLoad();
+    }, 10000);
+  }, [clearRetryTimer, directTerminalLoad, scheduleInjectAfterLoad]);
 
   const handleLoadStart = useCallback(() => {
+    if (directTerminalLoad) {
+      return;
+    }
     clearInjectTimer();
-  }, [clearInjectTimer]);
+  }, [clearInjectTimer, directTerminalLoad]);
 
   const handleLoadEnd = useCallback(() => {
+    if (directTerminalLoad && !automationActiveRef.current) {
+      authStartedRef.current = false;
+    }
     console.log('WebView load ended, scheduling script injection...');
     scheduleInjectAfterLoad();
+    if (directTerminalLoad && !automationActiveRef.current) {
+      scheduleDirectTerminalRetry();
+    }
     onLoadEnd?.();
-  }, [onLoadEnd, scheduleInjectAfterLoad]);
+  }, [directTerminalLoad, onLoadEnd, scheduleDirectTerminalRetry, scheduleInjectAfterLoad]);
 
   const handleMessage = useCallback((event: any) => {
     try {
@@ -112,62 +187,34 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         injectScript();
       }
 
+      if (data.type === 'step_update' || data.type === 'mt5_loaded') {
+        automationActiveRef.current = true;
+        clearRetryTimer();
+      }
+
       if (data.type === 'authentication_success' || data.type === 'authentication_failed') {
         authStartedRef.current = true;
         authFinalizedRef.current = true;
+        automationActiveRef.current = true;
         clearInjectTimer();
+        clearRetryTimer();
       }
 
       if (data.type === 'injection_error') {
         authStartedRef.current = false;
+        automationActiveRef.current = false;
       }
 
       onMessage?.(data);
     } catch (error) {
       console.log('Error parsing WebView message:', error);
     }
-  }, [clearInjectTimer, injectScript, onMessage]);
+  }, [clearInjectTimer, clearRetryTimer, injectScript, onMessage]);
 
-  const injectedJavaScript = useMemo(() => `
-(function(){
-  try {
-    try { localStorage.clear(); } catch(e) {}
-    try { sessionStorage.clear(); } catch(e) {}
-    try {
-      if (indexedDB && indexedDB.databases) {
-        indexedDB.databases().then(function(dbs){
-          dbs.forEach(function(db){
-            if (db.name) try { indexedDB.deleteDatabase(db.name); } catch(e2) {}
-          });
-        });
-      }
-    } catch(e) {}
-    try {
-      if (document && document.cookie) {
-        document.cookie.split(';').forEach(function(c){
-          var eq = c.indexOf('=');
-          var name = eq > -1 ? c.substr(0, eq) : c;
-          document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-        });
-      }
-    } catch(e) {}
-    var ow = console.warn;
-    var oe = console.error;
-    console.warn = function(){
-      var m = Array.prototype.join.call(arguments, ' ');
-      if (m.indexOf('interactive-widget') >= 0 || m.indexOf('viewport') >= 0 || m.indexOf('AES-CBC') >= 0) return;
-      ow.apply(console, arguments);
-    };
-    console.error = function(){
-      var m = Array.prototype.join.call(arguments, ' ');
-      if (m.indexOf('interactive-widget') >= 0 || m.indexOf('viewport') >= 0 || m.indexOf('AES-CBC') >= 0) return;
-      oe.apply(console, arguments);
-    };
-    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'webview_ready' }));
-  } catch(e) {}
-})();
-true;
-`, []);
+  const injectedJavaScript = useMemo(
+    () => getMt5WebViewBootstrapJs(directTerminalLoad),
+    [directTerminalLoad]
+  );
 
   return (
     <View style={[styles.container, style]}>

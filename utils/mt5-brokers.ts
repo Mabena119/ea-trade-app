@@ -138,22 +138,37 @@ export function mt5CloudflareDirectLoadHtml(terminalUrl: string): string {
 }
 
 /** Delay before injecting auth script after WebView load. */
-export function getMt5ShellReadyDelayMs(_server: string, isAndroid: boolean): number {
+export function getMt5ShellReadyDelayMs(server: string, isAndroid: boolean): number {
+  if (isMt5ProxyBlockedBroker(server)) {
+    return isAndroid ? 5500 : 4200;
+  }
   return isAndroid ? 4800 : 3200;
 }
 
-export function getMt5InnerAuthKickMs(_server: string, isAndroid: boolean): number {
+export function getMt5InnerAuthKickMs(server: string, isAndroid: boolean): number {
+  if (isMt5ProxyBlockedBroker(server)) {
+    return isAndroid ? 1800 : 900;
+  }
   return isAndroid ? 1200 : 450;
 }
 
-export function getMt5InnerAuthFallbackMs(_server: string, isAndroid: boolean): number {
+export function getMt5InnerAuthFallbackMs(server: string, isAndroid: boolean): number {
+  if (isMt5ProxyBlockedBroker(server)) {
+    return isAndroid ? 8000 : 5500;
+  }
   return isAndroid ? 5600 : 3200;
 }
 
-/** Injected before page load in native MT5 WebViews. */
-export function getMt5WebViewBootstrapJs(): string {
-  return `
-(function(){
+/** Max wait for connect sheet / terminal shell before firing link inject probe. */
+export function getMt5LinkShellProbeMaxWaitMs(server: string): number {
+  return isMt5ProxyBlockedBroker(server) ? 28000 : 12000;
+}
+
+/** Injected before page load in native MT5 WebViews. Skip wipe when Cloudflare session must persist. */
+export function getMt5WebViewBootstrapJs(preserveSession = false): string {
+  const wipeBlock = preserveSession
+    ? ''
+    : `
   try { localStorage.clear(); } catch(e) {}
   try { sessionStorage.clear(); } catch(e) {}
   try {
@@ -171,13 +186,66 @@ export function getMt5WebViewBootstrapJs(): string {
         document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
       });
     }
-  } catch(e) {}
+  } catch(e) {}`;
+  return `
+(function(){${wipeBlock}
   try {
     window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'webview_ready' }));
   } catch(e) {}
 })();
 true;
 `;
+}
+
+/** Polls terminal DOM; posts page_ready_for_script when connect sheet or session appears. */
+export function getMt5LinkShellProbeJs(generation: number, maxWaitMs: number): string {
+  return `
+(function(){
+  var gen = ${generation};
+  var maxWait = ${maxWaitMs};
+  var start = Date.now();
+  var fired = false;
+  function fire() {
+    if (fired) return;
+    fired = true;
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'page_ready_for_script', gen: gen }));
+    } catch(e) {}
+  }
+  function isShellReady() {
+    try {
+      var bt = document.body ? (document.body.innerText || document.body.textContent || '') : '';
+      if (bt.indexOf('Connect to account') >= 0) return true;
+      if (bt.indexOf('Enter Login') >= 0 && bt.indexOf('Password') >= 0) return true;
+      if (bt.indexOf('Search symbol') >= 0) return true;
+      if (/\\bEquity\\b/i.test(bt) && /\\bBalance\\b/i.test(bt)) return true;
+      var login = document.querySelector('input[placeholder*="login" i], input[name="login"], input[name="Login"]');
+      var pwd = document.querySelector('input[type="password"], input[placeholder*="password" i], input[name="password"]');
+      if (login && pwd) {
+        var lr = login.getBoundingClientRect();
+        var pr = pwd.getBoundingClientRect();
+        if (lr.width > 6 && lr.height > 6 && pr.width > 6 && pr.height > 6) return true;
+      }
+    } catch(e) {}
+    return false;
+  }
+  function poll() {
+    if (isShellReady() || Date.now() - start >= maxWait) {
+      fire();
+      return;
+    }
+    setTimeout(poll, 450);
+  }
+  function kick() {
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(poll, 350);
+    } else {
+      document.addEventListener('DOMContentLoaded', function(){ setTimeout(poll, 350); }, { once: true });
+      setTimeout(poll, 1200);
+    }
+  }
+  kick();
+})();true;`;
 }
 
 /** JS snippet inlined in MT5 link/trade auth scripts (broker account drawer detection). */
@@ -339,10 +407,11 @@ function mt5SetInputValue(el, val) {
 `;
 
 /** Wait for terminal shell — proceed as soon as login form or session is visible. */
-export const MT5_TERMINAL_READY_WAIT_JS = `
+export function getMt5TerminalReadyWaitJs(shellWaitMs = 8000): string {
+  return `
 async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) {
   sendMessage('step_update', 'Loading broker terminal...');
-  var deadline = Date.now() + 8000;
+  var deadline = Date.now() + ${shellWaitMs};
   while (Date.now() < deadline) {
     if (isTerminalSessionVisible() || mt5LoginFormReady() || connectSheetUiVisible()) {
       sendMessage('step_update', connectSheetUiVisible() ? 'Connect form ready' : 'Terminal ready');
@@ -359,6 +428,9 @@ async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) 
   return false;
 }
 `;
+}
+
+export const MT5_TERMINAL_READY_WAIT_JS = getMt5TerminalReadyWaitJs(8000);
 
 /** @deprecated use MT5_TERMINAL_READY_WAIT_JS */
 export const MT5_WAIT_PAST_CLOUDFLARE_JS = MT5_TERMINAL_READY_WAIT_JS;

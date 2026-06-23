@@ -17,10 +17,11 @@ import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/uti
 import {
   getMt5InnerAuthKickMs,
   getMt5ShellReadyDelayMs,
+  getMt5TerminalReadyWaitJs,
+  isMt5ProxyBlockedBroker,
   MT5_BROKERS,
   MT5_BROKER_SHEET_MARKERS_JS,
   MT5_FORM_INPUT_HELPERS_JS,
-  MT5_TERMINAL_READY_WAIT_JS,
   normalizeMt5ServerKey,
   resolveMt5TerminalUrl,
   resolveMt5LinkWebViewUrl,
@@ -1889,6 +1890,7 @@ export default function MetaTraderScreen() {
     const serverValue = escapeValue(normalizeMt5ServerKey(server.trim()));
     const serverKey = normalizeMt5ServerKey(server.trim());
     const authKickMs = getMt5InnerAuthKickMs(serverKey, Platform.OS === 'android');
+    const shellWaitMs = isMt5ProxyBlockedBroker(serverKey) ? 25000 : 8000;
 
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
@@ -2021,7 +2023,7 @@ export default function MetaTraderScreen() {
 
         ${MT5_BROKER_SHEET_MARKERS_JS}
         ${MT5_FORM_INPUT_HELPERS_JS}
-        ${MT5_TERMINAL_READY_WAIT_JS}
+        ${getMt5TerminalReadyWaitJs(shellWaitMs)}
 
         function isTerminalSessionVisible() {
           try {
@@ -3320,6 +3322,8 @@ export default function MetaTraderScreen() {
               key={`mt5-custom-${mt5WebViewKey}`}
               url={mt5LinkUrl}
               postLoadDelayMs={getMt5ShellReadyDelayMs(server, Platform.OS === 'android')}
+              directTerminalLoad={isMt5ProxyBlockedBroker(server)}
+              brokerServer={normalizeMt5ServerKey(server) || server}
               script={mt5LinkScript}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
