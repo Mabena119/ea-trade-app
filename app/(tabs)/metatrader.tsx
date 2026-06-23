@@ -15,6 +15,8 @@ import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import {
+  getMt5InnerAuthKickMs,
+  getMt5ShellReadyDelayMs,
   MT5_BROKERS,
   MT5_BROKER_SHEET_MARKERS_JS,
   MT5_WAIT_PAST_CLOUDFLARE_JS,
@@ -1158,6 +1160,7 @@ export default function MetaTraderScreen() {
         console.error('MT5 WebView error:', parsedData.message);
       } else if (parsedData.type === 'injection_error') {
         console.error('MT5 JavaScript injection error:', parsedData.error);
+        setAuthenticationStep('Script error — retrying...');
         Alert.alert('Script Injection Error', `Failed to inject authentication script: ${parsedData.error}`);
       } else if (parsedData.type === 'webview_ready') {
         console.log('MT5 WebView is ready for script injection');
@@ -1823,6 +1826,7 @@ export default function MetaTraderScreen() {
   const handleMT5WebView = () => {
     console.log('Opening MT5 Web View...');
     mt5LinkAuthRemountRef.current = 0;
+    setAuthenticationStep('Loading broker terminal...');
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -1874,6 +1878,8 @@ export default function MetaTraderScreen() {
     const loginValue = escapeValue(login.trim());
     const passwordValue = escapeValue(password.trim());
     const serverValue = escapeValue(normalizeMt5ServerKey(server.trim()));
+    const serverKey = normalizeMt5ServerKey(server.trim());
+    const authKickMs = getMt5InnerAuthKickMs(serverKey, Platform.OS === 'android');
 
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
@@ -2184,6 +2190,26 @@ export default function MetaTraderScreen() {
             hideTradingAccountsOverlayIfPresent();
           } catch (eT) {}
           try {
+            if (isAnyLoginModalBlocking()) {
+              if (loginCredential) {
+                var loginIn = document.querySelector('input[name="login"]') ||
+                  document.querySelector('input[type="number"]') ||
+                  document.querySelector('input#login');
+                if (loginIn && (!loginIn.value || String(loginIn.value).trim() === '')) {
+                  setInputValueForOverlay(loginIn, loginCredential);
+                  await new Promise(function(r) { setTimeout(r, 350); });
+                }
+              }
+              if (serverCredential) {
+                var serverIn = document.querySelector('input[name="server"]') ||
+                  document.getElementById('server') ||
+                  document.querySelector('input[placeholder*="server" i]');
+                if (serverIn && (!serverIn.value || String(serverIn.value).trim() === '')) {
+                  setInputValueForOverlay(serverIn, serverCredential);
+                  await new Promise(function(r) { setTimeout(r, 350); });
+                }
+              }
+            }
             if (pw && isAnyLoginModalBlocking()) {
               var pwdIn = document.querySelector('input[type="password"]');
               if (pwdIn && (!pwdIn.value || String(pwdIn.value).trim() === '')) {
@@ -2472,8 +2498,8 @@ export default function MetaTraderScreen() {
           }
         };
         
-        // Start authentication after page loads
-        setTimeout(authenticateMT5, 3000);
+        // Start authentication after page loads (longer kick for Cloudflare brokers)
+        setTimeout(authenticateMT5, ${authKickMs});
       })();
     `;
   };
@@ -3247,6 +3273,7 @@ export default function MetaTraderScreen() {
               key={`mt5-custom-${mt5WebViewKey}`}
               url={resolveMt5TerminalUrl(server)}
               preserveSession={needsMt5SessionPersistence(server)}
+              postLoadDelayMs={getMt5ShellReadyDelayMs(server, Platform.OS === 'android')}
               script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
