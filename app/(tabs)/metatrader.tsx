@@ -3088,7 +3088,9 @@ export default function MetaTraderScreen() {
                             style={[styles.brokerItem, mtChrome.brokerItemChrome]}
                             onPress={() => {
                               console.log('Broker selected:', item);
-                              setServer(item); // Allow selection of any broker from the list
+                              setServer(
+                                activeTab === 'MT5' ? normalizeMt5ServerKey(item) : item
+                              );
                               setShowBrokerList(false);
                             }}
                           >
@@ -3253,11 +3255,11 @@ export default function MetaTraderScreen() {
         </View>
       )}
 
-      {/* MT5 WebView — always hidden (toast-only UX). */}
+      {/* MT5 WebView — visible during link for debugging */}
       {showMT5WebView && (
         <View
           key={`mt5-webview-${mt5WebViewKey}`}
-          style={styles.invisibleWebViewContainer}
+          style={styles.visibleLinkWebViewContainer}
         >
           {Platform.OS === 'web' ? (
             <WebWebView
@@ -3266,7 +3268,7 @@ export default function MetaTraderScreen() {
               url={`/api/mt5-proxy?url=${encodeURIComponent(resolveMt5TerminalUrl(server))}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(normalizeMt5ServerKey(server) || 'RazorMarkets-Live')}`}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
-              style={styles.invisibleWebView}
+              style={styles.visibleLinkWebView}
             />
           ) : (
             <CustomWebView
@@ -3277,7 +3279,7 @@ export default function MetaTraderScreen() {
               script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
-              style={styles.invisibleWebView}
+              style={styles.visibleLinkWebView}
             />
           )}
         </View>
@@ -4036,5 +4038,25 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 350,
     opacity: 0,
+  },
+  /** MT5 link auth — visible terminal for debugging broker login flows */
+  visibleLinkWebViewContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 118 : 98,
+    left: 10,
+    right: 10,
+    bottom: Platform.OS === 'ios' ? 92 : 72,
+    zIndex: 9000,
+    elevation: 9000,
+    backgroundColor: '#0a0a0a',
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(37, 211, 102, 0.45)',
+  },
+  visibleLinkWebView: {
+    flex: 1,
+    width: '100%',
+    opacity: 1,
   },
 });

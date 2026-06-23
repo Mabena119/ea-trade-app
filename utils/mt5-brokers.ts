@@ -52,12 +52,21 @@ export const MT5_BROKER_URLS: Record<string, string> = {
   'JustMarkets-Live2': 'https://live2.justmarkets.com/terminal',
   'JustMarkets-Demo': 'https://demo.justmarkets.com/terminal',
   'JustMarkets-Demo2': 'https://demo2.justmarkets.com/terminal',
-  'JustMarketsSC-Live': 'https://live.justmarkets.com/terminal',
-  'JustMarketsSC-Live2': 'https://live2.justmarkets.com/terminal',
-  'JustMarketsSC-Demo': 'https://demo.justmarkets.com/terminal',
-  'JustMarketsSC-Demo2': 'https://demo2.justmarkets.com/terminal',
   'JPMarkets-Live': 'https://web.jpmarkets.co.za/terminal',
 };
+
+/** Picker list: one entry per terminal URL (no JustMarketsSC duplicates). */
+export const MT5_BROKERS = (() => {
+  const seenUrls = new Set<string>();
+  const list: string[] = [];
+  for (const key of Object.keys(MT5_BROKER_URLS)) {
+    const url = MT5_BROKER_URLS[key];
+    if (seenUrls.has(url)) continue;
+    seenUrls.add(url);
+    list.push(key);
+  }
+  return list;
+})();
 
 /** User-typed or MT5-desktop shorthand → canonical broker key */
 const MT5_SERVER_ALIASES: Record<string, string> = {
@@ -69,17 +78,18 @@ const MT5_SERVER_ALIASES: Record<string, string> = {
   'justmarkets-live': 'JustMarkets-Live',
   'justmarkets-demo2': 'JustMarkets-Demo2',
   'justmarkets-demo': 'JustMarkets-Demo',
-  'justmarketsc-live2': 'JustMarketsSC-Live2',
-  'justmarketsc-live': 'JustMarketsSC-Live',
-  'justmarketsc-demo2': 'JustMarketsSC-Demo2',
-  'justmarketsc-demo': 'JustMarketsSC-Demo',
+  'justmarketsc-live2': 'JustMarkets-Live2',
+  'justmarketsc-live': 'JustMarkets-Live',
+  'justmarketsc-demo2': 'JustMarkets-Demo2',
+  'justmarketsc-demo': 'JustMarkets-Demo',
 };
-
-export const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
 
 export function normalizeMt5ServerKey(server: string): string {
   const trimmed = (server || '').trim();
   if (!trimmed) return '';
+  if (/^JustMarketsSC-/i.test(trimmed)) {
+    return trimmed.replace(/^JustMarketsSC-/i, 'JustMarkets-');
+  }
   if (MT5_BROKER_URLS[trimmed]) return trimmed;
 
   const compact = trimmed.toLowerCase().replace(/\s+/g, '');
