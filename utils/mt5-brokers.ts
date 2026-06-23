@@ -216,6 +216,37 @@ function overlayHasBrokerAccountsText(txt) {
 
 /** Shared login/password field discovery (JustMarkets uses placeholder-only inputs). */
 export const MT5_FORM_INPUT_HELPERS_JS = `
+function mt5WalkDocs(scan) {
+  try {
+    if (scan(document)) return true;
+  } catch (e0) {}
+  var iframes = document.querySelectorAll('iframe');
+  for (var fi = 0; fi < iframes.length; fi++) {
+    try {
+      var idoc = iframes[fi].contentDocument;
+      if (idoc && scan(idoc)) return true;
+    } catch (eIf) {}
+  }
+  return false;
+}
+function mt5QueryInDocs(selector) {
+  var found = null;
+  mt5WalkDocs(function(doc) {
+    var el = doc.querySelector(selector);
+    if (el) { found = el; return true; }
+    return false;
+  });
+  return found;
+}
+function mt5QueryAllInDocs(selector) {
+  var out = [];
+  mt5WalkDocs(function(doc) {
+    var list = doc.querySelectorAll(selector);
+    for (var i = 0; i < list.length; i++) out.push(list[i]);
+    return false;
+  });
+  return out;
+}
 function findMt5LoginInput() {
   var selectors = [
     'input[name="login"]',
@@ -226,10 +257,10 @@ function findMt5LoginInput() {
     'input#login'
   ];
   for (var si = 0; si < selectors.length; si++) {
-    var el = document.querySelector(selectors[si]);
+    var el = mt5QueryInDocs(selectors[si]);
     if (el && mt5InputVisible(el)) return el;
   }
-  var all = document.querySelectorAll('input');
+  var all = mt5QueryAllInDocs('input');
   for (var i = 0; i < all.length; i++) {
     var inp = all[i];
     var ph = ((inp.getAttribute && inp.getAttribute('placeholder')) || '').toLowerCase();
@@ -239,9 +270,9 @@ function findMt5LoginInput() {
       if (mt5InputVisible(inp)) return inp;
     }
   }
-  return document.querySelector('input[name="login"]') ||
-    document.querySelector('input[placeholder*="Enter Login" i]') ||
-    document.querySelector('input[placeholder*="login" i]');
+  return mt5QueryInDocs('input[placeholder*="Enter Login" i]') ||
+    mt5QueryInDocs('input[placeholder*="login" i]') ||
+    mt5QueryInDocs('input[name="login"]');
 }
 function findMt5PasswordInput() {
   var selectors = [
@@ -252,10 +283,10 @@ function findMt5PasswordInput() {
     'input#password'
   ];
   for (var si = 0; si < selectors.length; si++) {
-    var el = document.querySelector(selectors[si]);
+    var el = mt5QueryInDocs(selectors[si]);
     if (el && mt5InputVisible(el)) return el;
   }
-  var all = document.querySelectorAll('input[type="password"], input');
+  var all = mt5QueryAllInDocs('input');
   for (var i = 0; i < all.length; i++) {
     var inp = all[i];
     var ph = ((inp.getAttribute && inp.getAttribute('placeholder')) || '').toLowerCase();
@@ -264,8 +295,8 @@ function findMt5PasswordInput() {
       if (mt5InputVisible(inp)) return inp;
     }
   }
-  return document.querySelector('input[type="password"]') ||
-    document.querySelector('input[placeholder*="Enter Password" i]');
+  return mt5QueryInDocs('input[type="password"]') ||
+    mt5QueryInDocs('input[placeholder*="Enter Password" i]');
 }
 function mt5InputVisible(el) {
   if (!el) return false;
@@ -281,8 +312,11 @@ function connectSheetUiVisible() {
     var loginIn = findMt5LoginInput();
     var pwdIn = findMt5PasswordInput();
     if (mt5InputVisible(loginIn) && mt5InputVisible(pwdIn)) return true;
-    var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
-    if (!bt && document.body) bt = document.body.textContent || '';
+    var bt = '';
+    mt5WalkDocs(function(doc) {
+      if (doc.body) bt += (doc.body.innerText || doc.body.textContent || '') + '\\n';
+      return false;
+    });
     if (bt.indexOf('Connect to account') < 0) return false;
     return pageHasBrokerAccountsSheet(bt) ||
       bt.indexOf('Enter Login') >= 0 ||
@@ -354,7 +388,99 @@ async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) 
 export const MT5_WAIT_PAST_CLOUDFLARE_JS = MT5_TERMINAL_READY_WAIT_JS;
 
 /**
- * Injected into the link WebView for Cloudflare brokers (JustMarkets).
+ * Runs automatically via WebView `injectedJavaScript` on every JustMarkets page load.
+ * Does not depend on React `onLoadEnd` timers (which get cancelled by re-renders / redirects).
+ */
+export const MT5_LINK_AUTOWATCH_JS = `
+(function(){
+  try {
+    if (window.__eaMt5AutoWatch) return;
+    window.__eaMt5AutoWatch = true;
+    var fired = false;
+    var started = Date.now();
+    var maxWait = 90000;
+    var forceAt = 8000;
+    function post(type, message) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, message: message || '' }));
+      } catch (e) {}
+    }
+    function rectOk(el) {
+      if (!el) return false;
+      try {
+        var st = window.getComputedStyle(el);
+        if (st.display === 'none' || st.visibility === 'hidden') return false;
+        var r = el.getBoundingClientRect();
+        return r.width > 6 && r.height > 6;
+      } catch (e) { return !!el; }
+    }
+    function scanDoc(doc) {
+      if (!doc) return false;
+      try {
+        var loginIn = doc.querySelector('input[placeholder*="Enter Login" i], input[placeholder*="login" i], input[name="login"], input[name="Login"]');
+        var pwdIn = doc.querySelector('input[placeholder*="Enter Password" i], input[type="password"], input[name="password"]');
+        if (rectOk(loginIn) && rectOk(pwdIn)) return true;
+        var bt = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
+        if (bt.indexOf('Connect to account') >= 0 &&
+          (bt.indexOf('Just Global') >= 0 || bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Enter Login') >= 0 || bt.indexOf('Razor Markets') >= 0)) {
+          return true;
+        }
+        if (bt.indexOf('Trading accounts') >= 0 && (bt.indexOf('Remove') >= 0 || bt.indexOf('Connect to account') >= 0)) return true;
+        var sb = doc.querySelector('input[placeholder*="Search symbol" i], input[placeholder*="Search" i]');
+        if (rectOk(sb)) return true;
+      } catch (e) {}
+      return false;
+    }
+    function walkFrames(doc) {
+      if (scanDoc(doc)) return true;
+      var iframes = doc.querySelectorAll('iframe');
+      for (var i = 0; i < iframes.length; i++) {
+        try {
+          var inner = iframes[i].contentDocument;
+          if (inner && walkFrames(inner)) return true;
+        } catch (e2) {}
+      }
+      return false;
+    }
+    function isShellReady() {
+      return walkFrames(document);
+    }
+    function fire(reason) {
+      if (fired) return;
+      fired = true;
+      post('terminal_shell_detected', reason);
+      post('page_ready_for_script', reason);
+    }
+    function tick() {
+      if (fired) return true;
+      if (isShellReady()) {
+        fire('Broker terminal UI detected');
+        return true;
+      }
+      var elapsed = Date.now() - started;
+      var onJm = false;
+      try { onJm = /justmarkets\\.com/i.test(window.location.hostname || ''); } catch (eH) {}
+      if (onJm && elapsed >= forceAt) {
+        fire('JustMarkets terminal — starting auth');
+        return true;
+      }
+      if (elapsed >= maxWait) {
+        fire('Broker terminal load timeout — continuing');
+        return true;
+      }
+      return false;
+    }
+    tick();
+    if (!fired && document.body && typeof MutationObserver !== 'undefined') {
+      var mo = new MutationObserver(function() { tick(); });
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+    var iv = setInterval(function() {
+      if (tick()) clearInterval(iv);
+    }, 400);
+  } catch (e) {}
+})();
+`;
  * Other brokers fire a single load with a login form; JustMarkets may redirect through
  * Cloudflare then hydrate the "Connect to account" sheet via SPA — a fixed post-load delay
  * often runs before that UI exists. This probe watches the DOM and signals when the shell is ready.

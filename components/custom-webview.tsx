@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { getMt5LinkShellProbeJs } from '@/utils/mt5-brokers';
+import { MT5_LINK_AUTOWATCH_JS } from '@/utils/mt5-brokers';
 
 interface CustomWebViewProps {
   url: string;
@@ -29,6 +29,11 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   const authStartedRef = useRef(false);
   const authFinalizedRef = useRef(false);
   const loadGenerationRef = useRef(0);
+  const scriptRef = useRef(script);
+  const preserveSessionRef = useRef(preserveSession);
+
+  scriptRef.current = script;
+  preserveSessionRef.current = preserveSession;
 
   const clearInjectTimer = useCallback(() => {
     if (injectTimerRef.current) {
@@ -37,17 +42,19 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
     }
   }, []);
 
+  // Only reset inject state when the URL changes — NOT when the parent re-renders with a new script string.
   useEffect(() => {
     authStartedRef.current = false;
     authFinalizedRef.current = false;
     loadGenerationRef.current += 1;
     clearInjectTimer();
-  }, [url, script, clearInjectTimer]);
+  }, [url, clearInjectTimer]);
 
   useEffect(() => () => clearInjectTimer(), [clearInjectTimer]);
 
   const injectScript = useCallback(() => {
-    if (!webViewRef.current || !script?.trim() || authStartedRef.current) {
+    const currentScript = scriptRef.current;
+    if (!webViewRef.current || !currentScript?.trim() || authStartedRef.current) {
       return;
     }
     authStartedRef.current = true;
@@ -57,7 +64,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
       try {
         if (window.__eaMt5LinkAuthStarted) return;
         window.__eaMt5LinkAuthStarted = true;
-        eval(${JSON.stringify(script)});
+        eval(${JSON.stringify(currentScript)});
       } catch (error) {
         console.error('Error executing automation script:', error);
         try {
@@ -70,34 +77,20 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
     })();true;`;
 
     webViewRef.current.injectJavaScript(wrapped);
-  }, [script]);
-
-  const injectShellProbe = useCallback((generation: number) => {
-    if (!webViewRef.current || authStartedRef.current) {
-      return;
-    }
-    webViewRef.current.injectJavaScript(getMt5LinkShellProbeJs(generation));
   }, []);
 
   const scheduleInjectAfterLoad = useCallback(() => {
-    clearInjectTimer();
-    const generation = loadGenerationRef.current;
-
-    if (preserveSession) {
-      // JustMarkets: redirect chain + SPA hydrate — watch DOM instead of a single fixed delay.
-      const initialDelay = 1200;
-      injectTimerRef.current = setTimeout(() => {
-        if (generation !== loadGenerationRef.current || authStartedRef.current) {
-          return;
-        }
-        injectShellProbe(generation);
-      }, initialDelay);
+    if (authFinalizedRef.current) {
       return;
     }
+    clearInjectTimer();
+    const generation = loadGenerationRef.current;
+    const delay = preserveSessionRef.current
+      ? 2500
+      : Math.max(800, postLoadDelayMs);
 
-    const delay = Math.max(800, postLoadDelayMs);
     injectTimerRef.current = setTimeout(() => {
-      if (generation !== loadGenerationRef.current || authStartedRef.current) {
+      if (generation !== loadGenerationRef.current || authStartedRef.current || authFinalizedRef.current) {
         return;
       }
       if (!webViewRef.current) {
@@ -106,9 +99,14 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
 
       webViewRef.current.injectJavaScript(`(function waitForPageReady(){
         var gen = ${generation};
+        var preserve = ${preserveSessionRef.current ? 'true' : 'false'};
         function fire(){
           try {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'page_ready_for_script', gen: gen }));
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'page_ready_for_script',
+              gen: gen,
+              preserve: preserve
+            }));
           } catch(e) {}
         }
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -119,23 +117,22 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         }
       })();true;`);
     }, delay);
-  }, [clearInjectTimer, injectShellProbe, postLoadDelayMs, preserveSession]);
+  }, [clearInjectTimer, postLoadDelayMs]);
 
   const handleLoadStart = useCallback(() => {
-    // Cloudflare brokers navigate several times; do not reset auth or cancel probes mid-chain.
-    if (preserveSession) {
+    if (preserveSessionRef.current) {
       return;
     }
     clearInjectTimer();
-  }, [clearInjectTimer, preserveSession]);
+  }, [clearInjectTimer]);
 
   const handleLoadEnd = useCallback(() => {
     console.log('WebView load ended, scheduling script injection...');
-    if (preserveSession && !authFinalizedRef.current) {
+    if (preserveSessionRef.current && !authFinalizedRef.current) {
       authStartedRef.current = false;
       try {
         webViewRef.current?.injectJavaScript(
-          'window.__eaMt5LinkProbeDone=false;window.__eaMt5LinkAuthStarted=false;true;'
+          'window.__eaMt5LinkAuthStarted=false;true;'
         );
       } catch (e) {
         // ignore
@@ -143,23 +140,21 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
     }
     scheduleInjectAfterLoad();
     onLoadEnd?.();
-  }, [onLoadEnd, preserveSession, scheduleInjectAfterLoad]);
+  }, [onLoadEnd, scheduleInjectAfterLoad]);
 
-  const handleMessage = (event: any) => {
+  const handleMessage = useCallback((event: any) => {
     try {
       const data = event.nativeEvent?.data
         ? JSON.parse(event.nativeEvent.data)
         : event;
 
       if (data.type === 'terminal_shell_detected') {
-        if (typeof data.gen === 'number' && data.gen !== loadGenerationRef.current) {
-          return;
-        }
         console.log('Broker terminal shell detected:', data.message);
       }
 
       if (data.type === 'page_ready_for_script') {
-        if (typeof data.gen === 'number' && data.gen !== loadGenerationRef.current) {
+        const preserve = preserveSessionRef.current || data.preserve === true;
+        if (!preserve && typeof data.gen === 'number' && data.gen !== loadGenerationRef.current) {
           return;
         }
         console.log('Page ready, injecting automation script...');
@@ -171,13 +166,17 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         authFinalizedRef.current = true;
       }
 
+      if (data.type === 'injection_error') {
+        authStartedRef.current = false;
+      }
+
       onMessage?.(data);
     } catch (error) {
       console.log('Error parsing WebView message:', error);
     }
-  };
+  }, [injectScript, onMessage]);
 
-  const injectedJavaScript = `
+  const injectedJavaScript = useMemo(() => `
 (function(){
   try {
     ${preserveSession ? '' : `
@@ -202,6 +201,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
       }
     } catch(e) {}
     `}
+    ${preserveSession ? MT5_LINK_AUTOWATCH_JS : ''}
     var ow = console.warn;
     var oe = console.error;
     console.warn = function(){
@@ -218,7 +218,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   } catch(e) {}
 })();
 true;
-`;
+`, [preserveSession]);
 
   return (
     <View style={[styles.container, style]}>

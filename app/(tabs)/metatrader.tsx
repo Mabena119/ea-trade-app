@@ -2560,6 +2560,11 @@ export default function MetaTraderScreen() {
     `;
   };
 
+  const mt5LinkScript = useMemo(
+    () => (showMT5WebView ? getMT5Script() : ''),
+    [showMT5WebView, mt5WebViewKey, login, password, server]
+  );
+
   // Get MT4 JavaScript injection script
   const getMT4Script = () => {
     return `
@@ -3329,7 +3334,7 @@ export default function MetaTraderScreen() {
               key={`mt5-web-${mt5WebViewKey}`}
               scopeId={WEBVIEW_SCOPE_MT5_LINK}
               url={mt5LinkUrl}
-              script={mt5CanInjectScript ? getMT5Script() : undefined}
+              script={mt5CanInjectScript ? mt5LinkScript : undefined}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
               style={styles.visibleLinkWebView}
@@ -3340,7 +3345,7 @@ export default function MetaTraderScreen() {
               url={mt5TerminalUrl}
               preserveSession={needsMt5SessionPersistence(server)}
               postLoadDelayMs={getMt5ShellReadyDelayMs(server, Platform.OS === 'android')}
-              script={getMT5Script()}
+              script={mt5LinkScript}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
               style={styles.visibleLinkWebView}
