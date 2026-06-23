@@ -92,8 +92,8 @@ android {
         applicationId 'app.eatrade.automated.forex.trading.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 87
-        versionName "1.0.35"
+        versionCode 88
+        versionName "1.0.36"
     }
     signingConfigs {
         debug {

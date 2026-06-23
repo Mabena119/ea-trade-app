@@ -19,6 +19,7 @@ import {
   getMt5ShellReadyDelayMs,
   MT5_BROKERS,
   MT5_BROKER_SHEET_MARKERS_JS,
+  MT5_FORM_INPUT_HELPERS_JS,
   MT5_TERMINAL_READY_WAIT_JS,
   normalizeMt5ServerKey,
   needsMt5SessionPersistence,
@@ -2012,6 +2013,7 @@ export default function MetaTraderScreen() {
         const serverCredential = '${serverValue}';
 
         ${MT5_BROKER_SHEET_MARKERS_JS}
+        ${MT5_FORM_INPUT_HELPERS_JS}
         ${MT5_TERMINAL_READY_WAIT_JS}
 
         function isTerminalSessionVisible() {
@@ -2034,12 +2036,9 @@ export default function MetaTraderScreen() {
 
         function isConnectModalVisible() {
           try {
-            var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
-            if (bt.indexOf('Connect to account') < 0) return false;
-            var pwd = document.querySelector('input[type="password"]');
-            if (!pwd || !pwd.offsetParent) return false;
-            var rr = pwd.getBoundingClientRect();
-            return rr.width > 0 && rr.height > 0;
+            if (!connectSheetUiVisible()) return false;
+            var pwd = findMt5PasswordInput();
+            return mt5InputVisible(pwd);
           } catch (e) { return false; }
         }
 
@@ -2065,12 +2064,13 @@ export default function MetaTraderScreen() {
 
         function isTradingAccountsSheetVisible() {
           try {
-            if (!isTerminalSessionVisible()) return false;
             var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
             var hasTitle = bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Trading account') >= 0 ||
               (pageHasBrokerAccountsSheet(bt) && (bt.indexOf('Connect to account') >= 0 || bt.indexOf('Remove') >= 0));
             if (!hasTitle) return false;
-            if (bt.indexOf('Connect to account') < 0 && bt.indexOf('Remove') < 0) return false;
+            if (bt.indexOf('Connect to account') >= 0) return true;
+            if (!isTerminalSessionVisible()) return false;
+            if (bt.indexOf('Remove') < 0) return false;
             return true;
           } catch (e) { return false; }
         }
@@ -2113,6 +2113,7 @@ export default function MetaTraderScreen() {
 
         function hideTradingAccountsOverlayIfPresent() {
           try {
+            if (isConnectToAccountSheetOpen()) return false;
             if (!isTradingAccountsSheetVisible()) return false;
             var root = findTradingAccountsOverlayRoot();
             if (root) {
@@ -2170,19 +2171,7 @@ export default function MetaTraderScreen() {
         }
 
         function setInputValueForOverlay(el, val) {
-          if (!el || val == null || val === '') return;
-          try {
-            el.focus();
-            el.value = '';
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            var nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') && Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-            if (nativeSetter) nativeSetter.call(el, val);
-            else el.value = val;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            el.dispatchEvent(new Event('blur', { bubbles: true }));
-          } catch (e) {}
+          mt5SetInputValue(el, val);
         }
 
         const dismissLoginOverlay = async function() {
@@ -2193,9 +2182,7 @@ export default function MetaTraderScreen() {
           try {
             if (isAnyLoginModalBlocking()) {
               if (loginCredential) {
-                var loginIn = document.querySelector('input[name="login"]') ||
-                  document.querySelector('input[type="number"]') ||
-                  document.querySelector('input#login');
+                var loginIn = findMt5LoginInput();
                 if (loginIn && (!loginIn.value || String(loginIn.value).trim() === '')) {
                   setInputValueForOverlay(loginIn, loginCredential);
                   await new Promise(function(r) { setTimeout(r, 350); });
@@ -2212,7 +2199,7 @@ export default function MetaTraderScreen() {
               }
             }
             if (pw && isAnyLoginModalBlocking()) {
-              var pwdIn = document.querySelector('input[type="password"]');
+              var pwdIn = findMt5PasswordInput();
               if (pwdIn && (!pwdIn.value || String(pwdIn.value).trim() === '')) {
                 setInputValueForOverlay(pwdIn, pw);
                 await new Promise(function(r) { setTimeout(r, 400); });
@@ -2299,13 +2286,51 @@ export default function MetaTraderScreen() {
             hideTradingAccountsOverlayIfPresent();
           } catch (eT2) {}
         };
+
+        async function trySubmitConnectToAccountSheet(sendMessage, sleep) {
+          if (!isConnectToAccountSheetOpen()) return false;
+          var loginIn = findMt5LoginInput();
+          var pwdIn = findMt5PasswordInput();
+          if (!loginIn || !pwdIn || !loginCredential || !passwordCredential) return false;
+          setInputValueForOverlay(loginIn, loginCredential);
+          sendMessage('step_update', 'Login filled');
+          await sleep(450);
+          setInputValueForOverlay(pwdIn, passwordCredential);
+          sendMessage('step_update', 'Password filled');
+          await sleep(500);
+          var btns = document.querySelectorAll('button, [role="button"], .button');
+          for (var i = 0; i < btns.length; i++) {
+            var t = ((btns[i].innerText || btns[i].textContent || '') + '').trim().toLowerCase();
+            if (t.indexOf('connect') >= 0 && t.indexOf('account') >= 0) {
+              btns[i].click();
+              sendMessage('step_update', 'Connecting to Server...');
+              await sleep(7000);
+              return true;
+            }
+          }
+          return false;
+        };
         
         const authenticateMT5 = async () => {
           try {
             sendMessage('step_update', 'Initializing MT5 Account...');
             if (!(await waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible))) return;
-            await sleep(2500);
-            
+            await sleep(1200);
+
+            var connectedViaSheet = false;
+            for (var sheetAttempt = 0; sheetAttempt < 30; sheetAttempt++) {
+              if (connectSheetUiVisible()) {
+                if (mt5LoginFormReady()) {
+                  connectedViaSheet = await trySubmitConnectToAccountSheet(sendMessage, sleep);
+                  if (connectedViaSheet) break;
+                }
+                sendMessage('step_update', 'Connect form detected — filling credentials...');
+              }
+              if (!connectSheetUiVisible() && isTerminalSessionVisible()) break;
+              await sleep(900);
+            }
+
+            if (!connectedViaSheet) {
             // Check for disclaimer and accept if present
             const disclaimer = document.querySelector('#disclaimer');
             if (disclaimer) {
@@ -2427,7 +2452,8 @@ export default function MetaTraderScreen() {
               sendMessage('authentication_failed', 'Login button not found');
               return;
             }
-            
+            }
+
             sendMessage('step_update', 'Verifying authentication...');
             await sleep(3000);
             for (var ov2 = 0; ov2 < 6; ov2++) {

@@ -29,6 +29,7 @@ import {
   getMt5ShellReadyDelayMs,
   getMt5WebViewBootstrapJs,
   MT5_BROKER_SHEET_MARKERS_JS,
+  MT5_FORM_INPUT_HELPERS_JS,
   MT5_TERMINAL_READY_WAIT_JS,
   needsMt5SessionPersistence,
   normalizeMt5ServerKey,
@@ -653,6 +654,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         });
 
         ${MT5_BROKER_SHEET_MARKERS_JS}
+        ${MT5_FORM_INPUT_HELPERS_JS}
         ${MT5_TERMINAL_READY_WAIT_JS}
 
         function isTerminalSessionVisible() {
@@ -676,21 +678,16 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         /** True when MT5 shows the in-terminal "Connect to account" sheet on top of the chart (session reconnect). */
         function isConnectModalVisible() {
           try {
-            var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
-            if (bt.indexOf('Connect to account') < 0) return false;
-            var pwd = document.querySelector('input[type="password"]');
-            if (!pwd || !pwd.offsetParent) return false;
-            var rr = pwd.getBoundingClientRect();
-            return rr.width > 0 && rr.height > 0;
+            if (!connectSheetUiVisible()) return false;
+            var pwd = findMt5PasswordInput();
+            return mt5InputVisible(pwd);
           } catch (e) { return false; }
         }
 
         function isPasswordInModalOverlay() {
           try {
-            var pwd = document.querySelector('input[type="password"]');
-            if (!pwd || !pwd.offsetParent) return false;
-            var rr = pwd.getBoundingClientRect();
-            if (rr.width < 8 || rr.height < 8) return false;
+            var pwd = findMt5PasswordInput();
+            if (!mt5InputVisible(pwd)) return false;
             var node = pwd;
             for (var d = 0; d < 28 && node; d++) {
               var cls = String(node.className || '');
@@ -708,12 +705,13 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         /** Razor Markets / MT5 "Trading accounts" drawer (Connect + Remove); blocks chart; may show Error (10) without a password field. */
         function isTradingAccountsSheetVisible() {
           try {
-            if (!isTerminalSessionVisible()) return false;
             var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
             var hasTitle = bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Trading account') >= 0 ||
               (pageHasBrokerAccountsSheet(bt) && (bt.indexOf('Connect to account') >= 0 || bt.indexOf('Remove') >= 0));
             if (!hasTitle) return false;
-            if (bt.indexOf('Connect to account') < 0 && bt.indexOf('Remove') < 0) return false;
+            if (bt.indexOf('Connect to account') >= 0) return true;
+            if (!isTerminalSessionVisible()) return false;
+            if (bt.indexOf('Remove') < 0) return false;
             return true;
           } catch (e) { return false; }
         }
@@ -756,6 +754,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
         function hideTradingAccountsOverlayIfPresent() {
           try {
+            if (isConnectToAccountSheetOpen()) return false;
             if (!isTradingAccountsSheetVisible()) return false;
             var root = findTradingAccountsOverlayRoot();
             if (root) {
@@ -814,19 +813,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         }
 
         function setInputValueForOverlay(el, val) {
-          if (!el || val == null || val === '') return;
-          try {
-            el.focus();
-            el.value = '';
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            var nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') && Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-            if (nativeSetter) nativeSetter.call(el, val);
-            else el.value = val;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            el.dispatchEvent(new Event('blur', { bubbles: true }));
-          } catch (e) {}
+          mt5SetInputValue(el, val);
         }
 
         /** Dismiss any post-login modal so only the logged-in terminal (and chart) remains visible. */
@@ -839,9 +826,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           try {
             if (isAnyLoginModalBlocking()) {
               if (loginModal) {
-                var loginIn = document.querySelector('input[name="login"]') ||
-                  document.querySelector('input[type="number"]') ||
-                  document.querySelector('input#login');
+                var loginIn = findMt5LoginInput();
                 if (loginIn && (!loginIn.value || String(loginIn.value).trim() === '')) {
                   setInputValueForOverlay(loginIn, loginModal);
                   await new Promise(function(r) { setTimeout(r, 350); });
@@ -859,7 +844,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
               }
             }
             if (pw && isAnyLoginModalBlocking()) {
-              var pwdIn = document.querySelector('input[type="password"]');
+              var pwdIn = findMt5PasswordInput();
               if (pwdIn && (!pwdIn.value || String(pwdIn.value).trim() === '')) {
                 setInputValueForOverlay(pwdIn, pw);
                 await new Promise(function(r) { setTimeout(r, 400); });
@@ -1505,12 +1490,51 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
           return false;
         };
 
+        async function trySubmitConnectToAccountSheet(sendMessage, sleep) {
+          if (!isConnectToAccountSheetOpen()) return false;
+          var loginIn = findMt5LoginInput();
+          var pwdIn = findMt5PasswordInput();
+          if (!loginIn || !pwdIn || !'${loginVal}' || !'${passwordVal}') return false;
+          setInputValueForOverlay(loginIn, '${loginVal}');
+          sendMessage('step_update', 'Login filled');
+          await new Promise(function(r) { setTimeout(r, 450); });
+          setInputValueForOverlay(pwdIn, '${passwordVal}');
+          sendMessage('step_update', 'Password filled');
+          await new Promise(function(r) { setTimeout(r, 500); });
+          var btns = document.querySelectorAll('button, [role="button"], .button');
+          for (var i = 0; i < btns.length; i++) {
+            var t = ((btns[i].innerText || btns[i].textContent || '') + '').trim().toLowerCase();
+            if (t.indexOf('connect') >= 0 && t.indexOf('account') >= 0) {
+              btns[i].click();
+              sendMessage('step_update', 'Connecting to Server...');
+              await new Promise(function(r) { setTimeout(r, 7000); });
+              return true;
+            }
+          }
+          return false;
+        }
+
         // Optimized authentication function matching Android robustness
         const authenticateMT5 = async () => {
           try {
             sendMessage('step_update', 'Initializing MT5 Account...');
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             if (!(await waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible))) return;
+
+            var connectedViaSheet = false;
+            for (var sheetAttempt = 0; sheetAttempt < 30; sheetAttempt++) {
+              if (connectSheetUiVisible()) {
+                if (mt5LoginFormReady()) {
+                  connectedViaSheet = await trySubmitConnectToAccountSheet(sendMessage, sleep);
+                  if (connectedViaSheet) break;
+                }
+                sendMessage('step_update', 'Connect form detected — filling credentials...');
+              }
+              if (!connectSheetUiVisible() && isTerminalSessionVisible()) break;
+              await sleep(900);
+            }
+
+            if (!connectedViaSheet) {
             // Wait for page to be ready (some brokers load slower)
             let retries = 0;
             while (retries < ${formProbeMaxRetries}) {
@@ -1656,6 +1680,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             } else {
               sendMessage('authentication_failed', 'Login button not found');
               return;
+            }
             }
             
             // Check for successful login
