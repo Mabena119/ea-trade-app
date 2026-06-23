@@ -13,7 +13,7 @@ import {
   isPushConfigured,
 } from './services/push-service';
 import { startWebPushSignalsPolling, pollWebPushSignalsNow } from './services/web-push-signals-polling';
-import { normalizeMt5ServerKey, resolveMt5TerminalUrl } from './utils/mt5-brokers';
+import { normalizeMt5ServerKey, resolveMt5TerminalUrl, needsMt5SessionPersistence, mt5CloudflareDirectLoadHtml } from './utils/mt5-brokers';
 import { patchMt5InlineAuthScript } from './utils/mt5-server-auth-script-patch';
 // Declare Bun global for TypeScript linting in non-Bun tooling contexts
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -368,6 +368,12 @@ async function handleApi(request: Request): Promise<Response> {
     });
 
     if (!response.ok) {
+            if (needsMt5SessionPersistence(broker)) {
+              return new Response(mt5CloudflareDirectLoadHtml(terminalUrl), {
+                status: 200,
+                headers: { 'Content-Type': 'text/html; charset=utf-8' },
+              });
+            }
             return new Response(`Failed to fetch terminal: ${response.statusText}`, { status: response.status });
     }
 
@@ -1155,6 +1161,12 @@ async function handleApi(request: Request): Promise<Response> {
           });
 
           if (!response.ok) {
+            if (needsMt5SessionPersistence(broker)) {
+              return new Response(mt5CloudflareDirectLoadHtml(terminalUrl), {
+                status: 200,
+                headers: { 'Content-Type': 'text/html; charset=utf-8' },
+              });
+            }
             return new Response(`Failed to fetch terminal: ${response.statusText}`, { status: response.status });
           }
 

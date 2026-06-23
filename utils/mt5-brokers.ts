@@ -114,6 +114,26 @@ export function needsMt5SessionPersistence(server: string): boolean {
   return url.includes('justmarkets.com');
 }
 
+/**
+ * Cloudflare blocks server-side fetches — load the broker terminal URL directly in the
+ * WebView/iframe instead of /api/mt5-proxy (which returns 403 Forbidden).
+ */
+export function shouldLoadMt5TerminalDirectly(server: string): boolean {
+  return needsMt5SessionPersistence(server);
+}
+
+/** HTML shell: redirect browser/WebView iframe to broker terminal when proxy fetch is blocked. */
+export function mt5CloudflareDirectLoadHtml(terminalUrl: string): string {
+  const safe = JSON.stringify(terminalUrl);
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="0;url=${terminalUrl.replace(/"/g, '&quot;')}">
+</head><body style="margin:0;background:#0a0a0a;color:#fff;font-family:system-ui,sans-serif;padding:16px">
+<p>Opening broker terminal…</p>
+<script>try{location.replace(${safe});}catch(e){location.href=${safe};}</script>
+</body></html>`;
+}
+
 /** Delay before injecting trading auth script after WebView load (Cloudflare needs longer). */
 export function getMt5ShellReadyDelayMs(server: string, isAndroid: boolean): number {
   if (needsMt5SessionPersistence(server)) {

@@ -23,6 +23,7 @@ import {
   normalizeMt5ServerKey,
   needsMt5SessionPersistence,
   resolveMt5TerminalUrl,
+  shouldLoadMt5TerminalDirectly,
 } from '@/utils/mt5-brokers';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
 
@@ -1826,7 +1827,11 @@ export default function MetaTraderScreen() {
   const handleMT5WebView = () => {
     console.log('Opening MT5 Web View...');
     mt5LinkAuthRemountRef.current = 0;
-    setAuthenticationStep('Loading broker terminal...');
+    setAuthenticationStep(
+      shouldLoadMt5TerminalDirectly(server)
+        ? 'Loading JustMarkets terminal (complete security check if shown)...'
+        : 'Loading broker terminal...'
+    );
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -3256,7 +3261,14 @@ export default function MetaTraderScreen() {
       )}
 
       {/* MT5 WebView — visible during link for debugging */}
-      {showMT5WebView && (
+      {showMT5WebView && (() => {
+        const mt5TerminalUrl = resolveMt5TerminalUrl(server);
+        const mt5DirectTerminal = shouldLoadMt5TerminalDirectly(server);
+        const mt5ProxyUrl = `/api/mt5-proxy?url=${encodeURIComponent(mt5TerminalUrl)}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(normalizeMt5ServerKey(server) || 'RazorMarkets-Live')}`;
+        const mt5LinkUrl = Platform.OS === 'web' && !mt5DirectTerminal ? mt5ProxyUrl : mt5TerminalUrl;
+        const mt5CanInjectScript = Platform.OS !== 'web' || !mt5DirectTerminal;
+
+        return (
         <View
           key={`mt5-webview-${mt5WebViewKey}`}
           style={styles.visibleLinkWebViewContainer}
@@ -3265,7 +3277,8 @@ export default function MetaTraderScreen() {
             <WebWebView
               key={`mt5-web-${mt5WebViewKey}`}
               scopeId={WEBVIEW_SCOPE_MT5_LINK}
-              url={`/api/mt5-proxy?url=${encodeURIComponent(resolveMt5TerminalUrl(server))}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(normalizeMt5ServerKey(server) || 'RazorMarkets-Live')}`}
+              url={mt5LinkUrl}
+              script={mt5CanInjectScript ? getMT5Script() : undefined}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
               style={styles.visibleLinkWebView}
@@ -3273,7 +3286,7 @@ export default function MetaTraderScreen() {
           ) : (
             <CustomWebView
               key={`mt5-custom-${mt5WebViewKey}`}
-              url={resolveMt5TerminalUrl(server)}
+              url={mt5TerminalUrl}
               preserveSession={needsMt5SessionPersistence(server)}
               postLoadDelayMs={getMt5ShellReadyDelayMs(server, Platform.OS === 'android')}
               script={getMT5Script()}
@@ -3283,7 +3296,8 @@ export default function MetaTraderScreen() {
             />
           )}
         </View>
-      )}
+        );
+      })()}
 
       {/* MT4 Authentication Toast */}
       {showMT4WebView && (
