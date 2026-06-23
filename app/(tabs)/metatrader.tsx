@@ -23,6 +23,7 @@ import {
   MT5_TERMINAL_READY_WAIT_JS,
   normalizeMt5ServerKey,
   resolveMt5TerminalUrl,
+  resolveMt5LinkWebViewUrl,
 } from '@/utils/mt5-brokers';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
 
@@ -3297,7 +3298,7 @@ export default function MetaTraderScreen() {
       {showMT5WebView && (() => {
         const mt5TerminalUrl = resolveMt5TerminalUrl(server);
         const mt5ProxyUrl = `/api/mt5-proxy?url=${encodeURIComponent(mt5TerminalUrl)}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(normalizeMt5ServerKey(server) || 'RazorMarkets-Live')}`;
-        const mt5LinkUrl = Platform.OS === 'web' ? mt5ProxyUrl : mt5TerminalUrl;
+        const mt5LinkUrl = resolveMt5LinkWebViewUrl(server, Platform.OS, mt5ProxyUrl);
 
         return (
         <View
@@ -3317,7 +3318,7 @@ export default function MetaTraderScreen() {
           ) : (
             <CustomWebView
               key={`mt5-custom-${mt5WebViewKey}`}
-              url={mt5TerminalUrl}
+              url={mt5LinkUrl}
               postLoadDelayMs={getMt5ShellReadyDelayMs(server, Platform.OS === 'android')}
               script={mt5LinkScript}
               onMessage={onMT5WebViewMessage}

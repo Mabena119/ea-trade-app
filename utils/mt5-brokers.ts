@@ -107,6 +107,36 @@ export function resolveMt5TerminalUrl(server: string): string {
   return MT5_BROKER_URLS[key] || MT5_BROKER_URLS['RazorMarkets-Live'];
 }
 
+/** Brokers whose terminal cannot be server-proxied (Cloudflare blocks fetch → 403). Load direct URL instead. */
+export function isMt5ProxyBlockedBroker(server: string): boolean {
+  return resolveMt5TerminalUrl(server).toLowerCase().includes('justmarkets.com');
+}
+
+/** Link/trade WebView URL: proxy on web for normal brokers; direct terminal URL when proxy would 403. */
+export function resolveMt5LinkWebViewUrl(
+  server: string,
+  platformOs: string,
+  proxyPath: string
+): string {
+  const terminalUrl = resolveMt5TerminalUrl(server);
+  if (platformOs !== 'web' || isMt5ProxyBlockedBroker(server)) {
+    return terminalUrl;
+  }
+  return proxyPath;
+}
+
+/** HTML redirect when server-side proxy fetch is blocked (web fallback). */
+export function mt5CloudflareDirectLoadHtml(terminalUrl: string): string {
+  const safe = JSON.stringify(terminalUrl);
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="0;url=${terminalUrl.replace(/"/g, '&quot;')}">
+</head><body style="margin:0;background:#0a0a0a;color:#fff;font-family:system-ui,sans-serif;padding:16px">
+<p>Opening broker terminal…</p>
+<script>try{location.replace(${safe});}catch(e){location.href=${safe};}</script>
+</body></html>`;
+}
+
 /** Delay before injecting auth script after WebView load. */
 export function getMt5ShellReadyDelayMs(_server: string, isAndroid: boolean): number {
   return isAndroid ? 4800 : 3200;

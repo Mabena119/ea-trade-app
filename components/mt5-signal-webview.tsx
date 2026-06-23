@@ -33,6 +33,7 @@ import {
   MT5_TERMINAL_READY_WAIT_JS,
   normalizeMt5ServerKey,
   resolveMt5TerminalUrl,
+  resolveMt5LinkWebViewUrl,
 } from '@/utils/mt5-brokers';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
@@ -3316,10 +3317,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
 
   const brokerKey = normalizeMt5ServerKey(mt5Account.server || '');
 
-  const proxyUrl = Platform.OS === 'web'
-    ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(brokerKey || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=${encodeURIComponent(volumeFromConfig)}&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}${isChartWarmupSignal ? '&chartWarmup=1' : ''}`
+  const proxyUrl = `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(brokerKey || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=${encodeURIComponent(volumeFromConfig)}&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}${isChartWarmupSignal ? '&chartWarmup=1' : ''}`;
+  const webTradingUrl = Platform.OS === 'web'
+    ? resolveMt5LinkWebViewUrl(mt5Account?.server ?? '', Platform.OS, proxyUrl)
     : null;
-  const webTradingUrl = Platform.OS === 'web' ? proxyUrl : null;
 
   /** Like MetaTrader link MT5: chart warmup is NOT a full-screen Modal — overlay sits on root so tabs/gradient stay visible. */
   const signalOverlay = (
