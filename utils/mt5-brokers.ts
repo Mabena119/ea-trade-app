@@ -212,26 +212,27 @@ function overlayHasBrokerAccountsText(txt) {
 }
 `;
 
-/** Wait for Cloudflare challenge to finish before login automation. */
-export const MT5_WAIT_PAST_CLOUDFLARE_JS = `
+/** Wait for terminal shell — Cloudflare polling only on justmarkets.com (avoids false positives on other brokers). */
+export const MT5_TERMINAL_READY_WAIT_JS = `
 async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) {
   sendMessage('step_update', 'Loading broker terminal...');
+  var needsCf = false;
+  try {
+    needsCf = /justmarkets\\.com/i.test(window.location.hostname || '');
+  } catch (eH) {}
+  if (!needsCf) {
+    await sleep(2500);
+    return true;
+  }
   var deadline = Date.now() + 90000;
-  var lastMsg = '';
   while (Date.now() < deadline) {
     var title = (document.title || '').toLowerCase();
     var html = (document.documentElement && document.documentElement.innerHTML) ? document.documentElement.innerHTML : '';
-    var body = (document.body && document.body.innerText) ? document.body.innerText : '';
     var onCf = title.indexOf('just a moment') >= 0 ||
       title.indexOf('attention required') >= 0 ||
       html.indexOf('challenges.cloudflare.com') >= 0 ||
       html.indexOf('cf-challenge') >= 0 ||
-      html.indexOf('cdn-cgi/challenge') >= 0 ||
-      html.indexOf('cf-browser-verification') >= 0 ||
-      html.indexOf('turnstile') >= 0 ||
-      body.indexOf('Enable JavaScript and cookies') >= 0 ||
-      body.indexOf('Verify you are human') >= 0 ||
-      body.indexOf('security check') >= 0;
+      html.indexOf('cdn-cgi/challenge') >= 0;
     var hasForm = document.querySelector('input[name="login"]') ||
       document.querySelector('input[type="password"]') ||
       document.querySelector('input[name="server"]') ||
@@ -242,14 +243,12 @@ async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) 
       sendMessage('step_update', 'Terminal ready');
       return true;
     }
-    var msg = onCf ? 'Waiting for security check...' : 'Loading broker terminal...';
-    if (msg !== lastMsg) {
-      sendMessage('step_update', msg);
-      lastMsg = msg;
-    }
     await sleep(1600);
   }
-  sendMessage('authentication_failed', 'Broker security check timed out — try Link Account again');
+  sendMessage('authentication_failed', 'Terminal did not load in time — try again');
   return false;
 }
 `;
+
+/** @deprecated use MT5_TERMINAL_READY_WAIT_JS */
+export const MT5_WAIT_PAST_CLOUDFLARE_JS = MT5_TERMINAL_READY_WAIT_JS;

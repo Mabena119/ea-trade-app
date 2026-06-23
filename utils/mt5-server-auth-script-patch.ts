@@ -1,4 +1,4 @@
-import { MT5_BROKER_SHEET_MARKERS_JS, MT5_WAIT_PAST_CLOUDFLARE_JS } from './mt5-brokers';
+import { MT5_BROKER_SHEET_MARKERS_JS, MT5_TERMINAL_READY_WAIT_JS } from './mt5-brokers';
 
 /**
  * Patches duplicated MT5 auth/trading inline scripts in server.ts for JustMarkets + Cloudflare.
@@ -27,7 +27,7 @@ export function patchMt5InlineAuthScript(script: string): string {
     "if ((overlayHasBrokerAccountsText(atxt) || atxt.indexOf('Trading accounts') >= 0) && atxt.indexOf('Connect to account')"
   );
 
-  const markerInjection = `${MT5_BROKER_SHEET_MARKERS_JS}\n${MT5_WAIT_PAST_CLOUDFLARE_JS}\n              `;
+  const markerInjection = `${MT5_BROKER_SHEET_MARKERS_JS}\n${MT5_TERMINAL_READY_WAIT_JS}\n              `;
   if (s.includes('const serverCredential = ')) {
     s = s.replace(/const serverCredential = /, `${markerInjection}const serverCredential = `);
   } else if (s.includes('const loginCredential = ')) {

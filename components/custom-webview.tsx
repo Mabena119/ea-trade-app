@@ -211,12 +211,6 @@ true;
         onHttpError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.log('WebView HTTP error:', nativeEvent);
-          if (nativeEvent.statusCode === 403 && preserveSession) {
-            onMessage?.({
-              type: 'step_update',
-              message: 'Waiting for security check...',
-            });
-          }
         }}
       />
     </View>

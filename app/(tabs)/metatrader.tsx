@@ -19,7 +19,7 @@ import {
   getMt5ShellReadyDelayMs,
   MT5_BROKERS,
   MT5_BROKER_SHEET_MARKERS_JS,
-  MT5_WAIT_PAST_CLOUDFLARE_JS,
+  MT5_TERMINAL_READY_WAIT_JS,
   normalizeMt5ServerKey,
   needsMt5SessionPersistence,
   resolveMt5TerminalUrl,
@@ -1827,11 +1827,7 @@ export default function MetaTraderScreen() {
   const handleMT5WebView = () => {
     console.log('Opening MT5 Web View...');
     mt5LinkAuthRemountRef.current = 0;
-    setAuthenticationStep(
-      shouldLoadMt5TerminalDirectly(server)
-        ? 'Loading JustMarkets terminal (complete security check if shown)...'
-        : 'Loading broker terminal...'
-    );
+    setAuthenticationStep('Loading broker terminal...');
     setShowMT5WebView(true);
     setMT5WebViewKey((k) => k + 1);
   };
@@ -2016,7 +2012,7 @@ export default function MetaTraderScreen() {
         const serverCredential = '${serverValue}';
 
         ${MT5_BROKER_SHEET_MARKERS_JS}
-        ${MT5_WAIT_PAST_CLOUDFLARE_JS}
+        ${MT5_TERMINAL_READY_WAIT_JS}
 
         function isTerminalSessionVisible() {
           try {
