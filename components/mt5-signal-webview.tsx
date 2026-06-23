@@ -1491,7 +1491,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
         };
 
         async function trySubmitConnectToAccountSheet(sendMessage, sleep) {
-          if (!isConnectToAccountSheetOpen()) return false;
+          if (!connectSheetUiVisible()) return false;
           var loginIn = findMt5LoginInput();
           var pwdIn = findMt5PasswordInput();
           if (!loginIn || !pwdIn || !'${loginVal}' || !'${passwordVal}') return false;

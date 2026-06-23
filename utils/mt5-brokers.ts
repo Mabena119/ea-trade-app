@@ -278,7 +278,11 @@ function mt5InputVisible(el) {
 }
 function connectSheetUiVisible() {
   try {
+    var loginIn = findMt5LoginInput();
+    var pwdIn = findMt5PasswordInput();
+    if (mt5InputVisible(loginIn) && mt5InputVisible(pwdIn)) return true;
     var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
+    if (!bt && document.body) bt = document.body.textContent || '';
     if (bt.indexOf('Connect to account') < 0) return false;
     return pageHasBrokerAccountsSheet(bt) ||
       bt.indexOf('Enter Login') >= 0 ||
@@ -319,26 +323,26 @@ function mt5SetInputValue(el, val) {
 /** Wait for terminal shell — proceed as soon as login form or session is visible. */
 export const MT5_TERMINAL_READY_WAIT_JS = `
 async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) {
-  sendMessage('step_update', 'Loading broker terminal...');
-  var needsCf = false;
+  var isJustMarkets = false;
   try {
-    needsCf = /justmarkets\\.com/i.test(window.location.hostname || '');
+    isJustMarkets = /justmarkets\\.com/i.test(window.location.hostname || '');
   } catch (eH) {}
-  var deadline = Date.now() + (needsCf ? 90000 : 8000);
+  sendMessage('step_update', isJustMarkets ? 'Loading JustMarkets terminal...' : 'Loading broker terminal...');
+  var deadline = Date.now() + (isJustMarkets ? 90000 : 8000);
   while (Date.now() < deadline) {
     if (isTerminalSessionVisible() || mt5LoginFormReady() || connectSheetUiVisible()) {
-      sendMessage('step_update', 'Terminal ready');
+      sendMessage('step_update', connectSheetUiVisible() ? 'Connect form ready' : 'Terminal ready');
       return true;
     }
-    if (!needsCf) break;
-    await sleep(1200);
+    if (!isJustMarkets) break;
+    await sleep(800);
   }
-  if (!needsCf) {
+  if (!isJustMarkets) {
     await sleep(1500);
     return true;
   }
   if (isTerminalSessionVisible() || mt5LoginFormReady() || connectSheetUiVisible()) {
-    sendMessage('step_update', 'Terminal ready');
+    sendMessage('step_update', connectSheetUiVisible() ? 'Connect form ready' : 'Terminal ready');
     return true;
   }
   sendMessage('authentication_failed', 'Terminal did not load in time — try again');
@@ -348,3 +352,85 @@ async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) 
 
 /** @deprecated use MT5_TERMINAL_READY_WAIT_JS */
 export const MT5_WAIT_PAST_CLOUDFLARE_JS = MT5_TERMINAL_READY_WAIT_JS;
+
+/**
+ * Injected into the link WebView for Cloudflare brokers (JustMarkets).
+ * Other brokers fire a single load with a login form; JustMarkets may redirect through
+ * Cloudflare then hydrate the "Connect to account" sheet via SPA — a fixed post-load delay
+ * often runs before that UI exists. This probe watches the DOM and signals when the shell is ready.
+ */
+export function getMt5LinkShellProbeJs(generation: number, maxWaitMs = 90000): string {
+  return `
+(function(){
+  try {
+    if (window.__eaMt5LinkProbeDone) return;
+    var gen = ${generation};
+    var deadline = Date.now() + ${maxWaitMs};
+    function rectOk(el) {
+      if (!el) return false;
+      try {
+        var st = window.getComputedStyle(el);
+        if (st.display === 'none' || st.visibility === 'hidden') return false;
+        var r = el.getBoundingClientRect();
+        return r.width > 6 && r.height > 6;
+      } catch (e) { return !!el; }
+    }
+    function isJustMarketsConnectSheet() {
+      var loginIn = document.querySelector('input[placeholder*="Enter Login" i], input[placeholder*="login" i]');
+      var pwdIn = document.querySelector('input[placeholder*="Enter Password" i], input[type="password"]');
+      if (rectOk(loginIn) && rectOk(pwdIn)) return true;
+      var bt = document.body ? (document.body.innerText || document.body.textContent || '') : '';
+      return bt.indexOf('Connect to account') >= 0 &&
+        (bt.indexOf('Just Global') >= 0 || bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Enter Login') >= 0);
+    }
+    function isStandardLoginReady() {
+      var lf = document.querySelector('input[name="login"], input[name="Login"], input#login');
+      var pf = document.querySelector('input[name="password"], input[type="password"]');
+      return rectOk(lf) && rectOk(pf);
+    }
+    function isSessionReady() {
+      var sb = document.querySelector('input[placeholder*="Search symbol" i], input[placeholder*="Search" i], input[type="search"]');
+      return rectOk(sb);
+    }
+    function isShellReady() {
+      return isJustMarketsConnectSheet() || isStandardLoginReady() || isSessionReady();
+    }
+    function fire(reason) {
+      if (window.__eaMt5LinkProbeDone) return;
+      window.__eaMt5LinkProbeDone = true;
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'terminal_shell_detected',
+          message: reason || 'Broker terminal ready',
+          gen: gen
+        }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'page_ready_for_script',
+          gen: gen
+        }));
+      } catch (e) {}
+    }
+    function tick() {
+      if (window.__eaMt5LinkProbeDone) return;
+      if (isShellReady()) {
+        fire('Broker terminal UI detected');
+        return true;
+      }
+      if (Date.now() >= deadline) {
+        fire('Broker terminal load timeout — continuing');
+        return true;
+      }
+      return false;
+    }
+    if (tick()) return;
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+      var mo = new MutationObserver(function() { tick(); });
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+    var iv = setInterval(function() {
+      if (tick()) clearInterval(iv);
+    }, 500);
+  } catch (e) {}
+})();
+true;`;
+}

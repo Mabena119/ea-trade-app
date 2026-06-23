@@ -16,6 +16,7 @@ import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import {
   getMt5InnerAuthKickMs,
+  getMt5InnerAuthFallbackMs,
   getMt5ShellReadyDelayMs,
   MT5_BROKERS,
   MT5_BROKER_SHEET_MARKERS_JS,
@@ -1094,6 +1095,13 @@ export default function MetaTraderScreen() {
 
       if (parsedData.type === 'mt5_loaded') {
         console.log('MT5 terminal loaded successfully');
+      } else if (parsedData.type === 'terminal_shell_detected') {
+        console.log('MT5 terminal shell detected:', parsedData.message);
+        setAuthenticationStep(
+          typeof parsedData.message === 'string' && parsedData.message
+            ? parsedData.message
+            : 'Broker terminal ready'
+        );
       } else if (parsedData.type === 'step_update') {
         console.log('MT5 step:', parsedData.message);
         // Update authentication step for UI feedback
@@ -1882,6 +1890,8 @@ export default function MetaTraderScreen() {
     const serverValue = escapeValue(normalizeMt5ServerKey(server.trim()));
     const serverKey = normalizeMt5ServerKey(server.trim());
     const authKickMs = getMt5InnerAuthKickMs(serverKey, Platform.OS === 'android');
+    const authFallbackMs = getMt5InnerAuthFallbackMs(serverKey, Platform.OS === 'android');
+    const isJustMarketsLink = needsMt5SessionPersistence(serverKey);
 
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
@@ -2288,7 +2298,7 @@ export default function MetaTraderScreen() {
         };
 
         async function trySubmitConnectToAccountSheet(sendMessage, sleep) {
-          if (!isConnectToAccountSheetOpen()) return false;
+          if (!connectSheetUiVisible()) return false;
           var loginIn = findMt5LoginInput();
           var pwdIn = findMt5PasswordInput();
           if (!loginIn || !pwdIn || !loginCredential || !passwordCredential) return false;
@@ -2315,7 +2325,7 @@ export default function MetaTraderScreen() {
           try {
             sendMessage('step_update', 'Initializing MT5 Account...');
             if (!(await waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible))) return;
-            await sleep(1200);
+            if (!connectSheetUiVisible()) await sleep(1200);
 
             var connectedViaSheet = false;
             for (var sheetAttempt = 0; sheetAttempt < 30; sheetAttempt++) {
@@ -2525,8 +2535,27 @@ export default function MetaTraderScreen() {
           }
         };
         
-        // Start authentication after page loads (longer kick for Cloudflare brokers)
-        setTimeout(authenticateMT5, ${authKickMs});
+        // Start authentication after terminal shell is visible (JustMarkets needs fallback kick).
+        var __eaStartAuthOnce = (function() {
+          var done = false;
+          return function() {
+            if (done) return;
+            done = true;
+            void authenticateMT5();
+          };
+        })();
+        var __eaKick = ${authKickMs};
+        var __eaFallback = ${authFallbackMs};
+        if (${isJustMarketsLink}) {
+          if (connectSheetUiVisible() || mt5LoginFormReady()) {
+            __eaStartAuthOnce();
+          } else {
+            setTimeout(__eaStartAuthOnce, __eaKick);
+            setTimeout(__eaStartAuthOnce, __eaFallback);
+          }
+        } else {
+          setTimeout(__eaStartAuthOnce, __eaKick);
+        }
       })();
     `;
   };

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Platform, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { getMt5LinkShellProbeJs } from '@/utils/mt5-brokers';
 
 interface CustomWebViewProps {
   url: string;
@@ -10,7 +11,7 @@ interface CustomWebViewProps {
   style?: any;
   /** Keep cookies/cache (required for Cloudflare-protected brokers like JustMarkets). */
   preserveSession?: boolean;
-  /** Wait after each load before injecting automation (Cloudflare brokers need longer). */
+  /** Wait after each load before injecting automation (non-Cloudflare brokers). */
   postLoadDelayMs?: number;
 }
 
@@ -26,6 +27,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   const webViewRef = useRef<WebView>(null);
   const injectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authStartedRef = useRef(false);
+  const authFinalizedRef = useRef(false);
   const loadGenerationRef = useRef(0);
 
   const clearInjectTimer = useCallback(() => {
@@ -37,6 +39,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
 
   useEffect(() => {
     authStartedRef.current = false;
+    authFinalizedRef.current = false;
     loadGenerationRef.current += 1;
     clearInjectTimer();
   }, [url, script, clearInjectTimer]);
@@ -69,11 +72,30 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
     webViewRef.current.injectJavaScript(wrapped);
   }, [script]);
 
+  const injectShellProbe = useCallback((generation: number) => {
+    if (!webViewRef.current || authStartedRef.current) {
+      return;
+    }
+    webViewRef.current.injectJavaScript(getMt5LinkShellProbeJs(generation));
+  }, []);
+
   const scheduleInjectAfterLoad = useCallback(() => {
     clearInjectTimer();
     const generation = loadGenerationRef.current;
-    const delay = Math.max(800, postLoadDelayMs);
 
+    if (preserveSession) {
+      // JustMarkets: redirect chain + SPA hydrate — watch DOM instead of a single fixed delay.
+      const initialDelay = 1200;
+      injectTimerRef.current = setTimeout(() => {
+        if (generation !== loadGenerationRef.current || authStartedRef.current) {
+          return;
+        }
+        injectShellProbe(generation);
+      }, initialDelay);
+      return;
+    }
+
+    const delay = Math.max(800, postLoadDelayMs);
     injectTimerRef.current = setTimeout(() => {
       if (generation !== loadGenerationRef.current || authStartedRef.current) {
         return;
@@ -97,24 +119,44 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         }
       })();true;`);
     }, delay);
-  }, [clearInjectTimer, postLoadDelayMs]);
+  }, [clearInjectTimer, injectShellProbe, postLoadDelayMs, preserveSession]);
 
   const handleLoadStart = useCallback(() => {
-    authStartedRef.current = false;
+    // Cloudflare brokers navigate several times; do not reset auth or cancel probes mid-chain.
+    if (preserveSession) {
+      return;
+    }
     clearInjectTimer();
-  }, [clearInjectTimer]);
+  }, [clearInjectTimer, preserveSession]);
 
   const handleLoadEnd = useCallback(() => {
     console.log('WebView load ended, scheduling script injection...');
+    if (preserveSession && !authFinalizedRef.current) {
+      authStartedRef.current = false;
+      try {
+        webViewRef.current?.injectJavaScript(
+          'window.__eaMt5LinkProbeDone=false;window.__eaMt5LinkAuthStarted=false;true;'
+        );
+      } catch (e) {
+        // ignore
+      }
+    }
     scheduleInjectAfterLoad();
     onLoadEnd?.();
-  }, [onLoadEnd, scheduleInjectAfterLoad]);
+  }, [onLoadEnd, preserveSession, scheduleInjectAfterLoad]);
 
   const handleMessage = (event: any) => {
     try {
       const data = event.nativeEvent?.data
         ? JSON.parse(event.nativeEvent.data)
         : event;
+
+      if (data.type === 'terminal_shell_detected') {
+        if (typeof data.gen === 'number' && data.gen !== loadGenerationRef.current) {
+          return;
+        }
+        console.log('Broker terminal shell detected:', data.message);
+      }
 
       if (data.type === 'page_ready_for_script') {
         if (typeof data.gen === 'number' && data.gen !== loadGenerationRef.current) {
@@ -126,6 +168,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
 
       if (data.type === 'authentication_success' || data.type === 'authentication_failed') {
         authStartedRef.current = true;
+        authFinalizedRef.current = true;
       }
 
       onMessage?.(data);
