@@ -31,10 +31,8 @@ import {
   MT5_BROKER_SHEET_MARKERS_JS,
   MT5_FORM_INPUT_HELPERS_JS,
   MT5_TERMINAL_READY_WAIT_JS,
-  needsMt5SessionPersistence,
   normalizeMt5ServerKey,
   resolveMt5TerminalUrl,
-  shouldLoadMt5TerminalDirectly,
 } from '@/utils/mt5-brokers';
 import type { MT5TradeMode } from '@/providers/app-provider';
 
@@ -321,11 +319,7 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
     return resolveMt5TerminalUrl(mt5Account.server);
   }, [mt5Account]);
 
-  const mt5PreserveSession = needsMt5SessionPersistence(mt5Account?.server ?? '');
-  const mt5BootstrapJs = useMemo(
-    () => getMt5WebViewBootstrapJs(mt5PreserveSession),
-    [mt5PreserveSession]
-  );
+  const mt5BootstrapJs = useMemo(() => getMt5WebViewBootstrapJs(false), []);
 
   /** Stable reference: inline `source={{ uri }}` changes every render and can reload Android WebView on state updates. */
   const mt5WebViewSource = useMemo(() => {
@@ -3321,13 +3315,11 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
   const robotName = primaryEA?.name || 'EA Trade';
 
   const brokerKey = normalizeMt5ServerKey(mt5Account.server || '');
-  const mt5DirectTerminal = shouldLoadMt5TerminalDirectly(mt5Account?.server ?? '');
 
-  // Web: proxy for standard brokers; direct terminal URL for Cloudflare brokers (same as link flow)
-  const proxyUrl = Platform.OS === 'web' && !mt5DirectTerminal
+  const proxyUrl = Platform.OS === 'web'
     ? `/api/mt5-trading-proxy?url=${encodeURIComponent(mt5Url)}&login=${encodeURIComponent(mt5Account.login || '')}&password=${encodeURIComponent(mt5Account.password || '')}&broker=${encodeURIComponent(brokerKey || 'RazorMarkets-Live')}&symbol=${encodeURIComponent(signal.asset || '')}&action=${encodeURIComponent(signal.action || '')}&sl=${encodeURIComponent(signal.sl || '')}&tp=${encodeURIComponent(signal.tp || '')}&volume=${encodeURIComponent(volumeFromConfig)}&robotName=${encodeURIComponent(robotName)}&numberOfTrades=${encodeURIComponent(numberOfTrades.toString())}${isChartWarmupSignal ? '&chartWarmup=1' : ''}`
     : null;
-  const webTradingUrl = Platform.OS === 'web' ? (mt5DirectTerminal ? mt5Url : proxyUrl) : null;
+  const webTradingUrl = Platform.OS === 'web' ? proxyUrl : null;
 
   /** Like MetaTrader link MT5: chart warmup is NOT a full-screen Modal — overlay sits on root so tabs/gradient stay visible. */
   const signalOverlay = (
@@ -3519,10 +3511,10 @@ export function MT5SignalWebView({ visible, signal, onClose }: MT5SignalWebViewP
             mixedContentMode="compatibility"
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
-            cacheEnabled={mt5PreserveSession}
-            incognito={!mt5PreserveSession}
-            sharedCookiesEnabled={mt5PreserveSession}
-            thirdPartyCookiesEnabled={mt5PreserveSession}
+            cacheEnabled={true}
+            incognito={false}
+            sharedCookiesEnabled={true}
+            thirdPartyCookiesEnabled={true}
           />
         )}
       </View>

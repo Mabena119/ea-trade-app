@@ -134,25 +134,16 @@ export function mt5CloudflareDirectLoadHtml(terminalUrl: string): string {
 </body></html>`;
 }
 
-/** Delay before injecting trading auth script after WebView load (Cloudflare needs longer). */
-export function getMt5ShellReadyDelayMs(server: string, isAndroid: boolean): number {
-  if (needsMt5SessionPersistence(server)) {
-    return isAndroid ? 11000 : 7500;
-  }
+/** Delay before injecting auth script after WebView load. */
+export function getMt5ShellReadyDelayMs(_server: string, isAndroid: boolean): number {
   return isAndroid ? 4800 : 3200;
 }
 
-export function getMt5InnerAuthKickMs(server: string, isAndroid: boolean): number {
-  if (needsMt5SessionPersistence(server)) {
-    return isAndroid ? 4000 : 2500;
-  }
+export function getMt5InnerAuthKickMs(_server: string, isAndroid: boolean): number {
   return isAndroid ? 1200 : 450;
 }
 
-export function getMt5InnerAuthFallbackMs(server: string, isAndroid: boolean): number {
-  if (needsMt5SessionPersistence(server)) {
-    return isAndroid ? 14000 : 10000;
-  }
+export function getMt5InnerAuthFallbackMs(_server: string, isAndroid: boolean): number {
   return isAndroid ? 5600 : 3200;
 }
 
@@ -357,24 +348,16 @@ function mt5SetInputValue(el, val) {
 /** Wait for terminal shell — proceed as soon as login form or session is visible. */
 export const MT5_TERMINAL_READY_WAIT_JS = `
 async function waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible) {
-  var isJustMarkets = false;
-  try {
-    isJustMarkets = /justmarkets\\.com/i.test(window.location.hostname || '');
-  } catch (eH) {}
-  sendMessage('step_update', isJustMarkets ? 'Loading JustMarkets terminal...' : 'Loading broker terminal...');
-  var deadline = Date.now() + (isJustMarkets ? 90000 : 8000);
+  sendMessage('step_update', 'Loading broker terminal...');
+  var deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
     if (isTerminalSessionVisible() || mt5LoginFormReady() || connectSheetUiVisible()) {
       sendMessage('step_update', connectSheetUiVisible() ? 'Connect form ready' : 'Terminal ready');
       return true;
     }
-    if (!isJustMarkets) break;
     await sleep(800);
   }
-  if (!isJustMarkets) {
-    await sleep(1500);
-    return true;
-  }
+  await sleep(1500);
   if (isTerminalSessionVisible() || mt5LoginFormReady() || connectSheetUiVisible()) {
     sendMessage('step_update', connectSheetUiVisible() ? 'Connect form ready' : 'Terminal ready');
     return true;

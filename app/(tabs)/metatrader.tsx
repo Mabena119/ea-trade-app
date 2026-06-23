@@ -15,18 +15,15 @@ import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import {
-  buildMt5JustMarketsLinkAuthJs,
-  getMt5InnerAuthKickMs,
   getMt5InnerAuthFallbackMs,
+  getMt5InnerAuthKickMs,
   getMt5ShellReadyDelayMs,
   MT5_BROKERS,
   MT5_BROKER_SHEET_MARKERS_JS,
   MT5_FORM_INPUT_HELPERS_JS,
   MT5_TERMINAL_READY_WAIT_JS,
   normalizeMt5ServerKey,
-  needsMt5SessionPersistence,
   resolveMt5TerminalUrl,
-  shouldLoadMt5TerminalDirectly,
 } from '@/utils/mt5-brokers';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
 
@@ -1893,7 +1890,6 @@ export default function MetaTraderScreen() {
     const serverKey = normalizeMt5ServerKey(server.trim());
     const authKickMs = getMt5InnerAuthKickMs(serverKey, Platform.OS === 'android');
     const authFallbackMs = getMt5InnerAuthFallbackMs(serverKey, Platform.OS === 'android');
-    const isJustMarketsLink = needsMt5SessionPersistence(serverKey);
 
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
@@ -2548,33 +2544,16 @@ export default function MetaTraderScreen() {
         })();
         var __eaKick = ${authKickMs};
         var __eaFallback = ${authFallbackMs};
-        if (${isJustMarketsLink}) {
-          if (connectSheetUiVisible() || mt5LoginFormReady()) {
-            __eaStartAuthOnce();
-          } else {
-            setTimeout(__eaStartAuthOnce, __eaKick);
-            setTimeout(__eaStartAuthOnce, __eaFallback);
-          }
-        } else {
-          setTimeout(__eaStartAuthOnce, __eaKick);
-        }
+        setTimeout(__eaStartAuthOnce, __eaKick);
+        setTimeout(__eaStartAuthOnce, __eaFallback);
       })();
     `;
   };
 
-  const mt5LinkScript = useMemo(() => {
-    if (!showMT5WebView) return '';
-    const serverKey = normalizeMt5ServerKey(server.trim());
-    if (needsMt5SessionPersistence(serverKey)) {
-      return buildMt5JustMarketsLinkAuthJs(
-        login,
-        password,
-        server,
-        Platform.OS === 'android'
-      );
-    }
-    return getMT5Script();
-  }, [showMT5WebView, mt5WebViewKey, login, password, server]);
+  const mt5LinkScript = useMemo(
+    () => (showMT5WebView ? getMT5Script() : ''),
+    [showMT5WebView, mt5WebViewKey, login, password, server]
+  );
 
   // Get MT4 JavaScript injection script
   const getMT4Script = () => {
@@ -3330,10 +3309,8 @@ export default function MetaTraderScreen() {
       {/* MT5 WebView — visible during link for debugging */}
       {showMT5WebView && (() => {
         const mt5TerminalUrl = resolveMt5TerminalUrl(server);
-        const mt5DirectTerminal = shouldLoadMt5TerminalDirectly(server);
         const mt5ProxyUrl = `/api/mt5-proxy?url=${encodeURIComponent(mt5TerminalUrl)}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(normalizeMt5ServerKey(server) || 'RazorMarkets-Live')}`;
-        const mt5LinkUrl = Platform.OS === 'web' && !mt5DirectTerminal ? mt5ProxyUrl : mt5TerminalUrl;
-        const mt5CanInjectScript = Platform.OS !== 'web' || !mt5DirectTerminal;
+        const mt5LinkUrl = Platform.OS === 'web' ? mt5ProxyUrl : mt5TerminalUrl;
 
         return (
         <View
@@ -3345,7 +3322,7 @@ export default function MetaTraderScreen() {
               key={`mt5-web-${mt5WebViewKey}`}
               scopeId={WEBVIEW_SCOPE_MT5_LINK}
               url={mt5LinkUrl}
-              script={mt5CanInjectScript ? mt5LinkScript : undefined}
+              script={mt5LinkScript}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
               style={styles.visibleLinkWebView}
@@ -3354,7 +3331,6 @@ export default function MetaTraderScreen() {
             <CustomWebView
               key={`mt5-custom-${mt5WebViewKey}`}
               url={mt5TerminalUrl}
-              preserveSession={needsMt5SessionPersistence(server)}
               postLoadDelayMs={getMt5ShellReadyDelayMs(server, Platform.OS === 'android')}
               script={mt5LinkScript}
               onMessage={onMT5WebViewMessage}
