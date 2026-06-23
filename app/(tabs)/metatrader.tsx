@@ -14,6 +14,14 @@ import { getScreenBackgroundColor, isMatrixStyleTheme, useTheme } from '@/provid
 import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
+import {
+  MT5_BROKERS,
+  MT5_BROKER_SHEET_MARKERS_JS,
+  MT5_WAIT_PAST_CLOUDFLARE_JS,
+  normalizeMt5ServerKey,
+  needsMt5SessionPersistence,
+  resolveMt5TerminalUrl,
+} from '@/utils/mt5-brokers';
 import { clearWebTerminalByScope, WEBVIEW_SCOPE_MT5_LINK } from '@/utils/web-terminal-scope';
 
 // Default MT4 Brokers (will be updated from web terminal)
@@ -492,60 +500,7 @@ const DEFAULT_MT4_BROKERS = [
   'TradeFX-SA-Live',
 ];
 
-// MT5 Brokers with URL mapping
-const MT5_BROKER_URLS: Record<string, string> = {
-  'RazorMarkets-Live': 'https://webtrader.razormarkets.co.za/terminal/',
-  'AccuMarkets-Live': 'https://webterminal.accumarkets.co.za/terminal/',
-  'RockWest-Server': 'https://webtrader.rock-west.com/terminal',
-  'MaonoGlobalMarkets-Live': 'https://web.maonoglobalmarkets.com/terminal',
-  'Deriv-Demo': 'https://mt5-demo-web.deriv.com/terminal',
-  'DerivSVG-Server': 'https://mt5-real01-web-svg.deriv.com/terminal',
-  'DerivSVG-Server-02': 'https://mt5-real02-web-svg.deriv.com/terminal',
-  'DerivSVG-Server-03': 'https://mt5-real03-web-svg.deriv.com/terminal',
-  'DerivBVI-Server': 'https://mt5-real01-web-bvi.deriv.com/terminal',
-  'DerivBVI-Server-02': 'https://mt5-real02-web-bvi.deriv.com/terminal',
-  'DerivBVI-Server-03': 'https://mt5-real03-web-bvi.deriv.com/terminal',
-  'DerivBVI-Server-VU': 'https://mt5-real01-web-vu.deriv.com/terminal',
-  'DerivBVI-Server-VU-02': 'https://mt5-real02-web-vu.deriv.com/terminal',
-  'DerivBVI-Server-VU-03': 'https://mt5-real03-web-vu.deriv.com/terminal',
-  'RocketX-Live': 'https://webtrader.rocketx.io:1950/terminal',
-  'Profinwealth-Live': 'https://mt5.profinwealth.com/',
-  'XMGlobal-MT5': 'https://mt5-1.xm-bz.com/terminal?lang=en',
-  'XMGlobal-MT5 2': 'https://mt5-2.xm-bz.com/terminal?lang=en',
-  'XMGlobal-MT5 4': 'https://mt5-4.xm-bz.com/terminal?lang=en',
-  'XMGlobal-MT5 5': 'https://mt5-5.xm-bz.com/terminal?lang=en',
-  'PXBTTrading-1': 'https://mt5.primexbt.com/terminal',
-  'Exness-MT5Real': 'https://mt5real.exwebterm.com/terminal',
-  'Exness-MT5Real2': 'https://mt5real2.exwebterm.com/terminal',
-  'Exness-MT5Real3': 'https://mt5real3.exwebterm.com/terminal',
-  'Exness-MT5Real4': 'https://mt5real4.exwebterm.com/terminal',
-  'Exness-MT5Real5': 'https://mt5real5.exwebterm.com/terminal',
-  'Exness-MT5Real6': 'https://mt5real6.exwebterm.com/terminal',
-  'Exness-MT5Real7': 'https://mt5real7.exwebterm.com/terminal',
-  'Exness-MT5Real8': 'https://mt5real8.exwebterm.com/terminal',
-  'Exness-MT5Real9': 'https://mt5real9.exwebterm.com/terminal',
-  'Exness-MT5Real10': 'https://mt5real10.exwebterm.com/terminal',
-  'Exness-MT5Real11': 'https://mt5real11.exwebterm.com/terminal',
-  'Exness-MT5Real12': 'https://mt5real12.exwebterm.com/terminal',
-  'Exness-MT5Real15': 'https://mt5real15.exwebterm.com/terminal',
-  'Exness-MT5Real17': 'https://mt5real17.exwebterm.com/terminal',
-  'Exness-MT5Real18': 'https://mt5real18.exwebterm.com/terminal',
-  'Exness-MT5Real19': 'https://mt5real19.exwebterm.com/terminal',
-  'Exness-MT5Real20': 'https://mt5real20.exwebterm.com/terminal',
-  'Exness-MT5Real21': 'https://mt5real21.exwebterm.com/terminal',
-  'Exness-MT5Real22': 'https://mt5real22.exwebterm.com/terminal',
-  'Exness-MT5Real23': 'https://mt5real23.exwebterm.com/terminal',
-  'Exness-MT5Real24': 'https://mt5real24.exwebterm.com/terminal',
-  'Weltrade-Real': 'https://mt5.real.weltrade.com/terminal',
-  'Weltrade-Demo': 'https://mt5.demo.weltrade.com/terminal',
-  'JustMarkets-Live': 'https://live.justmarkets.com/terminal',
-  'JustMarkets-Live2': 'https://live2.justmarkets.com/terminal',
-  'JustMarkets-Demo': 'https://demo.justmarkets.com/terminal',
-  'JustMarkets-Demo2': 'https://demo2.justmarkets.com/terminal',
-  'JPMarkets-Live': 'https://web.jpmarkets.co.za/terminal',
-};
-
-const MT5_BROKERS = Object.keys(MT5_BROKER_URLS);
+// MT5 broker list + URLs: @/utils/mt5-brokers (includes JustMarkets + aliases)
 
 export default function MetaTraderScreen() {
   const { theme, themeName } = useTheme();
@@ -1148,7 +1103,7 @@ export default function MetaTraderScreen() {
         await setMT5Account({
           login: login.trim(),
           password: password.trim(),
-          server: server.trim(),
+          server: normalizeMt5ServerKey(server.trim()),
           connected: true,
           equity: typeof parsedData.equity === 'string' ? parsedData.equity : undefined,
           balance: typeof parsedData.balance === 'string' ? parsedData.balance : undefined,
@@ -1156,7 +1111,7 @@ export default function MetaTraderScreen() {
         await setMTAccount({
           type: 'MT5',
           login: login.trim(),
-          server: server.trim(),
+          server: normalizeMt5ServerKey(server.trim()),
           connected: true,
         });
         console.log('✅ MT5 account authenticated successfully!');
@@ -1918,7 +1873,7 @@ export default function MetaTraderScreen() {
 
     const loginValue = escapeValue(login.trim());
     const passwordValue = escapeValue(password.trim());
-    const serverValue = escapeValue(server.trim());
+    const serverValue = escapeValue(normalizeMt5ServerKey(server.trim()));
 
     // Validate that required values are provided
     if (!loginValue || !passwordValue) {
@@ -2049,6 +2004,9 @@ export default function MetaTraderScreen() {
         const passwordCredential = '${passwordValue}';
         const serverCredential = '${serverValue}';
 
+        ${MT5_BROKER_SHEET_MARKERS_JS}
+        ${MT5_WAIT_PAST_CLOUDFLARE_JS}
+
         function isTerminalSessionVisible() {
           try {
             var sb = document.querySelector('input[placeholder*="Search symbol" i]') ||
@@ -2103,7 +2061,7 @@ export default function MetaTraderScreen() {
             if (!isTerminalSessionVisible()) return false;
             var bt = (document.body && document.body.innerText) ? document.body.innerText : '';
             var hasTitle = bt.indexOf('Trading accounts') >= 0 || bt.indexOf('Trading account') >= 0 ||
-              (bt.indexOf('Razor Markets') >= 0 && (bt.indexOf('Connect to account') >= 0 || bt.indexOf('Remove') >= 0));
+              (pageHasBrokerAccountsSheet(bt) && (bt.indexOf('Connect to account') >= 0 || bt.indexOf('Remove') >= 0));
             if (!hasTitle) return false;
             if (bt.indexOf('Connect to account') < 0 && bt.indexOf('Remove') < 0) return false;
             return true;
@@ -2120,7 +2078,7 @@ export default function MetaTraderScreen() {
               if (!el.offsetParent) continue;
               var txt = (el.innerText || '').trim();
               if (txt.length < 40 || txt.length > 2500) continue;
-              if (txt.indexOf('Trading accounts') < 0 && txt.indexOf('Razor Markets') < 0) continue;
+              if (txt.indexOf('Trading accounts') < 0 && !overlayHasBrokerAccountsText(txt)) continue;
               if (txt.indexOf('Connect to account') < 0 && txt.indexOf('Remove') < 0) continue;
               var r = el.getBoundingClientRect();
               var area = r.width * r.height;
@@ -2137,7 +2095,7 @@ export default function MetaTraderScreen() {
                 var node = btns[b];
                 for (var d = 0; d < 22 && node; d++) {
                   var inner = (node.innerText || '').trim();
-                  if (inner.indexOf('Trading accounts') >= 0 || inner.indexOf('Razor Markets') >= 0) return node;
+                  if (inner.indexOf('Trading accounts') >= 0 || overlayHasBrokerAccountsText(inner)) return node;
                   node = node.parentElement;
                 }
               }
@@ -2162,7 +2120,7 @@ export default function MetaTraderScreen() {
               if (!ae.offsetParent) continue;
               var atxt = (ae.innerText || '').trim();
               if (atxt.length > 4000 || atxt.length < 35) continue;
-              if ((atxt.indexOf('Trading accounts') >= 0 || atxt.indexOf('Razor Markets') >= 0) && atxt.indexOf('Connect to account') >= 0) {
+              if ((overlayHasBrokerAccountsText(atxt) || atxt.indexOf('Trading accounts') >= 0) && atxt.indexOf('Connect to account') >= 0) {
                 var ar = ae.getBoundingClientRect();
                 if (ar.width > 120 && ar.height > 80) {
                   ae.style.display = 'none';
@@ -2318,7 +2276,8 @@ export default function MetaTraderScreen() {
         const authenticateMT5 = async () => {
           try {
             sendMessage('step_update', 'Initializing MT5 Account...');
-            await sleep(5500);
+            if (!(await waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible))) return;
+            await sleep(2500);
             
             // Check for disclaimer and accept if present
             const disclaimer = document.querySelector('#disclaimer');
@@ -2410,6 +2369,15 @@ export default function MetaTraderScreen() {
             
             // Wait for fields to be filled
             await sleep(2000);
+
+            var serverField = document.querySelector('input[name="server"]') ||
+              document.getElementById('server') ||
+              document.querySelector('input[placeholder*="server" i]');
+            if (serverField && serverCredential) {
+              setInputValueForOverlay(serverField, serverCredential);
+              sendMessage('step_update', 'Server filled');
+              await sleep(400);
+            }
             
             // Click login button
             sendMessage('step_update', 'Connecting to Server...');
@@ -3269,7 +3237,7 @@ export default function MetaTraderScreen() {
             <WebWebView
               key={`mt5-web-${mt5WebViewKey}`}
               scopeId={WEBVIEW_SCOPE_MT5_LINK}
-              url={`/api/mt5-proxy?url=${encodeURIComponent(MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live'])}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(server || 'RazorMarkets-Live')}`}
+              url={`/api/mt5-proxy?url=${encodeURIComponent(resolveMt5TerminalUrl(server))}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(normalizeMt5ServerKey(server) || 'RazorMarkets-Live')}`}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
               style={styles.invisibleWebView}
@@ -3277,7 +3245,8 @@ export default function MetaTraderScreen() {
           ) : (
             <CustomWebView
               key={`mt5-custom-${mt5WebViewKey}`}
-              url={MT5_BROKER_URLS[server] || MT5_BROKER_URLS['RazorMarkets-Live']}
+              url={resolveMt5TerminalUrl(server)}
+              preserveSession={needsMt5SessionPersistence(server)}
               script={getMT5Script()}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}

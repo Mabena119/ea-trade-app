@@ -13,6 +13,8 @@ import {
   isPushConfigured,
 } from './services/push-service';
 import { startWebPushSignalsPolling, pollWebPushSignalsNow } from './services/web-push-signals-polling';
+import { normalizeMt5ServerKey, resolveMt5TerminalUrl } from './utils/mt5-brokers';
+import { patchMt5InlineAuthScript } from './utils/mt5-server-auth-script-patch';
 // Declare Bun global for TypeScript linting in non-Bun tooling contexts
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 declare const Bun: any;
@@ -347,11 +349,11 @@ async function handleApi(request: Request): Promise<Response> {
     // MT5 Proxy endpoint - fetches MT5 terminal and injects authentication script
     if (pathname === '/api/mt5-proxy') {
       if (request.method === 'GET') {
-        const terminalUrl = url.searchParams.get('url');
+        const broker = normalizeMt5ServerKey(url.searchParams.get('broker') || '');
+        const server = broker;
+        const terminalUrl = url.searchParams.get('url') || resolveMt5TerminalUrl(broker);
         const login = url.searchParams.get('login');
         const password = url.searchParams.get('password');
-        const broker = url.searchParams.get('broker') || '';
-        const server = broker; // Server name is the broker name
 
         if (!terminalUrl) {
           return new Response('Missing terminal URL', { status: 400 });
@@ -1087,15 +1089,15 @@ async function handleApi(request: Request): Promise<Response> {
         `;
 
           // Inject script before closing body tag (EXACTLY like Android)
-          // The script is already embedded in the HTML string, just need to insert it
+          const patchedAuthScript = patchMt5InlineAuthScript(authScript);
           if (html.includes('</body>')) {
-            html = html.replace('</body>', `<script>${authScript}</script></body>`);
+            html = html.replace('</body>', `<script>${patchedAuthScript}</script></body>`);
             console.log('✅ MT5 authentication script injected before </body> tag');
           } else if (html.includes('</html>')) {
-            html = html.replace('</html>', `<script>${authScript}</script></html>`);
+            html = html.replace('</html>', `<script>${patchedAuthScript}</script></html>`);
             console.log('✅ MT5 authentication script injected before </html> tag');
           } else {
-            html += `<script>${authScript}</script>`;
+            html += `<script>${patchedAuthScript}</script>`;
             console.log('✅ MT5 authentication script appended to HTML');
           }
 
@@ -1127,10 +1129,10 @@ async function handleApi(request: Request): Promise<Response> {
     // MT5 Trading Proxy endpoint - fetches MT5 terminal and injects trading script (EXACTLY like Android)
     if (pathname === '/api/mt5-trading-proxy') {
       if (request.method === 'GET') {
-        const terminalUrl = url.searchParams.get('url');
+        const broker = normalizeMt5ServerKey(url.searchParams.get('broker') || '');
+        const terminalUrl = url.searchParams.get('url') || resolveMt5TerminalUrl(broker);
         const login = url.searchParams.get('login');
         const password = url.searchParams.get('password');
-        const broker = url.searchParams.get('broker') || '';
         const symbol = url.searchParams.get('symbol') || '';
         const action = url.searchParams.get('action') || '';
         const sl = url.searchParams.get('sl') || '';
@@ -1413,6 +1415,7 @@ async function handleApi(request: Request): Promise<Response> {
 
               const loginCredential = '${loginValue}';
               const passwordCredential = '${passwordValue}';
+              const serverCredential = '${escapeValue(broker || '')}';
 
               function isTerminalSessionVisible() {
                 try {
@@ -3549,14 +3552,15 @@ async function handleApi(request: Request): Promise<Response> {
           `;
 
           // Inject script before closing body tag
+          const patchedTradingScript = patchMt5InlineAuthScript(tradingScript);
           if (html.includes('</body>')) {
-            html = html.replace('</body>', `<script>${tradingScript}</script></body>`);
+            html = html.replace('</body>', `<script>${patchedTradingScript}</script></body>`);
             console.log('✅ MT5 trading script injected before </body> tag');
           } else if (html.includes('</html>')) {
-            html = html.replace('</html>', `<script>${tradingScript}</script></html>`);
+            html = html.replace('</html>', `<script>${patchedTradingScript}</script></html>`);
             console.log('✅ MT5 trading script injected before </html> tag');
           } else {
-            html += `<script>${tradingScript}</script>`;
+            html += `<script>${patchedTradingScript}</script>`;
             console.log('✅ MT5 trading script appended to HTML');
           }
 
@@ -3859,6 +3863,11 @@ const server = Bun.serve({
           'justmarkets-live2': 'https://live2.justmarkets.com',
           'justmarkets-demo': 'https://demo.justmarkets.com',
           'justmarkets-demo2': 'https://demo2.justmarkets.com',
+          'justmarketsc-live': 'https://live.justmarkets.com',
+          'justmarketsc-live2': 'https://live2.justmarkets.com',
+          'justmarketsc-demo': 'https://demo.justmarkets.com',
+          'justmarketsc-demo2': 'https://demo2.justmarkets.com',
+          'live2': 'https://live2.justmarkets.com',
           'jpmarkets-live': 'https://web.jpmarkets.co.za',
           'jpmarkets': 'https://web.jpmarkets.co.za',
         };

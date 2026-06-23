@@ -411,6 +411,9 @@ interface AppState {
   markTradeExecuted: (symbol: string) => void;
   /** True if the symbol appears in legacy active, MT4, or MT5 configured lists (same as auto-trade). */
   isSymbolConfiguredForTrading: (symbol: string) => boolean;
+  /** Controls the one-time smooth admin/mentor login toast on the dashboard ("Update your MT5 .ex5 file"). */
+  showAdminUpdateToast: boolean;
+  dismissAdminUpdateToast: () => void;
 }
 
 export const [AppProvider, useApp] = createContextHook<AppState>(() => {
@@ -436,6 +439,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [isDatabaseSignalsPolling, setIsDatabaseSignalsPolling] = useState<boolean>(false);
   const [isPollingPaused, setIsPollingPaused] = useState<boolean>(false);
   const showMT5SignalWebViewRef = useRef(showMT5SignalWebView);
+
+  // Admin / mentor MT5 .ex5 update notice (shown once per session on dashboard after login for MI- keys)
+  const [showAdminUpdateToast, setShowAdminUpdateToast] = useState<boolean>(false);
+  const adminToastShownRef = useRef<boolean>(false);
   /** Processed signal keys: id + version stamp (latestupdate/time) so DB row updates / new scans are not treated as duplicates */
   const processedSignalKeysRef = useRef<Set<string>>(new Set());
   // Track last trade execution time per symbol (45-second cooldown)
@@ -910,6 +917,28 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     void loadPersistedData();
   }, []);
+
+  // Reset admin toast flag when no EAs (e.g. after logout/clear)
+  useEffect(() => {
+    if (eas.length === 0) {
+      adminToastShownRef.current = false;
+      setShowAdminUpdateToast(false);
+    }
+  }, [eas.length]);
+
+  // Show the mentor/admin "update MT5 .ex5" toast shortly after an admin (MI-*) key logs in and reaches dashboard
+  useEffect(() => {
+    if (eas.length === 0) return;
+    const hasMentorAdmin = eas.some((ea) => {
+      const key = ((ea as any).licenseKey || (ea as any).k_ey || '').toString().toUpperCase();
+      return key.startsWith('MI-');
+    });
+    if (hasMentorAdmin && !adminToastShownRef.current) {
+      adminToastShownRef.current = true;
+      const t = setTimeout(() => setShowAdminUpdateToast(true), 1100);
+      return () => clearTimeout(t);
+    }
+  }, [eas]);
 
   // On Android, automatically show overlay when bot is active and EAs are loaded
   useEffect(() => {
@@ -2572,6 +2601,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setNewSignal(null);
   }, []);
 
+  const dismissAdminUpdateToast = useCallback(() => {
+    setShowAdminUpdateToast(false);
+  }, []);
+
   const setShowMT5SignalWebViewCallback = useCallback((show: boolean) => {
     setShowMT5SignalWebView(show);
     if (!show) {
@@ -3306,6 +3339,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     stopSignalsMonitoring,
     clearSignalLogs,
     dismissNewSignal,
+    showAdminUpdateToast,
+    dismissAdminUpdateToast,
     setShowMT5SignalWebView: setShowMT5SignalWebViewCallback,
     setMT5Signal: setMT5SignalCallback,
     setMT5TradeOverlayMessage: setMT5TradeOverlayMessageCallback,
@@ -3319,7 +3354,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     pausePolling, resumePolling, resumePollingAfterChartWarmup, setUser, addEA, removeEA, setActiveEA, setMTAccount, setMT4Account,
     setMT5Account, setMt5LotSizingMode, setIsFirstTime, activateSymbol, activateMT4Symbol, activateMT5Symbol,
     deactivateSymbol, deactivateMT4Symbol, deactivateMT5Symbol, setBotActive, requestOverlayPermission,
-    startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal,
+    startSignalsMonitoring, stopSignalsMonitoring, clearSignalLogs, dismissNewSignal, showAdminUpdateToast, dismissAdminUpdateToast,
     setShowMT5SignalWebViewCallback, setMT5SignalCallback, setMT5TradeOverlayMessageCallback, markTradeExecuted,
     isSymbolConfiguredForTrading
   ]);

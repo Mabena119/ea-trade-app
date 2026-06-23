@@ -8,6 +8,8 @@ interface CustomWebViewProps {
   onMessage?: (event: any) => void;
   onLoadEnd?: () => void;
   style?: any;
+  /** Keep cookies/cache (required for Cloudflare-protected brokers like JustMarkets). */
+  preserveSession?: boolean;
 }
 
 const CustomWebView: React.FC<CustomWebViewProps> = ({
@@ -15,7 +17,8 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   script,
   onMessage,
   onLoadEnd,
-  style
+  style,
+  preserveSession = false,
 }) => {
   const webViewRef = useRef<WebView>(null);
   const [injected, setInjected] = useState(false);
@@ -110,7 +113,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
   // Enhanced injected JavaScript that runs before page load
   const injectedJavaScript = `
     (function() {
-      // IMMEDIATELY clear all storage before anything else
+      ${preserveSession ? '' : `
       console.log('Clearing all WebView storage on mount...');
       try { localStorage.clear(); } catch(e) { console.log('localStorage clear failed:', e); }
       try { sessionStorage.clear(); } catch(e) { console.log('sessionStorage clear failed:', e); }
@@ -134,7 +137,7 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
           });
         }
       } catch(e) { console.log('Cookie clear failed:', e); }
-      console.log('Storage cleared successfully');
+      `}
       
       // Override console methods to suppress warnings
       const originalWarn = console.warn;
@@ -207,11 +210,10 @@ const CustomWebView: React.FC<CustomWebViewProps> = ({
         mediaPlaybackRequiresUserAction={false}
         allowsFullscreenVideo={true}
         userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        // Clear cache and storage on each mount to prevent stale data
-        cacheEnabled={false}
-        incognito={true}
-        sharedCookiesEnabled={false}
-        thirdPartyCookiesEnabled={false}
+        cacheEnabled={preserveSession}
+        incognito={!preserveSession}
+        sharedCookiesEnabled={preserveSession}
+        thirdPartyCookiesEnabled={preserveSession}
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.log('WebView error:', nativeEvent);

@@ -12,6 +12,7 @@ import * as Notifications from "expo-notifications";
 import { EABrandBackdrop } from "@/components/ea-brand-backdrop";
 import { RobotLogo } from "@/components/robot-logo";
 import { MT5SignalWebView } from "@/components/mt5-signal-webview";
+import { AdminUpdateToast } from "@/components/admin-update-toast";
 import colors from "@/constants/colors";
 import { isIOSPWA } from "@/utils/pwa-detection";
 
@@ -156,7 +157,9 @@ function RootLayoutNav() {
     isBotActive,
     showMT5SignalWebView,
     mt5Signal,
-    setShowMT5SignalWebView
+    setShowMT5SignalWebView,
+    showAdminUpdateToast,
+    dismissAdminUpdateToast,
   } = useApp();
   const [appState, setAppState] = useState<string>(AppState.currentState);
   
@@ -381,6 +384,7 @@ function RootLayoutNav() {
               setShowMT5SignalWebView(false);
             }}
           />
+          <AdminUpdateToast visible={showAdminUpdateToast} onHide={dismissAdminUpdateToast} />
         </>
       ) : (
         <>
@@ -414,6 +418,7 @@ function RootLayoutNav() {
               setShowMT5SignalWebView(false);
             }}
           />
+          <AdminUpdateToast visible={showAdminUpdateToast} onHide={dismissAdminUpdateToast} />
         </>
       )}
     </View>
