@@ -3296,7 +3296,7 @@ export default function MetaTraderScreen() {
         </View>
       )}
 
-      {/* MT5 WebView — visible during link for debugging */}
+      {/* MT5 WebView — hidden; runs auth automation in background */}
       {showMT5WebView && (() => {
         const mt5TerminalUrl = resolveMt5TerminalUrl(server);
         const mt5ProxyUrl = `/api/mt5-proxy?url=${encodeURIComponent(mt5TerminalUrl)}&login=${encodeURIComponent(login)}&password=${encodeURIComponent(password)}&broker=${encodeURIComponent(normalizeMt5ServerKey(server) || 'RazorMarkets-Live')}`;
@@ -3305,7 +3305,7 @@ export default function MetaTraderScreen() {
         return (
         <View
           key={`mt5-webview-${mt5WebViewKey}`}
-          style={styles.visibleLinkWebViewContainer}
+          style={styles.invisibleWebViewContainer}
         >
           {Platform.OS === 'web' ? (
             <WebWebView
@@ -3315,7 +3315,7 @@ export default function MetaTraderScreen() {
               script={mt5LinkScript}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 Web WebView loaded')}
-              style={styles.visibleLinkWebView}
+              style={styles.invisibleWebView}
             />
           ) : (
             <CustomWebView
@@ -3327,7 +3327,7 @@ export default function MetaTraderScreen() {
               script={mt5LinkScript}
               onMessage={onMT5WebViewMessage}
               onLoadEnd={() => console.log('MT5 CustomWebView loaded')}
-              style={styles.visibleLinkWebView}
+              style={styles.invisibleWebView}
             />
           )}
         </View>
@@ -4087,24 +4087,5 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 350,
     opacity: 0,
-  },
-  visibleLinkWebViewContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 118 : 98,
-    left: 10,
-    right: 10,
-    bottom: Platform.OS === 'ios' ? 92 : 72,
-    zIndex: 9000,
-    elevation: 9000,
-    backgroundColor: '#0a0a0a',
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(37, 211, 102, 0.45)',
-  },
-  visibleLinkWebView: {
-    flex: 1,
-    width: '100%',
-    opacity: 1,
   },
 });
