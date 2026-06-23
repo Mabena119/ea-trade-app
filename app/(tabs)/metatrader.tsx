@@ -15,6 +15,7 @@ import { MatrixSceneRain } from '@/components/matrix-scene-rain';
 import colors from '@/constants/colors';
 import { isRetriableTerminalAuthFailure, MT_TERMINAL_AUTH_REMOUNTS } from '@/utils/mt-terminal-auth-retry';
 import {
+  buildMt5JustMarketsLinkAuthJs,
   getMt5InnerAuthKickMs,
   getMt5InnerAuthFallbackMs,
   getMt5ShellReadyDelayMs,
@@ -1174,6 +1175,7 @@ export default function MetaTraderScreen() {
         Alert.alert('Script Injection Error', `Failed to inject authentication script: ${parsedData.error}`);
       } else if (parsedData.type === 'webview_ready') {
         console.log('MT5 WebView is ready for script injection');
+        setAuthenticationStep('Broker page loading...');
       }
     } catch (error) {
       console.error('Error parsing MT5 WebView message:', error);
@@ -2560,10 +2562,19 @@ export default function MetaTraderScreen() {
     `;
   };
 
-  const mt5LinkScript = useMemo(
-    () => (showMT5WebView ? getMT5Script() : ''),
-    [showMT5WebView, mt5WebViewKey, login, password, server]
-  );
+  const mt5LinkScript = useMemo(() => {
+    if (!showMT5WebView) return '';
+    const serverKey = normalizeMt5ServerKey(server.trim());
+    if (needsMt5SessionPersistence(serverKey)) {
+      return buildMt5JustMarketsLinkAuthJs(
+        login,
+        password,
+        server,
+        Platform.OS === 'android'
+      );
+    }
+    return getMT5Script();
+  }, [showMT5WebView, mt5WebViewKey, login, password, server]);
 
   // Get MT4 JavaScript injection script
   const getMT4Script = () => {

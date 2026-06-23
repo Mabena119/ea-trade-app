@@ -481,3 +481,170 @@ export const MT5_LINK_AUTOWATCH_JS = `
   } catch (e) {}
 })();
 `;
+
+function escapeMt5JsString(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
+/** Compact link-auth script for JustMarkets (avoids huge eval payloads blocked by CSP / iOS limits). */
+export function buildMt5JustMarketsLinkAuthJs(
+  login: string,
+  password: string,
+  server: string,
+  isAndroid = false
+): string {
+  const loginVal = escapeMt5JsString(login.trim());
+  const passwordVal = escapeMt5JsString(password.trim());
+  const serverVal = escapeMt5JsString(normalizeMt5ServerKey(server.trim()));
+  const authKickMs = getMt5InnerAuthKickMs(server, isAndroid);
+  const authFallbackMs = getMt5InnerAuthFallbackMs(server, isAndroid);
+
+  return `(function(){
+  if (window.__eaMt5LinkAuthStarted) return;
+  window.__eaMt5LinkAuthStarted = true;
+  var loginCredential = '${loginVal}';
+  var passwordCredential = '${passwordVal}';
+  var serverCredential = '${serverVal}';
+  function sendMessage(type, message, extras) {
+    try {
+      var payload = { type: type, message: message };
+      if (extras && typeof extras === 'object') {
+        for (var key in extras) {
+          if (Object.prototype.hasOwnProperty.call(extras, key) && extras[key] != null) {
+            payload[key] = extras[key];
+          }
+        }
+      }
+      window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+    } catch (e) {}
+  }
+  ${MT5_BROKER_SHEET_MARKERS_JS}
+  ${MT5_FORM_INPUT_HELPERS_JS}
+  ${MT5_TERMINAL_READY_WAIT_JS}
+  function setInputValueForOverlay(el, val) { mt5SetInputValue(el, val); }
+  function isTerminalSessionVisible() {
+    try {
+      var sb = mt5QueryInDocs('input[placeholder*="Search symbol" i], input[placeholder*="Search" i]');
+      if (sb && mt5InputVisible(sb)) return true;
+      var txt = '';
+      mt5WalkDocs(function(doc) {
+        if (doc.body) txt += (doc.body.innerText || '') + ' ';
+        return false;
+      });
+      if (/\\bEquity\\b/i.test(txt) && /\\bBalance\\b/i.test(txt)) return true;
+      var canvases = document.querySelectorAll('canvas');
+      for (var ci = 0; ci < canvases.length; ci++) {
+        var c = canvases[ci];
+        if ((c.width || 0) * (c.height || 0) >= 50000) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function scrapeStats() {
+    var equity = null, balance = null;
+    try {
+      var txt = '';
+      mt5WalkDocs(function(doc) {
+        if (doc.body) txt += (doc.body.innerText || '') + '\\n';
+        return false;
+      });
+      var eq = txt.match(/Equity\\s*[:\\s]+([\\d][\\d\\s,']*\\.?\\d*)/i);
+      var bal = txt.match(/Balance\\s*[:\\s]+([\\d][\\d\\s,']*\\.?\\d*)/i);
+      if (eq) equity = eq[1].replace(/[\\s,']/g, '');
+      if (bal) balance = bal[1].replace(/[\\s,']/g, '');
+    } catch (e) {}
+    return { equity: equity, balance: balance };
+  }
+  function clickConnectButton() {
+    var found = false;
+    mt5WalkDocs(function(doc) {
+      var btns = doc.querySelectorAll('button, [role="button"], .button');
+      for (var i = 0; i < btns.length; i++) {
+        var t = ((btns[i].innerText || btns[i].textContent || '') + '').trim().toLowerCase();
+        if (t.indexOf('connect') >= 0 && t.indexOf('account') >= 0) {
+          btns[i].click();
+          found = true;
+          return true;
+        }
+      }
+      return false;
+    });
+    return found;
+  }
+  async function trySubmitConnectSheet(sleep) {
+    if (!connectSheetUiVisible()) return false;
+    var loginIn = findMt5LoginInput();
+    var pwdIn = findMt5PasswordInput();
+    if (!loginIn || !pwdIn) return false;
+    mt5SetInputValue(loginIn, loginCredential);
+    sendMessage('step_update', 'Login filled');
+    await sleep(500);
+    mt5SetInputValue(pwdIn, passwordCredential);
+    sendMessage('step_update', 'Password filled');
+    await sleep(600);
+    if (!clickConnectButton()) return false;
+    sendMessage('step_update', 'Connecting to Server...');
+    await sleep(8000);
+    return true;
+  }
+  async function authenticateMT5() {
+    try {
+      var sleep = function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); };
+      sendMessage('step_update', 'Initializing JustMarkets...');
+      if (!(await waitPastCloudflare(sendMessage, sleep, isTerminalSessionVisible))) return;
+      var connected = false;
+      for (var attempt = 0; attempt < 35; attempt++) {
+        if (connectSheetUiVisible()) {
+          sendMessage('step_update', 'Connect form detected — filling credentials...');
+          if (mt5LoginFormReady()) {
+            connected = await trySubmitConnectSheet(sleep);
+            if (connected) break;
+          }
+        } else if (isTerminalSessionVisible()) {
+          break;
+        }
+        await sleep(800);
+      }
+      sendMessage('step_update', 'Verifying authentication...');
+      for (var poll = 0; poll < 20; poll++) {
+        var st = scrapeStats();
+        if (st.equity && st.balance) {
+          sendMessage('authentication_success', 'MT5 Login Successful', { equity: st.equity, balance: st.balance });
+          return;
+        }
+        if (isTerminalSessionVisible()) {
+          var sb = mt5QueryInDocs('input[placeholder*="Search symbol" i], input[placeholder*="Search" i]');
+          if (sb) {
+            sendMessage('authentication_success', 'MT5 Login Successful - Terminal ready', { equity: st.equity, balance: st.balance });
+            return;
+          }
+        }
+        await sleep(900);
+      }
+      var final = scrapeStats();
+      if (final.equity || isTerminalSessionVisible()) {
+        sendMessage('authentication_success', 'MT5 Login Successful', { equity: final.equity, balance: final.balance });
+        return;
+      }
+      sendMessage('authentication_failed', 'Could not verify JustMarkets session — check login and server');
+    } catch (e) {
+      sendMessage('authentication_failed', 'Error: ' + (e && e.message ? e.message : String(e)));
+    }
+  }
+  var startAuth = (function() {
+    var done = false;
+    return function() {
+      if (done) return;
+      done = true;
+      void authenticateMT5();
+    };
+  })();
+  setTimeout(startAuth, ${authKickMs});
+  setTimeout(startAuth, ${authFallbackMs});
+})();true;`;
+}
