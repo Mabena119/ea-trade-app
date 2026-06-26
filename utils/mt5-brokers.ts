@@ -52,6 +52,7 @@ export const MT5_BROKER_URLS: Record<string, string> = {
   'JustMarkets-Demo': 'https://demo.justmarkets.com/terminal',
   'JustMarkets-Demo2': 'https://demo2.justmarkets.com/terminal',
   'JPMarkets-Live': 'https://web.jpmarkets.co.za/terminal',
+  'VaultMarkets-Live': 'https://web.vaultmarkets.trade/terminal',
 };
 
 /** Picker list: one entry per terminal URL (no JustMarketsSC duplicates). */

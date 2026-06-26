@@ -3882,6 +3882,8 @@ const server = Bun.serve({
           'live2': 'https://live2.justmarkets.com',
           'jpmarkets-live': 'https://web.jpmarkets.co.za',
           'jpmarkets': 'https://web.jpmarkets.co.za',
+          'vaultmarkets-live': 'https://web.vaultmarkets.trade',
+          'vaultmarkets': 'https://web.vaultmarkets.trade',
         };
 
         // Try to detect broker from query param first
