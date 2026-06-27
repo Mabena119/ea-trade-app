@@ -47,15 +47,11 @@ export const MT5_BROKER_URLS: Record<string, string> = {
   'Exness-MT5Real24': 'https://mt5real24.exwebterm.com/terminal',
   'Weltrade-Real': 'https://mt5.real.weltrade.com/terminal',
   'Weltrade-Demo': 'https://mt5.demo.weltrade.com/terminal',
-  'JustMarkets-Live': 'https://live.justmarkets.com/terminal',
-  'JustMarkets-Live2': 'https://live2.justmarkets.com/terminal',
-  'JustMarkets-Demo': 'https://demo.justmarkets.com/terminal',
-  'JustMarkets-Demo2': 'https://demo2.justmarkets.com/terminal',
   'JPMarkets-Live': 'https://web.jpmarkets.co.za/terminal',
   'VaultMarkets-Live': 'https://web.vaultmarkets.trade/terminal',
 };
 
-/** Picker list: one entry per terminal URL (no JustMarketsSC duplicates). */
+/** Picker list: one entry per terminal URL. */
 export const MT5_BROKERS = (() => {
   const seenUrls = new Set<string>();
   const list: string[] = [];
@@ -68,38 +64,10 @@ export const MT5_BROKERS = (() => {
   return list;
 })();
 
-/** User-typed or MT5-desktop shorthand → canonical broker key */
-const MT5_SERVER_ALIASES: Record<string, string> = {
-  live2: 'JustMarkets-Live2',
-  live: 'JustMarkets-Live',
-  demo2: 'JustMarkets-Demo2',
-  demo: 'JustMarkets-Demo',
-  'justmarkets-live2': 'JustMarkets-Live2',
-  'justmarkets-live': 'JustMarkets-Live',
-  'justmarkets-demo2': 'JustMarkets-Demo2',
-  'justmarkets-demo': 'JustMarkets-Demo',
-  'justmarketsc-live2': 'JustMarkets-Live2',
-  'justmarketsc-live': 'JustMarkets-Live',
-  'justmarketsc-demo2': 'JustMarkets-Demo2',
-  'justmarketsc-demo': 'JustMarkets-Demo',
-};
-
 export function normalizeMt5ServerKey(server: string): string {
   const trimmed = (server || '').trim();
   if (!trimmed) return '';
-  if (/^JustMarketsSC-/i.test(trimmed)) {
-    return trimmed.replace(/^JustMarketsSC-/i, 'JustMarkets-');
-  }
   if (MT5_BROKER_URLS[trimmed]) return trimmed;
-
-  const compact = trimmed.toLowerCase().replace(/\s+/g, '');
-  if (MT5_SERVER_ALIASES[compact]) return MT5_SERVER_ALIASES[compact];
-
-  if (/justmarkets?sc?[-_]?live2/i.test(trimmed)) return 'JustMarkets-Live2';
-  if (/justmarkets?sc?[-_]?live(?!2)/i.test(trimmed)) return 'JustMarkets-Live';
-  if (/justmarkets?sc?[-_]?demo2/i.test(trimmed)) return 'JustMarkets-Demo2';
-  if (/justmarkets?sc?[-_]?demo(?!2)/i.test(trimmed)) return 'JustMarkets-Demo';
-
   return trimmed;
 }
 
@@ -108,20 +76,19 @@ export function resolveMt5TerminalUrl(server: string): string {
   return MT5_BROKER_URLS[key] || MT5_BROKER_URLS['RazorMarkets-Live'];
 }
 
-/** Brokers whose terminal cannot be server-proxied (Cloudflare blocks fetch → 403). Load direct URL instead. */
-export function isMt5ProxyBlockedBroker(server: string): boolean {
-  return resolveMt5TerminalUrl(server).toLowerCase().includes('justmarkets.com');
+/** @deprecated no Cloudflare-blocked brokers in the picker; kept for call-site compatibility */
+export function isMt5ProxyBlockedBroker(_server: string): boolean {
+  return false;
 }
 
-/** Link/trade WebView URL: proxy on web for normal brokers; direct terminal URL when proxy would 403. */
+/** Link/trade WebView URL: proxy on web; direct terminal URL on native. */
 export function resolveMt5LinkWebViewUrl(
   server: string,
   platformOs: string,
   proxyPath: string
 ): string {
-  const terminalUrl = resolveMt5TerminalUrl(server);
-  if (platformOs !== 'web' || isMt5ProxyBlockedBroker(server)) {
-    return terminalUrl;
+  if (platformOs !== 'web') {
+    return resolveMt5TerminalUrl(server);
   }
   return proxyPath;
 }
@@ -253,21 +220,15 @@ export function getMt5LinkShellProbeJs(generation: number, maxWaitMs: number): s
 export const MT5_BROKER_SHEET_MARKERS_JS = `
 function pageHasBrokerAccountsSheet(bt) {
   return bt.indexOf('Trading accounts') >= 0 ||
-    bt.indexOf('Razor Markets') >= 0 ||
-    bt.indexOf('Just Markets') >= 0 ||
-    bt.indexOf('JustMarkets') >= 0 ||
-    bt.indexOf('Just Global Markets') >= 0;
+    bt.indexOf('Razor Markets') >= 0;
 }
 function overlayHasBrokerAccountsText(txt) {
   return txt.indexOf('Trading accounts') >= 0 ||
-    txt.indexOf('Razor Markets') >= 0 ||
-    txt.indexOf('Just Markets') >= 0 ||
-    txt.indexOf('JustMarkets') >= 0 ||
-    txt.indexOf('Just Global Markets') >= 0;
+    txt.indexOf('Razor Markets') >= 0;
 }
 `;
 
-/** Shared login/password field discovery (JustMarkets uses placeholder-only inputs). */
+/** Shared login/password field discovery. */
 export const MT5_FORM_INPUT_HELPERS_JS = `
 function mt5WalkDocs(scan) {
   try {

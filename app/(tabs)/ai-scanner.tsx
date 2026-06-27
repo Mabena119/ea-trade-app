@@ -105,6 +105,7 @@ export default function AIScannerScreen() {
   const [history, setHistory] = useState<ScannerHistoryItem[]>([]);
   const [uploadCount, setUploadCount] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+  const prevScannerRef = useRef<boolean | null>(null);
 
   const scrollToHistory = useCallback(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
@@ -204,6 +205,12 @@ export default function AIScannerScreen() {
 
   const handleBack = () => router.back();
 
+  const applyScannerUnlockReset = useCallback(async () => {
+    await AsyncStorage.setItem(SCANNER_UPLOAD_COUNT_KEY, '0');
+    setUploadCount(0);
+    resetScannerSessionState();
+  }, [resetScannerSessionState]);
+
   const handleUploadLimitReached = useCallback(async () => {
     resetScannerSessionState();
     setError(null);
@@ -211,10 +218,11 @@ export default function AIScannerScreen() {
     if (email) {
       await apiService.revokeScannerAccess(email);
     }
+    prevScannerRef.current = false;
     setScannerUnlocked(false);
     Alert.alert(
-      'Uploads complete',
-      `You have used all ${MAX_UPLOADS} chart uploads. Unlock the AI Scanner again to start a new batch.`,
+      '20 scans used',
+      `You have used all ${MAX_UPLOADS} chart scans. Pay to unlock another batch of ${MAX_UPLOADS} scans.`,
       [{ text: 'OK' }]
     );
   }, [getUserEmail, resetScannerSessionState]);
@@ -222,17 +230,26 @@ export default function AIScannerScreen() {
   const checkScanner = useCallback(async () => {
     const email = await getUserEmail();
     if (!email) {
+      prevScannerRef.current = false;
       setScannerUnlocked(false);
       return;
     }
     const { scanner } = await apiService.getScannerStatus(email);
-    if (scannerUnlocked === false && scanner) {
-      await AsyncStorage.setItem(SCANNER_UPLOAD_COUNT_KEY, '0');
-      setUploadCount(0);
-      resetScannerSessionState();
+    const nowUnlocked = Boolean(scanner);
+
+    if (nowUnlocked) {
+      const countRaw = await AsyncStorage.getItem(SCANNER_UPLOAD_COUNT_KEY);
+      const count = parseInt(countRaw || '0', 10);
+      const wasLocked = prevScannerRef.current === false;
+      const batchExhausted = count >= MAX_UPLOADS;
+      if (wasLocked || batchExhausted) {
+        await applyScannerUnlockReset();
+      }
     }
-    setScannerUnlocked(scanner);
-  }, [getUserEmail, scannerUnlocked, resetScannerSessionState]);
+
+    prevScannerRef.current = nowUnlocked;
+    setScannerUnlocked(nowUnlocked);
+  }, [getUserEmail, applyScannerUnlockReset]);
 
   useEffect(() => {
     checkScanner();
@@ -247,6 +264,14 @@ export default function AIScannerScreen() {
       loadUploadCount();
     }, [checkScanner, loadHistory, loadUploadCount])
   );
+
+  useEffect(() => {
+    if (scannerUnlocked !== false) return;
+    const interval = setInterval(() => {
+      checkScanner();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [scannerUnlocked, checkScanner]);
 
   const handleUnlockPress = async () => {
     const email = await getUserEmail();
@@ -558,6 +583,7 @@ export default function AIScannerScreen() {
 
   const isLocked = scannerUnlocked === false;
   const uploadsComplete = isLocked && uploadCount >= MAX_UPLOADS;
+  const scansRemaining = Math.max(0, MAX_UPLOADS - uploadCount);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]}>
@@ -706,15 +732,15 @@ export default function AIScannerScreen() {
         {/* Analyze button */}
         {imageUri && (
           <>
-            {uploadCount < MAX_UPLOADS && (
+            {scannerUnlocked && uploadCount < MAX_UPLOADS && (
               <Text style={[styles.uploadCountText, { color: theme.colors.textMuted }]}>
-                {uploadCount} of {MAX_UPLOADS} uploads used
+                {uploadCount} of {MAX_UPLOADS} scans used ({scansRemaining} remaining)
               </Text>
             )}
-            {uploadCount >= MAX_UPLOADS && (
+            {scannerUnlocked && uploadCount >= MAX_UPLOADS && (
               <View style={[styles.limitBanner, { backgroundColor: `${theme.colors.warning}22`, borderColor: theme.colors.warning }]}>
                 <Text style={[styles.limitBannerText, { color: theme.colors.warning }]}>
-                  Uploads are done ({uploadCount}/{MAX_UPLOADS}). Unlock again to continue scanning.
+                  All {MAX_UPLOADS} scans used — pay to unlock another batch.
                 </Text>
               </View>
             )}
@@ -722,10 +748,10 @@ export default function AIScannerScreen() {
               style={[
                 styles.analyzeButton,
                 { backgroundColor: theme.colors.accent },
-                uploadCount >= MAX_UPLOADS && styles.analyzeButtonDisabled,
+                (uploadCount >= MAX_UPLOADS || isLocked) && styles.analyzeButtonDisabled,
               ]}
               onPress={analyzeChart}
-              disabled={analyzing || uploadCount >= MAX_UPLOADS}
+              disabled={analyzing || uploadCount >= MAX_UPLOADS || isLocked}
               activeOpacity={0.8}
             >
               {analyzing ? (
@@ -966,9 +992,9 @@ export default function AIScannerScreen() {
               <Lock color={theme.colors.onAccent} size={28} strokeWidth={2.5} />
               {uploadsComplete ? (
                 <>
-                  <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>UPLOADS COMPLETE</Text>
+                  <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>20 SCANS USED</Text>
                   <Text style={[styles.unlockButtonSubtext, { color: theme.colors.onAccent, opacity: 0.9 }]}>
-                    All {MAX_UPLOADS} chart uploads are done. Tap to unlock again.
+                    You used all {MAX_UPLOADS} scans. Tap to pay and start a new batch.
                   </Text>
                 </>
               ) : (

@@ -15,7 +15,7 @@ interface CustomWebViewProps {
   style?: any;
   /** Wait after each load before injecting automation. */
   postLoadDelayMs?: number;
-  /** Direct terminal URL (e.g. JustMarkets): preserve Cloudflare session, retry inject across redirects. */
+  /** Direct terminal URL on native: preserve session, retry inject across redirects. */
   directTerminalLoad?: boolean;
   /** Broker server key for shell-probe tuning. */
   brokerServer?: string;
