@@ -252,26 +252,31 @@ export default function AIScannerScreen() {
   }, [getUserEmail, applyScannerUnlockReset]);
 
   useEffect(() => {
-    checkScanner();
-    loadHistory();
-    loadUploadCount();
+    void (async () => {
+      await checkScanner();
+      await loadHistory();
+      await loadUploadCount();
+    })();
   }, [checkScanner, loadHistory, loadUploadCount]);
 
   useFocusEffect(
     useCallback(() => {
-      checkScanner();
-      loadHistory();
-      loadUploadCount();
+      void (async () => {
+        await checkScanner();
+        await loadHistory();
+        await loadUploadCount();
+      })();
     }, [checkScanner, loadHistory, loadUploadCount])
   );
 
   useEffect(() => {
     if (scannerUnlocked !== false) return;
+    const pollMs = uploadCount >= MAX_UPLOADS ? 2500 : 5000;
     const interval = setInterval(() => {
-      checkScanner();
-    }, 5000);
+      void checkScanner();
+    }, pollMs);
     return () => clearInterval(interval);
-  }, [scannerUnlocked, checkScanner]);
+  }, [scannerUnlocked, uploadCount, checkScanner]);
 
   const handleUnlockPress = async () => {
     const email = await getUserEmail();
