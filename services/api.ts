@@ -231,8 +231,8 @@ class ApiService {
     if (!email) return { scanner: false };
     try {
       const res = await fetch(
-        `${BASE_URL}/api/scanner-status?email=${encodeURIComponent(email)}`,
-        { method: 'GET' }
+        `${BASE_URL}/api/scanner-status?email=${encodeURIComponent(email)}&_=${Date.now()}`,
+        { method: 'GET', cache: 'no-store' }
       );
       const data = (await res.json()) as { scanner?: boolean };
       return { scanner: Boolean(data.scanner) };

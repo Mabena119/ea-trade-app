@@ -12,6 +12,7 @@ import {
   Platform,
   Alert,
   InteractionManager,
+  AppState,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -47,7 +48,7 @@ import { getTradeModeForAnalysis, resolveConfiguredTradeSymbol } from '@/utils/t
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
 const SCANNER_UPLOAD_COUNT_KEY = 'ai-scanner-upload-count';
 const MAX_HISTORY = 5;
-const MAX_UPLOADS = 3;
+const MAX_UPLOADS = 20;
 
 /** Builds the same `SignalLog` shape the signal monitor uses, so MT5 execution runs the same path. */
 function buildSignalFromScanner(
@@ -144,16 +145,6 @@ export default function AIScannerScreen() {
     }
   }, []);
 
-  const loadUploadCount = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem(SCANNER_UPLOAD_COUNT_KEY);
-      const n = parseInt(raw || '0', 10);
-      setUploadCount(isNaN(n) ? 0 : n);
-    } catch {
-      setUploadCount(0);
-    }
-  }, []);
-
   const saveToHistory = useCallback(
     async (imageUri: string, imageBase64: string | null, result: ChartAnalysisResult): Promise<number> => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -211,6 +202,14 @@ export default function AIScannerScreen() {
     resetScannerSessionState();
   }, [resetScannerSessionState]);
 
+  const handleUnlockPress = useCallback(async () => {
+    const email = await getUserEmail();
+    router.push({
+      pathname: '/ai-payment',
+      params: email ? { email } : {},
+    });
+  }, [getUserEmail]);
+
   const handleUploadLimitReached = useCallback(async () => {
     resetScannerSessionState();
     setError(null);
@@ -221,11 +220,14 @@ export default function AIScannerScreen() {
     prevScannerRef.current = false;
     setScannerUnlocked(false);
     Alert.alert(
-      `${MAX_UPLOADS} scans used`,
+      'Scans depleted',
       `You have used all ${MAX_UPLOADS} chart scans. Pay to unlock another batch of ${MAX_UPLOADS} scans.`,
-      [{ text: 'OK' }]
+      [
+        { text: 'Later', style: 'cancel' },
+        { text: 'Pay now', onPress: () => void handleUnlockPress() },
+      ]
     );
-  }, [getUserEmail, resetScannerSessionState]);
+  }, [getUserEmail, resetScannerSessionState, handleUnlockPress]);
 
   const checkScanner = useCallback(async () => {
     const email = await getUserEmail();
@@ -234,39 +236,53 @@ export default function AIScannerScreen() {
       setScannerUnlocked(false);
       return;
     }
+
+    const countRaw = await AsyncStorage.getItem(SCANNER_UPLOAD_COUNT_KEY);
+    const count = Math.max(0, parseInt(countRaw || '0', 10) || 0);
+
     const { scanner } = await apiService.getScannerStatus(email);
     const nowUnlocked = Boolean(scanner);
+    const wasLocked = prevScannerRef.current === false;
 
-    if (nowUnlocked) {
-      const countRaw = await AsyncStorage.getItem(SCANNER_UPLOAD_COUNT_KEY);
-      const count = parseInt(countRaw || '0', 10);
-      const wasLocked = prevScannerRef.current === false;
-      const batchExhausted = count >= MAX_UPLOADS;
-      if (wasLocked || batchExhausted) {
-        await applyScannerUnlockReset();
-      }
+    if (!nowUnlocked) {
+      prevScannerRef.current = false;
+      setScannerUnlocked(false);
+      setUploadCount(count);
+      return;
     }
 
-    prevScannerRef.current = nowUnlocked;
-    setScannerUnlocked(nowUnlocked);
+    const paymentUnlock = wasLocked;
+    const batchReset = count >= MAX_UPLOADS;
+    if (paymentUnlock || batchReset) {
+      await applyScannerUnlockReset();
+      if (paymentUnlock) {
+        Alert.alert(
+          'Scanner unlocked',
+          `Payment confirmed. You have ${MAX_UPLOADS} new chart scans ready.`
+        );
+      }
+    } else {
+      setUploadCount(count);
+    }
+
+    prevScannerRef.current = true;
+    setScannerUnlocked(true);
   }, [getUserEmail, applyScannerUnlockReset]);
 
   useEffect(() => {
     void (async () => {
       await checkScanner();
       await loadHistory();
-      await loadUploadCount();
     })();
-  }, [checkScanner, loadHistory, loadUploadCount]);
+  }, [checkScanner, loadHistory]);
 
   useFocusEffect(
     useCallback(() => {
       void (async () => {
         await checkScanner();
         await loadHistory();
-        await loadUploadCount();
       })();
-    }, [checkScanner, loadHistory, loadUploadCount])
+    }, [checkScanner, loadHistory])
   );
 
   useEffect(() => {
@@ -278,13 +294,14 @@ export default function AIScannerScreen() {
     return () => clearInterval(interval);
   }, [scannerUnlocked, uploadCount, checkScanner]);
 
-  const handleUnlockPress = async () => {
-    const email = await getUserEmail();
-    router.push({
-      pathname: '/ai-payment',
-      params: email ? { email } : {},
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && scannerUnlocked === false) {
+        void checkScanner();
+      }
     });
-  };
+    return () => sub.remove();
+  }, [scannerUnlocked, checkScanner]);
 
   /** Android returns content:// from the gallery; copy to app cache with correct extension so the manipulator can read it. */
   const ensureReadableImageUri = async (uri: string, mimeType?: string | null): Promise<string> => {
@@ -372,6 +389,10 @@ export default function AIScannerScreen() {
   };
 
   const pickImage = async () => {
+    if (scannerUnlocked === false) {
+      await handleUnlockPress();
+      return;
+    }
     setError(null);
     setResult(null);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -408,6 +429,10 @@ export default function AIScannerScreen() {
   };
 
   const takePhoto = async () => {
+    if (scannerUnlocked === false) {
+      await handleUnlockPress();
+      return;
+    }
     setError(null);
     setResult(null);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -438,6 +463,10 @@ export default function AIScannerScreen() {
   };
 
   const analyzeChart = async () => {
+    if (scannerUnlocked === false) {
+      await handleUnlockPress();
+      return;
+    }
     if (!imageBase64) {
       setError('Please upload a chart image first.');
       return;
