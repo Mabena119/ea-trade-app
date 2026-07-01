@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -12,20 +12,73 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, CreditCard, Scan } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/providers/theme-provider';
+import { useApp } from '@/providers/app-provider';
+import { apiService } from '@/services/api';
 
 const WHOP_CHECKOUT_URL = 'https://whop.com/checkout/plan_CN9y3j02PlLmN';
 const PAYSTACK_CHECKOUT_URL = 'https://paystack.shop/pay/204p1hwqij';
+const AI_SCANNER_ROUTE = '/(tabs)/ai-scanner';
 
 export default function AIPaymentScreen() {
   const { theme } = useTheme();
+  const { user } = useApp();
   const params = useLocalSearchParams<{ email?: string }>();
-  const email = (params.email || '').trim().toLowerCase();
+  const email = (params.email || user?.email || '').trim().toLowerCase();
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  const resolveEmail = useCallback(async (): Promise<string> => {
+    if (email) return email;
+    try {
+      const stored = await AsyncStorage.getItem('user');
+      if (stored) {
+        const parsed = JSON.parse(stored) as { email?: string };
+        return (parsed?.email || '').trim().toLowerCase();
+      }
+    } catch {
+      /* ignore */
+    }
+    return '';
+  }, [email]);
+
+  const returnToScanner = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace(AI_SCANNER_ROUTE);
+  }, []);
+
   const handleBack = () => {
-    router.back();
+    returnToScanner();
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const checkUnlock = async () => {
+        const resolvedEmail = await resolveEmail();
+        if (!resolvedEmail || cancelled) return;
+        const { scanner } = await apiService.getScannerStatus(resolvedEmail);
+        if (!cancelled && scanner) {
+          returnToScanner();
+        }
+      };
+
+      void checkUnlock();
+      const interval = setInterval(() => {
+        void checkUnlock();
+      }, 3000);
+
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }, [resolveEmail, returnToScanner])
+  );
 
   const buildPaystackUrl = () => {
     if (!email) return PAYSTACK_CHECKOUT_URL;
@@ -157,7 +210,7 @@ export default function AIPaymentScreen() {
       </View>
 
       <Text style={[styles.footerNote, { color: theme.colors.textMuted }]}>
-        After payment, tap back to return. Your access will unlock automatically once payment is confirmed.
+        After payment, tap back to return to the scanner. If you already paid, you will be redirected automatically.
       </Text>
     </SafeAreaView>
   );
