@@ -47,7 +47,7 @@ import { getTradeModeForAnalysis, resolveConfiguredTradeSymbol } from '@/utils/t
 const SCANNER_HISTORY_KEY = 'ai-scanner-history';
 const SCANNER_UPLOAD_COUNT_KEY = 'ai-scanner-upload-count';
 const MAX_HISTORY = 5;
-const MAX_UPLOADS = 20;
+const MAX_UPLOADS = 3;
 
 /** Builds the same `SignalLog` shape the signal monitor uses, so MT5 execution runs the same path. */
 function buildSignalFromScanner(
@@ -221,7 +221,7 @@ export default function AIScannerScreen() {
     prevScannerRef.current = false;
     setScannerUnlocked(false);
     Alert.alert(
-      '20 scans used',
+      `${MAX_UPLOADS} scans used`,
       `You have used all ${MAX_UPLOADS} chart scans. Pay to unlock another batch of ${MAX_UPLOADS} scans.`,
       [{ text: 'OK' }]
     );
@@ -997,7 +997,9 @@ export default function AIScannerScreen() {
               <Lock color={theme.colors.onAccent} size={28} strokeWidth={2.5} />
               {uploadsComplete ? (
                 <>
-                  <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>20 SCANS USED</Text>
+                  <Text style={[styles.unlockButtonText, { color: theme.colors.onAccent }]}>
+                    {MAX_UPLOADS} SCANS USED
+                  </Text>
                   <Text style={[styles.unlockButtonSubtext, { color: theme.colors.onAccent, opacity: 0.9 }]}>
                     You used all {MAX_UPLOADS} scans. Tap to pay and start a new batch.
                   </Text>
